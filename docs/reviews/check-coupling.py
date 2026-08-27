@@ -386,5 +386,11 @@ def main(path: pathlib.Path) -> int:
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else "docs/DESIGN.md"
+    # Default relative to THIS file, not the caller's cwd: the gate lives two levels
+    # below the repo root and must give the same verdict from wherever it is run.
+    # It previously defaulted to a cwd-relative path, so running it from the
+    # directory it lives in produced a FileNotFoundError traceback instead of a verdict.
+    arg = sys.argv[1] if len(sys.argv) > 1 else str(
+        pathlib.Path(__file__).resolve().parents[2] / "docs/DESIGN.md"
+    )
     sys.exit(main(pathlib.Path(arg)))

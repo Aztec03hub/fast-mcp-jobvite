@@ -11,7 +11,9 @@ import subprocess
 import sys
 import tempfile
 
-REPO = pathlib.Path("/home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite")
+# Derived from this file's location. It was hardcoded to one developer's home
+# directory, which is unrunnable for anyone else in a repository that ships public.
+REPO = pathlib.Path(__file__).resolve().parents[2]
 GATE = REPO / "docs/reviews/check-coupling.py"
 SRC = (REPO / "docs/DESIGN.md").read_text()
 
