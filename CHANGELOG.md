@@ -29,10 +29,10 @@ decisions and research that the implementation will be built against.
   row accounts for itself against the test list, with nineteen executable controls proving each
   check can fail. Wired into CI. (2026-08-27 05:30 PM CDT)
 
-
 - Design document scoping v1.0 to five Jobvite operations, with the module layout, error
-  contract, resilience model and testing strategy. Under adversarial review; frozen at
-  0C/0H/0M, after which only a numbered ADR may change it. (2026-08-27 02:23 PM CDT)
+  contract, resilience model and testing strategy. **Not frozen.** Four adversarial rounds have
+  run and the most recent recommended against freezing; the freeze rule is that a round must
+  return 0C/0H/0M first, after which only a numbered ADR may change it. (2026-08-27 02:23 PM CDT)
 - Decision log covering D1-D16, each recording what was decided and the evidence behind it.
   (2026-08-27 02:15 PM CDT)
 - Day-one credential checklist: the ordered observations that convert synthetic success
@@ -70,7 +70,6 @@ decisions and research that the implementation will be built against.
   measurably defaults every caller to one shared bucket. (2026-08-27 03:55 PM CDT)
 - Pagination now starts at zero and de-duplicates, after two earlier mechanisms were each wrong in
   a different direction. (2026-08-27 05:05 PM CDT)
-
 
 - Licence changed from MIT to Apache-2.0. MIT had been a default rather than a choice. A survey
   of all 187 repositories in the organisation found no house convention to follow - 174 carry no
