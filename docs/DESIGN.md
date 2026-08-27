@@ -431,6 +431,14 @@ rather than beside it, and the audit stream carries the same handling class as t
   just failed** - routing it down the channel whose failure it reports is how the record of the
   failure is lost too.
 
+  **What the caller receives, specified because "success with a warning" is not a shape:** the
+  normal success result, `is_error=False`, with a `warnings` array in its structured content naming
+  the audit failure. **Not a problem object.** §5.1 makes problem objects the primary channel for
+  expected *failures*, and this is not one - the write succeeded. Returning a problem object would
+  say the operation failed when it did not, and the caller's reasonable response to that is to
+  retry, which emails a second live candidate. Preventing exactly that is why this branch exists,
+  so its result shape must not reintroduce it.
+
 `mask_error_details=True` is set explicitly at construction; FastMCP defaults it to `False`,
 which sends the full text of any unhandled exception to the client. **Masking is client-facing
 only**: the full traceback still reaches the server log, so a credential is never interpolated
@@ -922,7 +930,13 @@ with limited activity in the critical path, and a silent hazard we would have in
 hazard rather than guarding it, so the module-confinement rule and its AST test in §8 are dropped
 as unnecessary.
 
-CI: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
+CI runs `python3 docs/reviews/check-coupling.py docs/DESIGN.md`, which enforces six properties of
+§11 against §8 and ships with eight positive controls proving each can fail. It costs milliseconds
+and it is the only thing standing between this document and a fifth wrong assertion that the threat
+model and the test list agree. A checker that has only ever passed is the same failure as the
+sentence it replaced.
+
+CI also runs: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
 in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output is emitted and
 **diffed between builds**, so capability drift arriving through a dependency bump is visible in
 review rather than at runtime. **UNVERIFIED:** that this actually catches the drift it is meant to
