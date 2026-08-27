@@ -7,6 +7,7 @@
 
 ## Table of Contents
 
+0. [Licensing and handling of sources](#0-licensing-and-handling-of-sources)
 1. [Confidence & Sources](#1-confidence--sources)
 2. [The headline finding: there is no public Jobvite API documentation](#2-the-headline-finding-there-is-no-public-jobvite-api-documentation)
 3. [API families and their status](#3-api-families-and-their-status)
@@ -30,6 +31,38 @@
 
 ---
 
+## 0. Licensing and handling of sources
+
+This repository is **public**, under a consulting org. That constrains what this report may contain and what may be committed next to it. Recording the decisions here so they are auditable.
+
+### 0.1 Nothing vendored
+
+**No source document is committed to `docs/research/`.** Two files were candidates and both were deliberately deleted rather than committed:
+
+| Candidate | Licence status | Decision |
+|---|---|---|
+| *Jobvite Data Services v3.5* (2014 PDF, recovered from the Wayback Machine) | **No redistribution grant.** Jobvite-authored and **stamped `CONFIDENTIAL - Jobvite Data Services` in the footer of all 8 pages.** | **NOT committed.** Linked in §1; retrieve from the Wayback URL. |
+| `raml-apis/Jobvite` RAML 0.8 | **No licence.** GitHub reports `license: null` and the repo contains no `LICENSE`/`COPYING` file, so default copyright applies and no redistribution right is granted. | **NOT committed.** Linked in §1. |
+
+`[ABSENT]` **No Jobvite OpenAPI/Swagger spec exists to license or vendor in the first place** (§17), so the "download it if the licence permits" branch of the brief never arose. **No licence was relied on to redistribute anything, because nothing was redistributed.**
+
+`Jobvite/APIConnectorSamples` also carries **no licence file**. Short excerpts are quoted below as evidence of API mechanics; the code is not copied into this repo.
+
+### 0.2 A judgement call the team should review
+
+The v1 sections (§12, §15.2) quote short passages from a document marked **CONFIDENTIAL**. My reasoning for quoting rather than paraphrasing: the brief requires verbatim evidence over paraphrase; the quotes are short and load-bearing; API parameter names, limits, and error codes are facts about an interface rather than creative expression; and the document was publicly served from `careers.jobvite.com` and publicly archived, i.e. it was not obtained from a customer tenant or any confidential channel.
+
+That is a judgement, not a licence. **If the team prefers zero verbatim text from a CONFIDENTIAL-marked document in a public repo, §12 and §15.2 can be reduced to fact tables with the quotes stripped, at the cost of evidentiary strength.** Flagging rather than deciding silently.
+
+### 0.3 Credentials and identifiers
+
+* **No real credential appears in this report.** I found a **live-looking Jobvite API key and secret hard-coded** in a public third-party repo (`sahil-kho/ats-integrations`, in `JobVite/jobvite_data_model_integrations.json` and `JobVite/jobvite_customer_integration_config.json`). Per instruction, the location is named and **the values are not reproduced**. Someone should consider notifying that repo's owner; the secret appears to belong to a Jobvite integration partner, not to us.
+* **No customer hostname, tenant, or company id appears.** No data was pulled from any customer tenant - I hold no Jobvite credential, so every live probe was unauthenticated and returned only auth-challenge errors.
+* Sample record ids and company ids drawn from vendor documentation examples are replaced with placeholders (`<companyId>`, `<processInstanceId>`, `<applicationId>`) even though they are vendor samples rather than customer data.
+* All probes were **unauthenticated GETs** (plus a handful of POSTs with an empty `{}` body that were rejected at the auth layer before reaching any handler). Nothing was created, modified, or read from any Jobvite account.
+
+---
+
 ## 1. Confidence & Sources
 
 Every line in this document carries one of four labels.
@@ -45,15 +78,15 @@ Every line in this document carries one of four labels.
 
 | Source | URL | Nature |
 |---|---|---|
-| Jobvite Data Services v3.5 (June 26, 2014) | `http://web.archive.org/web/20150319012741/http://careers.jobvite.com:80/careersites/JobviteWebServices.pdf` | `[OFFICIAL]` The only complete Jobvite-written API doc I could obtain. Covers **v1 only**. Saved locally as `jobvite-data-services-v3.5-2014.pdf`. The live URL `https://careers.jobvite.com/careersites/JobviteWebServices.pdf` now returns `text/html` (dead). |
+| Jobvite Data Services v3.5 (June 26, 2014) | `http://web.archive.org/web/20150319012741/http://careers.jobvite.com:80/careersites/JobviteWebServices.pdf` | `[OFFICIAL]` The only complete Jobvite-written API doc I could obtain. Covers **v1 only**. **Not vendored into this repo** - see [Licensing](#0-licensing-and-handling-of-sources). Retrieve it from the Wayback URL above. The live URL `https://careers.jobvite.com/careersites/JobviteWebServices.pdf` now returns `text/html` (dead). |
 | Jobvite/APIConnectorSamples | `https://github.com/Jobvite/APIConnectorSamples` | `[OFFICIAL]` Jobvite's own GitHub org. Java + C# samples for the encrypted `/api/v2/task` endpoint. Last pushed 2025-02-01. |
 | Live probes of `https://api.jobvite.com` | - | `[PROBE]` ~180 requests, 2026-08-27. |
-| raml-apis/Jobvite | `https://github.com/raml-apis/Jobvite/blob/master/api.raml` | `[INFERRED]` Third-party RAML 0.8 of the v1 API; matches the 2014 PDF closely enough to be a transcription of it. Saved as `jobvite-v1-api.raml`. |
+| raml-apis/Jobvite | `https://github.com/raml-apis/Jobvite/blob/master/api.raml` | `[INFERRED]` Third-party RAML 0.8 of the v1 API; matches the 2014 PDF closely enough to be a transcription of it. **Not vendored into this repo** (no licence - see [Licensing](#0-licensing-and-handling-of-sources)). |
 | kippnorcal/jobvite | `https://github.com/kippnorcal/jobvite/blob/master/jobvite.py` | `[INFERRED]` Working Python v2 client. Source of the header-auth mechanics. |
 | atipica/jobvite_api | `https://github.com/atipica/jobvite_api/blob/master/lib/jobvite_api/api/client.rb` | `[INFERRED]` Working Ruby v2 client (query-string auth era). |
 | jeremylivingston/jobvite | `https://github.com/jeremylivingston/jobvite/blob/master/src/Livingstn/Jobvite/Client.php` | `[INFERRED]` PHP v1 jobFeed client. Source of the staging hostname. |
 | frague/rm | `https://github.com/frague/rm/blob/master/server/controllers/integrations/jobvite.ts` | `[INFERRED]` TypeScript v2 client. |
-| sahil-kho/ats-integrations (JobVite/) | `https://github.com/sahil-kho/ats-integrations/tree/main/JobVite` | `[INFERRED]` A production ATS-integration config for Jobvite: exact header names, request bodies, response field paths, webhook payload fields. The richest v2 artifact I found. **Note: this repo leaks a live-looking `x-jvi-sc` secret; do not copy it.** |
+| sahil-kho/ats-integrations (JobVite/) | `https://github.com/sahil-kho/ats-integrations/tree/main/JobVite` | `[INFERRED]` A production ATS-integration config for Jobvite: exact header names, request bodies, response field paths, webhook payload fields. The richest v2 artifact I found. **Note: this repo leaks a live-looking Jobvite API secret; the value is not reproduced in this report.** |
 | APIs.json index (api-evangelist/jobvite) | `https://raw.githubusercontent.com/api-evangelist/jobvite/refs/heads/main/apis.yml` | `[INFERRED]` Metadata index only. No spec. |
 
 **What is official vs inferred, in one sentence:** the **v1** API is fully documented by an official (if 12-year-old) Jobvite PDF; the **v2** API - the one anyone would actually build on - has **no public documentation at all**, and everything below about v2 is either a live probe of Jobvite's server or corroboration from working third-party clients.
@@ -125,7 +158,7 @@ This is the single most important input to our design, so it goes first.
 
 **Customer-specific identity.** There is **no per-customer hostname**. The company is identified two ways:
 
-* `[OFFICIAL]` **`companyId`** - a query parameter, required for `/v1/jobFeed` and present in the Employee JSON body as `CompanyId`. How to find it: *"You can find your company ID by looking in Admin/Profile and looking under the Career Site section. The company ID is the numbers and letters after the c= in the url."* Example value from the docs: `dah4p0sl`.
+* `[OFFICIAL]` **`companyId`** - a query parameter, required for `/v1/jobFeed` and present in the Employee JSON body as `CompanyId`. How to find it: *"You can find your company ID by looking in Admin/Profile and looking under the Career Site section. The company ID is the numbers and letters after the c= in the url."* The docs give a sample value of this shape (8 alphanumeric characters); the literal sample is replaced with `<companyId>` throughout this report.
 * The **API key itself** scopes the caller to a company for the v2 endpoints - no `companyId` parameter appears in any working v2 client I read. `[INFERRED]`
 
 ---
@@ -179,7 +212,7 @@ Independently corroborated by a production integration config, on both the read 
 * `/v1/candidate` uses **`api`** and **`secret`**:
   > `https://api.jobvite.com/v1/candidate?api=jobvite&secret=test&action=getNewHires&format=hrxml&datestart=08-01-2009&dateend=2009-08-15T11:21:33-0700`
 * `/v1/jobFeed` and `/v1/contacts` use **`api`** and **`sc`**:
-  > `https://api.jobvite.com/v1/jobFeed?companyId=dah4p0sl&api=<api_key>&sc=<secret>&start=10&count=100&type=full-time&availableTo=internal&category=Finance&department=Human Resource&location=Burlingame, CA, USA&region=Europe`
+  > `https://api.jobvite.com/v1/jobFeed?companyId=<companyId>&api=<api_key>&sc=<secret>&start=10&count=100&type=full-time&availableTo=internal&category=Finance&department=Human Resource&location=Burlingame, CA, USA&region=Europe`
 
 `[OFFICIAL]` Jobvite's **own** current sample code (repo last pushed 2025-02-01) still puts the secret in the query string:
 
@@ -197,7 +230,7 @@ Independently corroborated by a production integration config, on both the read 
 * **Secrets in the query string are a live hazard.** They land in access logs, proxies, and `Referer` headers. Jobvite's own sample still does it. **We must use `x-jvi-api` / `x-jvi-sc` headers and never accept a config that puts credentials in a URL.**
 * The credential is a **static, long-lived, company-wide secret with no scoping** - whatever the key can read, our server can read. There is no read-only variant documented.
 * `[PROBE]` The API responds with `Access-Control-Allow-Origin: *`, so the credential is the only thing standing between a caller and the data.
-* A cautionary datapoint: `sahil-kho/ats-integrations` has a live-looking secret committed at `JobVite/jobvite_data_model_integrations.json` (`x-jvi-sc: b9f9df17efb1b1558ce80ea9b590d4aa`), and its own README flags it: *"SECURITY: Hardcoded API keys in integration headers ... must be rotated and moved to customerStaticValues"*. Do not reuse it; do not let ours end up the same way.
+* A cautionary datapoint: the `sahil-kho/ats-integrations` repo has a **live-looking Jobvite API secret hard-coded** in `JobVite/jobvite_data_model_integrations.json` and `JobVite/jobvite_customer_integration_config.json` (an `x-jvi-sc` value, plus a partner `x-jvi-api` key). **The value is deliberately not reproduced here.** That repo's own README flags it: *"SECURITY: Hardcoded API keys in integration headers ... must be rotated and moved to customerStaticValues"*. Cited only as evidence that this credential model leaks in practice - never reuse it, and never let ours end up the same way.
 
 ### 5.5 The encrypted-envelope scheme (`/api/v2/task`)
 
@@ -210,7 +243,7 @@ Independently corroborated by a production integration config, on both the read 
 5. The response is the same envelope, with the AES key wrapped in the **customer's** RSA public key; the client decrypts with its own private key.
 
 ```java
-String jsonPayload = "{ \"filter\":{ \"task\":{ \"processInstanceId\":{ \"eq\":\"5fda297111edfb36b766c787\" } } } }";
+String jsonPayload = "{ \"filter\":{ \"task\":{ \"processInstanceId\":{ \"eq\":\"<processInstanceId>\" } } } }";
 ```
 
 So there is a **key exchange**: the customer gives Jobvite a public key and receives Jobvite's. Note `AES/ECB` is a weak mode - that is Jobvite's choice, quoted here as fact, not endorsed.
@@ -357,7 +390,7 @@ Resume upload is inline base64 inside the same POST; there is no separate attach
 The only v2 endpoint with a **Jobvite-authored** example. Auth via query string; body and response are RSA+AES envelopes (§5.5). The decrypted request payload is a **filter DSL**:
 
 ```json
-{ "filter": { "task": { "processInstanceId": { "eq": "5fda297111edfb36b766c787" } } } }
+{ "filter": { "task": { "processInstanceId": { "eq": "<processInstanceId>" } } } }
 ```
 
 Two things worth noting for our design:
@@ -414,7 +447,7 @@ Everything in this section is `[OFFICIAL]`, from *Jobvite Data Services v3.5, Ju
 
 > "The API can only call up to 500 candidates at a time. To retrieve more than 500 at once, leverage the `count` and a `start` parameter you can specify in the URL. For example, if you already get the first 500 records and you want the next 500 records, you would add `start=501&count=500` in the URL. The count means how many you want (maximum 500). The start means from where you want the next set of candidates."
 
-**Response** is HR-XML (`http://ns.hr-xml.org/2007-04-15`) wrapped in `<Results xmlns="http://api.jobvite.com/action/api/v1" action="getNewHires" version="1.0">` with a `<NewHires first="1" count="1" total="1">` or `<Candidates first="1" count="3" total="3">` envelope. Candidate ids appear as `<ns:IdValue name="applicationId">p0MIXgwc</ns:IdValue>`; EEO data as `<ns:DemographicDescriptors><ns:Race/></ns:DemographicDescriptors>` and `<ns:BiologicalDescriptors><ns:GenderCode>1</ns:GenderCode></ns:BiologicalDescriptors>`; custom fields as `<Field type="Candidate" name="...">value</Field>`.
+**Response** is HR-XML (`http://ns.hr-xml.org/2007-04-15`) wrapped in `<Results xmlns="http://api.jobvite.com/action/api/v1" action="getNewHires" version="1.0">` with a `<NewHires first="1" count="1" total="1">` or `<Candidates first="1" count="3" total="3">` envelope. Candidate ids appear as `<ns:IdValue name="applicationId">&lt;applicationId&gt;</ns:IdValue>`; EEO data as `<ns:DemographicDescriptors><ns:Race/></ns:DemographicDescriptors>` and `<ns:BiologicalDescriptors><ns:GenderCode>1</ns:GenderCode></ns:BiologicalDescriptors>`; custom fields as `<Field type="Candidate" name="...">value</Field>`.
 
 ### 12.2 `POST /v1/candidate` with `action=updateCandidates`
 
@@ -576,7 +609,7 @@ v1 errors are returned in the response envelope: `<Errors><Error code="100">No c
 **`[ABSENT]` No OpenAPI or Swagger specification for the Jobvite API is published anywhere.** Nothing was downloaded to `docs/research/jobvite-openapi.json|yaml` because no such document exists. Specifically checked:
 
 * `https://apis.io/apis/jobvite/rest-api/` - lists Jobvite but its only machine-readable artifact is an **APIs.json index**, not a spec. Confirmed by fetching `https://raw.githubusercontent.com/api-evangelist/jobvite/refs/heads/main/apis.yml`: it is `specificationVersion: '0.23'` APIs.json, whose `properties` are three help-centre links and whose `baseURL` is `https://api.jobvite.com`. No `type: OpenAPI` property. Its own `accessModel` says `public: false`, `confidence: low`.
-* `https://github.com/raml-apis/Jobvite` - a **RAML 0.8** file, not OpenAPI, and it describes **v1 only** (`title: Jobvite API v1`, `baseUri: https://api.jobvite.com/{version}`). Saved as `jobvite-v1-api.raml`. It is a third-party transcription of the 2014 PDF; it adds nothing the PDF lacks and contains at least one divergence (it names the jobFeed secret parameter `sc` and the candidate one `secret`, matching the PDF, but its `dateFormat` default text differs).
+* `https://github.com/raml-apis/Jobvite` - a **RAML 0.8** file, not OpenAPI, and it describes **v1 only** (`title: Jobvite API v1`, `baseUri: https://api.jobvite.com/{version}`). **Not vendored into this repo** (no licence - see [Licensing](#0-licensing-and-handling-of-sources)). It is a third-party transcription of the 2014 PDF; it adds nothing the PDF lacks and contains at least one divergence (it names the jobFeed secret parameter `sc` and the candidate one `secret`, matching the PDF, but its `dateFormat` default text differs).
 * `[ABSENT]` No public Postman workspace for Jobvite surfaced in any search.
 * `[ABSENT]` No `/swagger.json`, `/openapi.json`, `/api/v2/schema`, or `/api/v2/metadata` route exists - all 404.
 
@@ -667,8 +700,9 @@ Listed without softening. Each one is a real hole.
 
 ---
 
-*Artifacts saved alongside this report:*
-* `jobvite-data-services-v3.5-2014.pdf` - the archived official v1 documentation (492 KB, 8 pages)
-* `jobvite-v1-api.raml` - third-party RAML 0.8 of the v1 surface
+*No artifacts are vendored alongside this report.* Both candidate files were deliberately **not** committed - see [§0 Licensing](#0-licensing-and-handling-of-sources). Retrieve them from their source URLs in §1:
 
-*No `jobvite-openapi.json` / `.yaml` exists to save. See §17.*
+* Jobvite Data Services v3.5 (2014) - Wayback URL in §1. Marked CONFIDENTIAL, Jobvite-copyright, no redistribution licence.
+* `raml-apis/Jobvite` RAML 0.8 - GitHub URL in §1. No licence file, so no redistribution grant.
+
+*No `jobvite-openapi.json` / `.yaml` exists to save in any case. See §17.*
