@@ -786,8 +786,13 @@ Required cases, each failing if its defence is removed:
 Transport substitution uses `httpx2`'s built-in `MockTransport`. No third-party mocking library is
 required, which matters because a credential-free test strategy cannot afford to depend on one.
 
-Coverage: 80% floor overall, 85% tool modules, 90% the Jobvite client, 95% line and 90% branch on
+Coverage: 80% floor overall, 85% tool modules, 90% the Jobvite client, **95% on `utils/` - the
+standard's own Utilities target, kept rather than remapped** - and 95% line with 90% branch on
 critical paths (auth, argument rejection, the error rule, approval, the write).
+
+`utils/redaction.py` holds secret redaction and untrusted-content fencing, which are two of the
+required cases above and both rated Critical in §11. An earlier remap left it at the floor while
+giving the client 90%, which inverted the risk. See ADR-0010.
 
 **A guard that refuses everything is not a guard, and its refusals prove nothing.** Every
 refusal-path test is paired with a positive control showing the happy path still succeeds.
