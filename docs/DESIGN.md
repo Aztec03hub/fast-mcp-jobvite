@@ -1012,7 +1012,8 @@ a category carries no credible threat the row says so.
 | B3. Server to Jobvite | Server | `api.jobvite.com` | `x-jvi-api` / `x-jvi-sc` headers, never in a URL; HTTPS with `httpx2` default verification, never disabled (§4.1, §7.1) |
 | B4. Jobvite content to the model | Attacker-authored candidate free text | The calling model's context | Path-keyed allow-listed output models, fencing paths generated from those models, delimiter-token stripping (§6.1) |
 | B5. Server to log sink | Server internals, including credentials and PII | Log stream and anything reading it | Single-point redaction in `utils/redaction.py` with a failing test; `include_payloads=False`; `mask_error_details=True` client-side only (§4.1, §5.3) |
-| B6. Operator to configuration | Whoever sets environment variables | Server capability set, including whether writes exist and whether TLS is asserted | `pydantic-settings` fail-fast at boot; `JOBVITE_ENABLE_WRITES` and TLS enforcement both server-side (§7.1, §7.3, §2.2) |
+| B6. Maintainer workstation to public remote | Local working tree, including credentials, vendor documents and client detail | Two public GitHub repositories | Pre-commit secret scanning **and** a committed-file-type gate (§10); `.gitignore`; review. **This is the only boundary on which an incident has actually occurred here** - a CONFIDENTIAL vendor PDF reached both public remotes and a history rewrite alone did not evict it |
+| B7. Operator to configuration | Whoever sets environment variables | Server capability set, including whether writes exist and whether TLS is asserted | `pydantic-settings` fail-fast at boot; `JOBVITE_ENABLE_WRITES` and TLS enforcement both server-side (§7.1, §7.3, §2.2) |
 
 ### STRIDE Analysis
 
@@ -1053,13 +1054,12 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C3 | D | A deeply nested or very large argument payload consumes parse time and memory. No nesting, list-length, dict-key or body-size limits are specified (B30) | M | M | Medium | Add the four limits from `input-validation.md:223-226`. §4.5's page caps are outbound transport limits and do not bound an inbound argument |
 | C3 | E | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is unspecified (B12) |
 
-**C4. Approval subsystem** (`approval.py`, MRTR elicitation, `ctx.elicit()`, confirmation tokens)
+**C4. Approval subsystem** (`approval.py`, MRTR elicitation on sessionless, `ctx.elicit()` on handshake)
 
 | Component | Category | Threat | L | I | Risk | Mitigation |
 |---|---|---|---|---|---|---|
 | C4 | S | A host auto-responds to the elicitation with no human present, so an approval represents no person | H | M | **High** | Not mitigable server-side. The MCP specification places human-in-the-loop on the host. §7.5 limits the claim to *"the server requires an approval response from the host"*. Carried to Residual Risks |
-| C4 | T | A confirmation token altered or reused to authorise writing a different candidate | M | H | **High** | HMAC binding to the payload; forged, replayed, argument-mismatched and expired tokens each refused with distinct messages, each tested (§7.6, §8). Mitigated |
-| C4 | T | The confirmation-token TTL is not stated anywhere, so the replay window is unreviewable and cannot be tuned per deployment. `agent-guardrails.md:106-107` requires bounds to be configuration, not constants buried in code (B22) **[NEW]** | M | M | Medium | State the default TTL and make it configuration. §8 tests that expiry works; nothing fixes what it expires after |
+| C4 | T | An approval answer is tampered with or replayed to authorise a different write | L | H | Medium | The answer is bound to the invocation by the protocol rather than by a token we mint: the retry carries `inputResponses` for that request, and there is no long-lived artifact to replay. The confirmation token that would have needed a TTL was cut (§7.6) |
 | C4 | R | The approval decision is not among the audited fields, so there is no record that a gated write was authorised. `agent-guardrails.md:122` requires it (B17) | H | M | **High** | **Unmitigated.** Add the approval decision, and which mechanism produced it, to the `audit.py` event |
 | C4 | I | A confirmation token describes what would be written and may embed candidate PII; if logged unredacted it becomes a PII sink | L | M | Low | Redaction is enforced at one point (§4.1). Confirm token payloads are inside its coverage |
 | C4 | D | An abandoned approval hangs the call. A client-side timeout does not bound it because the handler runs in the client's process (§7.5) | M | M | Medium | No server-side bound is possible. Disclosed to integrators. Carried to Residual Risks |
@@ -1101,6 +1101,26 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C7 | D | A hostile caller inflates log volume to exhaust disk | M | L | Low | Rate limiting bounds request volume (§4.4) |
 | C7 | E | No credible threat | - | - | - | - |
 
+**Note on C4 and duplicate writes.** §9 hazard 6 records that none of §2.2's gates prevents an
+*authorised* write being made twice, and that hazard was absent from this table in an earlier
+revision - a residual risk named in one section and unmodelled in the section whose job is
+modelling residual risk. It is now C4-D below and in Residual Risks.
+
+| # | Cat | Threat | L | I | Risk | Mitigation / disposition |
+|---|---|---|---|---|---|---|
+| C4 | D | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person **[NEW]** | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/jobvite-duplicate-candidate` rather than a generic failure. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Genuine residual |
+
+**C9. Supply chain** (`pyproject.toml`, `uv.lock`, CI, the beta framework)
+
+| # | Cat | Threat | L | I | Risk | Mitigation / disposition |
+|---|---|---|---|---|---|---|
+| C9 | S | A dependency name is typo-squatted or a package is substituted at resolve time | L | H | Medium | Committed `uv.lock` with hashes; `uv sync --frozen`; every dependency named explicitly (§10) |
+| C9 | T | **A transitive dependency changes behaviour with no change to our code or to the code that breaks.** This is a realised threat here, not a hypothetical: an `mcp` major bump removed the behaviour a merged upstream fix depended on, and broke a middleware whose own source never changed (§10, §7.7) **[NEW]** | H | M | **High** | `mcp` pinned explicitly, not only `fastmcp`; `uv.lock` committed; `fastmcp inspect` output diffed between builds so capability drift appears in review. **The diff is designed and unexecuted** (§12) |
+| C9 | R | A shipped artifact cannot be traced to the resolve that produced it | M | M | Medium | SBOM generated from the frozen resolve rather than a fresh one, in both CycloneDX and SPDX (§10) |
+| C9 | I | A dependency exfiltrates credentials or candidate data at runtime | L | H | Medium | `pip-audit` on every PR; licence allow-list gate; no dependency added without review. **Residual and unmitigable in general** - we run third-party code in the same process as the credentials |
+| C9 | D | A required CI gate goes red on a transitive advisory with no sanctioned response, blocking all merges | H | L | Medium | **Open (B72).** `pip-audit` has no severity threshold and fails on any advisory. We chose a beta stack deliberately and owe it an advisory-triage policy; the unsanctioned workaround is a blanket ignore, which is the silent suppression the clause forbids |
+| C9 | E | A build-time dependency executes arbitrary code during install | L | H | Medium | `uv` with a frozen lock and hash verification; no `setup.py` execution in our own build (hatchling) |
+
 **C8. Configuration and secrets** (`config.py`, environment, repository)
 
 | Component | Category | Threat | L | I | Risk | Mitigation |
@@ -1132,7 +1152,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-T control characters
 (B25), C3-D structural argument limits (B30), C3-I and C6-D the undocumented result cap (B15),
-C4-T the unstated token TTL (B22), C4-E the era-misdetection downgrade, C7-I log-stream handling,
+C4-E the era-misdetection downgrade, C7-I log-stream handling,
 C8-R configuration-change logging.
 
 **Already mitigated at Critical or High**, listed so the mitigations are recognised as load-bearing
