@@ -115,7 +115,7 @@ camelCase Jobvite paths - so **the fencing paths are generated from the output m
 maintained beside them, and a test fails when any model field has no fencing decision. Two
 hand-maintained lists that must correspond is a defect waiting for the first schema change.
 
-### 2.2 `create_candidate` is guarded three ways
+### 2.2 `create_candidate` is guarded two ways
 
 It is the only write, it creates real records in a real ATS, its side effect is an email to a
 live human, and there is no sandbox. **Two gates, deliberately not three:**
@@ -364,11 +364,23 @@ inbound `X-Request-ID`, it is validated as a UUIDv4 before use - unvalidated inb
 log-forging vector - and echoed.
 
 **The audit event includes `approval_state`.** `agent-guardrails.md:121-123` names it explicitly,
-and `create_candidate` is gated three ways and emails a live human - without it, the only record
+and `create_candidate` is gated two ways and emails a live human - without it, the only record
 that a gated write was authorised would not exist. `:79` also requires recording **who** approved,
 which §7.5 establishes we can never know: the host may auto-respond with no human present. We
 record what we can prove - that an approval response was received and what it said - and
-**ADR-0009** records that the identity half is unsatisfiable.
+**ADR-0009** records that identity is unsatisfiable **for the approver specifically, and not for
+the caller.**
+
+That distinction is load-bearing and is the kind an ADR silently swallows. Two different identities
+are in play: *who approved* is unknowable, because a host may auto-respond with no human present;
+*which client invoked the tool* is entirely knowable, and §4.4 **already derives that value** through
+`get_client_id` in order to rate-limit on it. **The caller identity is recorded in the audit event.**
+An ADR read as "identity in the audit log is unsatisfiable" would close a gap it never considered,
+in a document about to be frozen.
+
+**The audit stream holds candidate PII by construction**, because the approval request describes the
+candidate about to be written. `approval_state` therefore falls inside §4.1's single redaction point
+rather than beside it, and the audit stream carries the same handling class as the log stream.
 
 **Audit-write failure has a stated policy, and the third case is the one that matters:**
 - **Before the side effect:** fail the call. No audit, no write.
@@ -750,7 +762,7 @@ Jobvite's, not ours, each needing explicit handling:
    boundary.
 5. **No stable sort.** No sort parameter is documented, so a long paged scan over a mutating set
    may duplicate or skip. Bounded date windows are preferred to full-catalogue walks.
-6. **Duplicate creates return `409`, and none of §2.2's gates prevent one.** All three gates stop
+6. **Duplicate creates return `409`, and none of §2.2's gates prevent one.** Both gates stop
    an *unauthorised* write; none stops an *authorised* write being made twice - a model calling the
    tool again after a timeout, or a user approving twice. The `409` shape is `[INFERRED]` and never
    observed. So `create_candidate` surfaces a `409` as `/problems/jobvite-duplicate-candidate`
@@ -1086,7 +1098,10 @@ All are external unknowns. None is a reasoned-but-unexecuted claim about our own
   by `docs/data-inventory.md`.
 - **ADR-0009** - the audit log records that an approval response was received and what it said, but
   cannot record **who** approved, because a host may auto-respond with no human present.
-  `agent-guardrails.md:79` requires the identity and it is unsatisfiable on this transport.
+  `agent-guardrails.md:79` requires that identity and it is unsatisfiable on this transport.
+  **Scoped to the approver only.** The *caller's* identity is knowable - §4.4 already derives it for
+  rate limiting - and is recorded. This ADR does not dispose of that, and must not be read as doing
+  so.
 - **ADR-0010** - coverage targets remapped from the standard's category model, which has no
   category matching an MCP tool module. Loosening a mandated coverage number is exactly what this
   mechanism exists to record.
