@@ -32,13 +32,13 @@ An MCP server exposing Jobvite, an applicant tracking system, as tools a model c
 over stdio for local clients and over Streamable HTTP when hosted.
 
 It is not an SDK, a sync engine, or a cache. **It caches no Jobvite response** (§7.7). The only
-state outliving a call is an HTTP connection pool, the framework rate limiter's in-process token
-buckets, and unredeemed confirmation tokens (§7.6) - none of which holds candidate data.
+state outliving a call is an HTTP connection pool and the framework rate limiter's in-process token
+buckets - neither of which holds candidate data.
 
-**Single-process is load-bearing**, not incidental: ADR-0002's rate-limiting argument and §7.6's
-token store both assume one process. Running this multi-worker breaks both silently - each worker
-gets its own buckets and its own token store, so limits multiply and a token minted by one worker
-is unknown to another. Stated here because it is the kind of assumption someone violates by
+**Single-process is load-bearing**, not incidental: ADR-0002's rate-limiting argument assumes one
+process. Running this multi-worker breaks it silently: each worker gets its own buckets, so the
+effective limit multiplies by the worker count while every log line still reports the configured
+number. Stated here because it is the kind of assumption someone violates by
 deploying normally.
 
 ### 1.1 The constraint that shapes everything
@@ -112,16 +112,25 @@ hand-maintained lists that must correspond is a defect waiting for the first sch
 ### 2.2 `create_candidate` is guarded three ways
 
 It is the only write, it creates real records in a real ATS, its side effect is an email to a
-live human, and there is no sandbox. Three independent gates:
+live human, and there is no sandbox. **Two gates, deliberately not three:**
 
 1. **Deploy-time.** Not registered unless `JOBVITE_ENABLE_WRITES=true`. Enforced server-side; a
-   client cannot bypass it. This is the weakest control conceptually and the only one that is
-   unconditionally enforceable, which is why it is kept rather than replaced.
-2. **Per-invocation human approval** via MRTR elicitation (§7.5). Fails closed when unavailable.
-3. **Confirmation token** (§7.6) as defence-in-depth and as the fallback where the host cannot
-   elicit. Needs no client cooperation.
+   client cannot bypass it. Conceptually the weakest control and the only unconditionally
+   enforceable one, which is exactly why it is kept.
+2. **Per-invocation approval** via the dual-era guard (§7.5). Fails closed on every measured path.
 
-Also: `send_email` defaults to `false`, and the tool is never retried (§4.3).
+**A confirmation-token mechanism was designed, spiked, and then cut.** It would have been a third
+gate on paper and was not one in fact: **neither it nor elicitation can distinguish a human from an
+agent**, so an autonomous caller defeats the token by calling preview and then create. Stacking two
+controls with the same blind spot does not close the gap, it makes it feel closed. The two gates
+kept are **orthogonal** - one server-side and client-independent, one per-invocation - and
+orthogonal weak controls compose where duplicate ones do not.
+
+It also had a measured defect on our default transport: stdio spawns a fresh server process per
+connection, so an in-process token store is per-connection there.
+
+Also: `send_email` defaults to `false`, and the tool is never retried (§4.3). Neither gate
+establishes that a human was involved - see §7.5 on what we may honestly claim.
 
 Annotations: `destructiveHint: true`, `idempotentHint: false`, `readOnlyHint: false`. The other
 four are `readOnlyHint: true`. **Annotations are advisory only** - verified: one non-test
@@ -599,21 +608,22 @@ without one"* - **never** *"a human approved this."*
 timeout does not bound it, because the elicitation handler runs in the client's own process. "The
 write silently never completes" is a confusing failure mode and integrators are told about it.
 
-### 7.6 Confirmation tokens
+### 7.6 Why there is no confirmation token
 
-The fallback where a host reports "Elicitation not supported", and defence-in-depth otherwise.
-A preview call returns a short-lived token describing exactly what would be written; the write
-requires it. HMAC-bound to the payload, so a token minted for candidate A does not authorise
-writing candidate B. Forged, replayed, argument-mismatched and expired tokens are each refused
-with distinct messages.
+Cut, after being designed and spiked. It is recorded here rather than deleted silently because the
+mechanism is the obvious thing to propose and the reasons against it are not obvious.
 
-Its honest limit: it forces a deliberate two-step, but an autonomous agent can call preview then
-create with no human anywhere. **It enforces confirmation, not human confirmation.**
+It worked: HMAC-bound to the payload, so a token minted for candidate A did not authorise writing
+candidate B; forged, replayed, argument-mismatched and expired tokens each refused with distinct
+messages. It was cut anyway because **it enforces confirmation, not human confirmation** - the same
+blind spot as elicitation - so it was a second copy of a control we already had rather than an
+additional one. Its costs were real: a caching footgun (a cached preview re-issues a spent token
+and disables the write for the cache TTL, on a tool annotated `readOnlyHint=True`), an in-process
+store that is per-connection on stdio and unshared across workers, and two extra tools on a server
+whose value is being small.
 
-**`ResponseCachingMiddleware` must never touch the preview tool.** A cached preview re-issues the
-*same* token, so once spent the cache keeps serving a dead token for its whole TTL and the write
-becomes unusable. It fails closed but it is a self-inflicted denial of service. The preview tool
-is annotated `readOnlyHint=True`, which makes it exactly the tool someone would naively cache.
+**What survives is the audit half.** The approval request and response are recorded in the audit
+event (§5.3), which was the token's only durable benefit, without a second tool pair.
 
 ### 7.7 Middleware
 
