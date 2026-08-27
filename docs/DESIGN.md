@@ -448,7 +448,13 @@ loopback.
 carries a bearer token and candidate PII over the wire; `allowed_hosts` and `allowed_origins`
 address a different threat entirely and do nothing about plaintext. So binding a non-loopback
 address without either TLS terminated in front (declared via `JOBVITE_TLS_TERMINATED_BY_PROXY=true`)
-or certificates configured here is a startup failure, not a warning. Outbound to Jobvite is HTTPS
+or certificates configured here is a startup failure, not a warning.
+
+`JOBVITE_TLS_TERMINATED_BY_PROXY` is deliberately an **operator assertion the server cannot
+verify**, rather than a check of `X-Forwarded-Proto`. Trusting that header would look more rigorous
+and be strictly worse: it is spoofable by anyone who can reach the port, so the server would be
+authenticating the attacker's own claim about the attacker's connection. **An assertion that fails
+loudly when absent beats a check that appears to verify and does not.** Outbound to Jobvite is HTTPS
 with `httpx2`'s default verification, and verification is never disabled.
 
 **Sessionless `2026-07-28` is the default era**, with the handshake era served simultaneously -
@@ -597,6 +603,13 @@ users while passing every test we had.
 are traps: `ctx.transport` is **identical** on both eras (`'streamable-http'`), and `session_id` is
 **populated on both** despite one era being called sessionless. `ctx._is_modern_protocol()` works
 but is private.
+
+**An unrecognised protocol version refuses the write.** The discriminator is correct for the two
+eras that have been measured; a third case exists - `protocol_version` absent, or a future era
+nobody has seen - and it must not degrade quietly. There is no weaker fallback to fall through to
+now that the confirmation token is cut (§7.6), so the rule is explicit: **if the era cannot be
+identified, `create_candidate` refuses and logs the refusal with the observed value.** An operator
+learns that approval could not be established from a log line, not from a candidate's inbox.
 
 **An earlier revision branched on whether `ctx.input_responses` exists. That branch was inert** -
 `input_responses` and `request_state` are class-level properties, so `hasattr` is True on every era,
@@ -1030,77 +1043,6 @@ preserved: if a mitigation here loses its test, this table becomes false.**
 | The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I) | Medium | Accepted only until C7-I's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
 | `problem+json` is honoured nowhere on the default stdio transport (§5.2) | Low | ADR-0003. A media type carries no security property here; the seven RFC 9457 members are present in the payload regardless |
 | No success response from Jobvite has ever been observed, so every success-path shape is a hypothesis (§1.1) | Medium | Accepted deliberately and structurally: fail loudly rather than degrade to a plausible empty result; synthetic fixtures are labelled as hypotheses in the test module's own docstring; `CREDENTIAL-CHECKLIST.md` converts them when a key lands |
-
----
-
-## Notes for review, not part of the drop-in section
-
-### On your three fixes
-
-**Dropping `ResponseCaching`: right, and the §7.7 text is the strongest version of it.** Recording
-the un-executed key derivation as *why we do not need to execute it* is better than what I
-recommended. One consequence worth naming: the cache is now out of the threat model **entirely**
-rather than present-and-mitigated, which is the cleaner outcome. §7.7's closing condition (if a
-cache is ever wanted, establish the key derivation by execution and prove isolation with two
-differently-scoped tokens) is what keeps it out.
-
-**TLS: right shape, and I want to be explicit about why.** Failing at startup rather than warning
-matches §7.3's existing fail-fast posture, and `JOBVITE_TLS_TERMINATED_BY_PROXY=true` as an
-**operator assertion** is correct where the obvious alternative is wrong. Trusting
-`X-Forwarded-Proto` would look more rigorous and be strictly worse: that header is spoofable by
-anyone who can reach the port, so it would authenticate the attacker's claim about their own
-connection. An assertion the server cannot verify but which fails loudly when absent beats a check
-that appears to verify and does not. Modelled as C8-E and carried to Residual Risks, rated Medium.
-
-**The era discriminator: the fix is right and it changed my model.** `ctx.request_context.
-protocol_version` against the same tuple FastMCP's own guard uses, with `ctx.transport` and
-`session_id` both measured and both rejected as traps, is exactly the standard of evidence the rest
-of the document holds. The new §7.5 table (MRTR raises on every handshake arm *including approve*)
-is what makes C4-E-era rateable at all.
-
-### One documentation defect, and it is the kind Phil has a standing rule about
-
-**§7.6 still contains the paragraph beginning "`ResponseCachingMiddleware` must never touch the
-preview tool"** (DESIGN.md:613), while §7.7 now says the middleware is not adopted. The document
-currently asserts a rule about a component it also says does not exist. A reader of §7.6 alone
-concludes the cache is in.
-
-The standing instruction is to rewrite prose in place rather than append a correction, precisely
-because appending leaves two contradictory claims. The §7.7 reversal is well written; the §7.6
-paragraph needs to go, or be reduced to one clause inside §7.7's rationale, where it is genuinely
-useful as the *second* reason not to adopt. **[REASONED]** I would fold it in as: the cache would
-also have re-issued a spent preview token for its whole TTL, a self-inflicted denial of service on
-the write path.
-
-### Where I think a fix may still be the wrong shape
-
-**C4-E, the era-misdetection downgrade, is the one to look at.** The discriminator is now correct
-for the two eras that were measured. My concern is the third case: a `protocol_version` that is
-absent, or a future era value nobody has seen. §2.2 lists the confirmation token as the fallback
-*"where the host cannot elicit"*, which is right for a host that genuinely cannot. But an
-unrecognised era produces the same observable condition, and the write then proceeds on
-token-only - a control §7.6 itself describes as enforcing *"confirmation, not human confirmation."*
-
-That is a silent downgrade of the strongest gate, triggered by an input the design does not
-control. **It still fails closed against an unauthorised write, so it is not a hole** - which is
-why I rated it Medium and not High. The ask is small: make the fallback an explicit, logged
-decision rather than an implicit consequence, so an operator can see that approval was degraded
-rather than discovering it from a candidate's inbox.
-
-### What I could not do, unchanged from revision 1
-
-- `:145` requires a Tech Lead or Security reviewer to validate the threat model at spec review. I
-  authored it, so I cannot be its reviewer.
-- `:146` requires mitigations to become numbered functional requirements. Blocked on B73's
-  unresolved prefix question (the corpus expects FEAT/FR/BUG/TECH; this work is tracked as EC-###).
-
-### Style
-
-Written with hyphens rather than em dashes, matching DESIGN.md. My two earlier reports in
-`docs/reviews/` use em dashes throughout, against Phil's standing preference; converting them is a
-mechanical pass whenever you want it.
-
----
 
 ---
 
