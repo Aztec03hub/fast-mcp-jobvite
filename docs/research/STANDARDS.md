@@ -938,6 +938,10 @@ Sources: `devops/ci-cd.md:81, 85, 125, 157, 173, 246, 306, 501, 525, 552, 571, 7
 
 ## What I could NOT verify
 
+> **Note:** §6 was added after this section, following the hosting change. Items 9-12
+> are in **§6.8** at the end of the document, and items 2 and G1 here were **resolved**
+> by that re-sweep.
+
 1. **Whether `ai/tool-calling.md` and `ai/agent-guardrails.md` legitimately bind a
    tool *provider*.** `ai/README.md:22-33` scopes the whole domain to code that calls
    foundation models. I treated them as binding by intent (C6) but this is a judgement
@@ -979,3 +983,325 @@ Sources: `devops/ci-cd.md:81, 85, 125, 157, 173, 246, 306, 501, 525, 552, 571, 7
    three places where copying it would start this repo in violation (`build_response`
    envelope vs B1, stdlib `logging` vs B44, 47 tools vs B20). I did not audit that repo
    systematically and make no broader claim about it.
+
+---
+
+## 6. Public org repository obligations
+
+**Added 2026-08-27** after the hosting decision: the repo is canonical at
+`evolvconsulting/fast-mcp-jobvite`, **evolv-owned and public**, mirrored to
+`Aztec03hub/fast-mcp-jobvite`. This section supersedes gap G2.
+
+### 6.0 Headline finding — the corpus governs INBOUND licensing thoroughly and OUTBOUND publication not at all
+
+I searched the **entire** `evolv-coder-standards` repository (not just `standards/`;
+including `patterns/`, `evaluation/`, `templates/`, `audit/`, `catalogs/`, `docs/`,
+plus root `README.md`, `CLAUDE.md`, `BACKLOG.md`, `RELEASES.md`, `manifest.yaml`) for
+32 terms. Result:
+
+| Term | Files matching |
+|---|---|
+| `copyright` / `Copyright` | **0** |
+| `NOTICE` | **0** |
+| `CODEOWNERS` | **0** |
+| `CODE_OF_CONDUCT` | **0** |
+| `SECURITY.md` | **0** |
+| `pull_request_template` | **0** |
+| `branch naming` | **0** |
+| `licence` (en-GB) | **0** |
+| `public repo` | **0** |
+| `gitleaks` / `detect-secrets` | **0** |
+| `trusted publish` | **0** |
+| `open source` / `open-source` | 4 — **all irrelevant** |
+| `OSS` | 1 — irrelevant |
+| `LICENSE` | 1 |
+| `SPDX` | 9 — **all about SBOM formats or dependency scanning** |
+
+Every single `open source` / `OSS` hit refers to an external tool that happens to be
+open source (Spectral at `standards/documentation/api-reference-standard.md:69`,
+Stoplight Elements `:72`, PostgreSQL in an ADR example
+`standards/architecture/adr/ADR-000-template-example.md:77`, Langfuse in an audit
+working file). **Not one governs evolv publishing its own code.**
+
+This yields the crisp distinction the team needs:
+
+> The standards corpus comprehensively governs **inbound** licensing — which
+> third-party licences evolv may *consume* (`devops/quality-gates.md:286-300`,
+> `devops/supply-chain-security.md:217-221`, the `pip-licenses` CI gate). It says
+> **nothing whatsoever** about **outbound** licensing — under what terms evolv
+> *publishes* its own code, who holds copyright, or who approves publication.
+
+**This is a real, named gap, not an oversight in my search.** I ran the sweep across
+the whole repository and enumerated the zero-hit terms above precisely so this absence
+is falsifiable: anyone can re-run those greps.
+
+### 6.1 What the standards DO say about a LICENSE file
+
+**One clause. It requires a LICENSE to exist and be identified, and stops there.**
+
+`documentation/readme-standard.md:57` — *"13. **License** — SPDX identifier and link to
+`LICENSE`."*
+
+That is the **entire** treatment of outbound licensing in 172 standards files. It
+mandates:
+- a `LICENSE` file exists at the repo root,
+- the README's License section names it by **SPDX identifier**,
+- the README links to it.
+
+It does **not** specify which licence, does not mention a copyright holder, does not
+require a NOTICE file, and does not mandate copyright headers in source files.
+
+**B89. The README License section names an SPDX identifier and links to `LICENSE`.**
+`documentation/readme-standard.md:57` (quoted above). This binds.
+
+The allow-list at `devops/quality-gates.md:288-294` (MIT, Apache-2.0, BSD-2-Clause,
+BSD-3-Clause, ISC) is explicitly scoped to *dependencies*: `:282` — *"All third-party
+dependencies MUST resolve to a license on the allow-list."* It is **not** a menu for
+evolv's own licence. Citing it as such would be a misreading, and I flag that
+because it is the most tempting available near-miss.
+
+### 6.2 The LICENSE question — standards are SILENT; here is my recommendation
+
+**Direct answer to your question: the standards are silent.** No standard dictates the
+licence, and no standard dictates the copyright line. Anything beyond
+`readme-standard.md:57` is a recommendation, and I am labelling it as such rather than
+dressing it as a citation.
+
+**On the copyright line — your instinct is right.** You provisionally set
+`Copyright (c) 2026 Phil Lafayette`. On a repository canonical at
+`evolvconsulting/fast-mcp-jobvite`, that is very likely wrong: work produced for the
+company on a company-owned repo normally vests copyright in the company, and an
+individual's name in the notice misstates the holder. The org's legal name appears in
+the standards repo's own README line 3 — *"Organization-wide development standards,
+patterns, evaluation criteria, and examples for **Evolv Consulting** projects."*
+Note the casing there is **"Evolv Consulting"**, while the brief writes "evolv
+Consulting"; the GitHub org is `evolvconsulting`. I have not found an authoritative
+style ruling on the capitalisation.
+
+**Recommended (not cited — no standard backs this):**
+
+```
+MIT License
+
+Copyright (c) 2026 Evolv Consulting
+```
+
+Reasoning, briefly: MIT is already the org's most-permitted inbound licence
+(`devops/quality-gates.md:290`), it is the lowest-friction choice for a public client
+integration, and it keeps the repo trivially consumable. Switching the holder from a
+person to the company is the substantive change; keeping MIT is the low-risk default.
+
+**However — this is a legal determination, not an engineering one, and it is exactly
+the class of decision that should not be made by a research agent.** Two things I
+cannot resolve and that need Phil (and possibly whoever handles evolv's contracts):
+
+1. **Copyright holder.** Whether it is "Evolv Consulting", a full legal entity name
+   (e.g. "Evolv Consulting LLC"), or genuinely Phil personally, depends on his
+   employment/contractor agreement. I do not have that document and will not guess at
+   its terms.
+2. **Licence choice.** MIT vs Apache-2.0 matters here: Apache-2.0 carries an express
+   patent grant and a NOTICE mechanism that MIT lacks. For a client-facing integration
+   published under a consultancy's name, some organisations prefer Apache-2.0 for
+   exactly that patent grant.
+
+**Recommendation for the team: this belongs in NEEDS-PHIL.md as a decision item, with
+the above as the recommendation.** I have deliberately not edited the repo's existing
+`LICENSE` file — my brief scopes me to `docs/research/` — and I did not open it to
+evaluate its current text.
+
+### 6.3 Approval step before publishing publicly — ABSENT
+
+**No standard defines any approval gate for making a repository public.** Zero hits for
+`public repo`; `publicly` appears 4 times and every one concerns *not exposing a
+service* (`architecture/reference-architecture.md:147` — *"do not expose publicly"* re
+flower; `database/neo4j.md:278`; `backend/background-jobs.md:110` — *"Flower MUST NOT
+be exposed publicly"*). None concerns publishing source.
+
+Nothing covers: who authorises open-sourcing, whether a client-confidentiality review
+is required first, whether client names or internal endpoints must be scrubbed, or
+whether legal sign-off is needed. **For a repo that integrates a client-facing
+recruiting system, the absence of a pre-publication confidentiality review is the most
+consequential gap in this section.** Jobvite tenant identifiers, endpoint hostnames,
+and client names could reach a public repo with no standard requiring anyone to look.
+
+Recommendation: treat a pre-publication scrub as a self-imposed gate — no real tenant
+IDs, no client names, no internal hostnames in code, tests, fixtures, or docs.
+
+### 6.4 Secrets handling — well covered, and CRITICAL now the repo is public
+
+These clauses existed before the hosting change; publicity raises their severity from
+routine to critical, exactly as you said.
+
+**B90. `.env` and key material are gitignored; `.env.example` is the committed
+template.**
+`devops/environments.md:612-622`, under the heading *"### Never Commit Secrets"*:
+```gitignore
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+```
+`architecture/security.md:412` — *"# .env.local (never commit)"*; `:418` — *"#
+.env.example (commit this)"*.
+`devops/docker.md:470-471` — `.env*` excluded, `!.env.example` re-included.
+
+**B91. `.env.example` lists every variable with placeholder values only — never a real
+secret.** `devops/environments.md:141-144` and `:230-233` — *"# .env.example - Copy to
+.env and fill in values"*. The worked templates use `sk_test_xxx`, `whsec_xxx`,
+`INTERNAL_API_KEY=xxx` — placeholders throughout.
+Reinforced by `documentation/readme-standard.md:50` — *"Secrets are referenced by name
+only; never include real values."*
+Fail condition on a public repo: a real Jobvite API key or secret in `.env.example`,
+in a test fixture, or in a docs code block.
+
+**B92. Secrets are never hardcoded in source.**
+`documentation/agentic-coding-standard.md:127` — code must never *"Hardcode secrets,
+API keys, or passwords"*; `:141` — *"Environment variables for secrets"*.
+`devops/development-workflow.md:280` (review checklist) — *"No secrets or credentials
+in code"*.
+
+**B93. Secrets are `SecretStr`, accessed via `.get_secret_value()`, and never logged.**
+`architecture/security.md:437-447`, `:469` — *"Always use .get_secret_value() to access
+secrets"*; `:472-473` — *"Secrets are not logged or exposed in errors"*.
+
+**B94. CI reads secrets from the GitHub secrets store, never from the repo.**
+`devops/environments.md:461-465`.
+
+**B95. TruffleHog secret scanning runs in CI on every PR.**
+`devops/ci-cd.md:543-556`, job `secrets-scan`, `trufflesecurity/trufflehog@v3.88.0`
+with `fetch-depth: 0`. (Already B69; restated because on a public repo it is the
+control that stops a leak becoming permanent and world-readable.)
+
+**B96. Third-party API keys rotate quarterly, and on any suspicion of exposure.**
+`devops/environments.md:632-638` — the Jobvite key falls under *"Third-party API keys
+(Stripe, SendGrid, etc.) | Quarterly | Vendor breach notice, **key found in logs**"*.
+The rotation runbook (acquire → distribute → verify → revoke) is at `:656-665`, and
+`:626-628` makes it non-aspirational: *"Rotation MUST be enforced (not aspirational)
+for every secret class. A new on-call engineer MUST be able to rotate any secret using
+the runbook below without prior tribal knowledge."*
+
+**Gap — no pre-commit secret-scanning hook is mandated.** `pre-commit` appears as a
+listed dev dependency (`backend/tech-stack.md:63`, `:157`) and the only mandated
+`.pre-commit-config.yaml` is ruff-only (`backend/python.md:374-382`). Zero hits for
+`gitleaks` or `detect-secrets` anywhere. Secret scanning is therefore **CI-only** —
+it catches a committed secret *after* it is pushed. On a public repo, a secret pushed
+to a public remote is compromised the moment it lands, even if a later CI job flags it
+and the commit is reverted. **Recommendation: add a `detect-secrets` or `gitleaks`
+pre-commit hook. It exceeds the standard, and the standard is not sufficient here.**
+
+### 6.5 Repository hygiene — the stack-independent checks a reviewer will run
+
+**B97. Branch names follow the documented pattern.**
+`devops/development-workflow.md:58-68` — `feature/{PREFIX}-{ID}-short-description`,
+`bugfix/…`, `hotfix/…`, `release/v{VERSION}`, with prefixes FE / BE / DB / DO.
+Note this presumes a ticket-ID scheme; see C4 for the collision.
+
+**B98. `main` is protected: PR required, ≥1 approval, all CI checks pass, no direct
+pushes.** `devops/development-workflow.md:70-77` — *"**main branch:** Requires PR with
+at least 1 approval / All CI checks must pass / No direct pushes / Only merge from
+develop or hotfix branches / Signed commits required (recommended)"*.
+Signed commits are explicitly parenthesised *(recommended)* — **not** binding.
+
+**B99. `develop` is protected: PR, ≥1 approval, CI green, squash merge, branch current
+before merge.** `devops/development-workflow.md:79-83`.
+This mandates a **two-branch `main` + `develop` model**. Worth an explicit decision:
+this repo currently has a `dev` branch, and a solo-maintained public integration may
+not want the full GitFlow. Deviating is defensible but should be recorded.
+
+**B100. A PR template exists with the mandated sections.**
+`devops/development-workflow.md:199-242` gives the verbatim template: Summary, Type of
+Change, Changes Made, Testing, Test Commands Run, Screenshots, Checklist, Related
+Issues. `devops/quality-gates.md:50` makes completing it a gate — *"Completed PR
+template"*.
+The file path is not specified (zero hits for `pull_request_template`); GitHub's
+convention is `.github/pull_request_template.md`.
+
+**B101. Reviewers verify the code-review checklist before approving.**
+`devops/development-workflow.md:248` — *"Reviewers must verify all items before
+approving"*, checklist at `:250-309` (Functionality, Architecture, Code Quality, Type
+Safety, Security, Testing, Performance, Documentation).
+Several items are stack-specific and inapplicable here (`:255` SSR/Server Actions,
+`:258` the Client→Server Action→FastAPI→PostgreSQL data flow, `:270` `any` types,
+`:301` next/image). The Security (`:279-287`) and Type Safety (`:272-277`) blocks
+apply directly.
+
+**B102. Squash merge; delete the branch after merge.**
+`devops/development-workflow.md:192-194`.
+
+**B103. A README exists at the repo root with all 14 sections.** (= B77; restated
+because `documentation/readme-standard.md:34-35` requires one at *"The top level of
+every Git repository"* **and** *"The root of every published package (npm, PyPI, …)"* —
+both triggers now fire.)
+
+**B104. Contributing rules are present — `CONTRIBUTING.md` or inlined.**
+`documentation/readme-standard.md:56` — *"12. **Contributing** — link to
+`CONTRIBUTING.md` or equivalent. Repos without that file must inline the contribution
+rules under this heading."*
+This is the **only** contributor-facing obligation in the corpus. There is no
+`CODE_OF_CONDUCT` or `SECURITY.md` requirement (0 hits each) — both are conventional
+for a public org repo and neither is mandated. Recommend adding a `SECURITY.md`
+regardless: a public integration handling recruiting PII with no disclosure route is a
+poor look, and costs ten lines.
+
+**B105. `CODEOWNERS` — NOT required.** Zero hits across the repository. The nearest
+obligation is `documentation/readme-standard.md:58` — *"14. **Maintainers** — named
+owners (people or team aliases) responsible for review and release."* So named
+ownership is required **in the README**, not via a `CODEOWNERS` file.
+
+**B106. Required GitHub Actions checks** — the branch-protection set is the union of
+the CI gates already listed in §5: ruff, ruff-format, mypy, pytest ≥80%, pip-audit,
+CodeQL, TruffleHog, SBOM, licence scan.
+Two structural rules govern how they are wired:
+- `devops/ci-cd.md:679-681` — *"**Do not set `skipped == success` for required
+  checks.**"*
+- `devops/ci-cd.md:723-726` — *"**Path-filtered jobs that skip are not required
+  checks.** A job that may legitimately not run … must not be a direct
+  branch-protection requirement. Gate it through an aggregator"*.
+`devops/infrastructure-as-code.md:160` confirms enforcement *"by branch protection"*.
+
+### 6.6 Authority note on the compliance checklists
+
+While sweeping I checked `evaluation/compliance/` (OWASP, GDPR, WCAG, security-audit).
+**Every file there is `priority: optional`**, corroborated by the repo's own README
+table: `README.md:15` — *"| `evaluation/` | Quality rubrics, guardrails, compliance
+checklists | Optional |"*. That same table confirms the tier model overall —
+`README.md:13` *"| `standards/` | Mandatory rules and conventions | Required |"*,
+`:14` *"| `patterns/` | Advisory implementation patterns | Recommended |"*, `:16`
+*"| `examples/` | Reference implementations | Optional |"*.
+**Consequence:** the OWASP/GDPR checklists do **not** bind. I have cited nothing from
+them, and a reviewer invoking `evaluation/compliance/owasp-checklist.md` as a
+requirement would be overreaching.
+
+### 6.7 Section 6 summary — what actually changed
+
+| Question you asked | Answer |
+|---|---|
+| Standard governing public/OSS evolv repos? | **ABSENT.** Zero hits across the whole repo. Named as a finding in §6.0/§6.3. |
+| Required NOTICE / attribution? | **ABSENT.** Zero hits for `NOTICE`, `attribution` (in this sense), `copyright`. |
+| Copyright header rules? | **ABSENT.** Zero hits for `copyright`/`Copyright` in 172 standards files. |
+| Third-party dependency licence policy? | **PRESENT and strong.** `quality-gates.md:282-300`, `supply-chain-security.md:217-221`, `pip-licenses` CI gate. Inbound only. |
+| Approval step before publishing publicly? | **ABSENT.** No gate, no confidentiality review, no legal sign-off defined. Highest-risk gap for a client integration. |
+| Does any standard dictate the LICENSE? | **NO — silent.** Only `readme-standard.md:57` requires an SPDX id + link. Licence choice and copyright holder are undefined. |
+| Is `Copyright (c) 2026 Phil Lafayette` right? | **Probably not** on an org-owned repo. Recommend `Evolv Consulting` — but this is a legal call for Phil, not an engineering one. Route via NEEDS-PHIL.md. |
+| Secrets / `.env.example` conventions? | **PRESENT and strong** — B90-B96. |
+| Secret-scanning requirement? | **CI-only** (TruffleHog). **No pre-commit hook mandated** — recommend exceeding the standard on a public repo. |
+| Repo hygiene (branch, PR, protection, CODEOWNERS)? | **Mostly PRESENT** via `development-workflow.md` — B97-B106. `CODEOWNERS`, `SECURITY.md`, `CODE_OF_CONDUCT` are **NOT** required. |
+
+### 6.8 Additions to "What I could NOT verify"
+
+9. **Whether Phil's employment or contractor agreement vests copyright in Evolv
+   Consulting.** I do not have that document. My §6.2 recommendation assumes the
+   ordinary case; the agreement governs and may say otherwise.
+10. **The correct legal entity name and its casing.** The standards repo README:3 says
+    *"Evolv Consulting"*; your brief writes "evolv Consulting"; the GitHub org is
+    `evolvconsulting`. Whether the registered entity carries a suffix (LLC, Inc.) I
+    could not determine from the repository.
+11. **What the existing `LICENSE` file in `fast-mcp-jobvite` currently contains.** I
+    did not open it — my brief scopes me to `docs/research/`, and evaluating it is a
+    legal question I flagged rather than answered. It is 1071 bytes, consistent with a
+    stock MIT text, but I did not read it and do not assert its contents.
+12. **Whether the mirror `Aztec03hub/fast-mcp-jobvite` carries different obligations.**
+    No standard addresses repository mirroring at all (0 hits). Whether the mirror needs
+    the same licence and notices, or whether it is merely a push target, is undefined.
