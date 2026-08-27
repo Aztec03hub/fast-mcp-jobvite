@@ -149,7 +149,7 @@ src/fast_mcp_jobvite/
   config.py                   pydantic-settings; SecretStr; fails fast on missing config
   errors.py                   exception hierarchy + RFC 9457 problem construction
   audit.py                    the per-invocation audit event (§5.3)
-  approval.py                 MRTR elicitation + confirmation tokens (§7.5, §7.6)
+  approval.py                 the dual-era approval guard (§7.5)
   services/jobvite_client.py  httpx2: auth, the error rule, pagination, resilience
   tools/candidates.py         search_candidates, get_candidate, create_candidate
   tools/jobs.py               search_jobs, get_job_feed
