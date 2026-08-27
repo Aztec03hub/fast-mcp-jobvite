@@ -143,7 +143,7 @@ upstream Jobvite 4xx to the model as a success.
   requires: `/problems/<slug>`, for example `/problems/jobvite-auth-failed`. The standard's own
   choice of relative references is what makes this transport-independent.
 - `instance` is a URN: `urn:fast-mcp-jobvite:invocation:<request_id>`. A URN is a URI, it is
-  stable, and it identifies exactly one tool invocation. `error-contract.md:290` defines
+  stable, and it identifies exactly one tool invocation. `error-contract.md:83` defines
   `instance` as the URI of the request that generated the error, so this is a synthesised value
   rather than a natural one.
 - `status` carries the upstream Jobvite HTTP status where one exists, and the

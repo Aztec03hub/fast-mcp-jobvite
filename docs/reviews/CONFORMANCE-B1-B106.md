@@ -75,8 +75,48 @@ One imprecision short of a defect, recorded for completeness:
   (Never Auto-Modify)`. The obligation is real and the path is where STANDARDS.md says; only the
   clause that makes it binding is elsewhere.
 
-Everything else checked out. All 106 B-numbers resolved to an existing file and an existing line,
-and every verbatim quote I could match matched.
+Everything else checked out. All 106 B-numbers resolved to an existing file and an existing line.
+
+**Method, so the absence of further defects is a claim about what I actually did.** Two passes.
+First, every `file:line` in every B-number was resolved mechanically against the standards tree and
+the cited lines printed — that pass found CD-1, CD-2 and CD-3, and confirmed no B-number cites a
+missing file or a line past EOF. Second, every italic-quoted span in the B-list was checked for
+verbatim existence *anywhere* in the file it is attributed to, to catch a fabricated or altered
+quote rather than a merely misnumbered one. That pass raised 20 candidates and **all 20 resolved as
+sound**: legitimate `...` / `…` elisions (B21, B58, B60, B67, B77, B103, B106), bullet lines joined
+with `/` (B98), and markdown link or inline-code syntax inside the quoted span (B8, B19, B66, B83).
+
+Two of those candidates were false negatives of my own tooling worth stating, because they cite the
+standards repo's **`README.md`** rather than a file under `standards/` and so fell outside the
+first pass entirely. Both were then checked by hand and **both are correct**:
+
+- **B89 / §6.2's copyright reasoning** — `README.md:3` — *"Organization-wide development standards,
+  patterns, evaluation criteria, and examples for Evolv Consulting projects."* ✓
+- **B106 / §6.6's authority note** — `README.md:13-16` — *"| `standards/` | Mandatory rules and
+  conventions | Required | | `patterns/` | Advisory implementation patterns | Recommended | |
+  `evaluation/` | Quality rubrics, guardrails, compliance checklists | Optional | | `examples/` |
+  Reference implementations | Optional |"* ✓
+
+The second of those matters beyond its own B-number: it is the sole source for STANDARDS.md §6.6's
+ruling that `evaluation/compliance/` is `priority: optional` and therefore that **the GDPR and
+OWASP checklists do not bind**. DESIGN.md §6.2 rests on that ruling when it frames the EEO
+exclusion as a design decision rather than a cited obligation. **The ruling is correctly sourced
+and holds.**
+
+One nit, below the threshold of a defect: **B92** renders
+`documentation/agentic-coding-standard.md:127` as *"Hardcode secrets, API keys, or passwords"*; the
+file reads *"Hardcodes secrets, API keys, or passwords"*. A verb form changed to fit STANDARDS.md's
+carrier sentence. No change of meaning.
+
+**One substantive observation this pass turned up, outside the B-list.** `README.md:3` is the only
+written form of the company name anywhere in the standards corpus, and it reads **"Evolv
+Consulting"**. DESIGN.md §10 sets the copyright notice as **`Copyright 2026 evolv Consulting`**,
+lowercase. STANDARDS.md §6.8 item 10 flagged the casing as unresolved and it is still unresolved;
+the design picked a form that matches Phil's brief but not the only in-corpus precedent. On a
+public, org-owned repository this is the copyright line of record, so it is worth settling
+deliberately rather than by whichever document was open last. Routing to NEEDS-PHIL.md alongside
+the entity-suffix question is the right disposition — it is a legal determination, not an
+engineering one, and §6.2 already says so.
 
 ---
 

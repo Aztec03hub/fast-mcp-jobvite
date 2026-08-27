@@ -1568,7 +1568,10 @@ async def create_candidate(name: str, ctx: Context) -> dict:
 The accessors are **`ctx.input_responses`** and **`ctx.request_state`** on `Context` `[FROM SOURCE]`,
 not on `request_context`.
 
-### 17.3 Evidence — all three arms, sessionless (`mode="auto"`)
+### 17.3 Evidence — all three arms, sessionless (`mode="auto"`) ONLY
+
+⚠️ **This section is sessionless-only and must not be read as era-general.** MRTR is REFUTED on
+the handshake era — see §20.2. The dual-era guard is in §20.4.
 
 ```
 --- SESSIONLESS (auto), handler APPROVES ---
@@ -1971,7 +1974,367 @@ review's instinct to single it out as the only reasoned-not-executed item was ri
 was worse than merely unexecuted — it was executed once, shallowly, and generalised.
 
 
+---
+
+## 20. ⛔ FREEZE BLOCKER RESOLVED — MRTR does NOT work on the handshake era
+
+Review round 2 raised two claims about DESIGN.md §7.5's approval guard. **Both are correct**, and the
+second is a genuine gap in this document: §15.2 covers `ctx.elicit()` on both eras and §16.2 covers
+the token on both eras, but **§17.3's MRTR evidence is sessionless-only**. Nobody had ever run MRTR
+on `mode="legacy"`. I have now.
+
+### 20.1 The `hasattr` branch is inert — CONFIRMED
+
+`Context.input_responses` and `Context.request_state` are **class-level properties**:
+
+```
+input_responses is a class-level property: True
+request_state  is a class-level property: True
+```
+
+So `hasattr(ctx, "input_responses")` is `True` on **every** era, always. And `is not None` is already
+spent distinguishing the first leg from the second, so it cannot also carry era information.
+Measured from inside a tool on both eras:
+
+```
+                                    mode=auto            mode=legacy
+hasattr_input_responses          =  True                 True
+input_responses_is_None          =  True                 True
+```
+
+**The branch as designed discriminates nothing.** ⛔ CONFIRMED.
+
+### 20.2 ⛔ MRTR is REFUTED on the handshake era
+
+Same server, same tool, both eras, three arms each:
+
+```
+===== mode=auto =====
+   MRTR approve  -> is_error=False structured={'created': True, 'rows': 1, 'via': 'mrtr'}
+   MRTR deny     -> is_error=True  ["Not approved (action='decline'); refusing."]
+   MRTR nohandler-> RAISED MCPError: Elicitation not supported
+   server rows after this era's arms = 1
+
+===== mode=legacy =====
+   MRTR approve  -> RAISED MCPError: Tool 'create_candidate' returned an InputRequiredResult ...
+   MRTR deny     -> RAISED MCPError: ... (same)
+   MRTR nohandler-> RAISED MCPError: ... (same)
+   server rows after this era's arms = 1   <- unchanged: NO write on legacy
+```
+
+**Every legacy arm fails, including approve.** The row count did not move, so it fails closed — but
+approval is simply *impossible* on that era through MRTR.
+
+FastMCP's guard is explicit, and its message names the remedy `[FROM SOURCE]`
+(`fastmcp/server/mixins/mcp_operations.py:277-292`):
+
+```python
+if isinstance(result, InputRequiredToolResult):
+    # The multi-round-trip result type only exists at 2026-07-28; on an
+    # earlier connection the runner cannot serialize it ...
+    if ctx.protocol_version not in MODERN_PROTOCOL_VERSIONS:
+        raise MCPError(
+            code=INVALID_PARAMS,
+            message=(
+                f"Tool {key!r} returned an InputRequiredResult to request "
+                "client input, but the multi-round-trip result type "
+                "(SEP-2322) only exists at MCP 2026-07-28; this connection "
+                f"negotiated {ctx.protocol_version!r}. Use ctx.elicit() for "
+                "server-initiated input on handshake-era connections."
+            ),
+        )
+```
+
+`MODERN_PROTOCOL_VERSIONS == ('2026-07-28',)`.
+
+**So the two mechanisms are exactly complementary, and neither is optional:**
+
+| Era | MRTR / `InputRequiredResult` | `ctx.elicit()` |
+|---|---|---|
+| `2026-07-28` sessionless | ✅ works (§17.3) | ⛔ raises (§15.1) |
+| `2025-11-25` handshake | ⛔ raises (§20.2) | ✅ works (§15.2) |
+
+A single-mechanism guard is broken on one era whichever mechanism it picks. Since a stdio install
+lands on the handshake era by default (§18.1), **a sessionless-only guard would fail exactly where
+most local users are.**
+
+### 20.3 The working discriminator
+
+`ctx.request_context.protocol_version`, measured:
+
+```
+                              mode=auto        mode=legacy
+rc_protocol_version        =  '2026-07-28'     '2025-11-25'
+_is_modern_protocol()      =  True             False
+ctx_transport              =  'streamable-http'  'streamable-http'
+session_id                 =  '3bd41cb2-...'   'e37ea4bd...'
+```
+
+Note two traps in that table: **`transport` is identical on both eras**, and **`session_id` is
+populated on both** — neither can discriminate, despite "sessionless" being the era's name.
+
+`ctx._is_modern_protocol()` is private. Use the public `request_context.protocol_version` and
+compare against the same tuple FastMCP does.
+
+### 20.4 The verified dual-era guard
+
+```python
+from fastmcp.server.elicitation import AcceptedElicitation
+from fastmcp.tools.base import InputRequiredToolResult
+import mcp_types
+
+MODERN_PROTOCOL_VERSIONS = ("2026-07-28",)   # matches FastMCP's own guard
+SCHEMA = {"type": "object",
+          "properties": {"approve": {"type": "boolean"}},
+          "required": ["approve"]}
+
+def _is_sessionless(ctx) -> bool:
+    rc = ctx.request_context
+    return rc is not None and getattr(rc, "protocol_version", None) in MODERN_PROTOCOL_VERSIONS
+
+@mcp.tool(annotations={"destructiveHint": True})
+async def create_candidate(name: str, ctx: Context):
+    if _is_sessionless(ctx):
+        answers = ctx.input_responses
+        if answers is None:                                    # first leg
+            req = mcp_types.ElicitRequest(
+                method="elicitation/create",
+                params=mcp_types.ElicitRequestFormParams(
+                    mode="form", message=f"Approve creating {name}?",
+                    requestedSchema=SCHEMA))
+            return InputRequiredToolResult(mcp_types.InputRequiredResult(
+                result_type="input_required",
+                input_requests={"approval": req},
+                request_state=f"create:{name}"))
+        r = answers.root.get("approval")                        # second leg
+        approved = (getattr(r, "action", None) == "accept"
+                    and (getattr(r, "content", None) or {}).get("approve") is True)
+    else:
+        res = await ctx.elicit(f"Approve creating {name}?", response_type=bool)
+        approved = isinstance(res, AcceptedElicitation) and res.data is True
+
+    if not approved:
+        raise ToolError("Not approved by the host; refusing to write.")
+    ...                                                        # the write
+```
+
+**Executed, six arms, with the server's own row counter as the control:**
+
+```
+===== mode=auto =====
+   APPROVE     is_error=False {'created': True, 'rows': 1, 'era': 'sessionless'}
+   DENY        is_error=True  ['Not approved by the host; refusing to write.']
+   NO HANDLER  RAISED MCPError: Elicitation not supported
+   rows 0 -> 1   (expect exactly +1, from APPROVE only)
+
+===== mode=legacy =====
+   APPROVE     is_error=False {'created': True, 'rows': 2, 'era': 'handshake'}
+   DENY        is_error=True  ['Not approved by the host; refusing to write.']
+   NO HANDLER  is_error=True  ["Error calling tool 'create_candidate'"]
+   rows 1 -> 2   (expect exactly +1, from APPROVE only)
+```
+
+Server-side trace confirming the branch routed correctly rather than one path happening to work:
+
+```
+sessionless: first leg -> InputRequiredToolResult
+sessionless: second leg action='accept' approved=True
+sessionless: first leg -> InputRequiredToolResult
+sessionless: second leg action='decline' approved=False
+handshake: using ctx.elicit()
+handshake: elicit -> AcceptedElicitation[Any] approved=True
+handshake: using ctx.elicit()
+handshake: elicit -> DeclinedElicitation approved=False
+```
+
+✅ **VERIFIED on both eras.** Exactly one write per era, from the approve arm only; both refusal arms
+and both no-handler arms fail closed.
+
+### 20.5 One asymmetry the tests must encode
+
+The **no-handler** arm surfaces *differently* per era:
+
+| Era | No-handler result |
+|---|---|
+| sessionless | **raises** `MCPError: Elicitation not supported` |
+| handshake | returns **`is_error=True`** with a masked message |
+
+Both fail closed, but a test asserting `pytest.raises(MCPError)` passes on sessionless and **fails on
+handshake**, and one asserting `result.is_error` does the reverse. The test must accept either shape
+and assert the invariant that actually matters: **the row count did not change.** That is the
+lesson from §16.3 in a new form — assert the effect, not the error shape.
+
+### 20.6 Why this was missed
+
+§17 answered "does HITL work on our default era?" and answered it correctly. The design then
+generalised that answer into a mechanism for *all* eras, and the one-line `hasattr` branch was
+written to paper over an era difference **that had never been measured**. The tell was available:
+§18.1 had already established that a stdio install lands on the handshake era, so a
+sessionless-only mechanism was known to be insufficient at the moment the branch was written. The
+branch acknowledged the problem and did not solve it — and because it *looked* like handling, it
+stopped anyone looking further. Round 2 was right to treat an unmeasured premise as a freeze blocker.
+
+
+
+### 20.7 The dangerous silent case — constructed deliberately, and it does NOT exist
+
+The review's sharpest question was whether an `InputRequiredResult` on the handshake era might
+return to the caller as something readable as an ordinary result, letting a write proceed
+unapproved. I built the two worst plausible shapes and ran them with **no elicitation handler on
+the client at all**:
+
+- `naive_mrtr_only` — the design's original shape, assumes MRTR, no era branch.
+- `swallowing_guard` — the worst variant: the tool wraps its own approval request in
+  `try/except Exception` and **proceeds to the write** if it raises.
+
+```
+===== mode=auto, NO elicitation handler on the client =====
+   naive_mrtr_only     RAISED MCPError: Elicitation not supported
+                       rows 0 -> 0   no write
+   swallowing_guard    RAISED MCPError: Elicitation not supported
+                       rows 0 -> 0   no write
+
+===== mode=legacy, NO elicitation handler on the client =====
+   naive_mrtr_only     RAISED MCPError: Tool 'naive_mrtr_only' returned an InputRequiredResult ...
+                       rows 0 -> 0   no write
+   swallowing_guard    RAISED MCPError: Tool 'swallowing_guard' returned an InputRequiredResult ...
+                       rows 0 -> 0   no write
+```
+
+**✅ REFUTED — there is no silent path. All four arms wrote nothing.**
+
+The structural reason is stronger than "it raises", and it is the useful part. The server-side trace
+shows the swallowing variant's `WRITING` line **never executed**:
+
+```
+naive: first leg for PLACEHOLDER
+naive: first leg for PLACEHOLDER
+```
+
+`_ask()` merely *constructs and returns* an object; it does not raise. **The era check fires in the
+framework's result-serialization layer, after the tool has already returned.** So a tool physically
+cannot swallow it with a `try/except` around its own approval request — the exception is not raised
+in a scope the tool controls. That makes the failure mode unswallowable by the obvious mistake,
+which is a much better property than a loud error a careless caller could still catch.
+
+⚠️ One residual, stated plainly: this protects the **first** leg. A tool that reaches its second leg
+and mis-validates the answer is still on its own — which is exactly the fail-open trap of §15.3 and
+why the `action == "accept" and value is True` conjunction is mandatory.
+
+### 20.8 Point 4 derived, not confirmed — and I reach a different arrangement
+
+The brief's assumption was **elicit-where-possible plus token-always**, with an explicit invitation
+to derive rather than confirm. Deriving it, I do not think the token belongs in the arrangement.
+
+**What the threat actually is:** a write reaching Jobvite without approval.
+
+**What the dual-era elicitation guard (§20.4) already gives:**
+
+| Condition | Outcome | Evidence |
+|---|---|---|
+| Client can elicit, approves | write proceeds | §20.4, both eras |
+| Client can elicit, denies | refused, no write | §20.4, both eras |
+| Client cannot elicit | refused, no write | §20.4 + §20.7, both eras |
+| Tool tries to swallow the failure | still no write | §20.7 |
+
+That is closed on every path measured.
+
+**What the confirmation token would add on top — and the answer is: nothing, against this threat.**
+The token enforces a *deliberate two-step*; it cannot establish that a human was involved (§16.4).
+An autonomous caller defeats it trivially by calling `preview_` and then `create_` — no human
+anywhere. So against the only threat we are guarding, the token is not an additional control; it is
+a second copy of a control we already have, with a weaker guarantee.
+
+It also does not cover the one case elicitation genuinely misses. A host that **auto-approves**
+elicitation (Claude Code's `Elicitation` hook, §18.2) satisfies the guard without a human — and the
+token does not help there either, for the same reason. **Neither mechanism can distinguish a human
+from an agent**, so stacking them does not close that gap; it only makes us feel it is closed.
+
+**What token-always would cost**, all of it measured earlier in this document:
+
+- The caching footgun (§16.2): `ResponseCachingMiddleware` on the preview tool re-issues a **spent**
+  token, permanently disabling the write for the whole cache TTL. The preview is `readOnlyHint=True`,
+  i.e. exactly the tool someone would cache.
+- The token store is **in-process**. Any multi-worker deployment needs shared state, which is real
+  infrastructure for a control that adds no safety.
+- Two extra tools on the surface, on a server whose whole point is being small.
+
+**Derived recommendation:**
+
+> **Dual-era elicitation guard (§20.4) + the server-side `JOBVITE_ENABLE_WRITES` flag. Drop
+> token-always.**
+
+The env flag is worth keeping precisely because it is the one control that is *not* a copy of the
+others: it is enforced server-side, needs no client cooperation, and cannot be satisfied by any
+caller — human or agent. It is weak in the sense you originally identified (deploy-time, not
+per-invocation), but it is orthogonal, and orthogonal weak controls compose where duplicate ones do
+not.
+
+Keep the token pattern **only** if we want the preview's text as an *audit record* of what was
+shown before a write. If we do, it should be documented as an audit mechanism and never counted as
+a safety control — and §16.2's caching prohibition comes with it.
+
+**The gap that could have overturned this is now closed.** I named stdio as the most likely
+falsifier and then ran it rather than shipping the recommendation around it. The §20.4 guard,
+unmodified, over `StdioTransport`:
+
+```
+===== STDIO mode=auto =====
+   APPROVE        is_error=False {'created': True, 'rows': 1, 'era': 'sessionless'}
+   DENY           is_error=True  ['Not approved by the host; refusing to write.']
+   NO HANDLER     RAISED MCPError: Elicitation not supported
+
+===== STDIO mode=legacy =====
+   APPROVE        is_error=False {'created': True, 'rows': 1, 'era': 'handshake'}
+   DENY           is_error=True  ['Not approved by the host; refusing to write.']
+   NO HANDLER     is_error=True  ["Error calling tool 'create_candidate'"]
+```
+
+Server-side trace, confirming the branch routed by era rather than one path working by luck:
+
+```
+stdio/sessionless: first leg
+stdio/sessionless: second leg action='accept' approved=True
+stdio: WROTE (rows=1)
+stdio/sessionless: first leg
+stdio/sessionless: second leg action='decline' approved=False
+stdio/sessionless: first leg
+stdio/handshake: ctx.elicit()
+stdio/handshake: AcceptedElicitation[Any] approved=True
+stdio: WROTE (rows=1)
+stdio/handshake: ctx.elicit()
+stdio/handshake: DeclinedElicitation approved=False
+stdio/handshake: ctx.elicit()
+```
+
+`WROTE` appears exactly twice — once per approve arm — and never on a deny or no-handler arm.
+
+⚠️ **Reading the row counter on stdio:** it shows `rows=1` on both approve arms rather than
+incrementing to 2, because **stdio spawns a fresh server process per client connection**, so
+in-process state resets between arms. The trace is the reliable control here, not the counter. This
+is also a standing fact worth carrying into the design: **any in-process state is per-connection on
+stdio** — which is an additional, independent reason the confirmation token's in-process store is a
+poor fit (§20.8 costs).
+
+**So the recommendation stands, now covering both eras on both transports.** What would still
+overturn it is evidence of a bypass in a configuration I have not run — the remaining untested
+surface is listed under "What I could NOT verify".
+
+### 20.9 Your three unverified claims, checked
+
+You flagged three of your own claims for attack. Verdicts:
+
+1. **"`hasattr` is True on both eras"** — ✅ **correct** (§20.1), confirmed by class inspection and by
+   measurement inside a tool on both eras.
+2. **"§17.2's harness is credential-free"** — ✅ **correct.** Every tool in it is a stub appending to
+   an in-process list; no Jobvite endpoint is contacted anywhere in §§17, 20. Everything in this
+   section ran with no credential.
+3. **"elicit-where-possible plus token-always"** — ⚠️ **not confirmed.** See §20.8: the token adds no
+   safety against the threat and carries measured costs. I recommend dropping it.
+
 ## What I could NOT verify
+
+- ~~The dual-era approval guard over stdio~~ — **closed in §20.8**: run on both eras over `StdioTransport`, approve writes, deny and no-handler refuse. Note that stdio spawns a fresh server process per connection, so in-process state is per-connection there.
 
 - **Python 3.10, and 3.13+.** Ran 3.11.15 and 3.12.3. The declared floor is `>=3.10`; 3.10 untested.
 - **Whether the `ResponseLimitingMiddleware` regression also affects the network transport.** Reproduced in-memory; the failing assertion is client-side in `mcp/client/session.py`, so it should be transport-independent, but I did not re-run it over HTTP.

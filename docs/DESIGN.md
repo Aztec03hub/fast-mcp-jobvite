@@ -1,9 +1,11 @@
 # fast-mcp-jobvite - Design
 
-Status: **DRAFT, revision 2.** Incorporates adversarial review round 1 (`docs/reviews/DESIGN-R1.md`,
-0c/2h/1m) and all runtime-spike findings. Frozen at 0C/0H/0M, after which only a numbered ADR in
+Status: **DRAFT, revision 3.** Incorporates adversarial review rounds 1 and 2
+(`DESIGN-R1.md` 0c/2h/1m, `DESIGN-R2.md` 0c/3h/1m), the B1-B106 conformance sweep
+(`CONFORMANCE-B1-B106.md`), the design-artifact sweep (`CONFORMANCE-DESIGN-ARTIFACT.md`), and all
+runtime-spike findings. Frozen at 0C/0H/0M, after which only a numbered ADR in
 `docs/adr/` may change it.
-Last updated: 2026-08-27 03:15 PM CDT.
+Last updated: 2026-08-27 03:45 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -29,16 +31,28 @@ challenge any sentence that reads as verified without belonging to them.
 An MCP server exposing Jobvite, an applicant tracking system, as tools a model can call. It runs
 over stdio for local clients and over Streamable HTTP when hosted.
 
-It is not an SDK, a sync engine, or a cache. It holds no state between calls beyond an HTTP
-connection pool, a rate-limiter bucket, and short-lived confirmation tokens.
+It is not an SDK, a sync engine, or a cache. **It caches no Jobvite response** (§7.7). The only
+state outliving a call is an HTTP connection pool, the framework rate limiter's in-process token
+buckets, and unredeemed confirmation tokens (§7.6) - none of which holds candidate data.
+
+**Single-process is load-bearing**, not incidental: ADR-0002's rate-limiting argument and §7.6's
+token store both assume one process. Running this multi-worker breaks both silently - each worker
+gets its own buckets and its own token store, so limits multiply and a token minted by one worker
+is unknown to another. Stated here because it is the kind of assumption someone violates by
+deploying normally.
 
 ### 1.1 The constraint that shapes everything
 
 Jobvite publishes no public API documentation. `developer.jobvite.com` has never existed - the
 Wayback Machine holds zero snapshots, and a third-party client citing it fabricated the citation.
 The support site is login-gated. No OpenAPI document exists. There is no sandbox:
-`api-stg.jobvite.com` fails DNS. **Nobody building this holds a Jobvite credential, so no success
-response from Jobvite has ever been observed.**
+`api-stg.jobvite.com` fails DNS. **Nobody building this holds a Jobvite credential.**
+
+**One** genuine Jobvite `200` exists in our evidence: a third-party VCR cassette recorded against a
+live tenant (`JOBVITE-API.md` §6.1). It is the project's strongest success-shape evidence and it
+already answers what a success envelope looks like. Its body cannot be copied here - it was
+captured with a live credential and contains real candidate data including EEO fields - so it is
+used as a **structural** reference only (§8). Every other success shape remains a hypothesis.
 
 Three consequences run through the design:
 
@@ -53,8 +67,9 @@ Three consequences run through the design:
 
 ## 2. Tool surface
 
-Five tools. `ai/tool-calling.md` requires a minimal allow-list because an unused or unreliable
-tool is attack surface, and the evidence permits no more.
+Five tools. `ai/agent-guardrails.md:47-49` requires a minimal allow-list because an unused tool is
+attack surface, and the evidence permits no more. (`ai/tool-calling.md:54` uses the same phrase
+about loose parameter types, which is a different obligation - §2.1.)
 
 | Tool | Jobvite operation | Kind | Data class |
 |---|---|---|---|
@@ -80,9 +95,19 @@ forbidden, explicit `max_length` on every string, regex on every identifier. Out
 snake_case regardless of Jobvite's casing.
 
 **Outputs are allow-listed models, not passthrough.** A field Jobvite returns that is not on the
-model does not reach the caller. This is the single mechanism that satisfies both the
-untrusted-content requirement (§6) and the special-category-data position (§6.2), and it fails
-closed: a new Jobvite field is dropped until someone adds it deliberately.
+model does not reach the caller, and it fails closed: a new Jobvite field is dropped until someone
+admits it deliberately. That is **containment**, and it satisfies the special-category-data position
+(§6.2).
+
+**Containment is not injection-fencing.** They are different controls with different failure modes,
+and an earlier revision claimed one mechanism covered both. Allow-listing decides *whether a field
+leaves*; fencing decides *how an admitted field is presented to a model* (§6.1). A field can be
+correctly admitted and still carry an injection payload.
+
+**The two lists live in different key spaces** - models are snake_case, fencing paths are
+camelCase Jobvite paths - so **the fencing paths are generated from the output models** rather than
+maintained beside them, and a test fails when any model field has no fencing decision. Two
+hand-maintained lists that must correspond is a defect waiting for the first schema change.
 
 ### 2.2 `create_candidate` is guarded three ways
 
@@ -156,9 +181,12 @@ no `candidates` key, and reports zero candidates for a rejected credential.
 **Invariant:** a response is successful only if the body carries no `status.code >= 400` **and**
 the HTTP status is below 400. Both, every call.
 
-The parser cannot assume JSON and cannot dispatch on content type either. Four error encodings
-exist across one API: a JSON status envelope, plain text with no `Content-Type` header at all, a
-Tomcat HTML page, and HR-XML. XML is parsed with `defusedxml`.
+The parser cannot assume JSON and cannot dispatch on content type either. **Three error encodings
+are handled** on the routes we call: a JSON status envelope, plain text with no `Content-Type`
+header at all, and a Tomcat HTML page. **HR-XML is a hardened fallback, not a handled case** - it
+appears on `/v1/candidate`, which we do not call. If XML ever arrives it is parsed with
+`defusedxml` and treated as an error body; entity expansion on attacker-reachable input is not a
+risk worth taking for a route that should never respond to us.
 
 ### 4.3 Resilience
 
@@ -173,14 +201,21 @@ Ordered timeout, then retry, then circuit breaker.
   retry check unwraps one level of `__cause__`. Measured: one call, **four rows created**.
 - **One circuit breaker for Jobvite. 4xx must not trip it** - a bad candidate id is the caller's
   problem, not a health signal.
+- **An open breaker is distinguishable from an outage.** It returns `/problems/jobvite-circuit-open`
+  with `status` 503 and a `retry_after` hint, where a genuine upstream failure returns
+  `/problems/jobvite-unavailable`. Without distinct slugs a caller cannot tell "Jobvite is down"
+  from "we have stopped calling Jobvite", and those need different responses.
+- **Jobvite's `429`, if it exists, is retried and then mapped to 503**, honouring `Retry-After`
+  when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
+  path is written defensively and is unexercised.
 
 ### 4.4 Rate limiting
 
 Jobvite returns **no rate-limit headers of any kind**. Nothing to parse, nothing to feed a
 backoff calculation, so throttling is client-side and configuration-driven.
 
-We use the framework's `RateLimitingMiddleware`, not a hand-rolled limiter, with four constraints
-established by execution:
+**Inbound** throttling uses **FastMCP's own `RateLimitingMiddleware`** - the framework's, not one
+we wrote - with four constraints established by execution:
 
 - **`get_client_id` is mandatory.** The default keys every caller to the literal string
   `"global"` despite the docstring implying per-client. One noisy integrator would throttle
@@ -197,6 +232,17 @@ established by execution:
 On stdio there is no token and thus no `client_id`, but there is exactly one caller, so the
 global bucket is correct there.
 
+**Every one of those measurements was sequential and single-client.** Bucket behaviour under
+simultaneous callers - the case that actually matters in production - is unverified, and
+`limiters.clear()` was never tested under load. ADR-0002 records that as a limitation rather than
+implying coverage we do not have.
+
+**Outbound, we throttle ourselves against Jobvite's only documented operating envelope**, which is
+prose rather than a number: call it on an as-needed basis, and anything more frequent than once a
+day must be filtered. That is the sole guidance Jobvite gives. So the client carries a configurable
+outbound rate limit with a conservative default, and the README states the envelope, because a user
+syncing hourly is outside what the vendor documents and should know it.
+
 The mandated Redis token bucket is not used: the standard's rationale is replica
 desynchronisation, and a single-process server has no replicas. **ADR-0002.**
 
@@ -210,17 +256,30 @@ the *transport* limits. The *result* limit returned to a model is separate and c
 statement from Jobvite is its own v1 documentation, which is 1-based. If we are wrong we silently
 skip the first record of every page.
 
-**We detect it rather than disclose it. This probe is a design mechanism that has never been
-executed - it cannot be, without a credential - so it is marked UNVERIFIED here rather than only
-in the open-questions list.** On the first paged call of a process, the client issues
-the probe `CREDENTIAL-CHECKLIST.md` row 2 specifies for a human: request `start=0` and `start=1`
-with `count=1` and compare the returned ids. Identical first ids means the server clamps and
-either base is safe; different ids resolve the base. The result is cached for the process
-lifetime and logged once. `JOBVITE_PAGINATION_START_BASE` overrides the probe for anyone who
-already knows.
+**An earlier revision proposed a runtime probe and its logic was inverted.** It read "identical
+first ids means the server clamps and either base is safe". That is backwards: identical ids mean
+the server is **1-based and clamped 0 to 1**, and clamping protects only page one - a 0-based
+caller then re-reads the boundary record on **every subsequent page**. The probe also contradicted
+§9 hazard 5: with no stable sort, two requests can return different first ids for reasons having
+nothing to do with the base, so the "different ids" branch was unsound in exactly the direction
+that looks like successful detection. It cached an indeterminate verdict (a tenant with one
+candidate always probes "identical") and applied one verdict across resources whose bases differ.
 
-A configuration knob plus a README note was the earlier design. It was a disclosure strategy, not
-a detection strategy: it required the user to already suspect the bug.
+**What we do instead, and it needs no probe.** `start` is **1-based**, per Jobvite's own v1
+documentation, which is the only statement from the vendor. Correctness does not rest on that being
+right, because paging is made **base-agnostic**:
+
+- Pages are requested by `start` and every returned record's id is checked against a per-scan seen
+  set. **A record already seen is dropped, and a gap is detected and logged.** A 1-off error then
+  costs a duplicate read of one boundary record per page, which is invisible to the caller, rather
+  than silently skipping a record.
+- The base is per-resource, not global. `/v1/jobFeed` is `[OFFICIAL]` 1-based; the v2 resources are
+  `[INFERRED]`. They are configured separately.
+- `JOBVITE_PAGINATION_START_BASE` overrides per resource for anyone who has established the truth.
+- Checklist row 2 still settles it definitively the day a credential exists.
+
+De-duplicating on the way out is cheaper than detecting the base, and unlike a probe it cannot be
+fooled by an unstable sort.
 
 Paging terminates on a short page (`len(items) < count`), never on `total`. `total` is reported
 and never trusted as a loop condition.
@@ -245,9 +304,18 @@ rather than *raised*, they are untouched by `ErrorHandlingMiddleware`, by `trans
 by `mask_error_details`. They are the only error shape no configuration can distort. Raising is
 reserved for the genuinely exceptional.
 
-**Two honest exceptions to uniformity**, stated rather than glossed:
-- A rate-limit refusal raises `MCPError` and carries no problem object (§4.4).
+**Three honest exceptions to uniformity**, stated rather than glossed. The third is the most
+common and was the last to be admitted:
+- A rate-limit refusal raises `MCPError` and carries no problem object (§4.4). **ADR-0002 covers
+  this**, because `rate-limiting.md:361-362` separately requires a 429 to use a problem detail, and
+  substituting the limiter does not dispose of that clause.
 - An abandoned approval never resolves at all (§7.5).
+- **An argument-schema violation carries no problem object either.** FastMCP validates arguments
+  **before the tool body runs**, so by this section's own reasoning - problem objects are safe
+  because they are *returned* rather than *raised* - nothing can return one. The rejection is
+  raised by the framework. This is the failure path callers hit most often, so implying uniformity
+  here would be the most misleading place to do it. The rejection still fails closed and is
+  unit-tested, which is what B12 and B23 actually require.
 
 ### 5.2 `problem+json` and the transport
 
@@ -279,6 +347,21 @@ them.
 problem object's `request_id` and inside its `instance` URN. Where the HTTP transport receives an
 inbound `X-Request-ID`, it is validated as a UUIDv4 before use - unvalidated inbound ids are a
 log-forging vector - and echoed.
+
+**The audit event includes `approval_state`.** `agent-guardrails.md:121-123` names it explicitly,
+and `create_candidate` is gated three ways and emails a live human - without it, the only record
+that a gated write was authorised would not exist. `:79` also requires recording **who** approved,
+which §7.5 establishes we can never know: the host may auto-respond with no human present. We
+record what we can prove - that an approval response was received and what it said - and
+**ADR-0009** records that the identity half is unsatisfiable.
+
+**Audit-write failure has a stated policy, and the third case is the one that matters:**
+- **Before the side effect:** fail the call. No audit, no write.
+- **On a read tool:** log to stderr and continue. A read is recoverable and losing the tool is
+  worse than losing one audit line.
+- **After a successful write:** return **success with a warning**, never an error. If a post-write
+  audit failure surfaced as an error, the model would retry, and **a second live human would be
+  emailed.** The audit hole is the lesser harm and it is recorded as a warning in the same stream.
 
 `mask_error_details=True` is set explicitly at construction; FastMCP defaults it to `False`,
 which sends the full text of any unhandled exception to the client. **Masking is client-facing
@@ -313,9 +396,26 @@ Our own fixtures show `gender`, `race` and `veteranStatus` in candidate response
 fields, they are special-category personal data, and left alone they would flow straight to a
 model.
 
-The GDPR machinery in the standards corpus is `priority: optional` and does not bind, so this is a
-design decision rather than a cited obligation: **these fields are not in any output model and
-therefore never leave the server.** The allow-listed output models of §2.1 are the mechanism, and
+**A previous revision justified this by saying the GDPR standard is `priority: optional`. That was
+false and checkable.** `architecture/gdpr-data-rights.md:9` reads `priority: required`; corpus-wide
+the only `optional` files are twelve README indexes, and no substantive standard is optional. The
+research it came from made a *scope* argument, correctly, and the compression into a priority claim
+was mine.
+
+**The correct argument is scope.** That standard's obligations attach to systems that **store**
+personal data - DSAR policies per table, erasure dispositions, a `gdpr_erasures` table. This server
+stores nothing and Jobvite is the controller's system of record, so the DSAR and
+right-to-be-forgotten machinery does not reach us. **ADR-0008 makes that argument, not the priority
+one.**
+
+**What does bind, and is not waived:** `:119-129`, records of processing under Article 30, is
+field-level and names downstream processors. Routing candidate PII to a model is exactly that, so
+`docs/data-inventory.md` records the categories handled, the purpose, and the recipients. And the
+residue that always binds is no-PII-in-logs, since a log file is the one place a stateless server
+can accidentally become a store of personal data.
+
+On the fields themselves: **they are not in any output model and therefore never leave the
+server.** The allow-listed output models of §2.1 are the mechanism, and
 they generalise - the point is not "drop three fields" but "nothing reaches the model that was not
 deliberately admitted."
 
@@ -328,6 +428,13 @@ deliberately admitted."
 **stdio by default**, HTTP opt-in via `JOBVITE_MCP_TRANSPORT=http`. HTTP binds `127.0.0.1` unless
 told otherwise, with `allowed_hosts`/`allowed_origins` set whenever the bind address is not
 loopback.
+
+**Off-loopback requires TLS, and the server refuses to start without it.** A non-loopback bind
+carries a bearer token and candidate PII over the wire; `allowed_hosts` and `allowed_origins`
+address a different threat entirely and do nothing about plaintext. So binding a non-loopback
+address without either TLS terminated in front (declared via `JOBVITE_TLS_TERMINATED_BY_PROXY=true`)
+or certificates configured here is a startup failure, not a warning. Outbound to Jobvite is HTTPS
+with `httpx2`'s default verification, and verification is never disabled.
 
 **Sessionless `2026-07-28` is the default era**, with the handshake era served simultaneously -
 verified on one server, one port. Two deployment consequences:
@@ -360,9 +467,23 @@ string `${JOBVITE_API_KEY}`, surfacing later as a confusing Jobvite 401. A missi
 fail at boot, naming the variable. `server.json` declares variables for registry consumers;
 pydantic-settings enforces them.
 
-**Configuration is scoped to the tools actually enabled.** A deployment using only candidate
-search must not be forced to invent a `companyId` it has no use for, so fail-fast validates the
-configuration each *enabled* tool requires, not the union of all of them.
+**Configuration is scoped to the tools actually enabled**, and the enable surface is defined here
+rather than presupposed. `JOBVITE_TOOLS` is a comma-separated allow-list of tool names; unset means
+all read tools. `JOBVITE_ENABLE_WRITES` additionally gates `create_candidate` (§2.2) and is
+independent, so a write cannot be enabled by naming it alone.
+
+Fail-fast validates what each *enabled* tool requires, never the union - a deployment using only
+candidate search must not be forced to invent a `companyId` it has no use for:
+
+| Tool | Requires |
+|---|---|
+| `search_candidates`, `get_candidate` | `JOBVITE_API_KEY`, `JOBVITE_API_SECRET` |
+| `search_jobs` | `JOBVITE_API_KEY`, `JOBVITE_API_SECRET` |
+| `get_job_feed` | `JOBVITE_FEED_KEY`, `JOBVITE_FEED_SECRET`, `JOBVITE_COMPANY_ID` |
+| `create_candidate` | the v2 pair, plus `JOBVITE_ENABLE_WRITES=true` |
+
+`server.json` declares every variable for registry consumers; pydantic-settings enforces only the
+subset the enabled tools need.
 
 ### 7.4 Lifespan and shutdown
 
@@ -440,10 +561,33 @@ the retry. Accessors are `ctx.input_responses` and `ctx.request_state` on `Conte
 `approve: false` is still an acceptance. This conjunction is not optional and has its own test
 with a deny arm and an accept-carrying-false arm.
 
-**The design must branch on capability, not assume an era.** Claude Code negotiates `2026-07-28`
-automatically over HTTP but for stdio only when `MCP_PROTOCOL_NEGOTIATION=auto`, so a stdio
-install may land on the handshake era where `ctx.elicit()` works and MRTR does not. The guard
-branches on whether `ctx.input_responses` exists.
+**The two mechanisms are exactly complementary, and a single-mechanism guard is broken on one era
+whichever it picks.** Executed on both:
+
+| Era | MRTR | `ctx.elicit()` |
+|---|---|---|
+| sessionless `2026-07-28` | works | raises |
+| handshake `2025-11-25` | **raises, every arm including approve** | works |
+
+FastMCP's own error names the remedy: the multi-round-trip result type "only exists at MCP
+2026-07-28 ... Use `ctx.elicit()` for server-initiated input on handshake-era connections."
+
+**This matters most where most users are.** Claude Code negotiates `2026-07-28` automatically over
+HTTP, but for stdio only when `MCP_PROTOCOL_NEGOTIATION=auto` - so **a default stdio install lands
+on the handshake era**, and a sessionless-only guard would be broken for the majority of local
+users while passing every test we had.
+
+**The discriminator is `ctx.request_context.protocol_version`**, compared against the same
+`('2026-07-28',)` tuple FastMCP's own guard uses. Two plausible alternatives were measured and both
+are traps: `ctx.transport` is **identical** on both eras (`'streamable-http'`), and `session_id` is
+**populated on both** despite one era being called sessionless. `ctx._is_modern_protocol()` works
+but is private.
+
+**An earlier revision branched on whether `ctx.input_responses` exists. That branch was inert** -
+`input_responses` and `request_state` are class-level properties, so `hasattr` is True on every era,
+and `is not None` is already spent telling the first leg from the retry. It looked like handling,
+which is why nobody looked further. The premise underneath it had never been measured on the
+handshake era at all.
 
 **What we may honestly claim.** A host can auto-respond to elicitation without showing anyone a
 dialog. The MCP specification places human-in-the-loop confirmation on the host, not the server.
@@ -473,8 +617,23 @@ is annotated `readOnlyHint=True`, which makes it exactly the tool someone would 
 
 ### 7.7 Middleware
 
-Adopted, each constructed with explicit arguments: `ResponseCaching` (never on preview),
-`Timing`, `StructuredLogging` with `include_payloads=False`, `RateLimiting` with `get_client_id`.
+Adopted, each constructed with explicit arguments: `Timing`, `StructuredLogging` with
+`include_payloads=False`, and `RateLimiting` with `get_client_id`.
+
+**`ResponseCachingMiddleware` is NOT adopted, and this reverses an earlier revision.** Three facts
+from this design decide it: the cacheable responses are candidate PII (§2); §7.2's three scopes
+exist precisely so different callers see different data; and §4.4 **measured** that this
+framework's sibling middleware defaults every caller to the literal string `"global"` while its
+docstring implies per-client. `architecture/caching.md:833` requires cache keys namespaced by
+tenant or user and `:841` names un-namespaced user-specific caching as a Don't. If the cache keys
+without client identity, a candidate-PII-scoped result can be served to a public-job-data token,
+defeating §7.2 entirely through one middleware line.
+
+We have not executed its key derivation, and the honest position is that we do not need to: **the
+only benefit is latency against an upstream nobody has ever successfully called.** Dropping it
+removes the scope-crossing risk and the spent-token hazard (§7.6) in one edit. If a cache is ever
+wanted, its key derivation must be established by execution the way §4.4 established the limiter's,
+and a test with two differently-scoped tokens must prove isolation before it ships.
 
 Not used: `ResponseLimiting` (broken - raises on any tool with a return annotation, filed as
 [#4926](https://github.com/PrefectHQ/fastmcp/issues/4926)), `ErrorHandling` (its default converts
@@ -502,9 +661,12 @@ collected rots silently: an import error or a renamed fixture in it is invisible
 someone finally has a credential. CI runs `--collect-only` against it and fails on a collection
 error.
 
-**Fixtures are split, and the split is load-bearing:**
+**Fixtures are in three tiers, and the split is load-bearing:**
 - **Recorded** - byte-exact captures of real Jobvite error transport. Assert verbatim.
-- **Synthetic** - every success body, because no 2xx has ever been observed. Hypotheses in JSON.
+- **Structural** - the one genuine `200` (§1.1). Its body cannot ship, since it holds real
+  candidate data, so we assert its *shape*: envelope keys, types, nesting, and whether a success
+  body carries a `status` block. That last point already answers what was an open question.
+- **Synthetic** - every other success body. Hypotheses in JSON.
 
 **A suite passing only against synthetic fixtures proves the client is self-consistent, not that
 it speaks Jobvite.** That sentence is in the test module's own docstring so nobody mistakes green
@@ -521,7 +683,11 @@ Required cases, each failing if its defence is removed:
   leg actually consumes `ctx.input_responses`;
 - token replay, expiry, and payload mismatch each refused;
 - a 4xx not tripping the circuit breaker;
-- the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug.
+- the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug;
+- **approval on BOTH eras**, because the no-handler arm surfaces differently on each: sessionless
+  raises `MCPError`, handshake returns `is_error=True` with a masked message. A test asserting
+  `pytest.raises(MCPError)` passes on one era and fails on the other. **The test asserts the
+  invariant that matters - the row count did not change - not the error shape.**
 
 Transport substitution uses `httpx2`'s built-in `MockTransport`. No third-party mocking library is
 required, which matters because a credential-free test strategy cannot afford to depend on one.
@@ -547,7 +713,13 @@ Jobvite's, not ours, each needing explicit handling:
    boundary.
 5. **No stable sort.** No sort parameter is documented, so a long paged scan over a mutating set
    may duplicate or skip. Bounded date windows are preferred to full-catalogue walks.
-6. **Route-level 404s.** `404 "Invalid URL Cannot find API."` means the route does not exist, not
+6. **Duplicate creates return `409`, and none of §2.2's gates prevent one.** All three gates stop
+   an *unauthorised* write; none stops an *authorised* write being made twice - a model calling the
+   tool again after a timeout, or a user approving twice. The `409` shape is `[INFERRED]` and never
+   observed. So `create_candidate` surfaces a `409` as `/problems/jobvite-duplicate-candidate`
+   rather than a generic failure, and never retries (§4.3). This is a real residual risk, not a
+   solved one: we can report a duplicate, not prevent it.
+7. **Route-level 404s.** `404 "Invalid URL Cannot find API."` means the route does not exist, not
    that a record was not found. The record-level not-found shape is unknown.
 
 ---
@@ -565,11 +737,25 @@ the characteristic failure mode of early adoption on a freshly major-bumped depe
 Packaging, verbatim, because both lines are load-bearing:
 
 ```toml
-dependencies = ["fastmcp==4.0.0b4", "fastmcp-slim==4.0.0b4"]
+dependencies = [
+  "fastmcp==4.0.0b4",
+  "fastmcp-slim==4.0.0b4",   # transitive prerelease; must be named or resolution fails
+  "mcp==2.1.1",              # the transitive SDK that broke a middleware with no code change
+]
 
 [tool.uv]
 prerelease = "explicit"
 ```
+
+**A previous revision claimed in prose that `mcp` was pinned and then omitted it from this block**,
+which was presented as verbatim. Anyone implementing that block exactly would have reproduced the
+regression class the paragraph exists to prevent.
+
+**The lockfile is the actual cure and it was missing.** This section argues that a transitive bump
+broke code with zero change to that code, then pinned three packages by hand - which diagnoses the
+disease and does not prescribe the remedy. `uv.lock` is committed, CI runs `uv sync --frozen`, and
+the SBOM is generated from that frozen resolve. An SBOM produced from an unfrozen resolve documents
+a build nobody shipped.
 
 `--prerelease=allow` is global in uv and pulls in a beta pydantic; `explicit` alone fails to
 resolve because `fastmcp-slim` arrives transitively. Naming it directly resolves pydantic to
@@ -641,11 +827,32 @@ All are external unknowns. None is a reasoned-but-unexecuted claim about our own
 ## 12. ADRs required at freeze
 
 - **ADR-0001** - target `fastmcp 4.0.0b4` and the sessionless spec rather than the stable line.
-- **ADR-0002** - in-process rate limiting instead of the mandated Redis token bucket.
+- **ADR-0002** - in-process rate limiting instead of the mandated Redis token bucket. **Scope
+  includes** `rate-limiting.md:361-362` (a 429 must use a problem detail, and ours raises
+  `MCPError`), rule 5's `RateLimit-*` response headers, and the limitation that every supporting
+  measurement was sequential and single-client.
 - **ADR-0003** - `problem+json` cannot be set on an MCP tool error; scope and consequences.
 - **ADR-0004** - `ResponseLimitingMiddleware` excluded; size bounded in-tool.
 - **ADR-0005** - the `ai/` standards domain binds this repository by intent.
-- **ADR-0006** - single `main` branch rather than the mandated `main`+`develop` GitFlow.
+- **ADR-0006** - single `main` branch rather than the mandated `main`+`develop`. **Scope includes**
+  B97 branch *naming*, which the branch-model deviation does not touch, and the "merge only from
+  develop or hotfix" clause the deviation necessarily voids. B99's four properties - PR, approval,
+  CI green, currency, squash - **relocate onto `main`** rather than retiring.
 - **ADR-0007** - `httpx2` rather than `httpx`, matching what FastMCP ships.
-- **ADR-0008** - special-category EEO fields excluded from output models (§6.2), since the GDPR
-  machinery is non-binding and this is therefore a decision rather than a cited obligation.
+- **ADR-0008** - special-category EEO fields excluded from output models, **on scope grounds**:
+  `gdpr-data-rights.md` is `priority: required` and its DSAR/RTBF machinery attaches to systems that
+  store personal data, which this is not. Article 30 records-of-processing is separately satisfied
+  by `docs/data-inventory.md`.
+- **ADR-0009** - the audit log records that an approval response was received and what it said, but
+  cannot record **who** approved, because a host may auto-respond with no human present.
+  `agent-guardrails.md:79` requires the identity and it is unsatisfiable on this transport.
+- **ADR-0010** - coverage targets remapped from the standard's category model, which has no
+  category matching an MCP tool module. Loosening a mandated coverage number is exactly what this
+  mechanism exists to record.
+
+**Freeze procedure, and one step exists because it already failed once:** every **conditional**
+dismissal in the standards analysis is re-tested at freeze. `architecture/caching.md` was dismissed
+as "optional here; if a cache is added it becomes live", a cache was then added, and nothing
+re-evaluated it - the condition tripped silently and it took a second sweep to notice. **A
+conditional dismissal is a dated claim about the design, not a permanent verdict.**
+`devops/docker.md` and `backend/idempotency.md` are the two most likely to have gone live.
