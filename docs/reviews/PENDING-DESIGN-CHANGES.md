@@ -479,3 +479,95 @@ era or middleware configuration distorts.
 **This is a named candidate, not a verified mechanism.** It is being spiked before it goes in the
 design, because "we will figure it out in v1.1" is not a path back, and a pattern presented as a
 finding without being executed is exactly what this project has been careful to avoid.
+
+---
+
+## P19 - REVERSAL: `create_candidate` is REINSTATED in v1.0, behind three gates
+
+**P17 and P18 cut `create_candidate` because human-in-the-loop approval was believed impossible
+on our default era. That belief was wrong. The agent retracted it with executed evidence, and the
+cut is reversed.**
+
+### Human approval works on sessionless. Executed, all three arms:
+
+```
+handler APPROVES : is_error=False  structured={'created': True, 'rows': 1, 'approvedVia': 'MRTR elicitation'}
+handler DENIES   : is_error=True   content=["Not approved by a human (action='decline'); refusing to write."]
+NO handler       : RAISED MCPError: Elicitation not supported
+```
+
+Approve writes. Deny refuses **and the row counter does not increment**. No client handler **fails
+closed**. That is precisely the default-deny, human-in-the-loop, fail-closed control that
+`ai/agent-guardrails.md:70` requires, on our default era.
+
+### How the error was made, and why it is worth recording
+
+FastMCP's message was accurate and narrowly scoped: *"elicitation via **server-initiated
+requests** is unavailable on 2026-07-28 connections."* SEP-2577 removed the server's ability to
+**initiate** a request mid-call, because a stateless protocol has no held-open stream to push
+down. It did not remove elicitation. The spec carries elicitation over the **Multi Round-Trip
+Requests** pattern (SEP-2322): the tool returns an `InputRequiredResult` carrying an
+`elicitation/create` request, the client collects the answer and **retries the original call**
+with `inputResponses` attached.
+
+**One API was tested, found unavailable, and the result generalised to the whole capability.** The
+evidence against that generalisation was already inside our own research: §6.3 quotes
+`response_limiting.py` guarding `InputRequiredToolResult` with a comment naming SEP-2322, pasted
+in while chasing an unrelated bug and never registered.
+
+### The verified pattern
+
+The tool inspects `ctx.input_responses` - `None` on the first leg, populated on the retry. The
+first leg returns `InputRequiredToolResult(InputRequiredResult(input_requests={"approval":
+ElicitRequest(...)}, request_state=...))`. The second leg validates and writes. Accessors are
+`ctx.input_responses` and `ctx.request_state` on `Context`, **not** on `request_context`.
+
+**The fail-open hazard survives into this path in a new shape.** The guard must check the action
+**and** the answer value: an *accepted* elicitation carrying `approve: false` is still an
+acceptance. The verified guard is `action == "accept" and content.get("approve") is True`, and
+that conjunction is not optional.
+
+There is also a round cap: a tool that never consumes its answers degrades to a bounded loop and
+then a clean `InputRequiredRoundsExceededError` (client default 10 rounds), not a hang. A test
+must assert the second leg actually consumes `ctx.input_responses`.
+
+### The reinstatement decision, and its conditions
+
+`create_candidate` ships in v1.0 **disabled by default**, behind three independent gates:
+
+1. **Deploy-time:** not registered unless `JOBVITE_ENABLE_WRITES=true`. Server-side, cannot be
+   bypassed by a client.
+2. **Per-invocation human approval** via MRTR elicitation. Fails closed when unavailable.
+3. **Confirmation token** as defence-in-depth and as the fallback for clients that report
+   "Elicitation not supported". Unlike elicitation it needs **no** client cooperation, so the two
+   compose: elicit where the client can, require a token where it cannot.
+
+Of P17's five other objections, two are resolved and three remain:
+
+- **Retry duplication: resolved.** `RetryMiddleware` is disqualified entirely (P13); retries live
+  inside the Jobvite client where the write is excluded by construction.
+- **Email to a live candidate: mitigated.** `send_email` defaults to `false`, and a human now
+  approves each invocation.
+- **Still true:** the 201 shape has never been observed, there is nowhere to rehearse, and the
+  duplicate `409` semantics are unknown.
+
+Those three are handled by **honesty and defensive parsing**, not by pretending they are solved:
+
+- The response handler does **not** assert a strict schema on the 201. It returns Jobvite's body
+  alongside a best-effort normalised view, so an unexpected shape degrades to "here is what came
+  back" rather than a parse failure.
+- The README and the tool description state plainly that the write path has never been executed
+  against live Jobvite. That label is removed only when checklist row 10 is closed.
+
+**Why reinstating beats cutting.** The compliance blocker is gone, and the remaining risk is
+concentrated on users who hold credentials - who are precisely the people able to validate it, and
+who would otherwise be denied the capability entirely by a caution that no longer has a basis.
+
+### One more finding, and it is a trap
+
+**Do not put `ResponseCachingMiddleware` on the preview/confirmation tool.** Caching it re-issues
+the *same* token - proven, `2nd preview token identical to 1st? True` - so once a token is spent
+the cached preview keeps handing back the dead token for the whole TTL and the write becomes
+permanently unusable. It fails closed, because the replay guard catches it, but it is a
+self-inflicted denial of service, and in one arm it broke the happy path outright. The preview
+tool is annotated `readOnlyHint=True`, which makes it exactly the tool someone would naively cache.

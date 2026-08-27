@@ -482,6 +482,64 @@ That is a stronger statement than "related", and it is now in the filed issue.
 >
 > **Note:** searched the tracker for an existing report and found none matching (`lifespan+SIGTERM` → 0 results). Related but distinct: #4118, #3480.
 
+
+### 8.3 Draft — elicitation result types are all truthy (DX / safety trap)
+
+Requested by the team lead for filing. Framed as DX/documentation rather than a defect, because the
+types are defensible as dataclass-like results.
+
+> **Title:** `DeclinedElicitation` and `CancelledElicitation` are truthy, so the obvious approval guard silently permits refused actions
+>
+> **Environment:** `fastmcp==4.0.0b4`, `mcp==2.1.1`, Python 3.12.3, Linux. Also present on 3.4.7.
+>
+> **What happens:** `ctx.elicit()` returns one of `AcceptedElicitation`, `DeclinedElicitation`,
+> `CancelledElicitation`. All three are truthy:
+> ```
+> Accepted   bool()=True
+> Declined   bool()=True
+> Cancelled  bool()=True
+> ```
+> So the natural guard around a destructive action permits it when the user refuses:
+> ```python
+> result = await ctx.elicit("Create candidate?", response_type=str)
+> if result:            # True for Declined AND Cancelled
+>     create()
+> ```
+>
+> **Repro** — a tool with a naive guard and a strict guard side by side, against a client whose
+> handler declines, cancels, and finally accepts-with-a-negative-answer:
+> ```
+> --- HUMAN DECLINES ---
+>    create_naive:  CREATED via naive guard on DeclinedElicitation  | rows=1
+>    create_strict: BLOCKED on DeclinedElicitation                  | rows=1
+> --- HUMAN CANCELS ---
+>    create_naive:  CREATED via naive guard on CancelledElicitation | rows=2
+>    create_strict: BLOCKED on CancelledElicitation                 | rows=2
+> --- HUMAN ACCEPTS but answers 'no' ---
+>    create_naive:  CREATED via naive guard on AcceptedElicitation  | rows=3
+>    create_strict: BLOCKED on AcceptedElicitation                  | rows=3
+> ```
+> Three refusals, three writes, `is_error=False` on all three.
+>
+> **Expected:** the obvious guard should not permit a refused action, or the requirement to use
+> `isinstance(...)` should be impossible to miss.
+>
+> **Why it matters:** elicitation's most natural use is confirming a destructive operation, which is
+> exactly the case where a silently-permissive guard is worst. The unsafe form reads as correct in
+> review.
+>
+> **Suggested fixes, in preference order:**
+> 1. Define `__bool__` on `DeclinedElicitation`/`CancelledElicitation` returning `False`. Cheap,
+>    makes the obvious guard correct, though it is a behaviour change for anyone relying on
+>    truthiness.
+> 2. Failing that, put the `isinstance` requirement in the elicitation docs with an explicit
+>    "this is not enough: `if result:`" counter-example.
+> 3. Consider a convenience such as `result.accepted` returning a real boolean.
+>
+> **Note:** the same trap exists on the MRTR / `InputRequiredResult` path, where the caller must
+> check both the action **and** the answer value — an accepted elicitation carrying a negative answer
+> is still an acceptance.
+
 ---
 
 ## 9. Lifespan — composition ✅, teardown ⛔ on SIGTERM
@@ -1066,8 +1124,15 @@ Run on Python 3.12.3, `fastmcp==4.0.0b4`. This section exists because `ai/agent-
 requires destructive operations to be default-deny **and** human-in-the-loop, **failing closed**, and
 `create_candidate` writes a real record to a real ATS and can email a live human.
 
-**Headline: elicitation cannot serve as our HITL control, and the obvious implementation of it
-fails OPEN.** Details below; both findings are independent and both matter.
+> ⚠️ **CORRECTED BY §17.** This section's finding about `ctx.elicit()` is accurate, but the
+> **conclusion I drew from it was wrong.** Elicitation *is* available on the sessionless era — via
+> the MRTR / `InputRequiredResult` pattern, not via `ctx.elicit()`. §15.5's claim that "no
+> MCP-native mechanism lets the server guarantee a human approved a write" is **retracted**; see
+> §17 for the executed evidence. The fail-open finding in §15.3 stands and still matters.
+
+**Headline: `ctx.elicit()` cannot serve as our HITL control, and the obvious implementation of it
+fails OPEN.** Both findings below are independent and both stand. What does *not* follow — and what
+I wrongly concluded — is that HITL is impossible on our era. See §17.
 
 ### 15.1 ⛔ `ctx.elicit()` is unavailable on the sessionless era — VERIFIED
 
@@ -1203,26 +1268,20 @@ control. **We cannot claim the guardrail is satisfied by annotations.** They sho
 correctly and honestly, since a well-behaved host may prompt on them — but the design must not
 count them as the HITL control.
 
-### 15.5 What this means for the compliance gap
+### 15.5 What this means for the compliance gap — ⚠️ SUPERSEDED BY §17
 
-Stating the shape of the problem, since the design decision is yours:
+The reasoning below was written before I tested the MRTR path, and its conclusion is **retracted**.
+It is kept only because the first two points remain true and are load-bearing for §17.
 
-1. **Elicitation is not available in our default configuration** and cannot be made available by
-   anything the server does. (§15.1, §15.2)
-2. **Annotations are advisory** and enforce nothing. (§15.4)
-3. Therefore **no MCP-native mechanism lets the server guarantee a human approved a write.** Both
-   candidate mechanisms depend on client cooperation.
-4. The environment-variable gate currently in the design is, as you said, deploy-time rather than
-   per-invocation — but it has one property the others lack: **it is enforced server-side and cannot
-   be bypassed by a client.** It is a weaker control that actually holds, versus a stronger-sounding
-   control that a client can simply decline to implement.
-
-What *is* enforceable server-side, on the evidence here: anything that does not require the server
-to initiate a request to the client. A two-call confirmation pattern — the first call returns a
-short-lived token describing exactly what would be written, and the write requires that token —
-keeps the decision on the human's side of the conversation while remaining a plain tool result,
-which §14.2 showed is the one shape no era or middleware configuration distorts. **I have not
-spiked that pattern**; I am naming it because a prohibition needs a substitute, not asserting it works.
+1. **`ctx.elicit()` is not available in our default configuration** and cannot be made available by
+   anything the server does. (§15.1, §15.2) — **still true.**
+2. **Annotations are advisory** and enforce nothing. (§15.4) — **still true.**
+3. ~~Therefore no MCP-native mechanism lets the server guarantee a human approved a write.~~
+   **WRONG.** This did not follow. `ctx.elicit()` is one route to elicitation, not the only one.
+   The 2026-07-28 spec carries elicitation over the **Multi Round-Trip Requests** pattern, and
+   FastMCP 4.0 implements it. **§17 demonstrates HITL working on the sessionless era.**
+4. ~~The env-var gate is a weaker control that actually holds.~~ Superseded — we no longer have to
+   choose between an enforceable weak control and an unenforceable strong one.
 
 ### 15.6 Not a bug report
 
@@ -1234,6 +1293,245 @@ project that has just accepted two real reports from us. **Flagging it for your 
 deciding unilaterally.**
 
 
+---
+
+## 16. The confirmation-token HITL pattern — SPIKED
+
+§15.5 named a two-call confirmation-token pattern as the only substitute I could see for elicitation,
+and flagged it explicitly as **not verified**. A prohibition needs a working substitute, so I built
+and attacked it. This section upgrades it from a named candidate to a **tested one**.
+
+⚠️ **Scope: this is OUR pattern, not a FastMCP feature.** Nothing here is a framework finding. It
+uses only plain tool calls and plain returns, which is precisely why it survives both eras.
+
+### 16.1 Shape
+
+Two tools. The first is read-only and mints a short-lived HMAC token **bound to the exact payload**;
+the second refuses to write without a matching one.
+
+```python
+@mcp.tool(description="Step 1: preview the write. Returns what WOULD happen plus a token.",
+          annotations={"readOnlyHint": True, "destructiveHint": False})
+def preview_create_candidate(name: str, email: str) -> dict:
+    payload = {"name": name, "email": email}
+    return {"willCreate": payload,
+            "warning": "This will create a real ATS record and may email this person.",
+            "confirmationToken": mint(payload),
+            "expiresInSeconds": TTL}
+
+@mcp.tool(description="Step 2: perform the write. REQUIRES a token from preview.",
+          annotations={"destructiveHint": True, "idempotentHint": False})
+def create_candidate(name: str, email: str, confirmation_token: str) -> dict:
+    check({"name": name, "email": email}, confirmation_token)   # raises ToolError on any failure
+    ROWS.append((name, email))
+    return {"created": True, "rows": len(ROWS)}
+```
+
+`mint`/`check` are ~20 lines of `hmac` + `secrets` over a server-side secret, carrying an expiry, a
+nonce, and a used-token set.
+
+### 16.2 Attack arms — all six, both eras, verbatim
+
+```
+===== mode=auto (sessionless 2026-07-28) =====
+  no token          : is_error=True ['Malformed confirmation token.']
+  forged token      : is_error=True ['Confirmation token does not match this request.']
+  token/arg mismatch: is_error=True ['Confirmation token does not match this request.']
+  correct token     : is_error=False structured={'created': True, 'rows': 1}
+  replay same token : is_error=True ['Confirmation token already used (replay refused).']
+  expired token     : is_error=True ['Confirmation token expired; re-confirm.']
+
+===== mode=legacy (handshake 2025-11-25) =====
+  no token          : is_error=True ['Malformed confirmation token.']
+  forged token      : is_error=True ['Confirmation token does not match this request.']
+  token/arg mismatch: is_error=True ['Confirmation token does not match this request.']
+  correct token     : is_error=False structured={'created': True, 'rows': 2}
+  replay same token : is_error=True ['Confirmation token already used (replay refused).']
+  expired token     : is_error=True ['Confirmation token expired; re-confirm.']
+```
+
+**12 calls, 10 refusals, 2 writes** — and the server's own row counter went `1` then `2`, incrementing
+**only** on the two correct-token calls and on no refusal arm. Each failure mode produces a
+*distinct* message, so the refusals are not one blanket rejection wearing six labels.
+
+The **token/arg mismatch** arm is the one that matters most: a token minted for
+`{"name": "A", ...}` was replayed against `{"name": "MALLORY", ...}` and refused, because the HMAC
+covers the payload. A confirmation the human gave for one write cannot be spent on a different one.
+
+**Verdict: ✅ VERIFIED on both eras.** It needs no server-initiated request, so the sessionless
+restriction in §15.1 does not apply, and it rides on plain tool results — the one shape §14.2 showed
+no era or middleware configuration distorts.
+
+### 16.3 ⚠️ Positive-control failure I hit first, and why it is recorded
+
+My first run refused **every** arm including the happy path:
+
+```
+  correct token     : is_error=True structured=None rows=0
+```
+
+**A guard that refuses everything is not a guard, and its refusals prove nothing.** The cause was my
+own bug: I joined the token as `f"{exp}.{nonce}.{sig}"`, and `exp` is a float whose repr contains a
+`.`, so `token.split(".")` returned four parts and every token parsed as malformed. Switching the
+separator to `:` fixed it.
+
+Recording this because the broken run *looked like a total success* — six refusals, zero writes, a
+perfect security result — and I would have shipped a pattern whose only demonstrated behaviour was
+rejecting everything. The positive control is what distinguishes "correctly refuses attacks" from
+"is simply broken".
+
+### 16.4 What this pattern does and does not give us
+
+**Does:**
+- Server-side enforcement. The write is impossible without a token the server minted; no client
+  cooperation required, unlike elicitation (§15.2) and annotations (§15.4).
+- Per-invocation, not deploy-time — the gap you identified in the env-var gate.
+- Payload binding, replay refusal, and expiry, all demonstrated above.
+- Works identically on both eras and needs nothing from the transport.
+
+**Does NOT:**
+- ⛔ **Prove a human was involved.** This is the honest limit. It forces a *deliberate two-step*,
+  and the preview returns text stating what will happen — but an autonomous agent can call
+  `preview_` and then `create_` with no human in the loop at all. It enforces **confirmation**, not
+  **human** confirmation. Against `agent-guardrails.md:70`'s human-in-the-loop requirement this is a
+  partial answer, and the design should say so plainly rather than claim more.
+- Survive a client that hides the preview's warning text from the human.
+
+**My read, your decision:** this is strictly stronger than the env-var gate (per-invocation,
+payload-bound) and strictly stronger than elicitation *in enforceability* (the server cannot be
+bypassed), while being strictly weaker than elicitation *in intent* (it cannot prove a human
+answered). If the guardrail's human-in-the-loop clause is read literally, **no mechanism available
+to us satisfies it**, and that is the finding to take to Phil — not a claim that this one does.
+
+
+---
+
+## 17. ⚠️ CORRECTION — HITL *does* work on the sessionless era, via MRTR
+
+**This section retracts the central conclusion of §15.** I reported that no MCP-native mechanism
+could guarantee human approval on our default era. That was wrong, and the design decision to cut
+`create_candidate` from v1.0 rested on it.
+
+### 17.1 How I got it wrong
+
+FastMCP's error message is precise, and I under-read it:
+
+```
+ToolError: elicitation via server-initiated requests is unavailable on 2026-07-28 connections.
+```
+
+The qualifier **"via server-initiated requests"** is doing real work. What 2026-07-28 removed
+(SEP-2577) is the server's ability to *initiate* a request mid-call — not elicitation itself. I
+treated `ctx.elicit()` as the definition of elicitation, found it unavailable, and generalised.
+
+The official spec says so plainly (`https://modelcontextprotocol.io/docs/2026-07-28/learn/client-concepts`):
+
+> "Elicitation follows the **Multi Round-Trip Requests** (MRTR) pattern. When a server needs user
+> input while processing a request such as `tools/call`, it responds with an `InputRequiredResult`
+> whose `inputRequests` field carries one or more `elicitation/create` requests. The client gathers
+> the input and **retries the original request**, attaching the collected `inputResponses` and
+> echoing back any `requestState` the server included."
+
+The evidence was also already in this document and I walked past it: §6.3 quotes
+`response_limiting.py` guarding `InputRequiredToolResult` with a comment naming **SEP-2322**. I
+dumped that source, read it for the limiter bug, and did not register what it implied.
+
+### 17.2 The working pattern — VERIFIED on sessionless
+
+```python
+from fastmcp.tools.base import InputRequiredToolResult
+import mcp_types
+
+@mcp.tool(annotations={"destructiveHint": True})
+async def create_candidate(name: str, ctx: Context) -> dict:
+    answers = ctx.input_responses                      # None on the first leg
+    if answers is not None:
+        resp = answers.root.get("approval")
+        action = getattr(resp, "action", None)
+        content = getattr(resp, "content", None) or {}
+        if not (action == "accept" and content.get("approve") is True):
+            raise ToolError(f"Not approved by a human (action={action!r}); refusing to write.")
+        ROWS.append(name)
+        return {"created": True, "rows": len(ROWS), "approvedVia": "MRTR elicitation"}
+
+    req = mcp_types.ElicitRequest(
+        method="elicitation/create",
+        params=mcp_types.ElicitRequestFormParams(
+            mode="form",
+            message=f"Approve creating candidate {name}? This writes a real ATS record.",
+            requestedSchema={"type": "object",
+                             "properties": {"approve": {"type": "boolean"}},
+                             "required": ["approve"]},
+        ),
+    )
+    return InputRequiredToolResult(
+        mcp_types.InputRequiredResult(result_type="input_required",
+                                      input_requests={"approval": req},
+                                      request_state=f"create:{name}")
+    )
+```
+
+The accessors are **`ctx.input_responses`** and **`ctx.request_state`** on `Context` `[FROM SOURCE]`,
+not on `request_context`.
+
+### 17.3 Evidence — all three arms, sessionless (`mode="auto"`)
+
+```
+--- SESSIONLESS (auto), handler APPROVES ---
+   is_error=False structured={'created': True, 'rows': 1, 'approvedVia': 'MRTR elicitation'}
+--- SESSIONLESS (auto), handler DENIES ---
+   is_error=True structured=None content=["Not approved by a human (action='decline'); refusing to write."]
+--- SESSIONLESS (auto), NO handler ---
+   RAISED MCPError: Elicitation not supported
+```
+
+- ✅ **Approve → the write happens.** `rows=1`.
+- ✅ **Deny → the write is refused**, `is_error=True`, and the row counter did **not** increment.
+- ✅ **No client handler → fails CLOSED** with `Elicitation not supported`. The write cannot proceed.
+
+**Verdict: ✅ VERIFIED. Human-in-the-loop approval works on the sessionless 2026-07-28 era, and
+fails closed when the client cannot support it.**
+
+### 17.4 A guardrail worth knowing: the round cap
+
+My first attempt looped, because I read the answers from the wrong attribute and therefore re-asked
+every round. The client stopped it:
+
+```
+InputRequiredRoundsExceededError: Server returned InputRequiredResult for more than 10 rounds;
+raise input_required_max_rounds on the Client, or use client.session.<method>(..., allow_input_requ...
+```
+
+`Client(input_required_max_rounds=10)` is the default. A guard tool that never consumes its answers
+degrades into a bounded loop and then a clean error — not an infinite hang. Worth knowing, and worth
+a test on our side asserting the second leg actually consumes `ctx.input_responses`.
+
+### 17.5 What this changes
+
+1. **The compliance gap has a real fix.** `create_candidate` can require per-invocation human
+   approval on our default era, failing closed when unavailable. It need not be cut from v1.0 for
+   the reason I gave.
+2. **§15.3's fail-open finding still stands and still matters.** The result objects are truthy, and
+   the MRTR path has the same hazard in a new shape: `action` and the answer *value* must **both**
+   be checked. My §17.2 guard checks `action == "accept" and content.get("approve") is True`, and
+   that conjunction is not optional — an accepted elicitation carrying `approve: false` is still an
+   acceptance.
+3. **The confirmation-token pattern (§16) is not dead**, but its role changes. It no longer has to
+   substitute for elicitation. It remains useful as **defence in depth** and as the fallback for
+   clients that report `Elicitation not supported` — and unlike elicitation it needs no client
+   cooperation. The two compose: elicit when the client can, require a token when it cannot.
+4. **§15.4 is unaffected.** Annotations remain advisory.
+
+### 17.6 The lesson I am recording against myself
+
+The finding in §15 was *correct*; the conclusion was *over-generalised*. I tested one API
+(`ctx.elicit()`), found it unavailable, and reported that the capability was unavailable. The
+qualifier in the error message, the spec's own client-concepts page, and a source comment I had
+already pasted into this document all pointed at the other path. **A negative result about one API
+is not a negative result about a capability**, and I should have gone looking for the second route
+before telling the lead a design was blocked.
+
+
 ## What I could NOT verify
 
 - **Python 3.10, and 3.13+.** Ran 3.11.15 and 3.12.3. The declared floor is `>=3.10`; 3.10 untested.
@@ -1243,7 +1541,7 @@ deciding unilaterally.**
 - ~~`ctx.elicit()` era-gating~~ — **resolved by execution in §15**: it raises on sessionless, on every transport including stdio, and the result types fail open under a naive guard.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
 - **`DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimiting`, `ErrorHandling`, `Retry` and `Ping` are covered in §§13–14. Four of the eight tested are unusable or need their defaults overridden, so **assume nothing about the remaining three.**
-- **A two-call confirmation-token HITL pattern (§15.5).** Named as a candidate substitute, **not spiked**. Do not treat it as verified.
+- ~~A two-call confirmation-token HITL pattern~~ — **now spiked in §16** and verified on both eras. Its remaining limit is stated there: it enforces confirmation, **not human** confirmation. Untested under concurrency, and the token store is in-process (a multi-worker deployment would need shared state).
 - **Whether any real host (Claude Desktop, Claude Code, Cursor) forces `mode="legacy"` or ships an elicitation handler.** I tested with FastMCP's own client only, so §15.2's "the client must opt in" is proven as a mechanism but I have not surveyed which hosts actually do.
 - **Rate limiting under concurrency.** Every limiter test was sequential and single-client; I have not verified bucket behaviour under simultaneous callers, which is the case that matters in production.
 - **Whether `limiters.clear()` is safe to call on a live server.** I used it to prove reconfiguration requires it; I did not test it under load or check for a race with in-flight consumption.
