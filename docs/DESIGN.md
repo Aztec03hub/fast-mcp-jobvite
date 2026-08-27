@@ -840,6 +840,55 @@ review rather than at runtime. **UNVERIFIED:** that this actually catches the dr
 catch is reasoning, not an executed result - the `ResponseLimiting` regression is the case it is
 modelled on, and nobody has replayed that bump against this check.
 
+### 10.1 Documentation deliverables
+
+`documentation/readme-standard.md` mandates fourteen README sections in a fixed order, and the
+conformance sweep found eleven consecutive documentation obligations unaddressed. **The README is
+not written yet, deliberately**: it would have to assert a Quickstart that reaches "a working
+state", live CI badges, and a test command, for software that does not exist. A README describing
+an unbuilt system is a false claim in the present tense, and this project has already been bitten
+by a document asserting its own compliance.
+
+What the design fixes instead is **what the README must contain when the implementation produces
+it**, so the obligation is discharged by specification rather than by fabrication:
+
+- **All fourteen sections, headings matching exactly**, because automated checks locate them by
+  heading text.
+- **The Configuration table lists every environment variable the component reads** - the four
+  credential variables, `JOBVITE_TOOLS`, `JOBVITE_ENABLE_WRITES`, `JOBVITE_MCP_TRANSPORT`,
+  `JOBVITE_TLS_TERMINATED_BY_PROXY`, `JOBVITE_PAGINATION_START_BASE` and the rate-limit settings -
+  with secrets referenced by name only. A variable added later updates the table in the same PR.
+- **An `mcp-name:` string, added before the first PyPI upload and not after.** PyPI ownership
+  verification for the MCP registry reads it out of the README, which becomes the package
+  description, so retrofitting it costs a version bump. Cheap now, annoying later, and free if we
+  never register.
+
+**Six behaviours must be documented because each one produces a confusing support conversation
+otherwise**, and every one was discovered by execution rather than anticipated:
+
+1. **An under-scoped client gets "Unknown tool", not a permission error.** `require_scopes` removes
+   the tool from `tools/list` entirely. Good behaviour, opaque symptom.
+2. **The write tool requires a host that can elicit.** With the confirmation token cut (§7.6),
+   there is no fallback: on a host that can elicit on neither era, `create_candidate` refuses.
+   Correct, and surprising if undocumented.
+3. **An abandoned approval hangs the call**, and a client-side timeout does not bound it, because
+   the handler runs in the client's own process. The write stays safe; the call does not return.
+4. **A reverse proxy must pass `mcp-method`, `mcp-name` and `MCP-Protocol-Version` through
+   untouched.** A proxy stripping unknown headers breaks the server in a way that looks like our
+   bug.
+5. **Jobvite's documented operating envelope** - as-needed, and filtered beyond once a day - with
+   the note that anything more frequent is outside what the vendor documents.
+6. **The write path has never been executed against live Jobvite.** That caveat is removed only
+   when `CREDENTIAL-CHECKLIST.md` rows 1-4 close, and not before.
+
+**Two standard behaviours cannot be met as written, and are recorded rather than quietly skipped.**
+Quickstart-CI parity (`:80`) is unmeetable in the obvious form: CI runs credential-free by §8, and a
+Quickstart that reaches a working state needs a Jobvite credential. CI will therefore exercise the
+Quickstart as far as a credential-free path allows - install, start, list tools - and the README
+will mark the remaining step as requiring a credential. And a **CI status badge cannot be live until
+CI exists**; adding one before then would be the forbidden static badge that does not reflect
+reality.
+
 **Two commit-time gates, both exceeding the standard deliberately:**
 - Secret scanning pre-commit, not only in CI. On a public remote a pushed secret is compromised
   the instant it lands.
