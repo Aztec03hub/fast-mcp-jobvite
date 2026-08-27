@@ -13,13 +13,13 @@ Sources: `docs/research/FASTMCP.md`, `docs/research/STANDARDS.md`, `docs/researc
 | D4 | In-process rate limiting, opting out of the mandated Redis token bucket | Settled, needs ADR | Orchestrator ruling |
 | D5 | `error-contract.md` outranks `agentic-coding-standard.md` on error shape | Settled | Standard self-declaration |
 | D6 | Full RFC 9457 problem object, returned as a `ToolResult` with `is_error`. No envelope. | Settled, needs ADR | Standard + Phil ruling |
-| D7 | MIT, `Copyright (c) 2026 evolv Consulting` | Settled | Phil, 2026-08-27 |
+| D7 | Apache-2.0, `Copyright 2026 evolv Consulting`, with a NOTICE | Settled | Phil, 2026-08-27 |
 | D8 | Canonical on `evolvconsulting`, auto-mirrored to the personal fork | Settled | Phil, 2026-08-27 |
 | D9 | Commit `type(scope): description` + `Refs:`; semantic PR titles | Settled | Orchestrator ruling |
 | D10 | v1.0 ships tools for the five EVIDENCED Jobvite operations only | Settled | Orchestrator ruling |
 | D11 | Default transport is stdio; HTTP is opt-in | Settled | Orchestrator ruling |
 | D12 | Live-credential tests are a separate opt-in suite, never skipped in CI | Settled | Orchestrator ruling |
-| D13 | Licence choice reopened pending an org-wide survey | OPEN | Phil, 2026-08-27 |
+| D13 | Standing rule: every evolv project decides between Apache-2.0 and MIT | Settled | Phil, 2026-08-27 |
 | D14 | Single `main` branch, not the mandated `main`+`develop` GitFlow | Settled, needs ADR | Orchestrator ruling |
 | D15 | Release tags `vX.Y.Z`, semver, since no standard covers tagging | Settled | Orchestrator ruling |
 | D16 | `mask_error_details=True` set explicitly at construction | Settled | Standard |
@@ -179,3 +179,39 @@ and `fast-mcp-jira` does not set it.
 text, is still written to the server log. Credentials therefore must never be interpolated into
 an exception message, and the log stream is treated as sensitive.
 
+
+## D7 / D13 - Apache-2.0, and the standing rule behind it
+
+**Decision.** This repository is Apache-2.0, `Copyright 2026 evolv Consulting`, with a NOTICE
+file. **Standing rule from Phil:** unless otherwise specified, every evolv project's licence is
+an explicit decision between **Apache-2.0 and MIT**. Nothing else is a candidate.
+
+**Why this was reopened.** MIT was set as a default, not chosen from evidence, and Phil pushed
+back on it. A survey of all 187 repos visible in the `evolvconsulting` org then established
+there was no convention to have followed:
+
+- 174 of 187 repos (93%) carry no LICENSE file at all.
+- 14 of the 19 public repos are unlicensed, including every hands-on-lab and demo repo. Under
+  default copyright nobody may legally reuse them, which is unlikely to be anyone's intent.
+- Of the 13 licensed repos, once upstream code, unedited boilerplate, a dependency-forced AGPL,
+  private repos and archives are stripped out, exactly **one** genuine evolv-authored public
+  precedent remains: `evolv-coder-lite`, MIT.
+- The copyright string is written six different ways across the org, including a personal first
+  name in an org repo.
+
+The standards corpus is silent: a sweep for "open source", "public repository", "copyright",
+"NOTICE" and 28 other terms returned zero hits. It governs *inbound* licensing thoroughly -
+which third-party licences evolv may consume - and says nothing about what evolv publishes under.
+
+**Why Apache-2.0 over MIT here.** The deciding axis is the express patent grant with a
+retaliation clause. This is a connector aimed at corporate recruiting stacks, so enterprise legal
+review is a realistic adoption gate, and MIT offers only an implied patent licence. Apache also
+brings a NOTICE mechanism, and it sits on our own CI dependency allow-list so it cannot fail the
+licence gate. Copyleft was excluded independently: GPL and AGPL contradict that same allow-list.
+
+**Executed carefully because the org has already got this wrong twice:** the appendix copyright
+line is completed. Two `evolvconsulting` repos still ship `Copyright [yyyy] [name of copyright
+owner]` verbatim. Verified: zero placeholders remain in our LICENSE.
+
+**The real failure mode this guards against is not choosing wrong, it is not choosing at all** -
+which is how 14 public repos ended up legally unusable.
