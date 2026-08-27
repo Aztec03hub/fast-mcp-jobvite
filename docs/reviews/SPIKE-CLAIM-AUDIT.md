@@ -51,7 +51,7 @@ distinction is where both upgrades came from, and it is worth carrying into the 
 |---|---|---|---|
 | 1.1 | **L216**: *"the retry check unwraps one level of `__cause__`. Measured: one call, **four rows created**."* | §13.3, **spike:999**: `ROWS CREATED = 4 -> ['PLACEHOLDER-CANDIDATE#1', 'PLACEHOLDER-CANDIDATE#2',` ... and above it `server-side invocations of create_candidate = 4` / `VERDICT: DUPLICATES CREATED`. `_should_retry` source in §13.3 shows `cause = error.__cause__`. | **SUPPORTED** |
 | 1.2 | **L212-214**: *"`RetryMiddleware` cannot be scoped to exclude a tool"* | **spike:989**: *"There is **no `tools=`, `included_tools` or `excluded_tools` parameter**, and it hooks `on_request`,"* (sentence continues: *"so it applies to every tool call on the server."*) | **SUPPORTED** |
-| 1.3 | **L217-218**: *"**One circuit breaker for Jobvite. 4xx must not trip it**"* | `grep -n "breaker\|circuit"` over the spike returns nothing. | **NOT FOUND** in the spike - correctly so. The design presents it as a design rule, not a measurement. No defect. |
+| 1.3 | **L217-222**: *"**One circuit breaker for Jobvite. 4xx must not trip it**"* and *"**An open breaker is distinguishable from an outage** ... `/problems/jobvite-circuit-open` with `status` 503 and a `retry_after` hint"* | `grep -n "breaker\|circuit"` over all 2354 lines of the spike returns **nothing**. `grep -n "tenacity"` likewise returns nothing. Neither the breaker nor the retry stack that precedes it has ever been executed in any form. | **NOT FOUND**, and stated loudly per the reporting instruction. §4.3 does **not** claim these as measured, so there is no false claim here - but §4.3 is a section whose one headline result *is* executed (the four rows), which lends its unexecuted neighbours borrowed credibility. See **S-4**: §12 L1219 asserts no reasoned-but-unexecuted claims about our own stack remain, and this is one of several. |
 | 1.4 | **L223-225**: *"No 429 has ever been observed and no rate-limit header is returned"* | `JOBVITE-API.md` §14: *"`[ABSENT]` I did **not** observe a 429 from Jobvite"*; *"The response headers contain **no** `X-RateLimit-*`, `RateLimit-*`, or `Retry-After` header."* | **SUPPORTED** (evidence correctly lives in JOBVITE-API, not the spike) |
 
 ---
@@ -100,7 +100,7 @@ result for the limiter is worth one clause and is currently unused. Also unused,
 | 4.1 | **L620-622**: *"Verified end to end on our default era: approve writes, deny refuses with the row count unchanged, no client handler fails closed."* | §17.3, from **spike:1577**: `--- SESSIONLESS (auto), handler APPROVES ---` → `is_error=False structured={'created': True, 'rows': 1, ...}`; **spike:1579** `--- SESSIONLESS (auto), handler DENIES ---` → `is_error=True`; and **spike:1587**: *"✅ **No client handler → fails CLOSED** with `Elicitation not supported`. The write cannot proceed."* | **SUPPORTED** |
 | 4.2 | **L624-626**: *"Accessors are `ctx.input_responses` and `ctx.request_state` on `Context`, **not** on `request_context`."* | **spike:1568**: *"The accessors are **`ctx.input_responses`** and **`ctx.request_state`** on `Context` `[FROM SOURCE]`, not on `request_context`."* | **SUPPORTED** |
 | 4.3 | **L637-640**: *"The guard must check the action AND the value: `action == "accept" and content.get("approve") is True`. An *accepted* elicitation carrying `approve: false` is still an acceptance."* | §17.6, **spike:1636**: `is_error=True content=["Not approved (action='accept'); refusing."]` with `server row count AFTER = 0`, and the spike's note that *"the *action* was an acceptance; only the value check saved it."* | **SUPPORTED** |
-| 4.4 | **L644-650**: the era table - sessionless: MRTR works / `ctx.elicit()` raises; handshake: MRTR **raises, every arm including approve** / `ctx.elicit()` works. Framed *"Executed on both"* | §20.2, **spike:2019**: `MRTR approve  -> RAISED MCPError: Tool 'create_candidate' returned an InputRequiredResult ...` with `server rows after this era's arms = 1   <- unchanged: NO write on legacy`. Cross-checked against §15.2's `ctx.elicit()` matrix and §17.3. | **SUPPORTED** - and this is where the design absorbed a spike **correction** correctly: §17.3 warns *"⚠️ This section is sessionless-only and must not be read as era-general"*, and the design's table respects it. |
+| 4.4 | **L644-650**: the era table - sessionless: MRTR works / `ctx.elicit()` raises; handshake: MRTR **raises, every arm including approve** / `ctx.elicit()` works. Framed *"Executed on both"* | All four cells reproduce. §20.2, **spike:2019**: `MRTR approve  -> RAISED MCPError: Tool 'create_candidate' returned an InputRequiredResult ...` with `server rows after this era's arms = 1   <- unchanged: NO write on legacy`; sessionless MRTR at §17.3; `ctx.elicit()` raising on sessionless at §15.1. **But the "works" cell is conditional.** §15.2's matrix has a third column the design's table does not: **spike:1229** `| HTTP | \`legacy\` | present | ✅ works |` versus **spike:1230** `| HTTP | \`legacy\` | **absent** | ⛔ \`MCPError: Elicitation not supported\` |`. **spike:1248**: *"Elicitation works only when the **client** both forces"* `mode="legacy"` *and supplies an elicitation handler.* | **OVERSTATED** - see **O-8**. The design collapsed a two-axis result (era × handler) onto one axis. **The mechanism is unaffected** - §20.4's verified guard refuses on no-handler on both eras, and §7.5 L621 and §8 L797-802 both carry the fail-closed behaviour. This is the table, not the guard. |
 | 4.5 | **L652-654**: FastMCP's error quoted - *"only exists at MCP 2026-07-28 ... Use `ctx.elicit()` for server-initiated input on handshake-era connections."* | **spike:2041** `[FROM SOURCE]` (`fastmcp/server/mixins/mcp_operations.py:277-292`): `"(SEP-2322) only exists at MCP 2026-07-28; this connection "` and the following lines carrying the `ctx.elicit()` remedy. | **SUPPORTED** |
 | 4.6 | **L656-659**: *"Claude Code negotiates `2026-07-28` automatically over HTTP, but for stdio only when `MCP_PROTOCOL_NEGOTIATION=auto` - so **a default stdio install lands on the handshake era**"* | **spike:1715** quotes Claude Code's own docs for exactly that, and **spike:1720** draws the conclusion. **But spike:1691**: *"Requested to size the practical picture for v1.1. **This is documentation research, not execution** -"* (continues: *"I have not driven these hosts against our server."*), and **spike:2347**: *"**Host behaviour is surveyed from documentation in §18, NOT executed.**"* | **OVERSTATED** - see **O-1**, the top finding. |
 | 4.7 | **L659-660**: *"a sessionless-only guard would be broken for **the majority of local users** while passing every test we had."* | §20.2 says *"a sessionless-only guard would fail exactly where most local users are"*. Neither document holds any measurement of the user population. | **UNSUPPORTED** - see **U-1**. |
@@ -319,6 +319,103 @@ in this file most likely to fail to resolve - which is precisely what §1.3 foun
 alone was tried. The design's own remedy is the right one and would produce the evidence: **L866**,
 *"`uv.lock` is committed, CI runs `uv sync --frozen`"*. One `uv lock` closes this.
 
+## O-7 - the `desired + 2` burst rule is a property of FastMCP's client, stated as a property of the protocol
+
+Flagged by the round-4 reviewer as claim 1 of 2. The first pass marked it SUPPORTED. **It is not.**
+
+The arithmetic itself is impeccable and I want to say that plainly before the criticism: four data
+points, two eras, all consistent. **spike:913** onward gives `burst_capacity=3: successful tool
+calls before refusal = 1 (MCPError at call 2)`, then 5→3 and 10→8; **spike:918** derives *"Exactly
+**N-2**"*; and **spike:1058** independently corroborates with `burst_capacity=6` → 4 tool calls on
+*both* eras. Nothing in DESIGN L238-239 misreports a number.
+
+**The problem is what the `2` is a property of.** Its provenance, **spike:903-907**:
+
+```
+requests the limiter counts for ONE tool call in a fresh session:
+   - server/discover
+   - tools/call
+   - tools/list
+   total = 3
+```
+
+and **spike:1067** names the mechanism: the era-independence holds *"since both run `server/discover`
++ `tools/list` at"* connect. So the toll is **two non-tool requests issued by FastMCP's own `Client`
+during connect** - not by the limiter, not by the protocol, not by the era. Every one of the four
+measurements used that client.
+
+A different caller pays a different toll. **spike:198**'s working raw sessionless request is a
+single `curl -X POST` carrying `tools/call` with neither `server/discover` nor `tools/list`:
+
+```bash
+curl -X POST http://127.0.0.1:8941/mcp \
+  -H 'mcp-method: tools/call' -H 'mcp-name: write_thing' \
+```
+
+That caller's toll is **zero**, and `desired + 2` over-provisions its bucket by two.
+
+**DESIGN L238** states the rule with no such qualifier: *"**Burst is sized `desired_calls + 2` per
+session.**"*
+
+**Why it matters, and the blast radius the reviewer predicted.** ADR-0002 is named at **L261** and
+**L1226-1229** as carrying the limiter's constraints, so it inherits this. `[REASONED]` The
+practical risk is not a security failure - over-provisioning by two is harmless, and the design's
+sizing is *conservative* for a thinner client. The real exposure is the opposite direction: **an MCP
+client whose connect sequence is heavier than FastMCP's** - one that also calls `resources/list` and
+`prompts/list`, both of which the sessionless `server/discover` at **spike:222-229** advertises
+capabilities for - burns more than two, and `desired + 2` then under-provisions and refuses real
+tool calls. Nobody has measured any client but FastMCP's.
+
+The fix is a qualifier, not a redesign: state it as measured against FastMCP's client, and note that
+a client with a heavier connect sequence needs a larger burst. §4.4 already carries exactly this
+kind of honest hedge for concurrency at **L250-253**; this needs the same sentence.
+
+**One further consequence nobody has joined up:** the toll is *per session*, and **spike:2313**
+establishes that stdio spawns a fresh process - hence a fresh session and a fresh bucket - **per
+connection**. See **X-6**, which this upgrade makes more pointed rather than less.
+
+## O-8 - §7.5's era table collapses a two-axis result onto one axis
+
+Flagged by the round-4 reviewer as claim 2 of 2, and named as the claim already over-generalised
+once. The first pass marked it SUPPORTED. **All four cells reproduce; the table is still
+overstated**, and in the same direction as the original error.
+
+The design's table, **L646-650**:
+
+| Era | MRTR | `ctx.elicit()` |
+|---|---|---|
+| sessionless `2026-07-28` | works | raises |
+| handshake `2025-11-25` | **raises, every arm including approve** | works |
+
+The spike's matrix for `ctx.elicit()` has **three** columns, not two. **spike:1229-1230**:
+
+```
+| HTTP | `legacy` | present | ✅ works |
+| HTTP | `legacy` | **absent** | ⛔ `MCPError: Elicitation not supported` |
+```
+
+and **spike:1233** repeats it for stdio. The spike states the conclusion as load-bearing at
+**spike:1248**: *"Elicitation works only when the **client** both forces `mode="legacy"` **and**
+supplies an elicitation handler. Both are client-side choices. **The server cannot compel
+either.**"*
+
+So the "works" cell is not an era property. It is `era AND handler`. The design's table presents
+availability as determined by the era alone.
+
+**What is NOT wrong here, stated first so this is not read as bigger than it is.** The *mechanism*
+is unaffected. §20.4's verified guard refuses on the no-handler arm on both eras, DESIGN **L621**
+carries *"no client handler fails closed"* for the sessionless arm, and DESIGN **L797-802** (§8)
+carries the full per-era no-handler asymmetry into the test mandate. The design **has** this
+information. `create_candidate` is safe.
+
+**Why it still matters.** The table is the artifact a reader lifts out of §7.5 - it is the compact
+summary the section builds to, and §13's ADR list will likely reproduce it. A reader taking it at
+face value concludes "on handshake, elicitation works", which is exactly the shape of the original
+error the reviewer cited: a conditional result read as unconditional. `[REASONED]` The remedy is one
+word in the cell - *"works (with a client handler)"* - or a third column. Given that this specific
+table is the one the freeze-blocker resolution rests on, spending a word there is cheap insurance
+against the next reader generalising it the way the last one did.
+
 ## U-1 - "the majority of local users" is a population claim with no evidence
 
 **DESIGN L659-660.** Neither document measures who runs what transport. The spike says the same
@@ -371,6 +468,39 @@ of the same document now disagree.
 `[REASONED]` §8's framing is *"Required cases, each failing if its defence is removed"*. The defence
 was removed, so the required test cannot be written. Either the list drops the row, or §7.6 is not
 final.
+
+## S-4 - §12's closing sentence is contradicted by §10 and by §12's own item 6
+
+Found on a closure pass over the document's self-claims, prompted by the instruction to treat
+absence as a finding.
+
+**DESIGN L1219**, closing §12 Open questions:
+
+> *"All are external unknowns. **None is a reasoned-but-unexecuted claim about our own stack.**"*
+
+Two contradictions, one of them inside §12 itself:
+
+1. **§12's own item 6** (**L1214-1218**) is *"Shutdown depends on a uvicorn implementation detail
+   (§7.4)"*. That is a claim about **our own stack** - our shutdown path's dependency on a
+   third-party library's internals. It is not an external unknown in the sense the other five are
+   (a Jobvite credential, a response shape, a host's capability).
+2. **§10 L896-899** labels its own capability-drift diff **UNVERIFIED**: *"that this actually
+   catches the drift it is meant to catch is **reasoning, not an executed result**"*. That is,
+   verbatim, a reasoned-but-unexecuted claim about our own stack. The design says so in one section
+   and denies any exist in another.
+
+And beyond those two, a whole class the sentence overlooks: **§4.3's circuit breaker and retry
+stack** (row 1.3 - `grep` for `breaker`, `circuit` and `tenacity` across the entire spike returns
+nothing), **§4.5's de-duplication seen-set and completeness-versus-`total` check**, and **§2.1's
+generated fencing paths**. All designed here, none executed anywhere.
+
+`[REASONED]` The individual sections are honest - §4.3 never claims measurement, and §10 flags
+itself. The defect is the **blanket closing assertion**, which is precisely the self-certification
+the design's own front matter warns against at **L13-14**: *"stated precisely because a blanket
+compliance claim is exactly the kind of self-certification that has already been wrong once on this
+project."* The document opens by naming that failure mode and closes by committing it.
+
+The cheap fix is to scope the sentence to the six listed items and drop the universal second clause.
 
 ---
 

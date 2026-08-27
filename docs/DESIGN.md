@@ -17,9 +17,11 @@ claim is exactly the kind of self-certification that has already been wrong once
   `FASTMCP-SPIKE-4.md` against `fastmcp==4.0.0b4`, or on a clause quoted at its `file:line`.
 - **Every claim about Jobvite's error transport is recorded.** Byte-exact captures.
 - **No claim about a Jobvite success response is verified**, because none has ever been observed.
-- **Two mechanisms designed here have never been executed** and cannot be without a credential:
-  the runtime `start`-base probe (§4.5) and the capability-drift diff (§10). Both are marked at
-  their point of use, not only in §11.
+- **One mechanism designed here has never been executed**: the capability-drift diff (§10), which
+  is marked at its point of use and carried in §11's Residual Risks. The runtime `start`-base probe
+  an earlier revision named beside it **does not exist** - it was cut (§4.5) in favour of
+  base-agnostic paging, whose one load-bearing property, that `start=0` is accepted and returns
+  records, is observed in the one genuine `200` (`JOBVITE-API.md:399`).
 
 A reviewer should treat "verified" in this document as meaning one of the first two, and should
 challenge any sentence that reads as verified without belonging to them.
@@ -286,7 +288,7 @@ right, because paging is made **base-agnostic**:
 
 - **Every scan starts at `start=0`.** This is the whole mechanism and it is one character. A
   0-based server then returns record zero; a 1-based server **clamps 0 to 1** - confirmed against
-  the one genuine Jobvite `200` in our evidence (`JOBVITE-API.md:401`), which is the strongest
+  the one genuine Jobvite `200` in our evidence (`JOBVITE-API.md:399`), which is the strongest
   citation available for this paragraph and was previously unused and returns the same
   first page it would have anyway - which is our own finding above, used deliberately instead of
   worked around. Starting at 1 is the only choice that can silently lose a record, because on a
@@ -771,18 +773,34 @@ when a key lands; rows 1-4 are blocking.
 Required cases, each failing if its defence is removed:
 - the 200-with-401-body trap;
 - a secret never reaching a log record, including the `jobFeed` URL;
+- **the audit event is emitted and carries its mandated fields** - tool name, redacted arguments,
+  result status, latency, `request_id`, the resolved client id on the HTTP transport and an
+  explicit attribution-unavailable marker on stdio, and on the write `approval_state` together with
+  the mechanism that produced it (§5.3). **This case is positive on purpose.** The PII case below
+  asserts an absence, and an absence passes trivially against a server that emits no audit event at
+  all; the two are paired so that neither can be satisfied by silence;
 - **candidate PII never reaching a log or audit record** - a distinct case from the secret test
-  above, because §5.3 spends a paragraph distinguishing them and the threat model rates it Critical;
+  above, because §5.3 spends a paragraph distinguishing them and the threat model rates it
+  Critical. Asserted against the audit event the case above proves exists, not against an empty
+  stream;
 - **EEO fields never appearing in any tool result**, asserted against the output models rather than
   by inspection, since §6.2 rates that Critical and an allow-list is only as good as its test;
 - **an argument-schema violation failing closed**, which B12 and B23 require and which §5.1 claims
   is satisfied - the claim is only true once this test exists;
+- **an off-loopback bind without TLS refuses to start** - no certificates configured here and
+  `JOBVITE_TLS_TERMINATED_BY_PROXY` not declared, and the server exits naming the reason rather
+  than warning and continuing (§7.1). Three High rows rest on this refusal and none of them rested
+  on a test before;
+- **the manifest pins `mcp` and the frozen resolve has no lock drift** - `mcp` present with an `==`
+  pin in `pyproject.toml`, and the frozen resolve (`uv lock --check`, the same lock CI installs
+  with `uv sync --frozen`) succeeding without amending `uv.lock` (§10). Credential-free and
+  runnable in CI. The `fastmcp inspect` capability-drift diff is a CI gate rather than a case in
+  this suite, and it is unexecuted (§10);
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
 - approval: deny refuses, accept-carrying-false refuses, no-handler fails closed, and the second
   leg actually consumes `ctx.input_responses`;
-- token replay, expiry, and payload mismatch each refused;
 - a 4xx not tripping the circuit breaker;
 - the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug;
 - **approval on BOTH eras**, because the no-handler arm surfaces differently on each: sessionless
@@ -979,37 +997,41 @@ and authorization, it exposes endpoints to external clients, and it is a third-p
 `:143` requires it authored **before implementation begins**, which is why it is here rather than
 deferred.
 
-**Three conventions, stated because the template leaves them open and the thresholds are meaningless
+**Four conventions, stated because the template leaves them open and the thresholds are meaningless
 without them.**
 
-1. **The Risk column is INHERENT risk** - before the control named in the same row's Mitigation
+1. **Every row carries a unique id**, `C<component>-<STRIDE letter><n>`. The number is always
+   present, even where a component and category pair holds a single row, so adding a second row
+   later never renames the first. Every closing table and every cross-reference addresses rows by
+   that id and by nothing else. An earlier revision left six ids colliding - `C1-S`, `C4-D`,
+   `C4-E`, `C6-I`, `C7-I` and `C8-E` each named two different rows - while the closing tables keyed
+   on them and disambiguated by prose or not at all.
+2. **The Risk column is INHERENT risk** - before the control named in the same row's Mitigation
    column. `:86` requires Critical and High to be mitigated before implementation proceeds. Read
    post-mitigation that rule could never fire, since a rated row already carries its mitigation.
    Read pre-mitigation it does real work: it names which threats may not be left to the
    implementer's judgement. Post-mitigation exposure lives in Residual Risks.
-2. **Ratings are computed from the matrix at `:78-82`, not chosen.** Likelihood and Impact are
+3. **Ratings are computed from the matrix at `:78-82`, not chosen.** Likelihood and Impact are
    judged against `:62-74`; the Risk cell is whatever the matrix yields. Machine-checked: every
    rated row agrees with it.
-3. **Every component is evaluated against all six STRIDE categories**, per `:35`. Where a category
+4. **Every component is evaluated against all six STRIDE categories**, per `:35`. Where a category
    carries no credible threat the row says so and gives the reason. A category is never dropped
    silently.
 
-**Every mitigated Critical or High row below has a required test in §8. That coupling is the
-point: if a mitigation loses its test, this threat model becomes false.**
+**The `Test` column is the coupling, and a script checks it rather than a reader.** Every row names
+either the §8 case that fails if the mitigation is removed, or an explicit disposition:
+`unmitigated`, `accepted`, `residual`, `no credible threat`, or `not required` for a row below the
+Critical and High threshold. `docs/reviews/check-coupling.py` reads this section and §8 and fails
+if a mitigated Critical or High row names no §8 case, if a named case is absent from §8's required
+list, if two rows share an id, if a component is missing a STRIDE category, or if a closing table
+names an id the analysis does not define.
 
-That sentence was checked rather than asserted, and it did not hold on first writing: three rated
-rows - EEO exclusion, candidate PII in logs, and the audit-repudiation row - had no corresponding
-test, so the threat model was false by its own criterion. The tests were added (§8). **A claim
-about coverage is worth exactly the check that was run against it**, which is the fourth time in
-four review rounds this document has asserted its own compliance and been wrong.
-
-Authored before implementation, per `architecture/threat-modeling.md:143`. Four of the six Required
-triggers at `:120-127` fire on this project: it handles PII, it changes authentication and
-authorization, it exposes API endpoints to external clients, and it is a third-party integration.
-
-Risk is inherent risk, before the mitigation named in the same row. Ratings come from the matrix at
-`threat-modeling.md:78-82`. All six STRIDE categories are evaluated against every component; where
-a category carries no credible threat the row says so.
+**The universally quantified sentence that used to stand here is retired, deliberately.** It read
+*"every mitigated Critical or High row below has a required test in §8"*. It was asserted three
+times and was false all three times - most recently in the same edit that added a mitigated High
+with no test at all, and it needed an escape clause that appeared 184 lines below the claim. A
+claim about coverage is worth exactly the check that was run against it, so the claim is now a
+column and the check is a script.
 
 ### Assets
 
@@ -1020,7 +1042,6 @@ a category carries no credible threat the row says so.
 | Jobvite v2 API credential (`x-jvi-api`, `x-jvi-sc`) | Restricted | Environment; `config.py` as `SecretStr`; request headers |
 | Jobvite job-feed credential (`api`, `sc`, `companyId`) | Restricted | Environment; the `/v1/jobFeed` query string, which is why that URL is classified sensitive (§4.1) |
 | MCP client bearer tokens | Restricted | Environment at startup; `StaticTokenVerifier` (§7.2) |
-| Confirmation-token HMAC signing key | Restricted | Environment; `approval.py` (§7.6) |
 | The capability to create a candidate in a live ATS | Restricted | `create_candidate`. Side effect is an email to a live human and there is no sandbox (§2.2) |
 | Public job data | Public | `search_jobs`, `get_job_feed` results |
 | Server log stream | Confidential | Local log sink. Carries redacted arguments plus full tracebacks (§5.3) |
@@ -1042,160 +1063,174 @@ a category carries no credible threat the row says so.
 
 **C1. Transport and session** (`__main__.py`, `server.py`, `StaticTokenVerifier`, scopes)
 
-| Component | Category | Threat | L | I | Risk | Mitigation |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C1 | S | Bearer token observed on a non-loopback bind and replayed | M | H | **High** | Off-loopback requires TLS or a declared terminating proxy; absence is a startup failure, not a warning (§7.1). Mitigated |
-| C1 | S | Any local process able to spawn the server calls any tool over stdio | L | H | Medium | Accepted. The OS process boundary is the trust boundary (§7.2), stated rather than left implicit |
-| C1 | T | Request or response modified in flight on a plaintext non-loopback bind, for example flipping `send_email` to `true` | M | H | **High** | Same control as C1-S row 1 (§7.1). Mitigated |
-| C1 | R | A write cannot be attributed to a caller. `audit.py` mints a `request_id` per invocation (§5.3) but no caller or client identity is recorded, although `get_client_id` already derives one for rate limiting (§4.4) **[NEW]** | H | M | **High** | **Unmitigated.** Record the resolved client id in the audit event alongside `request_id` |
-| C1 | I | Candidate PII readable in transit on a plaintext non-loopback bind | M | H | **High** | Same control as C1-S row 1 (§7.1). Mitigated |
-| C1 | D | Connection or request flooding on the HTTP transport | M | M | Medium | `RateLimitingMiddleware` with a mandatory `get_client_id`, sized per session (§4.4) |
-| C1 | E | A token provisioned with the wrong scope set reaches candidate PII it should not | L | H | Medium | `require_scopes` on the three data classes (§7.2). Consider validating configured scope sets at startup |
+| C1-S1 | Bearer token observed on a non-loopback bind and replayed | M | H | **High** | Off-loopback requires TLS or a declared terminating proxy; absence is a startup failure, not a warning (§7.1). Mitigated | §8: an off-loopback bind without TLS refuses to start |
+| C1-S2 | Any local process able to spawn the server calls any tool over stdio | L | H | Medium | Accepted. The OS process boundary is the trust boundary (§7.2), stated rather than left implicit | accepted (B1) |
+| C1-T1 | Request or response modified in flight on a plaintext non-loopback bind, for example flipping `send_email` to `true` | M | H | **High** | Same control as C1-S1 (§7.1). Mitigated | §8: an off-loopback bind without TLS refuses to start |
+| C1-R1 | A write cannot be attributed to a caller: `audit.py` mints a `request_id` per invocation (§5.3) and caller identity must be recorded beside it, which `get_client_id` already derives for rate limiting (§4.4) | H | M | **High** | **Mitigated in §5.3**, and the remedy is qualified by transport rather than stated flat: the audit event records the resolved client id on the HTTP transport, and on stdio records that caller attribution is unavailable rather than emitting the literal `"global"`. An implementer who wires `get_client_id` on stdio, receives `"global"` and closes this row would leave the gap open behind a value that looks like an answer | §8: the audit event is emitted and carries its mandated fields |
+| C1-I1 | Candidate PII readable in transit on a plaintext non-loopback bind | M | H | **High** | Same control as C1-S1 (§7.1). Mitigated | §8: an off-loopback bind without TLS refuses to start |
+| C1-D1 | Connection or request flooding on the HTTP transport | M | M | Medium | `RateLimitingMiddleware` with a mandatory `get_client_id`, sized per session (§4.4) | not required (Medium) |
+| C1-E1 | A token provisioned with the wrong scope set reaches candidate PII it should not | L | H | Medium | `require_scopes` on the three data classes (§7.2). Consider validating configured scope sets at startup | not required (Medium) |
 
 **C2. Middleware stack** (§7.7: `Timing`, `StructuredLogging`, `RateLimiting`)
 
-| Component | Category | Threat | L | I | Risk | Mitigation |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C2 | S | No credible threat. No adopted middleware establishes identity | - | - | - | Identity is established at C1 |
-| C2 | T | No credible threat. No adopted middleware mutates request or response payloads | - | - | - | - |
-| C2 | R | `StructuredLoggingMiddleware` runs with `include_payloads=False` and so emits no arguments, leaving invocations unreconstructable | H | M | **High** | `audit.py` emits redacted arguments itself rather than assuming middleware provides them (§5.3). Mitigated |
-| C2 | I | `include_payloads` flipped to `True`, sending raw candidate PII to the framework log | L | H | Medium | Constructed with explicit arguments; the value is stated in §7.7 and its rationale in §5.3. Mitigated by review, not by a control |
-| C2 | D | A configuration reload calls `limiters.clear()`, resetting every client's quota; repeated reloads are a trivial bypass (§4.4) | L | M | Low | Accepted. Requires operator access. Recorded in Residual Risks |
-| C2 | E | No credible threat. No adopted middleware grants capability | - | - | - | - |
+| C2-S1 | No credible threat. No adopted middleware establishes identity | - | - | - | Identity is established at C1 | no credible threat |
+| C2-T1 | No credible threat. No adopted middleware mutates request or response payloads | - | - | - | Payload shaping happens in the tools and in `models/`, which is C3 and C6 | no credible threat |
+| C2-R1 | `StructuredLoggingMiddleware` runs with `include_payloads=False` and so emits no arguments, leaving invocations unreconstructable | H | M | **High** | `audit.py` emits redacted arguments itself rather than assuming middleware provides them (§5.3). Mitigated | §8: the audit event is emitted and carries its mandated fields |
+| C2-I1 | `include_payloads` flipped to `True`, sending raw candidate PII to the framework log | L | H | Medium | Constructed with explicit arguments; the value is stated in §7.7 and its rationale in §5.3. Mitigated by review, not by a control | not required (Medium) |
+| C2-D1 | A configuration reload calls `limiters.clear()`, resetting every client's quota; repeated reloads are a trivial bypass (§4.4) | L | M | Low | Accepted. Requires operator access. Carried to Residual Risks | residual |
+| C2-E1 | No credible threat. No adopted middleware grants capability | - | - | - | Capability is granted by registration (§7.3) and by scopes (§7.2), which is C8 and C1 | no credible threat |
 
 *`ResponseCaching` is not adopted (§7.7), so the scope-crossing disclosure and the spent-token
 hazard it carried are both out of the model rather than mitigated within it.*
 
 **C3. Tool argument layer** (input models, `strict=True`)
 
-| Component | Category | Threat | L | I | Risk | Mitigation |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C3 | S | No credible threat at this layer. Identity is established at C1 | - | - | - | - |
-| C3 | T | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | Reject control characters and enforce an encoding check before dispatch. Not currently specified |
-| C3 | R | No credible threat beyond C1-R. Arguments are recorded redacted by `audit.py` | - | - | - | §5.3 |
-| C3 | I | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). Document the default (B15) |
-| C3 | D | A deeply nested or very large argument payload consumes parse time and memory. No nesting, list-length, dict-key or body-size limits are specified (B30) | M | M | Medium | Add the four limits from `input-validation.md:223-226`. §4.5's page caps are outbound transport limits and do not bound an inbound argument |
-| C3 | E | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is unspecified (B12) |
+| C3-S1 | No credible threat at this layer. Identity is established at C1 | - | - | - | The argument layer sees an already-authenticated caller | no credible threat |
+| C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | Reject control characters and enforce an encoding check before dispatch. **Not currently specified** | unmitigated (B25) |
+| C3-R1 | No credible threat beyond C1-R1. Arguments are recorded redacted by `audit.py` (§5.3) | - | - | - | Covered by C1-R1 | no credible threat |
+| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is still undocumented (B15)** | unmitigated (B15) |
+| C3-D1 | A deeply nested or very large argument payload consumes parse time and memory. No nesting, list-length, dict-key or body-size limits are specified (B30) | M | M | Medium | Add the four limits from `input-validation.md:223-226`. §4.5's page caps are outbound transport limits and do not bound an inbound argument. **Not currently specified** | unmitigated (B30) |
+| C3-E1 | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is stated in §5.1 and the failure-closed case is required in §8, which is what closed B12. Mitigated | §8: an argument-schema violation failing closed |
 
 **C4. Approval subsystem** (`approval.py`, MRTR elicitation on sessionless, `ctx.elicit()` on handshake)
 
-| Component | Category | Threat | L | I | Risk | Mitigation |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C4 | S | A host auto-responds to the elicitation with no human present, so an approval represents no person | H | M | **High** | Not mitigable server-side. The MCP specification places human-in-the-loop on the host. §7.5 limits the claim to *"the server requires an approval response from the host"*. Carried to Residual Risks |
-| C4 | T | An approval answer is tampered with or replayed to authorise a different write | L | H | Medium | The answer is bound to the invocation by the protocol rather than by a token we mint: the retry carries `inputResponses` for that request, and there is no long-lived artifact to replay. The confirmation token that would have needed a TTL was cut (§7.6) |
-| C4 | R | The approval decision is not among the audited fields, so there is no record that a gated write was authorised. `agent-guardrails.md:122` requires it (B17) | H | M | **High** | **Unmitigated.** Add the approval decision, and which mechanism produced it, to the `audit.py` event |
-| C4 | I | **The approval request describes the candidate about to be written, so the audit stream holds candidate PII by construction** - the exposure the cut token would have carried moved here rather than disappearing (§5.3) **[NEW]** | M | M | Medium | `approval_state` falls inside §4.1's single redaction point rather than beside it, and the audit stream carries the same handling class as the log stream. Required test: candidate PII never reaching a log or audit record (§8) |
-| C4 | D | An abandoned approval hangs the call. A client-side timeout does not bound it because the handler runs in the client's process (§7.5) | M | M | Medium | No server-side bound is possible. Disclosed to integrators. Carried to Residual Risks |
-| C4 | E | An accepted elicitation carrying `approve: false` treated as approval | M | H | **High** | The guard checks action **and** value: `action == "accept" and content.get("approve") is True`, with a deny arm and an accept-carrying-false arm in the required tests (§7.5, §8). Mitigated |
-| C4 | E | Era misdetection downgrades or bypasses the control - `protocol_version` absent, or a future era value nobody has seen | L | H | Medium | The discriminator is measured rather than inferred (§7.5), which removed the inert-`hasattr` failure. **An unidentifiable era now refuses the write and logs the observed value**; with the token cut there is no weaker path to fall through to, so the failure mode is refusal rather than silent downgrade. Mitigated |
-
-**C5. Jobvite client** (`services/jobvite_client.py`)
-
-| Component | Category | Threat | L | I | Risk | Mitigation |
-|---|---|---|---|---|---|---|
-| C5 | S | A rejected credential returns `HTTP 200` with a `{"status":{"code":401}}` body and is read as success, reporting zero candidates for an unauthenticated caller (§4.2) | H | H | **Critical** | The invariant: successful only if the body carries no `status.code >= 400` **and** the HTTP status is below 400, both, every call. Required test (§8). Mitigated |
-| C5 | T | Response substituted or modified in transit to Jobvite | L | H | Medium | HTTPS with `httpx2` default verification, never disabled (§7.1). Mitigated |
-| C5 | R | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `resilience.md:226` requires it (B39) | H | M | **High** | **Unmitigated.** Log each retry and breaker transition with the correlation field. Depends on B40's `request_id_var` ContextVar, also missing |
-| C5 | I | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point with a test that fails if a secret can reach a log record (§4.1). Mitigated |
-| C5 | D | Retry amplification against an already-degraded Jobvite | M | M | Medium | Bounded retry budget inside the inbound timeout, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). Mitigated |
-| C5 | E | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Unmitigated.** Document that a read-only Jobvite key is required where writes are disabled. Whether Jobvite offers one is unknown, which makes this an operator instruction rather than an enforceable control |
-
-**C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
-
-| Component | Category | Threat | L | I | Risk | Mitigation |
-|---|---|---|---|---|---|---|
-| C6 | S | Candidate free text forges a channel break and impersonates system instructions to the calling model | H | H | **Critical** | Explicit fencing of every free-text field, fencing paths generated from the output models so the two cannot drift, delimiter tokens stripped so content cannot close its own fence. Required test including a fence-closing attempt (§6.1, §8). Mitigated, with residual |
-| C6 | T | An unknown non-string field is stringified, inventing a representation and colliding with `strict=True` output models | M | L | Low | Unknown non-string fields are dropped, not stringified. Required test (§6.1, §8). Mitigated |
-| C6 | R | No credible threat. This component produces no auditable decision | - | - | - | - |
-| C6 | I | Special-category EEO fields (`gender`, `race`, `veteranStatus`) flow to the model | H | H | **Critical** | Not present in any output model, so they never leave the server (§6.2, ADR-0008). Mitigated |
-| C6 | I | A newly added Jobvite field leaks to the model without review | M | M | Medium | Path-keyed allow-list fails closed: an unlisted field is dropped until someone adds it deliberately (§2.1). Mitigated |
-| C6 | D | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). Document the default (B15) |
-| C6 | E | No credible threat. This component grants no capability | - | - | - | - |
-
-**C7. Audit and logging** (`audit.py`, `utils/redaction.py`, `loguru`)
-
-| Component | Category | Threat | L | I | Risk | Mitigation |
-|---|---|---|---|---|---|---|
-| C7 | S | No credible threat. This component establishes no identity | - | - | - | - |
-| C7 | T | A caller-supplied `X-Request-ID` carrying newlines forges log entries, or an over-long value bloats the log | M | M | Medium | Validated as a UUIDv4 before use and replaced if invalid (§5.3, B41). Mitigated |
-| C7 | R | Covered by C1-R and C4-R | - | - | - | - |
-| C7 | I | Candidate PII written to logs in the clear | H | H | **Critical** | `audit.py` emits redacted arguments deliberately rather than accepting `include_payloads=False`'s no-arguments default; single-point redaction with a failing test (§4.1, §5.3, B88). Mitigated |
-| C7 | I | Full tracebacks reach the server log. §5.3 says *"the log stream is treated as sensitive"*, which asserts a boundary without naming a control: no retention, access-control or destination is specified **[NEW]** | M | M | Medium | State where the log goes, who can read it, and how long it is kept. Carried to Residual Risks |
-| C7 | D | A hostile caller inflates log volume to exhaust disk | M | L | Low | Rate limiting bounds request volume (§4.4) |
-| C7 | E | No credible threat | - | - | - | - |
+| C4-S1 | A host auto-responds to the elicitation with no human present, so an approval represents no person | H | M | **High** | **Not mitigable server-side**, and no action item can discharge it. The MCP specification places human-in-the-loop on the host. §7.5 limits the claim to *"the server requires an approval response from the host"*. Carried to Residual Risks | residual |
+| C4-T1 | An approval answer is tampered with or replayed to authorise a different write | L | H | Medium | The answer is bound to the invocation by the protocol rather than by a token we mint: the retry carries `inputResponses` for that request, and there is no long-lived artifact to replay. The confirmation token that would have needed a TTL was cut (§7.6) | not required (Medium) |
+| C4-R1 | The approval decision is not among the audited fields, so there is no record that a gated write was authorised. `agent-guardrails.md:122` requires it (B17) | H | M | **High** | **Mitigated in §5.3:** the audit event includes `approval_state` and the mechanism that produced it. `agent-guardrails.md:79` separately requires recording *who* approved, which is unsatisfiable here and is scoped out by ADR-0009 for the approver only | §8: the audit event is emitted and carries its mandated fields |
+| C4-I1 | **The approval request describes the candidate about to be written, so the audit stream holds candidate PII by construction** - the exposure the cut token would have carried moved here rather than disappearing (§5.3) | M | M | Medium | `approval_state` falls inside §4.1's single redaction point rather than beside it, and the audit stream carries the same handling class as the log stream | §8: candidate PII never reaching a log or audit record |
+| C4-D1 | An abandoned approval hangs the call. A client-side timeout does not bound it because the handler runs in the client's process (§7.5) | M | M | Medium | No server-side bound is possible. Disclosed to integrators. Carried to Residual Risks | residual |
+| C4-D2 | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/jobvite-duplicate-candidate` rather than a generic failure. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Carried to Residual Risks | residual |
+| C4-E1 | An accepted elicitation carrying `approve: false` treated as approval | M | H | **High** | The guard checks action **and** value: `action == "accept" and content.get("approve") is True`, with a deny arm and an accept-carrying-false arm in the required tests (§7.5, §8). Mitigated | §8: accept-carrying-false refuses |
+| C4-E2 | Era misdetection downgrades or bypasses the control - `protocol_version` absent, or a future era value nobody has seen | L | H | Medium | The discriminator is measured rather than inferred (§7.5), which removed the inert-`hasattr` failure. **An unidentifiable era now refuses the write and logs the observed value**; with the token cut there is no weaker path to fall through to, so the failure mode is refusal rather than silent downgrade. Mitigated | §8: approval on BOTH eras |
 
 **Note on C4 and duplicate writes.** §9 hazard 6 records that none of §2.2's gates prevents an
 *authorised* write being made twice, and that hazard was absent from this table in an earlier
 revision - a residual risk named in one section and unmodelled in the section whose job is
-modelling residual risk. It is now C4-D below and in Residual Risks.
+modelling residual risk. It is C4-D2 above, and it is in Residual Risks below. An earlier revision
+asserted that placement in the same edit that failed to make it.
 
-| # | Cat | Threat | L | I | Risk | Mitigation / disposition |
+**C5. Jobvite client** (`services/jobvite_client.py`)
+
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C4 | D | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person **[NEW]** | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/jobvite-duplicate-candidate` rather than a generic failure. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Genuine residual |
+| C5-S1 | A rejected credential returns `HTTP 200` with a `{"status":{"code":401}}` body and is read as success, reporting zero candidates for an unauthenticated caller (§4.2) | H | H | **Critical** | The invariant: successful only if the body carries no `status.code >= 400` **and** the HTTP status is below 400, both, every call. Mitigated | §8: the 200-with-401-body trap |
+| C5-T1 | Response substituted or modified in transit to Jobvite | L | H | Medium | HTTPS with `httpx2` default verification, never disabled (§7.1). Mitigated | not required (Medium) |
+| C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Unmitigated.** Log each retry and breaker transition with the correlation field. Depends on B40's `request_id_var` ContextVar, also missing | unmitigated (B39, B40) |
+| C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
+| C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Bounded retry budget inside the inbound timeout, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). Mitigated | not required (Medium) |
+| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Unmitigated.** Document that a read-only Jobvite key is required where writes are disabled. Whether Jobvite offers one is unknown, which makes this an operator instruction rather than an enforceable control | unmitigated (B21) |
 
-**C9. Supply chain** (`pyproject.toml`, `uv.lock`, CI, the beta framework)
+**C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
 
-| # | Cat | Threat | L | I | Risk | Mitigation / disposition |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C9 | S | A dependency name is typo-squatted or a package is substituted at resolve time | L | H | Medium | Committed `uv.lock` with hashes; `uv sync --frozen`; every dependency named explicitly (§10) |
-| C9 | T | **A transitive dependency changes behaviour with no change to our code or to the code that breaks.** This is a realised threat here, not a hypothetical: an `mcp` major bump removed the behaviour a merged upstream fix depended on, and broke a middleware whose own source never changed (§10, §7.7) **[NEW]** | H | M | **High** | `mcp` pinned explicitly, not only `fastmcp`; `uv.lock` committed; `fastmcp inspect` output diffed between builds so capability drift appears in review. **The diff is designed and unexecuted** (§12) |
-| C9 | R | A shipped artifact cannot be traced to the resolve that produced it | M | M | Medium | SBOM generated from the frozen resolve rather than a fresh one, in both CycloneDX and SPDX (§10) |
-| C9 | I | A dependency exfiltrates credentials or candidate data at runtime | L | H | Medium | `pip-audit` on every PR; licence allow-list gate; no dependency added without review. **Residual and unmitigable in general** - we run third-party code in the same process as the credentials |
-| C9 | D | A required CI gate goes red on a transitive advisory with no sanctioned response, blocking all merges | H | L | Medium | **Open (B72).** `pip-audit` has no severity threshold and fails on any advisory. We chose a beta stack deliberately and owe it an advisory-triage policy; the unsanctioned workaround is a blanket ignore, which is the silent suppression the clause forbids |
-| C9 | E | A build-time dependency executes arbitrary code during install | L | H | Medium | `uv` with a frozen lock and hash verification; no `setup.py` execution in our own build (hatchling) |
+| C6-S1 | Candidate free text forges a channel break and impersonates system instructions to the calling model | H | H | **Critical** | Explicit fencing of every free-text field, fencing paths generated from the output models so the two cannot drift, delimiter tokens stripped so content cannot close its own fence (§6.1). Mitigated, with residual | §8: untrusted-content fencing, including content that tries to close its own fence |
+| C6-T1 | An unknown non-string field is stringified, inventing a representation and colliding with `strict=True` output models | M | L | Low | Unknown non-string fields are dropped, not stringified (§6.1). Mitigated | §8: an unknown non-string field being dropped rather than stringified |
+| C6-R1 | No credible threat. This component produces no auditable decision | - | - | - | It transforms a response that C5 already fetched and C1/C4 already authorised | no credible threat |
+| C6-I1 | Special-category EEO fields (`gender`, `race`, `veteranStatus`) flow to the model | H | H | **Critical** | Not present in any output model, so they never leave the server (§6.2, ADR-0008). Mitigated | §8: EEO fields never appearing in any tool result |
+| C6-I2 | A newly added Jobvite field leaks to the model without review | M | M | Medium | Path-keyed allow-list fails closed: an unlisted field is dropped until someone adds it deliberately (§2.1). Mitigated | not required (Medium) |
+| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). **The default is still undocumented (B15)** | unmitigated (B15) |
+| C6-E1 | No credible threat. This component grants no capability | - | - | - | It produces data, never a capability; the tool set is fixed at registration (§7.3) | no credible threat |
+
+**C7. Audit and logging** (`audit.py`, `utils/redaction.py`, `loguru`)
+
+| ID | Threat | L | I | Risk | Mitigation | Test |
+|---|---|---|---|---|---|---|
+| C7-S1 | No credible threat. This component establishes no identity | - | - | - | It records the identity C1 established | no credible threat |
+| C7-T1 | A caller-supplied `X-Request-ID` carrying newlines forges log entries, or an over-long value bloats the log | M | M | Medium | Validated as a UUIDv4 before use and replaced if invalid (§5.3, B41). Mitigated | not required (Medium) |
+| C7-R1 | No credible threat of its own. Repudiation of a tool call is C1-R1; repudiation of an approval is C4-R1 | - | - | - | Covered by C1-R1 and C4-R1 | no credible threat |
+| C7-I1 | Candidate PII written to logs in the clear | H | H | **Critical** | `audit.py` emits redacted arguments deliberately rather than accepting `include_payloads=False`'s no-arguments default; single-point redaction (§4.1, §5.3, B88). Mitigated | §8: candidate PII never reaching a log or audit record |
+| C7-I2 | Full tracebacks reach the server log. §5.3 says *"the log stream is treated as sensitive"*, which asserts a boundary without naming a control: no retention, access-control or destination is specified | M | M | Medium | State where the log goes, who can read it, and how long it is kept. Carried to Residual Risks | residual |
+| C7-D1 | A hostile caller inflates log volume to exhaust disk | M | L | Low | Rate limiting bounds request volume (§4.4) | not required (Low) |
+| C7-E1 | **No credible threat. Logging grants no capability** - `audit.py` and `utils/redaction.py` write records and return none of them to a caller, so there is nothing here to elevate into | - | - | - | Exposure of the log stream is C7-I1 and C7-I2, not elevation | no credible threat |
 
 **C8. Configuration and secrets** (`config.py`, environment, repository)
 
-| Component | Category | Threat | L | I | Risk | Mitigation |
+| ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
-| C8 | S | No credible threat. Configuration establishes no identity | - | - | - | - |
-| C8 | T | Environment or `.env` modified by a local actor to redirect credentials or enable writes | L | H | Medium | OS file permissions. Outside the server's control, stated for completeness |
-| C8 | R | No record of configuration changes, including `JOBVITE_ENABLE_WRITES` being flipped or TLS being declared as proxy-terminated | M | M | Medium | Log the enabled tool set, the write flag and the TLS posture once at startup |
-| C8 | I | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | Partly mitigated: pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10). **Gaps: no `.gitignore` policy is stated (B90) and no `.env.example` exists (B91).** State both |
-| C8 | D | A required variable is unset and the server starts anyway, surfacing later as a confusing Jobvite 401 | M | L | Low | `pydantic-settings` fails at boot naming the variable, scoped to the tools actually enabled (§7.3). Mitigated |
-| C8 | E | `JOBVITE_ENABLE_WRITES` enabled unintentionally, exposing `create_candidate` | L | H | Medium | Enforced server-side, and the write still requires per-invocation approval, which the flag alone cannot satisfy (§2.2). Two orthogonal gates rather than three duplicate ones (§7.6). Mitigated in depth |
-| C8 | E | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` asserted where no proxy terminates TLS, returning the deployment to plaintext with no warning **[NEW]** | L | H | Medium | Accepted. The server cannot verify what sits in front of it, and the alternative (trusting `X-Forwarded-Proto`) is spoofable by anyone who can reach the port. An operator assertion is the correct shape. Carried to Residual Risks |
+| C8-S1 | No credible threat. Configuration establishes no identity | - | - | - | It supplies the material C1 authenticates with | no credible threat |
+| C8-T1 | Environment or `.env` modified by a local actor to redirect credentials or enable writes | L | H | Medium | OS file permissions. Outside the server's control, stated for completeness | accepted |
+| C8-R1 | No record of configuration changes, including `JOBVITE_ENABLE_WRITES` being flipped or TLS being declared as proxy-terminated | M | M | Medium | Log the enabled tool set, the write flag and the TLS posture once at startup. **Not currently specified** | unmitigated |
+| C8-I1 | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | **Partly mitigated:** pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10). **Gaps: no `.gitignore` policy is stated (B90) and no `.env.example` exists (B91)** | unmitigated (B90, B91) |
+| C8-D1 | A required variable is unset and the server starts anyway, surfacing later as a confusing Jobvite 401 | M | L | Low | `pydantic-settings` fails at boot naming the variable, scoped to the tools actually enabled (§7.3). Mitigated | not required (Low) |
+| C8-E1 | `JOBVITE_ENABLE_WRITES` enabled unintentionally, exposing `create_candidate` | L | H | Medium | Enforced server-side, and the write still requires per-invocation approval, which the flag alone cannot satisfy (§2.2). Two orthogonal gates rather than three duplicate ones (§7.6). Mitigated in depth | not required (Medium) |
+| C8-E2 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` asserted where no proxy terminates TLS, returning the deployment to plaintext with no warning | L | H | Medium | Accepted. The server cannot verify what sits in front of it, and the alternative (trusting `X-Forwarded-Proto`) is spoofable by anyone who can reach the port. An operator assertion is the correct shape. Carried to Residual Risks | residual |
+
+**C9. Supply chain** (`pyproject.toml`, `uv.lock`, CI, the beta framework)
+
+| ID | Threat | L | I | Risk | Mitigation | Test |
+|---|---|---|---|---|---|---|
+| C9-S1 | A dependency name is typo-squatted or a package is substituted at resolve time | L | H | Medium | Committed `uv.lock` with hashes; `uv sync --frozen`; every dependency named explicitly (§10) | not required (Medium) |
+| C9-T1 | **A transitive dependency changes behaviour with no change to our code or to the code that breaks.** This is a realised threat here, not a hypothetical: an `mcp` major bump removed the behaviour a merged upstream fix depended on, and broke a middleware whose own source never changed (§10, §7.7) | H | M | **High** | `mcp` pinned explicitly, not only `fastmcp`; `uv.lock` committed and CI runs `uv sync --frozen` (§10). Mitigated by the pins and the frozen resolve. The third leg, `fastmcp inspect` output diffed between builds so capability drift appears in review, is **designed and unexecuted** (§10, which carries the `UNVERIFIED:` marker) and is carried to Residual Risks | §8: the manifest pins `mcp` and the frozen resolve has no lock drift |
+| C9-R1 | A shipped artifact cannot be traced to the resolve that produced it | M | M | Medium | SBOM generated from the frozen resolve rather than a fresh one, in both CycloneDX and SPDX (§10) | not required (Medium) |
+| C9-I1 | A dependency exfiltrates credentials or candidate data at runtime | L | H | Medium | `pip-audit` on every PR; licence allow-list gate; no dependency added without review. **Residual and unmitigable in general** - we run third-party code in the same process as the credentials. Carried to Residual Risks | residual |
+| C9-D1 | A required CI gate goes red on a transitive advisory with no sanctioned response, blocking all merges | H | L | Medium | **Open (B72).** `pip-audit` has no severity threshold and fails on any advisory. We chose a beta stack deliberately and owe it an advisory-triage policy; the unsanctioned workaround is a blanket ignore, which is the silent suppression the clause forbids | unmitigated (B72) |
+| C9-E1 | A build-time dependency executes arbitrary code during install | L | H | Medium | `uv` with a frozen lock and hash verification; no `setup.py` execution in our own build (hatchling) | not required (Medium) |
 
 ### Threshold disposition
 
 `threat-modeling.md:86-88`. Inherent Critical and High rows, and what each needs.
 
-**Must mitigate before implementation proceeds** (unmitigated, inherent Critical or High):
+**The selection rule, stated because an earlier revision's was wrong.** A row lands in the
+must-mitigate list when it is inherent Critical or High, unmitigated, **and a server-side remedy
+exists that an action item can name**. A row that is inherent Critical or High, unmitigated, and
+has **no available server-side remedy** cannot be discharged by an action item at all; it is
+accepted with a documented rationale and carried to Residual Risks instead. **C4-S1 is the one such
+row.** The earlier rule read simply "unmitigated, inherent Critical or High", which selects C4-S1
+and then silently omitted it, so the rule did not describe the table it introduced.
+
+**Must mitigate before implementation proceeds:**
 
 | Row | Threat | Action | Ref |
 |---|---|---|---|
-| C1-R | No caller identity in the audit event | Record the resolved client id beside `request_id` | [NEW] |
-| C4-R | Approval decision not audited | Add the decision and the mechanism that produced it to the audit event | B17 |
-| C5-R | Retries and breaker transitions unlogged | Log both with the correlation field; needs `request_id_var` | B39, B40 |
-| C5-E | Jobvite credential not scoped to the enabled tool set | Document that a read-only key is required where writes are disabled | B21 |
-| C8-I | Credential or `.env` reaching the public repository | State the `.gitignore` policy and add `.env.example` | B90, B91 |
+| C5-R1 | Retries and breaker transitions unlogged | Log both with the correlation field; needs `request_id_var` | B39, B40 |
+| C5-E1 | Jobvite credential not scoped to the enabled tool set | Document that a read-only key is required where writes are disabled | B21 |
+| C8-I1 | Credential or `.env` reaching the public repository | State the `.gitignore` policy and add `.env.example` | B90, B91 |
 
-**Down from seven to five.** The TLS fix in §7.1 clears C1-S, C1-T and C1-I; dropping
-`ResponseCaching` removes the cache disclosure from the model entirely rather than mitigating it.
+**Three, and the arithmetic is written out rather than carried forward, because it was carried
+forward wrongly once.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and
+C1-I1, and dropping `ResponseCaching` removed the cache-disclosure row from the model entirely
+rather than mitigating it, which took it to five. **C1-R1 and C4-R1 come off in this revision**:
+both were listed here as freeze blockers while §5.3 already stated the remedy performed, so two of
+the five stated blockers were work already done. That leaves three. **C9-T1 was added to the model
+after the count was last taken and does not join the list**, because its pins and frozen resolve
+are specified in §10 and covered by a §8 case; the unexecuted part, the capability-drift diff, is a
+residual risk rather than an implementation blocker.
 
-**Mitigate before production release** (inherent Medium, unmitigated): C3-T control characters
-(B25), C3-D structural argument limits (B30), C3-I and C6-D the undocumented result cap (B15),
-C4-E the era-misdetection downgrade, C7-I log-stream handling,
-C8-R configuration-change logging.
+**Mitigate before production release** (inherent Medium, unmitigated): C3-T1 control characters
+(B25), C3-D1 structural argument limits (B30), C3-I1 and C6-D1 the undocumented result cap (B15),
+C7-I2 log-stream handling, C8-R1 configuration-change logging, and **C9-D1 the missing
+advisory-triage policy (B72)**.
 
 **Already mitigated at Critical or High**, listed so the mitigations are recognised as load-bearing
-and not quietly removed later: C5-S the 200-with-401 trap, C6-S indirect prompt injection, C6-I EEO
-exclusion, C7-I PII in logs, C4-T token binding, C4-E accept-carrying-false, C5-I the jobFeed URL,
-C1-S/T/I the TLS requirement, C2-R the audit event existing at all. **Each of these has a required
-test in §8, or in C1's case a startup check. That is not a coincidence and the coupling should be
-preserved: if a mitigation here loses its test, this table becomes false.**
+and not quietly removed later: C5-S1 the 200-with-401 trap, C6-S1 indirect prompt injection, C6-I1
+EEO exclusion, C7-I1 PII in logs, C4-E1 accept-carrying-false, C5-I1 the jobFeed URL, C1-S1, C1-T1
+and C1-I1 the TLS requirement, C2-R1 the audit event existing at all, C1-R1 caller attribution,
+C4-R1 the approval decision, and C9-T1 the pinned and frozen resolve. **Each names its §8 case in
+the `Test` column above, and `check-coupling.py` fails if any of them stops doing so.** This list
+is derived from the table rather than maintained beside it; the script checks that it matches.
 
 ### Residual Risks
 
 | Risk | Rating | Rationale for Acceptance |
 |---|---|---|
-| A host may auto-respond to elicitation with no human present, so an approval attests to a host response and not to a person (C4-S) | High | Not mitigable by a tool provider. The MCP specification places human-in-the-loop on the host. §7.5 states the honest claim and never asserts human approval. Defence in depth: the deploy-time flag and the confirmation token both operate without host cooperation |
-| An autonomous agent can call preview then create with no human anywhere, so the token enforces confirmation and not human confirmation (§7.6) | Medium | Accepted and stated. The token still forces a deliberate two-step and defeats a single malformed or replayed call |
-| Fencing reduces but cannot eliminate indirect prompt injection from candidate free text (C6-S) | Medium | Fencing plus delimiter stripping plus an allow-listed output model is the strongest available server-side control. The remaining exposure is the calling model's susceptibility, which is the host's boundary. Red-team cases are merge-gating (§6.1, §8) |
-| An abandoned approval hangs the call with no server-side bound (C4-D) | Medium | The elicitation handler runs in the client's process, so no server-side timeout reaches it. The write is safe on every refusal path including abandonment, with `rows=0` confirmed. Disclosed to integrators |
-| `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is an operator assertion the server cannot verify (C8-E) | Medium | The server cannot see what terminates TLS in front of it. The alternative, trusting `X-Forwarded-Proto`, is spoofable by anyone who can reach the port and would be a worse control. An unverifiable assertion that fails loudly when absent beats a verifiable-looking one that lies |
-| A configuration reload is a quota amnesty and repeated reloads bypass rate limiting (C2-D) | Low | Requires operator access, already inside the trust boundary. Framework limitation: only `limiters.clear()` applies new values |
-| The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I) | Medium | Accepted only until C7-I's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
+| A host may auto-respond to elicitation with no human present, so an approval attests to a host response and not to a person (C4-S1) | High | Not mitigable by a tool provider. The MCP specification places human-in-the-loop on the host. §7.5 states the honest claim and never asserts human approval. The one control that operates without host cooperation is the deploy-time flag; the confirmation token an earlier revision named beside it was cut (§7.6) and is not defence in depth for anything |
+| Fencing reduces but cannot eliminate indirect prompt injection from candidate free text (C6-S1) | Medium | Fencing plus delimiter stripping plus an allow-listed output model is the strongest available server-side control. The remaining exposure is the calling model's susceptibility, which is the host's boundary. Red-team cases are merge-gating (§6.1, §8) |
+| An abandoned approval hangs the call with no server-side bound (C4-D1) | Medium | The elicitation handler runs in the client's process, so no server-side timeout reaches it. The write is safe on every refusal path including abandonment, with `rows=0` confirmed. Disclosed to integrators |
+| An authorised write can be made twice, creating a duplicate candidate and a second email to a live person (C4-D2) | Medium | Detection, not prevention: the write is never retried (§4.3) and a `409` surfaces as `/problems/jobvite-duplicate-candidate`. The `409` shape is inferred rather than observed, so even the detection rests on a hypothesis until a credential exists |
+| `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is an operator assertion the server cannot verify (C8-E2) | Medium | The server cannot see what terminates TLS in front of it. The alternative, trusting `X-Forwarded-Proto`, is spoofable by anyone who can reach the port and would be a worse control. An unverifiable assertion that fails loudly when absent beats a verifiable-looking one that lies |
+| A configuration reload is a quota amnesty and repeated reloads bypass rate limiting (C2-D1) | Low | Requires operator access, already inside the trust boundary. Framework limitation: only `limiters.clear()` applies new values |
+| The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I2) | Medium | Accepted only until C7-I2's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
+| We run third-party code in the same process as the Jobvite credential, on a deliberately beta stack (C9-I1) | Medium | Unmitigable in general by anyone who takes a dependency. `pip-audit`, the licence gate and the frozen resolve narrow the window; they do not close it. The rating rests on a Low likelihood judgement that a beta framework and a transitive prerelease make contestable, which is recorded rather than settled |
+| The capability-drift diff is designed and has never been executed (C9-T1) | Medium | It is modelled on the `ResponseLimiting` regression and nobody has replayed that bump against it, so its ability to catch the thing it exists to catch is reasoning rather than a result. §10 carries the `UNVERIFIED:` marker at the point of use. The pins and the frozen resolve, which are executable and tested, carry C9-T1's mitigation on their own |
 | `problem+json` is honoured nowhere on the default stdio transport (§5.2) | Low | ADR-0003. A media type carries no security property here; the seven RFC 9457 members are present in the payload regardless |
 | No success response from Jobvite has ever been observed, so every success-path shape is a hypothesis (§1.1) | Medium | Accepted deliberately and structurally: fail loudly rather than degrade to a plausible empty result; synthetic fixtures are labelled as hypotheses in the test module's own docstring; `CREDENTIAL-CHECKLIST.md` converts them when a key lands |
 
@@ -1205,18 +1240,26 @@ preserved: if a mitigation here loses its test, this table becomes false.**
 
 1. **A Jobvite credential.** Converts every synthetic fixture to a recorded one. Blocking for any
    claim that this is verified against Jobvite.
-2. **The `start` base.** Now probed at runtime (§4.5), but the probe itself is unverified against
-   a live server.
+2. **The `start` base.** Still unresolved as a fact about Jobvite. Correctness no longer depends on
+   it: paging is base-agnostic and every scan starts at `start=0` (§4.5). Checklist row 2 settles
+   it the day a credential exists.
 3. **The record-level not-found shape.** Unknown.
-4. **Whether success bodies carry a `status` block at all.** The parser tolerates both.
-5. **Whether Claude Desktop supports elicitation.** No first-party statement found; secondary
+4. **Whether Claude Desktop supports elicitation.** No first-party statement found; secondary
    sources conflict and are not relied upon.
-6. **Shutdown depends on a uvicorn implementation detail** (§7.4). Our handler works because
+5. **Shutdown depends on a uvicorn implementation detail** (§7.4). Our handler works because
    uvicorn restores and re-raises; that is behaviour uvicorn does not guarantee. Recorded as a
    known dependency rather than left as an assumption, and the shutdown test would catch a
    regression.
 
-All are external unknowns. None is a reasoned-but-unexecuted claim about our own stack.
+Items 1 to 4 are external unknowns about Jobvite or about a host. **Item 5 is not** - it is a
+dependency on a uvicorn implementation detail, which is a claim about our own stack, recorded here
+because it is the kind of assumption that goes unstated. The one reasoned-but-unexecuted mechanism
+in this design is the capability-drift diff, which is marked `UNVERIFIED:` at its point of use
+(§10) and carried in §11's Residual Risks rather than listed here.
+
+**What is no longer an open question:** whether success bodies carry a `status` block. The one
+genuine `200` answers it and §8's structural fixture asserts it (`JOBVITE-API.md:397`); an earlier
+revision listed it here while two other sections answered it.
 
 ---
 
