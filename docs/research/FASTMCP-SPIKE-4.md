@@ -397,6 +397,11 @@ Canonical repo confirmed before citing anything: **`PrefectHQ/fastmcp`**. `api.g
 
 - **[#4926](https://github.com/PrefectHQ/fastmcp/issues/4926)** — `ResponseLimitingMiddleware` regression (§8.1)
 - **[#4927](https://github.com/PrefectHQ/fastmcp/issues/4927)** — lifespan teardown not running on SIGTERM (§8.2)
+  ⚠️ **This issue was filed carrying a workaround that §19 later proved unsafe.** It needs a
+  correction comment: `signal.getsignal(SIGINT)` can install *ignore SIGTERM*, and on stdio the
+  process survives SIGTERM even after teardown. The corrected workaround is in §8.2 and §19.5.
+- **[#4929](https://github.com/PrefectHQ/fastmcp/issues/4929)** — elicitation result types all truthy (§8.3)
+- **[#4930](https://github.com/PrefectHQ/fastmcp/issues/4930)** — the SEP-2577 miscitation (§8.4)
 
 Zero open duplicates existed for either at filing time. One correction to my own draft, established during
 filing: I had listed **#4118** ("terminate active streamable-HTTP transports before lifespan shutdown") as
@@ -478,15 +483,25 @@ That is a stronger statement than "related", and it is now in the filed issue.
 >
 > **Impact:** Docker, Kubernetes and Cloud Run all stop containers with SIGTERM. Any lifespan that closes an HTTP client, flushes a cache, or releases a DB connection silently does not run on normal shutdown.
 >
-> **Workaround (verified):** `signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))` before `mcp.run(...)` restores teardown under SIGTERM.
+> **Workaround:** install an explicit SIGTERM handler that raises `KeyboardInterrupt`, then
+> `os._exit(0)` after `run()` returns:
+> ```python
+> def _term(signum, frame): raise KeyboardInterrupt()
+> signal.signal(signal.SIGTERM, _term)
+> ```
+> ⚠️ **Correction to the version originally filed:** the workaround first published here was
+> `signal.signal(SIGTERM, signal.getsignal(SIGINT))`. That is unsafe — `getsignal(SIGINT)` returns
+> whatever is installed at that moment, which is `SIG_IGN` for a backgrounded process, so it can
+> install *ignore SIGTERM*. On stdio the process also survives SIGTERM even after teardown, because
+> a non-daemon `AnyIO worker thread` blocks interpreter exit; `os._exit(0)` is required. See §19.
 >
 > **Note:** searched the tracker for an existing report and found none matching (`lifespan+SIGTERM` → 0 results). Related but distinct: #4118, #3480.
 
 
-### 8.3 Draft — elicitation result types are all truthy (DX / safety trap)
+### 8.3 FILED — elicitation result types are all truthy (DX / safety trap)
 
-Requested by the team lead for filing. Framed as DX/documentation rather than a defect, because the
-types are defensible as dataclass-like results.
+**Filed as [#4929](https://github.com/PrefectHQ/fastmcp/issues/4929)** on 2026-08-27. Framed as
+DX/documentation rather than a defect, because the types are defensible as dataclass-like results.
 
 > **Title:** `DeclinedElicitation` and `CancelledElicitation` are truthy, so the obvious approval guard silently permits refused actions
 >
@@ -541,7 +556,11 @@ types are defensible as dataclass-like results.
 > is still an acceptance.
 
 
-### 8.4 Draft — `context.py` cites SEP-2577 for a change SEP-2577 did not make
+### 8.4 FILED — `context.py` cites SEP-2577 for a change SEP-2577 did not make
+
+**Filed as [#4930](https://github.com/PrefectHQ/fastmcp/issues/4930)** on 2026-08-27. Every line
+reference was re-verified against `main` before filing and all held: SEP-2577 at 947 and 1085,
+SEP-2322 at 214, 359, 381, 402, and the error string at line 70.
 
 > **Title:** `ctx.elicit()` era-guard comments cite SEP-2577, which deprecated Roots/Sampling/Logging, not the server-initiated request mechanism
 >
@@ -614,12 +633,17 @@ CONTROL ARM fastmcp 3.4.7
 
 Ruled out as causes: the `uv run` wrapper (reproduced with the venv interpreter directly), output buffering (evidence written to a file with an explicit flush), and a wrong PID (`/proc/<pid>/cmdline` checked).
 
-Root cause and impact are in the draft at §8.2. **Mitigation verified:**
+Root cause and impact are in the draft at §8.2.
 
-```python
-import signal
-signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
-```
+> ⛔ **The mitigation originally published here was wrong and is SUPERSEDED BY §19.** It read
+> `signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))`. Executing it properly showed
+> that `getsignal(SIGINT)` returns whatever is installed at that moment — `SIG_IGN` for a
+> backgrounded process, i.e. it installs *ignore SIGTERM* — and that uvicorn overwrites both
+> handlers during `run()` regardless. On stdio it leaves the process alive after teardown.
+> **Use the explicit handler plus `os._exit(0)` in §19.5.**
+
+The run below is retained as the evidence that *something* changed the outcome, not as a
+recommendation:
 ```
 sending SIGTERM to 113548
 EXITED cleanly
@@ -630,7 +654,7 @@ EXITED cleanly
   A-shutdown
 ```
 
-⚠️ Even with the mitigation, teardown runs **after** `Finished server process` — it is not part of graceful shutdown, and in-flight requests are already gone. Do not put anything in a lifespan teardown that must complete before connections close.
+⚠️ Even with a *working* mitigation (§19.5), teardown runs **after** `Finished server process` — it is not part of graceful shutdown, and in-flight requests are already gone. Do not put anything in a lifespan teardown that must complete before connections close.
 
 ---
 
@@ -772,13 +796,24 @@ def get_candidate(candidate_id: str) -> dict: ...
 @mcp.tool(description="Mutating", auth=require_scopes("jobvite:write"))
 def update_candidate(candidate_id: str) -> dict: ...
 
+def _install_shutdown_handler() -> None:
+    # NOT signal.getsignal(SIGINT) - see §19.2
+    def _term(signum, frame):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, _term)
+
 def main() -> None:
     s = get_settings()                                            # fails fast (12.5)
-    signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))  # REQUIRED - see 9.2
-    if s.mcp_transport == "http":
-        mcp.run(transport="http", host=s.mcp_host, port=s.mcp_port, path="/mcp")
-    else:
-        mcp.run()                                                 # stdio for local clients
+    _install_shutdown_handler()   # explicit SIGTERM -> KeyboardInterrupt; see §19.5
+    try:
+        if s.mcp_transport == "http":
+            mcp.run(transport="http", host=s.mcp_host, port=s.mcp_port, path="/mcp")
+        else:
+            mcp.run()                                             # stdio for local clients
+    except KeyboardInterrupt:
+        pass
+    finally:
+        os._exit(0)          # a non-daemon AnyIO thread blocks sys.exit - see §19.4
 ```
 
 ### 12.3 Errors
@@ -1725,12 +1760,223 @@ that you apply to direct calls"*).
 - Whatever we ship, describe it as *host approval*, not *human approval*.
 
 
+---
+
+## 19. ⚠️ The SIGTERM mitigation — it works, but NOT for the reason I gave
+
+Design review M7 doubted the one-liner `signal.signal(SIGTERM, signal.getsignal(SIGINT))` on two
+grounds: that `getsignal(SIGINT)` returns whatever is installed *at that moment*, and that uvicorn
+installs its own handlers for **both** signals during `run()`, so a pre-`run()` handler may be
+silently overwritten. **Both doubts are correct.** The mitigation still works on HTTP, but by a
+different mechanism than the one I claimed, and on **stdio it is actively unsafe as written**.
+
+### 19.1 Uvicorn does overwrite both handlers — proven from inside the running server
+
+A tool that reports `signal.getsignal(...)` from inside a live server, after the handler was
+installed before `run()`:
+
+```
+BEFORE run(): SIGTERM=<built-in function default_int_handler>
+
+INSIDE running server: {
+ "SIGINT":  "<bound method AppStatus.handle_exit of <uvicorn.server.Server object ...>>",
+ "SIGTERM": "<bound method AppStatus.handle_exit of <uvicorn.server.Server object ...>>"
+}
+```
+
+**The mitigation is a no-op while the server is running.** Confirmed in uvicorn's source
+`[FROM SOURCE]` — `HANDLED_SIGNALS = (SIGINT, SIGTERM)` and:
+
+```python
+original_handlers = {sig: signal.signal(sig, self.handle_exit) for sig in HANDLED_SIGNALS}
+try:
+    yield
+finally:
+    for sig, handler in original_handlers.items():
+        signal.signal(sig, handler)
+    ...
+    for captured_signal in reversed(self._captured_signals):
+        signal.raise_signal(captured_signal)
+```
+
+**So why does teardown run?** Because `capture_signals` **restores** the original handlers and then
+**re-raises** the captured signal. The re-raised SIGTERM lands on the *restored* handler — ours —
+which raises `KeyboardInterrupt`, unwinding the stack and running the lifespan teardown. The
+mitigation never handles the original signal at all; it handles uvicorn's replay of it.
+
+**That is a dependency on a uvicorn implementation detail**, not on anything FastMCP or the stdlib
+guarantees. It should be recorded as such rather than as "we handle SIGTERM".
+
+### 19.2 ⛔ The one-liner installs whatever SIGINT happens to be — which can be `SIG_IGN`
+
+The first arm I ran launched the server as a background shell job, which is how a lot of tooling
+starts things. Verbatim:
+
+```
+mitigation-installed: SIGINT handler was <Handlers.SIG_IGN: 1>
+  SIGTERM handler now <Handlers.SIG_IGN: 1>
+A-startup
+A-shutdown
+```
+
+Teardown ran — but look at what was installed. **A backgrounded process inherits `SIGINT = SIG_IGN`,
+so the one-liner set `SIGTERM = SIG_IGN`: "ignore SIGTERM".** That is the opposite of the intent. It
+appeared to work only because uvicorn overwrote it during the run and the re-raised signal was then
+harmlessly ignored, letting the unwind proceed.
+
+In a container the consequence is severe: a process that genuinely ignores SIGTERM does not stop on
+`docker stop`, and is **SIGKILLed after the grace period — guaranteeing no teardown at all.** The
+one-liner's behaviour depends on ambient state at import time, which differs between a shell job, a
+foreground terminal, and PID 1 in a container.
+
+### 19.3 HTTP results, with a realistic foreground `SIGINT`
+
+Forcing `SIGINT = default_int_handler` first, as a foreground/container launch would have it:
+
+```
+variant=none              SIGINT=SIG_IGN               SIGTERM=SIG_DFL
+   A-startup                                              <- NO teardown
+variant=asdocumented_fg   SIGINT=default_int_handler   SIGTERM=default_int_handler
+   A-startup / A-shutdown                                 <- teardown runs
+variant=explicit          SIGINT=default_int_handler   SIGTERM=<function _term>
+   A-startup / A-shutdown                                 <- teardown runs
+```
+
+✅ On HTTP the mitigation does achieve teardown **once SIGINT is what you assume it is**. The
+explicit handler achieves the same without depending on ambient state.
+
+### 19.4 ⛔ stdio: teardown runs, but THE PROCESS DOES NOT DIE
+
+There is no uvicorn on stdio, so none of the restore/re-raise machinery exists.
+
+```
+variant=none              A-startup                       -> exited, NO teardown
+variant=asdocumented_fg   A-startup / A-shutdown          -> STILL ALIVE after SIGTERM
+variant=explicit          A-startup / A-shutdown          -> STILL ALIVE after SIGTERM
+```
+
+Both mitigations run the teardown and then **hang**. Adding an explicit `sys.exit(0)` does not help:
+
+```
+A-startup
+A-shutdown
+run() raised KeyboardInterrupt to __main__
+about to sys.exit(0)
+                          -> STILL ALIVE after SIGTERM
+```
+
+**Root cause, measured:**
+
+```
+non-main threads still alive: ['AnyIO worker thread']
+  daemon flags: [('AnyIO worker thread', False)]
+```
+
+The AnyIO worker thread is **non-daemon**, so interpreter shutdown blocks waiting for it and
+`sys.exit()` never completes. A container would SIGKILL the process after the grace period.
+
+**Verified remedy** — `os._exit(0)` after teardown:
+
+```
+  EXITED cleanly after SIGTERM
+     A-startup
+     A-shutdown
+     run() raised KeyboardInterrupt
+     non-main threads still alive: ['AnyIO worker thread']
+     calling os._exit(0)
+```
+
+Teardown completes first, so `os._exit`'s skipping of atexit handlers costs us nothing that we rely on.
+
+### 19.5 Recommended replacement for the one-liner
+
+```python
+import os, signal, sys
+
+def _install_shutdown_handler() -> None:
+    """SIGTERM -> KeyboardInterrupt, so the lifespan teardown unwinds.
+
+    Do NOT use signal.getsignal(SIGINT): it returns whatever is installed at that
+    moment, which is SIG_IGN for a backgrounded process - installing "ignore
+    SIGTERM", the opposite of the intent (see FASTMCP-SPIKE-4.md section 19.2).
+    """
+    def _term(signum, frame):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, _term)
+
+def main() -> None:
+    settings = get_settings()
+    _install_shutdown_handler()
+    try:
+        if settings.mcp_transport == "http":
+            mcp.run(transport="http", host=settings.mcp_host,
+                    port=settings.mcp_port, path="/mcp")
+        else:
+            mcp.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # A non-daemon AnyIO worker thread keeps sys.exit() from completing on
+        # stdio (section 19.4). Teardown has already run by here.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+```
+
+**Test to keep it honest:** start the server, `kill -TERM` the *interpreter* pid (not a wrapper —
+resolve it via `/proc/<pid>/cmdline`), assert the teardown marker was written **and** the process
+exited within the grace period. Assert both, on both transports. The HTTP path passes on teardown
+alone; only stdio catches the exit failure.
+
+### 19.6 Two 4.0 signature exposures — both CLOSED
+
+**(1) `ToolResult` on 4.0.0b4** — D6 depends on it and it had been read from 3.4.7:
+
+```
+module: fastmcp.tools.base
+signature: (self, content: 'list[ContentBlock] | Any | None' = None,
+                  structured_content: 'dict[str, Any] | Any | None' = None,
+                  meta: 'dict[str, Any] | None' = None,
+                  is_error: 'bool' = False)
+```
+
+Constructed both D6-shaped calls for real:
+
+```
+ToolResult(content=[], structured_content={...}) -> OK, is_error default False
+ToolResult(..., is_error=True)                   -> OK, is_error = True
+```
+
+✅ **Unchanged on 4.0 and safe for D6.** Note `content` is a *required* pydantic field even though
+the `__init__` signature defaults it to `None`; pass `content=[]` explicitly rather than omitting it.
+
+**(2) `StaticTokenVerifier` on 4.0.0b4:**
+
+```
+fastmcp.server.auth.StaticTokenVerifier      -> <class 'fastmcp.server.auth.providers.jwt.StaticTokenVerifier'>
+...providers.jwt.StaticTokenVerifier         -> same object: True
+signature: (self, tokens: 'dict[str, dict[str, Any]]', required_scopes: 'list[str] | None' = None)
+```
+
+✅ **Exists under that name, both import paths, same class, same two-argument constructor.**
+
+### 19.7 What I got wrong, and how
+
+I reported the one-liner as a "verified mitigation" in §9.2. It was verified only in the weak sense
+that teardown ran in the one configuration I tried — HTTP, launched as a background shell job. I did
+not check *what handler it actually installed* (`SIG_IGN`), did not test stdio at all, and stated a
+mechanism ("translate SIGTERM into the SIGINT path") that the uvicorn source contradicts. **A
+mitigation that produces the desired outcome in one environment is not a verified mitigation**; the
+review's instinct to single it out as the only reasoned-not-executed item was right, and the item
+was worse than merely unexecuted — it was executed once, shallowly, and generalised.
+
+
 ## What I could NOT verify
 
 - **Python 3.10, and 3.13+.** Ran 3.11.15 and 3.12.3. The declared floor is `>=3.10`; 3.10 untested.
 - **Whether the `ResponseLimitingMiddleware` regression also affects the network transport.** Reproduced in-memory; the failing assertion is client-side in `mcp/client/session.py`, so it should be transport-independent, but I did not re-run it over HTTP.
-- **Whether the SIGTERM behaviour differs under a real container runtime** (Docker `stop`, Kubernetes `preStop`). Tested with raw `kill -TERM` on Linux. A container adds an init process and a grace period that I did not simulate.
-- **Whether the SIGTERM behaviour also affects stdio transport.** Only HTTP was tested.
+- **Whether the SIGTERM behaviour differs under a real container runtime** (Docker `stop`, Kubernetes `preStop`). Tested with raw `kill -TERM` on Linux, including the stdio hang in §19.4. A container adds an init process, PID 1 semantics and a grace period that I did not simulate — and PID 1 changes default signal dispositions, which §19.2 shows this mitigation is sensitive to.
+- ~~Whether the SIGTERM behaviour also affects stdio transport~~ — **resolved in §19.4: it does, and worse (the process survives).**
 - ~~`ctx.elicit()` era-gating~~ — **resolved by execution in §15**: it raises on sessionless, on every transport including stdio, and the result types fail open under a naive guard.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
 - **`DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimiting`, `ErrorHandling`, `Retry` and `Ping` are covered in §§13–14. Four of the eight tested are unusable or need their defaults overridden, so **assume nothing about the remaining three.**

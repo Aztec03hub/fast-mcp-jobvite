@@ -26,7 +26,7 @@ docs are tagged `[FROM SOURCE]`. Claims marked **[SPIKE]** were executed — see
 | **Auth** | `StaticTokenVerifier` from `fastmcp.server.auth.providers.jwt`, token dict loaded from the environment. Never hand-roll a `TokenVerifier` subclass. Per-tool authorization via `@mcp.tool(auth=require_scopes(...))`. **[SPIKE §4]** |
 | **Errors** | `raise ToolError(...)` for anything actionable; let unexpected exceptions raise and set `mask_error_details=True`. **[SPIKE §5]** |
 | **Required config** | pydantic-settings with non-defaulted fields. `fastmcp.json` **cannot** express a required env var and fails *silently*. **[SPIKE §10]** |
-| **Mandatory workaround** | `signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))` before `mcp.run(...)`, or lifespan teardown never runs on container stop. **[SPIKE §9.2]** |
+| **Mandatory workaround** | An **explicit** SIGTERM handler that raises `KeyboardInterrupt`, plus `os._exit(0)` after `run()` returns — or lifespan teardown never runs on container stop, and on stdio the process survives SIGTERM entirely. Do **not** use `signal.getsignal(SIGINT)`: it can install *ignore SIGTERM*. **[SPIKE §19.5]** |
 
 ### The httpx → httpx2 decision (open)
 
