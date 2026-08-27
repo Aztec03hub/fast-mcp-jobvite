@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""Positive-control harness for check-coupling.py.
+
+Each control is a one-line mutation of a COPY of DESIGN.md held in a temp file. A control
+PASSES only when the gate exits 1 AND its output contains the expected substring. The real
+docs/DESIGN.md is opened read-only and never written.
+"""
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
+
+REPO = pathlib.Path("/home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite")
+GATE = REPO / "docs/reviews/check-coupling.py"
+SRC = (REPO / "docs/DESIGN.md").read_text()
+
+CLOSING_MARK = "### Threshold disposition"
+
+
+def assert_changed(before: str, after: str, what: str) -> str:
+    assert before != after, f"mutation {what!r} was a no-op; the control would be vacuous"
+    return after
+
+
+def droprow(text: str, rid: str) -> str:
+    lines = text.splitlines(keepends=True)
+    keep = [l for l in lines if not l.startswith(f"| {rid} |")]
+    assert len(keep) == len(lines) - 1, f"droprow {rid} removed {len(lines) - len(keep)} lines"
+    return "".join(keep)
+
+
+def test_cell(text: str, rid: str, new: str) -> str:
+    """Replace the final (Test) cell of the STRIDE row `rid`."""
+    out = re.sub(rf"(?m)^(\| {rid} \|.*\| )[^|]*\|$", lambda m: m.group(1) + new + " |", text)
+    return assert_changed(text, out, f"test cell of {rid}")
+
+
+def in_closing(text: str, fn) -> str:
+    i = text.index(CLOSING_MARK)
+    return assert_changed(text, text[:i] + fn(text[i:]), "closing-section edit")
+
+
+def drop_from_must_table(text: str, rid: str) -> str:
+    def fn(closing):
+        return "".join(l for l in closing.splitlines(keepends=True)
+                       if not l.startswith(f"| {rid} |"))
+    return in_closing(text, fn)
+
+
+def roster(text: str, fn) -> str:
+    start = text.index("**Already mitigated at Critical or High**")
+    end = text.index("### Residual Risks", start)
+    return assert_changed(text, text[:start] + fn(text[start:end]) + text[end:], "roster edit")
+
+
+def s8_drop_case(text: str, case: str) -> str:
+    """Delete the §8 required-case bullet naming `case`, leaving §11 untouched."""
+    i = text.index("Required cases, each failing if its defence is removed:")
+    j = text.index("\n## 9.", i)
+    s8 = text[i:j]
+    b = s8.index("- **" + case)
+    e = s8.index("\n- **", b + 1)
+    return assert_changed(text, text[:i] + s8[:b] + s8[e + 1:] + text[j:], f"§8 drop {case!r}")
+
+
+CONTROLS = [
+    # --- the eight the script already shipped with ---
+    ("1  duplicate id: C1-S2 renamed C1-S1",
+     lambda t: assert_changed(t, t.replace("| C1-S2 |", "| C1-S1 |", 1), "dup id"),
+     "duplicate row id 'C1-S1'"),
+
+    ("2  STRIDE gap: the C7-E1 row deleted",
+     lambda t: droprow(t, "C7-E1"),
+     "component C7 has no row for STRIDE E"),
+
+    ("3  High mitigated row's §8 case replaced by a bare 'residual' (C1-R1)",
+     lambda t: test_cell(t, "C1-R1", "residual"),
+     "C1-R1 is a mitigated High row"),
+
+    ("4  §8 case deleted, §11 unchanged (H2's exact failure mode)",
+     lambda t: s8_drop_case(t, "an off-loopback bind without TLS refuses to start"),
+     "names §8 case 'an off-loopback bind without TLS refuses to start', "
+     "which does not appear in §8"),
+
+    ("5  C5-E1 deleted from the must-mitigate table",
+     lambda t: drop_from_must_table(t, "C5-E1"),
+     "C5-E1 is an unmitigated"),
+
+    ("6  must-mitigate table renames C5-R1 to C5-R9",
+     lambda t: in_closing(t, lambda c: c.replace("C5-R1", "C5-R9")),
+     "closing tables reference 'C5-R9', which no STRIDE row defines"),
+
+    ("7  C9-T1 dropped from the mitigated roster",
+     lambda t: roster(t, lambda r: r.replace(" and C9-T1 the pinned and frozen resolve", "")),
+     "roster omits C9-T1, a mitigated Critical/High row"),
+
+    ("8  C5-R1 added to the mitigated roster",
+     lambda t: roster(t, lambda r: r.replace("C7-I1 PII in logs", "C7-I1 PII in logs, C5-R1")),
+     "roster claims C5-R1 is a mitigated Critical/High row; it is not"),
+
+    # --- new: the severity band the widening added ---
+    ("9  NEW BAND: §8 case deleted under the Medium row C3-T1, §11 unchanged",
+     lambda t: s8_drop_case(
+         t, "a control character or bidi override in a string argument rejected before dispatch"),
+     "C3-T1 names §8 case 'a control character or bidi override in a string argument rejected "
+     "before dispatch', which does not appear in §8"),
+
+    ("10 NEW BAND: Medium mitigated row C3-D1 swaps its §8 case for a bare 'residual'",
+     lambda t: test_cell(t, "C3-D1", "residual"),
+     "C3-D1 is a mitigated Medium row but its Test cell neither names a §8 case nor carries a "
+     "'not required (<rating>)' disposition"),
+
+    ("11 NEW BAND: Low mitigated row C6-T1 swaps its §8 case for a bare 'residual'",
+     lambda t: test_cell(t, "C6-T1", "residual"),
+     "C6-T1 is a mitigated Low row but its Test cell neither names a §8 case nor carries a "
+     "'not required (<rating>)' disposition"),
+
+    ("12 VOCABULARY: invented disposition on a Medium row (typo 'not required (Meduim)')",
+     lambda t: test_cell(t, "C2-I1", "not required (Meduim)"),
+     "C2-I1 has an unrecognised Test cell 'not required (Meduim)'"),
+
+    ("13 STRICTNESS SURVIVES: mitigated High row C1-S1 uses 'not required (High)'",
+     lambda t: test_cell(t, "C1-S1", "not required (High)"),
+     "C1-S1 is a mitigated High row and may not use 'not required (High)'"),
+
+    ("14 BAND LAUNDERING: Medium row C5-T1 claims exemption at Low",
+     lambda t: test_cell(t, "C5-T1", "not required (Low)"),
+     "C5-T1 is rated Medium but its disposition 'not required (Low)' claims exemption at Low"),
+
+    ("15 DANGLING REF ON AN UNMITIGATED ROW: C3-I1 points at a case never written",
+     lambda t: test_cell(t, "C3-I1", "§8: a case that was never written"),
+     "C3-I1 names §8 case 'a case that was never written', which does not appear in §8"),
+]
+
+
+def run(text: str):
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+        f.write(text)
+        p = f.name
+    r = subprocess.run([sys.executable, str(GATE), p], capture_output=True, text=True)
+    pathlib.Path(p).unlink()
+    return r.returncode, (r.stdout + r.stderr).replace(p, "<temp copy of DESIGN.md>")
+
+
+print("=" * 80)
+print("BASELINE: the real docs/DESIGN.md, unmutated")
+rc, out = run(SRC)
+print(out.rstrip())
+print(f"exit={rc}  -> {'baseline green' if rc == 0 else 'BASELINE IS RED'}")
+print("=" * 80)
+
+bad = 0
+for name, mutate, expect in CONTROLS:
+    print(f"\n--- CONTROL {name}")
+    try:
+        rc, out = run(mutate(SRC))
+    except Exception as e:
+        print(f"    MUTATION ERROR: {e}")
+        bad += 1
+        continue
+    print("\n".join("    " + l for l in out.rstrip().splitlines()))
+    ok = rc == 1 and expect in out
+    print(f"    exit={rc}, expected message present={expect in out} -> "
+          f"{'CONTROL FIRED' if ok else 'CONTROL DID NOT FIRE'}")
+    bad += 0 if ok else 1
+
+print("\n" + "=" * 80)
+print(f"{len(CONTROLS) - bad}/{len(CONTROLS)} controls fired.")
+
+rc, out = run(SRC)
+print(f"post-run re-check of the real DESIGN.md: exit={rc} ({'still green' if rc == 0 else 'RED'})")
+sys.exit(1 if bad else 0)

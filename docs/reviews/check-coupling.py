@@ -12,7 +12,9 @@ Checks, in order:
   3. Every mitigated row of ANY severity accounts for itself in its Test column, either by naming a
      section 8 case that appears verbatim in section 8's required-cases list, or by carrying an
      explicit "not required (<rating>)" disposition. Critical and High rows may not use that
-     disposition: at those ratings a mitigation must have a test.
+     disposition: at those ratings a mitigation must have a test. Where the disposition is used,
+     the rating it names must be the row's own, so an exemption cannot be granted against a band
+     the row does not sit in.
   4. Every Critical or High row that is NOT mitigated appears either in the must-mitigate table or
      in Residual Risks.
   5. Every row id referenced anywhere in section 11 outside the STRIDE tables is defined by them.
@@ -30,21 +32,28 @@ Usage: python3 docs/reviews/check-coupling.py [path/to/DESIGN.md]
 Exit code 0 on success, 1 on any failure. No dependencies.
 
 A green from this script is only worth what its failure modes are worth, so every check has been
-made to fire against a deliberately broken copy. To re-run those controls, copy DESIGN.md, apply
-one break, and confirm a non-zero exit:
+made to fire against a deliberately broken copy. Those controls used to live here as prose telling
+a reader to "copy DESIGN.md and apply one break", which is a control nobody runs. They are now
+executable:
 
-  check 1  duplicate a row id                    -> "duplicate row id 'C3-T1'"
-  check 2  rename a row so a category is missing -> "component C1 has no row for STRIDE E"
-  check 3  point a High row's §8 case at nothing -> "C5-S1 names §8 case '...', which does not
-                                                    appear in §8"
-  check 3  point a MEDIUM row's §8 case at nothing (this is the band the script was blind to
-           before the widening; the pre-widening version passes this break)
-  check 3  give a Critical row "not required (Critical)"
-  check 4  renumber an unmitigated High row      -> "appears in neither the must-mitigate table
-                                                    nor Residual Risks"
-  check 5  reference an undefined id in §11's closing prose
-  check 6  delete a row from the "Already mitigated" roster
-  check 7  replace a disposition with invented text (the pre-widening version passes this too)
+    python3 docs/reviews/check-coupling-controls.py
+
+Fifteen mutations of a temp copy, one per failure mode, each required to produce exit 1 AND its
+expected message. DESIGN.md is opened read-only and never written. Run it whenever this file
+changes; a check that cannot be shown to fail is not a check.
+
+What this script does NOT check, stated so a green is not read as more than it is:
+  - Whether a §8 case a row names actually TESTS what the row claims. The check is that the case
+    text exists in §8, not that the test behind it is adequate, or written at all.
+  - Whether a row's risk RATING is right. A Critical threat rated Medium escapes the Critical/High
+    strictness entirely, and nothing here can see that.
+  - Whether a mitigation described in the Mitigation column is real, implemented, or sufficient.
+  - Anything in §11 outside the STRIDE and closing tables: the prose, the counts written out in
+    it, and the Residual Risks rationales are all unchecked.
+  - Row selection keys on the substring "Mitigated" in the Mitigation column, which is prose. A row
+    stating its mitigation without that word is silently treated as unmitigated. Tracked as FIX-8
+    and deliberately NOT changed here: narrowing the selector changes which rows the gate judges,
+    and that belongs in its own pass rather than in the one that widened the severity band.
 """
 
 from __future__ import annotations
@@ -149,11 +158,19 @@ def main(path: pathlib.Path) -> int:
             missing = names_missing_case(test)
             if missing is not None:
                 failures.append(f"{rid} names §8 case {missing!r}, which does not appear in §8")
-        elif NOT_REQUIRED_RE.match(test):
+        elif (m := NOT_REQUIRED_RE.match(test)) is not None:
             if rid in high:
                 failures.append(
                     f"{rid} is a mitigated {rating} row and may not use {test!r}: at Critical and "
                     f"High a mitigation must name a §8 case"
+                )
+            elif m.group(1) != rating:
+                # The disposition names the band it is claiming exemption at. If that band is not
+                # the row's own rating, the exemption was granted against a rating the row does not
+                # have, which is how a Medium mitigation gets waved through as though it were Low.
+                failures.append(
+                    f"{rid} is rated {rating} but its disposition {test!r} claims exemption at "
+                    f"{m.group(1)}; the rating in the disposition must match the row's own"
                 )
         else:
             failures.append(
