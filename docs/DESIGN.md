@@ -116,6 +116,32 @@ Every tool takes a typed Pydantic model, never a free-form dict. `strict=True`, 
 forbidden, explicit `max_length` on every string, regex on every identifier. Outputs are
 snake_case regardless of Jobvite's casing.
 
+**Four structural limits bound an inbound argument payload**, taken as the defaults from
+`backend/input-validation.md:220-226` and enforced before dispatch, with `:391-392` requiring body
+size at the middleware and depth limiting on recursive structures:
+
+| Constraint | Limit |
+|---|---|
+| Max nesting depth | 5 levels |
+| Max list items | 1,000 |
+| Max dict keys | 100 |
+| Max total request body size | 1 MiB |
+
+**These are a different axis from §4.5's page caps**, and conflating them is the mistake worth
+naming: 500 and 1000 there are *outbound transport* limits on what we ask Jobvite for, and bound
+nothing about what a caller sends us. `customField[]` is open-ended (§6.1) and is exactly the shape
+these limits exist to bound.
+
+**Input is rejected on control characters and encoding before dispatch**, which `max_length` does
+not cover and the output allow-list cannot: `ai/prompt-injection.md:124-125` requires
+*"input size/encoding limits before dispatch; reject control characters and oversized payloads"*.
+A candidate name carrying a NUL or a bidi override is a well-formed short string, so every
+length-and-regex check passes it. The allow-list is an **output** filter and §6.1's fencing is
+applied on the way back out, so neither reaches an inbound argument on its way to Jobvite. Strings
+are validated as UTF-8 and rejected if they carry C0/C1 control characters other than tab, newline
+and carriage return, or Unicode bidirectional overrides. Rejection is a `400` problem object per
+§5.1, and the rule fails closed.
+
 **Outputs are allow-listed models, not passthrough.** A field Jobvite returns that is not on the
 model does not reach the caller, and it fails closed: a new Jobvite field is dropped until someone
 admits it deliberately. That is **containment**, and it satisfies the special-category-data position
@@ -251,8 +277,17 @@ we wrote - with four constraints established by execution:
 - **`get_client_id` is mandatory.** The default keys every caller to the literal string
   `"global"` despite the docstring implying per-client. One noisy integrator would throttle
   everyone.
-- **Burst is sized `desired_calls + 2` per session.** It counts every MCP request, not just tool
-  calls. Measured: burst 3 yields 1 tool call, 5 yields 3, 10 yields 8.
+- **Burst is sized `desired_calls + 2` per session**, where the `+ 2` is measured against
+  FastMCP's own client and is not a protocol constant. It counts every MCP request, not just tool
+  calls. Measured: burst 3 yields 1 tool call, 5 yields 3, 10 yields 8; independently, burst 6
+  yields 4 on both protocol eras. **The `2` is that client's connect sequence** - `server/discover`
+  plus `tools/list` - not a property of the limiter or of MCP. A client whose connect sequence is
+  heavier (one that also lists resources or prompts, both of which `server/discover` advertises)
+  burns more, and `desired + 2` then **under-provisions and refuses real tool calls**. That is the
+  failure direction worth stating: over-provisioning a thinner client is harmless, under-provisioning
+  is not. No client but FastMCP's has been measured.
+  On stdio the toll is paid per connection rather than per process lifetime, because stdio spawns a
+  fresh server process - and therefore a fresh bucket - for every connection (§1).
 - **Limits are startup-only.** Mutating them has no effect; only `limiters.clear()` applies new
   values, **and that resets every client's quota**, making a config reload a quota amnesty and
   repeated reloads a trivial bypass.
@@ -261,12 +296,14 @@ we wrote - with four constraints established by execution:
   have.
 
 On stdio there is no token and thus no `client_id`, but there is exactly one caller, so the
-global bucket is correct there.
+global bucket is correct there. **That is reasoning, not a measurement** - every limiter arm was run
+in-memory or over HTTP, and the limiter has never been exercised on stdio. It follows from stdio's
+one-process-per-connection behaviour rather than from an executed result.
 
-**Every one of those measurements was sequential and single-client.** Bucket behaviour under
-simultaneous callers - the case that actually matters in production - is unverified, and
-`limiters.clear()` was never tested under load. ADR-0002 records that as a limitation rather than
-implying coverage we do not have.
+**Every one of those measurements was sequential and single-client**, and all of them used FastMCP's
+own client. Bucket behaviour under simultaneous callers - the case that actually matters in
+production - is unverified, and `limiters.clear()` was never tested under load. ADR-0002 records
+that as a limitation rather than implying coverage we do not have.
 
 **Outbound, we throttle ourselves against Jobvite's only documented operating envelope**, which is
 prose rather than a number: call it on an as-needed basis, and anything more frequent than once a
@@ -301,12 +338,15 @@ documentation, which is the only statement from the vendor. Correctness does not
 right, because paging is made **base-agnostic**:
 
 - **Every scan starts at `start=0`.** This is the whole mechanism and it is one character. A
-  0-based server then returns record zero; a 1-based server **clamps 0 to 1** - confirmed against
-  the one genuine Jobvite `200` in our evidence (`JOBVITE-API.md:399`), which is the strongest
-  citation available for this paragraph and was previously unused and returns the same
-  first page it would have anyway - which is our own finding above, used deliberately instead of
-  worked around. Starting at 1 is the only choice that can silently lose a record, because on a
-  0-based server record zero is never requested.
+  0-based server returns record zero; a 1-based server returns the same first page it would have
+  returned anyway. **What is observed, and all that needs to be:** `start=0` is accepted and returns
+  records, in the one genuine Jobvite `200` in our evidence (`JOBVITE-API.md:399`). That falsifies
+  "1-based and strict", which is the only hypothesis under which `start=0` could have failed.
+  **It does not establish that a 1-based server clamps 0 to 1** - the same source says so in its own
+  sentence, and the two remaining hypotheses (0-based, or 1-based-with-clamping) are exactly the
+  pair it cannot separate. We do not need to separate them: `start=0` is safe under both, which is
+  the whole point of being base-agnostic. Starting at 1 is the only choice that can silently lose a
+  record, because on a 0-based server record zero is never requested.
 - Returned ids are checked against a per-scan seen set, so a clamped or overlapping page **drops
   duplicates**. Note what this does and does not do: **de-duplication defends against over-reading
   only.** It cannot recover a record that was never returned, which is exactly why the fix is
@@ -624,6 +664,16 @@ finally:
 
 Teardown completes before `os._exit`, so skipping atexit handlers costs nothing we rely on.
 
+**Two limits on the word "verified" here, stated because the mitigation this replaced was also
+called verified and was not.** First, **the two halves were executed separately**: the explicit
+handler was run on HTTP without `os._exit`, and `os._exit` was run on stdio. The composed snippet
+above has never been run end to end on HTTP. Second, **PID 1 was never simulated.** Every arm used
+`kill -TERM` on Linux; a container adds an init process and a grace period, and PID 1 changes
+default signal dispositions - which is the exact ambient-state sensitivity that made the previous
+one-liner install "ignore SIGTERM". The explicit handler should be immune, because unlike the
+one-liner it never reads ambient state, but that is reasoning and not a measurement. The test below
+closes both gaps on the first CI run, which is why it is a requirement rather than a suggestion.
+
 **The test must assert both halves, on both transports:** that the teardown marker was written
 **and** that the process exited within the grace period, signalling the interpreter PID resolved
 via `/proc/<pid>/cmdline` rather than a wrapper. The HTTP path passes on teardown alone; **only
@@ -669,16 +719,39 @@ whichever it picks.** Executed on both:
 
 | Era | MRTR | `ctx.elicit()` |
 |---|---|---|
-| sessionless `2026-07-28` | works | raises |
-| handshake `2025-11-25` | **raises, every arm including approve** | works |
+| sessionless `2026-07-28` | works, with a client handler | raises |
+| handshake `2025-11-25` | **raises, every arm including approve** | works, with a client handler |
+
+**Read "works" as `era AND handler`, not as an era property.** Availability has two axes and this
+table shows one. On either era, a client that supplies no elicitation handler cannot approve: the
+sessionless arm raises `MCPError: Elicitation not supported` and the handshake arm returns
+`is_error=True`. Both fail closed, and §8 requires the test to assert the row count rather than the
+error shape precisely because the two shapes differ. The era decides *which mechanism*; the client
+decides *whether either can run at all*.
 
 FastMCP's own error names the remedy: the multi-round-trip result type "only exists at MCP
 2026-07-28 ... Use `ctx.elicit()` for server-initiated input on handshake-era connections."
 
-**This matters most where most users are.** Claude Code negotiates `2026-07-28` automatically over
-HTTP, but for stdio only when `MCP_PROTOCOL_NEGOTIATION=auto` - so **a default stdio install lands
-on the handshake era**, and a sessionless-only guard would be broken for the majority of local
-users while passing every test we had.
+**A tool cannot swallow the era guard, and this is structural rather than behavioural.** Returning
+an `InputRequiredResult` merely constructs and returns an object; it does not raise. The era check
+fires in **FastMCP's result-serialization layer, after the tool has already returned**, so the
+exception is not raised in a scope the tool controls. A `try/except Exception` wrapped around the
+tool's own approval request therefore cannot catch it and proceed to the write. This was established
+by constructing the failure deliberately: a variant that swallows its own approval exception and
+writes anyway was run on both eras with no client handler, and wrote nothing on all four arms.
+That is a stronger property than a loud error a careless caller could still catch, and it is why
+§2.2's gates do not need a fourth. **Its limit, stated so it is not over-trusted:** it protects the
+*first* leg only. A tool that reaches its second leg and mis-validates the answer is on its own,
+which is exactly what the `action == "accept" and value is True` conjunction above exists for.
+
+**A default stdio install lands on the handshake era**, which is why a sessionless-only guard would
+have shipped broken. **This one claim is documentation-sourced, not executed:** Claude Code's own
+docs state that it negotiates `2026-07-28` for HTTP servers automatically but asks stdio servers
+only when `MCP_PROTOCOL_NEGOTIATION` is set to `auto`. We have not driven Claude Code against this
+server, and the survey it comes from is documentation research. **The guard does not rest on it** -
+§20.2's execution shows MRTR raising on handshake regardless of who negotiates what, so both arms
+are required either way. What the host survey supplies is the reason to care, not the reason to
+branch.
 
 **The discriminator is `ctx.request_context.protocol_version`**, compared against the same
 `('2026-07-28',)` tuple FastMCP's own guard uses. Two plausible alternatives were measured and both
@@ -755,7 +828,11 @@ one-time state.** A nonce, an idempotency key, an upload URL, a short-lived hand
 response re-issues the *same* one, so the first use spends it and every subsequent caller receives
 something already dead, for the whole TTL. **The trap is that such a tool is naturally annotated
 `readOnlyHint=True`**, which is exactly the signal someone reaches for when deciding what is safe
-to cache. Measured on the confirmation-token preview before that mechanism was cut (§7.6); the rule
+to cache. **Derived, not measured** - and the distinction is kept because this rule is written to
+outlive its mechanism, so a wrong provenance on it would become permanent. It composes two executed
+results: caching demonstrably serves a stored response to a later identical call, and a spent
+confirmation token was demonstrably refused on replay. Nobody ran a caching middleware in front of
+the token preview before that mechanism was cut (§7.6). The composition is sound; the rule
 is kept because the next tool of this shape will not announce itself.
 
 **Design rule, earned rather than assumed: on this framework a middleware's default is not a safe
@@ -809,6 +886,12 @@ Required cases, each failing if its defence is removed:
   by inspection, since §6.2 rates that Critical and an allow-list is only as good as its test;
 - **an argument-schema violation failing closed**, which B12 and B23 require and which §5.1 claims
   is satisfied - the claim is only true once this test exists;
+- **a control character or bidi override in a string argument rejected before dispatch**, with a
+  positive control showing an ordinary name still passes. This is a distinct case from the schema
+  test above, because the payload it catches is a valid short string that every `max_length` and
+  regex check admits (B25, §2.1);
+- **an argument payload exceeding a structural limit rejected** - one arm per limit: nesting past
+  five levels, a list past 1,000 items, a dict past 100 keys, and a body past 1 MiB (B30, §2.1);
 - **an off-loopback bind without TLS refuses to start** - no certificates configured here and
   `JOBVITE_TLS_TERMINATED_BY_PROXY` not declared, and the server exits naming the reason rather
   than warning and continuing (§7.1). Three High rows rest on this refusal and none of them rested
@@ -880,7 +963,12 @@ early adopters. **`mcp` is pinned explicitly**, not just `fastmcp`: the `Respons
 regression arrived through the transitive SDK with zero change to the code that broke, which is
 the characteristic failure mode of early adoption on a freshly major-bumped dependency.
 
-Packaging, verbatim, because both lines are load-bearing:
+Packaging, verbatim, because every line is load-bearing. **The spike verified a two-pin recipe; this
+block adds `mcp`, so the three-pin form was resolved on its own before being written here** - `uv
+lock` against exactly this block exits 0, resolves 72 packages, and holds `pydantic` at a **stable**
+2.13.4 (`fastmcp` 4.0.0b4, `fastmcp-slim` 4.0.0b4, `mcp` 2.1.1, `mcp-types` 2.1.1, `httpx2` 2.12.0,
+`starlette` 1.6.0, and no `httpx`). Adding a hard `==` pin inside a `prerelease = "explicit"` resolve
+is the change most likely to fail to resolve, which is why it was run rather than assumed:
 
 ```toml
 dependencies = [
@@ -911,8 +999,10 @@ stable.
 not two.
 
 An earlier revision chose `httpx` on the belief that httpx2 was "a fork with a much smaller
-ecosystem" whose mocking support was unproven. **That characterisation was wrong and was never
-checked.** Verified:
+ecosystem" whose mocking support was unproven. **That characterisation came from the runtime spike,
+was repeated without checking, and was wrong in every part.** Checked against PyPI and the
+repository, and recorded in **ADR-0007** - note that the spike still carries the original
+characterisation, so it is the ADR and not `FASTMCP-SPIKE-4.md` that supports what follows:
 
 - `httpx2` is authored by **Tom Christie, httpx's own author**, and published under the
   **pydantic** organisation. Its README states plainly that *"With HTTPX itself seeing limited
@@ -1120,10 +1210,10 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
 | C3-S1 | No credible threat at this layer. Identity is established at C1 | - | - | - | The argument layer sees an already-authenticated caller | no credible threat |
-| C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | Reject control characters and enforce an encoding check before dispatch. **Not currently specified** | unmitigated (B25) |
+| C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | **Mitigated in §2.1:** strings are validated as UTF-8 and rejected before dispatch if they carry C0/C1 control characters other than tab, newline and carriage return, or Unicode bidi overrides. `max_length` and the output allow-list do not reach this - a NUL-bearing name is a well-formed short string, and the allow-list is an output filter | §8: a control character or bidi override in a string argument rejected before dispatch |
 | C3-R1 | No credible threat beyond C1-R1. Arguments are recorded redacted by `audit.py` (§5.3) | - | - | - | Covered by C1-R1 | no credible threat |
 | C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is still undocumented (B15)** | unmitigated (B15) |
-| C3-D1 | A deeply nested or very large argument payload consumes parse time and memory. No nesting, list-length, dict-key or body-size limits are specified (B30) | M | M | Medium | Add the four limits from `input-validation.md:223-226`. §4.5's page caps are outbound transport limits and do not bound an inbound argument. **Not currently specified** | unmitigated (B30) |
+| C3-D1 | A deeply nested or very large argument payload consumes parse time and memory (B30) | M | M | Medium | **Mitigated in §2.1:** the four limits from `input-validation.md:220-226` - nesting depth 5, list items 1,000, dict keys 100, body 1 MiB - enforced before dispatch. §4.5's page caps are outbound transport limits and bound nothing a caller sends | §8: an argument payload exceeding a structural limit rejected |
 | C3-E1 | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is stated in §5.1 and the failure-closed case is required in §8, which is what closed B12. Mitigated | §8: an argument-schema violation failing closed |
 
 **C4. Approval subsystem** (`approval.py`, MRTR elicitation on sessionless, `ctx.elicit()` on handshake)
@@ -1233,10 +1323,11 @@ after the count was last taken and does not join the list**, because its pins an
 are specified in §10 and covered by a §8 case; the unexecuted part, the capability-drift diff, is a
 residual risk rather than an implementation blocker.
 
-**Mitigate before production release** (inherent Medium, unmitigated): C3-T1 control characters
-(B25), C3-D1 structural argument limits (B30), C3-I1 and C6-D1 the undocumented result cap (B15),
-C7-I2 log-stream handling, C8-R1 configuration-change logging, and **C9-D1 the missing
-advisory-triage policy (B72)**.
+**Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
+undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
+**C9-D1 the missing advisory-triage policy (B72)**. **C3-T1 (B25) and C3-D1 (B30) have left this
+list**: §2.1 now specifies the control-character and encoding rejection and the four structural
+limits, each with a §8 case.
 
 **Already mitigated at Critical or High**, listed so the mitigations are recognised as load-bearing
 and not quietly removed later: C5-S1 the 200-with-401 trap, C6-S1 indirect prompt injection, C6-I1
@@ -1281,9 +1372,20 @@ is derived from the table rather than maintained beside it; the script checks th
 
 Items 1 to 4 are external unknowns about Jobvite or about a host. **Item 5 is not** - it is a
 dependency on a uvicorn implementation detail, which is a claim about our own stack, recorded here
-because it is the kind of assumption that goes unstated. The one reasoned-but-unexecuted mechanism
-in this design is the capability-drift diff, which is marked `UNVERIFIED:` at its point of use
-(§10) and carried in §11's Residual Risks rather than listed here.
+because it is the kind of assumption that goes unstated.
+
+**What this list is not.** It is not an inventory of everything unexecuted in this design, and an
+earlier revision closed with a sentence claiming it was - which is the blanket self-certification
+this document's own front matter warns against. **Most of what is specified here has never been
+run**, because none of it is built yet: the retry policy and the circuit breaker (§4.3), the
+de-duplication seen-set and the completeness check (§4.5), the generated fencing paths (§2.1), the
+redaction enforcement point (§4.1). Those are unbuilt implementation, not open questions, and §8
+is where each acquires a test. Two items are different in kind, because they are reasoned claims
+sitting inside sections whose neighbouring results *were* executed, and so borrow credibility
+nobody granted them: the **capability-drift diff**, marked `UNVERIFIED:` at its point of use (§10)
+and carried in §11's Residual Risks; and the **circuit breaker**, which appears in §4.3 beside a
+measured retry finding and has no supporting execution anywhere. Neither is wrong. Neither is
+evidenced.
 
 **What is no longer an open question:** whether success bodies carry a `status` block. The one
 genuine `200` answers it and §8's structural fixture asserts it (`JOBVITE-API.md:397`); an earlier
