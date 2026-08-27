@@ -400,8 +400,32 @@ Failures return `ToolResult(structured_content=<problem>, is_error=True)` carryi
 No `success: true/false` envelope exists anywhere in this repository.
 
 `type` is a relative `/problems/<slug>`. `instance` is
-`urn:fast-mcp-jobvite:invocation:<request_id>`. `status` carries the upstream Jobvite status where
-one exists, 400 for input validation, 503 for an upstream 5xx.
+`urn:fast-mcp-jobvite:invocation:<request_id>`.
+
+**`type` and `status` come from the registry at `error-contract.md:96-108`, not from Jobvite.** An
+earlier revision passed the upstream status through and minted `/problems/jobvite-*` slugs of its
+own. Both were wrong:
+
+- **Passing Jobvite's status through is a user-facing bug, not only a compliance one.** A Jobvite
+  `401` reaching the caller as `401` tells them *their* credentials failed, when what failed is the
+  credential *this server* holds. The registry's answer is `/problems/external-service-error`,
+  **502**, *"Upstream service failure"* - which is what actually happened.
+- **`:210` makes a published `type` URI a contract**, so inventing slugs is a promise we would owe
+  forever. The registry already has a type for every condition we produce.
+
+| Condition | Type | Status |
+|---|---|---|
+| Any Jobvite failure, including its 4xx | `/problems/external-service-error` | 502 |
+| Jobvite unreachable, breaker open, timeout | `/problems/service-unavailable` | 503 |
+| Argument or schema validation | `/problems/validation-error` | 422 |
+| Candidate or job id not found | `/problems/resource-not-found` | 404 |
+| Duplicate candidate on create | `/problems/conflict` | 409 |
+| Caller's token lacks the scope | `/problems/forbidden` | 403 |
+| Anything unmapped | `about:blank` per `:211` | - |
+
+Jobvite's own status and message are **not discarded** - they go in `detail` and in the audit
+event, where they help whoever is debugging, rather than in `status`, where they mislead whoever is
+calling. Validation is **422**, per the registry, not 400.
 
 **Problem objects are the primary channel for expected conditions** - unknown candidate id,
 rejected credential, validation failure. Verified across five arms: because they are *returned*
@@ -1307,7 +1331,7 @@ asserted that placement in the same edit that failed to make it.
 | C8-S1 | No credible threat. Configuration establishes no identity | - | - | - | It supplies the material C1 authenticates with | no credible threat |
 | C8-T1 | Environment or `.env` modified by a local actor to redirect credentials or enable writes | L | H | Medium | OS file permissions. Outside the server's control, stated for completeness | accepted |
 | C8-R1 | No record of configuration changes, including `JOBVITE_ENABLE_WRITES` being flipped or TLS being declared as proxy-terminated | M | M | Medium | Log the enabled tool set, the write flag and the TLS posture once at startup. **Not currently specified** | unmitigated |
-| C8-I1 | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | **Partly mitigated:** pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10). **Gaps: no `.gitignore` policy is stated (B90) and no `.env.example` exists (B91)** | unmitigated (B90, B91) |
+| C8-I1 | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | **Partly mitigated:** pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10); `.gitignore` is committed and ignores `.env`, `*.key` and vendored source documents, and is named as a control on boundary B6. **Remaining gaps: `.gitignore` lacks `*.pem` and `secrets/` (B90), and no `.env.example` exists (B91)** | unmitigated (B90, B91) |
 | C8-D1 | A required variable is unset and the server starts anyway, surfacing later as a confusing Jobvite 401 | M | L | Low | `pydantic-settings` fails at boot naming the variable, scoped to the tools actually enabled (§7.3). Mitigated | not required (Low) |
 | C8-E1 | `JOBVITE_ENABLE_WRITES` enabled unintentionally, exposing `create_candidate` | L | H | Medium | Enforced server-side, and the write still requires per-invocation approval, which the flag alone cannot satisfy (§2.2). Two orthogonal gates rather than three duplicate ones (§7.6). Mitigated in depth | not required (Medium) |
 | C8-E2 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` asserted where no proxy terminates TLS, returning the deployment to plaintext with no warning | L | H | Medium | Accepted. The server cannot verify what sits in front of it, and the alternative (trusting `X-Forwarded-Proto`) is spoofable by anyone who can reach the port. An operator assertion is the correct shape. Carried to Residual Risks | residual |
@@ -1341,7 +1365,7 @@ and then silently omitted it, so the rule did not describe the table it introduc
 |---|---|---|---|
 | C5-R1 | Retries and breaker transitions unlogged | Log both with the correlation field; needs `request_id_var` | B39, B40 |
 | C5-E1 | Jobvite credential not scoped to the enabled tool set | Document that a read-only key is required where writes are disabled | B21 |
-| C8-I1 | Credential or `.env` reaching the public repository | State the `.gitignore` policy and add `.env.example` | B90, B91 |
+| C8-I1 | Credential or `.env` reaching the public repository | Add `*.pem` and `secrets/` to the committed `.gitignore`, and add `.env.example` | B90, B91 |
 
 **Three, and the arithmetic is written out rather than carried forward, because it was carried
 forward wrongly once.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and

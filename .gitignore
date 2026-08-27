@@ -27,3 +27,7 @@ docs/research/*.raml
 docs/research/*.doc
 docs/research/*.docx
 docs/research/*.zip
+
+# Credential material the standard names explicitly
+*.pem
+secrets/
