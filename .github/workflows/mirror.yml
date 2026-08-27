@@ -1,0 +1,39 @@
+name: Mirror to personal fork
+
+# Belt-and-braces mirror. Day to day, pushes from the maintainer's machine already
+# reach both remotes because `origin` carries two push URLs. This job covers pushes
+# that do not originate there (web edits, other maintainers, merged PRs).
+#
+# It is inert until the repository defines a MIRROR_TOKEN secret: a PAT on the
+# mirror account with `contents: write` on Aztec03hub/fast-mcp-jobvite.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: ${{ secrets.MIRROR_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          git push --prune --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/Aztec03hub/fast-mcp-jobvite.git" \
+            "+refs/remotes/origin/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
