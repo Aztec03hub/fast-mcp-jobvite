@@ -43,6 +43,25 @@ def mitigation_cell(text: str, rid: str, new: str) -> str:
     return assert_changed(text, out, f"mitigation cell of {rid}")
 
 
+def _col(text: str, rid: str, n: int, new: str, what: str) -> str:
+    """Replace column `n` (0-based, 0 is the id) of the STRIDE row `rid`."""
+    out = re.sub(rf"(?m)^(\| {rid} \|(?:[^|]*\|){{{n - 1}}} )[^|]*(\|)",
+                 lambda m: m.group(1) + new + " " + m.group(2), text, count=1)
+    return assert_changed(text, out, f"{what} of {rid}")
+
+
+def likelihood_cell(text: str, rid: str, new: str) -> str:
+    return _col(text, rid, 2, new, "likelihood cell")
+
+
+def impact_cell(text: str, rid: str, new: str) -> str:
+    return _col(text, rid, 3, new, "impact cell")
+
+
+def risk_cell(text: str, rid: str, new: str) -> str:
+    return _col(text, rid, 4, new, "risk cell")
+
+
 def in_closing(text: str, fn) -> str:
     i = text.index(CLOSING_MARK)
     return assert_changed(text, text[:i] + fn(text[i:]), "closing-section edit")
@@ -98,8 +117,13 @@ CONTROLS = [
      lambda t: in_closing(t, lambda c: c.replace("C5-R1", "C5-R9")),
      "closing tables reference 'C5-R9', which no STRIDE row defines"),
 
+    # The roster is prose, so this arm matches C9-T1's clause by pattern rather than by an exact
+    # literal. The literal broke the moment C8-I1 was added to the roster and C9-T1 stopped being
+    # the last entry. `roster()` asserts the mutation changed something, so the arm went loudly
+    # vacuous instead of silently passing - which is the behaviour to keep, but a control that
+    # needs repairing every time the sentence is reworded is a control people will delete.
     ("7  C9-T1 dropped from the mitigated roster",
-     lambda t: roster(t, lambda r: r.replace(" and C9-T1 the pinned and frozen resolve", "")),
+     lambda t: roster(t, lambda r: re.sub(r"C9-T1[^,]*, ", "", r)),
      "roster omits C9-T1, a mitigated Critical/High row"),
 
     ("8  C5-R1 added to the mitigated roster",
@@ -173,6 +197,47 @@ CONTROLS = [
     ("15 DANGLING REF ON AN UNMITIGATED ROW: C3-I1 points at a case never written",
      lambda t: test_cell(t, "C3-I1", "§8: a case that was never written"),
      "C3-I1 names §8 case 'a case that was never written', which does not appear in §8"),
+
+    # --- FIX-10: the H1 hole, and the matrix check that closes the gate's own declared blind spot.
+    # SUBJECT RULE, and it is the whole point: every arm below uses a row NO existing control uses.
+    # The 21 arms above found none of the 19 escapes R5 measured, and could not have - 16a/16b/14d/15
+    # chose C1-S1, C1-D1, C5-R1 and C3-I1, all rows their own mutation was designed around. Picking
+    # from the covered set confirms only the coverage it was picked from. check-coupling-sweep.py
+    # is the harness that picks nothing; these arms just pin the individual messages.
+    ("17a H1, CRITICAL: C5-S1 swaps its §8 case for 'no credible threat' (the exact escape R5 ran)",
+     lambda t: test_cell(t, "C5-S1", "no credible threat"),
+     "C5-S1 is a rated Critical row and may not dispose of itself as 'no credible threat'"),
+
+    ("17b H1, HIGH: C2-R1 swaps its §8 case for 'no credible threat'",
+     lambda t: test_cell(t, "C2-R1", "no credible threat"),
+     "C2-R1 is a rated High row and may not dispose of itself as 'no credible threat'"),
+
+    ("17c H1, MEDIUM: C7-T1 swaps its exemption for 'no credible threat'",
+     lambda t: test_cell(t, "C7-T1", "no credible threat"),
+     "C7-T1 is a rated Medium row and may not dispose of itself as 'no credible threat'"),
+
+    ("17d H1 OTHER DIRECTION: the unrated row C6-E1 disposes of itself as 'residual'",
+     lambda t: test_cell(t, "C6-E1", "residual"),
+     "C6-E1 is unrated (Likelihood, Impact and Risk are all '-') but its Test cell is 'residual'"),
+
+    # 18a is the mutation the gate's own docstring used to name as the thing it could not see:
+    # "A Critical threat rated Medium escapes the Critical/High strictness entirely."
+    ("18a MATRIX: C6-I1 rerated Critical -> Medium with L and I untouched, test dropped",
+     lambda t: test_cell(risk_cell(t, "C6-I1", "Medium"), "C6-I1", "not required (Medium)"),
+     "C6-I1 is rated 'Medium' but Likelihood H x Impact H yields 'Critical' by the matrix"),
+
+    ("18b MATRIX: C8-E2 (L x H) rerated Medium -> Low",
+     lambda t: risk_cell(t, "C8-E2", "Low"),
+     "C8-E2 is rated 'Low' but Likelihood L x Impact H yields 'Medium' by the matrix"),
+
+    ("18c MATRIX FAILS LOUD rather than skipping: C9-D1's Likelihood set to 'Med'",
+     lambda t: likelihood_cell(t, "C9-D1", "Med"),
+     "C9-D1 cannot be evaluated against the matrix: Likelihood 'Med' and Impact 'L' must each be "
+     "H, M or L"),
+
+    ("18d MATRIX FAILS LOUD on a half-unrated row: C1-E1's Impact blanked to '-'",
+     lambda t: impact_cell(t, "C1-E1", "-"),
+     "C1-E1 cannot be evaluated against the matrix"),
 ]
 
 

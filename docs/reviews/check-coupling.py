@@ -9,6 +9,11 @@ checkable properties of the document. This script checks them.
 Checks, in order:
   1. Every STRIDE row id is unique and matches C<n>-<STRIDE letter><k>.
   2. Every component covers all six STRIDE categories.
+  2b. Every row is either fully unrated (Likelihood, Impact and Risk all "-") or fully rated, and a
+     rated row's Risk cell is EXACTLY what the matrix at threat-modeling.md:78-82 yields from its
+     Likelihood and Impact. A row that cannot be evaluated is a failure, never a row to skip.
+  2c. `no credible threat` is available ONLY to an unrated row, and an unrated row must use it.
+     Enforced in both directions.
   3. Every mitigated row of ANY severity accounts for itself in its Test column, either by naming a
      section 8 case that appears verbatim in section 8's required-cases list, or by carrying an
      explicit "not required (<rating>)" disposition. Critical and High rows may not use that
@@ -38,15 +43,26 @@ executable:
 
     python3 docs/reviews/check-coupling-controls.py
 
-Fifteen mutations of a temp copy, one per failure mode, each required to produce exit 1 AND its
-expected message. DESIGN.md is opened read-only and never written. Run it whenever this file
-changes; a check that cannot be shown to fail is not a check.
+One mutation of a temp copy per failure mode, each required to produce exit 1 AND its expected
+message. DESIGN.md is opened read-only and never written. Run it whenever this file changes; a
+check that cannot be shown to fail is not a check.
+
+AND, because hand-picked controls are not enough - see FIX-10 below:
+
+    python3 docs/reviews/check-coupling-sweep.py
+
+A subject-free harness. It does not choose rows or mutations; it takes EVERY row that names a §8
+case, substitutes EVERY recognised disposition, and reports every substitution the gate lets
+through. The only escapes it should report are the designed exemption - a Medium or Low mitigated
+row taking `not required (<its own rating>)`. Anything else is a hole.
 
 What this script does NOT check, stated so a green is not read as more than it is:
   - Whether a §8 case a row names actually TESTS what the row claims. The check is that the case
     text exists in §8, not that the test behind it is adequate, or written at all.
-  - Whether a row's risk RATING is right. A Critical threat rated Medium escapes the Critical/High
-    strictness entirely, and nothing here can see that.
+  - Whether a row's Likelihood and Impact JUDGEMENTS are right. Check 2b makes the Risk cell a
+    computed consequence of L and I, so a rerating can no longer launder a row into a lower band -
+    but L and I are still judgement calls, and someone who wants a Critical row rated Medium can
+    still get there by arguing the Impact down. That is a review question, not a machine one.
   - Whether a mitigation described in the Mitigation column is real, implemented, or sufficient.
   - Anything in §11 outside the STRIDE and closing tables: the prose, the counts written out in
     it, and the Residual Risks rationales are all unchecked.
@@ -64,6 +80,25 @@ started passing. Mitigation status is information the Test cell cannot supply, s
 in the Mitigation column is still consulted. What changed is that §11 now states that token
 deliberately on every row that claims a mitigation (FIX-9), so it is data rather than a word the
 prose happened to contain.
+
+FIX-10, the fifth defect, and why the controls could not have found it. Round 5 (DESIGN-R5.md, H1)
+found that `no credible threat` fell through DISPOSITION_RE unconditionally at every severity and
+was absent from NOT_MITIGATED_RE. So a row could carry the "Mitigated" token AND dispose of itself
+as "no credible threat": check 3 accepted the disposition, the biconditional saw no contradiction,
+and check 4 skipped the row because the token had placed it in the mitigated set. Measured, not
+argued - an exhaustive sweep of 19 rows x 8 dispositions, 152 gate runs, found 25 green results, of
+which 19 were illegitimate and were exactly the `no credible threat` column: EVERY row naming a §8
+case, the four Criticals included (the 200-with-401 trap, prompt injection, EEO exclusion, PII in
+logs). Checks 2b and 2c close it, and the same sweep now reports 6 escapes, all of them the
+designed Medium/Low exemption.
+
+The lesson is about the controls, not the checks. The 21 hand-written controls found zero of those
+19, and could not have: controls 16a and 16b chose C1-S1 and C1-D1, 14d chose C5-R1, 15 chose
+C3-I1 - all rows the mutation they encode was designed around, and not one of them substitutes the
+one string that opened the hole. A control whose subject is chosen from the covered set can only
+confirm the coverage it was chosen from. That was already written in this file as the FIX-8 lesson,
+and it was then re-committed while writing the FIX-9 arms. Hence check-coupling-sweep.py, which
+chooses nothing.
 
 The token and the Test cell must now agree BOTH ways, which is what closes the loophole:
   - a row claiming a mitigation (a §8 case, or "not required (<rating>)") must carry the token;
@@ -88,8 +123,19 @@ CATEGORIES = ["S", "T", "R", "I", "D", "E"]
 # cannot pass for a real one. Derived from the dispositions the document actually uses.
 NOT_REQUIRED_RE = re.compile(r"^not required \((Critical|High|Medium|Low)\)$")
 # Dispositions that assert the row is NOT mitigated. A row claiming a mitigation may not use one.
-NOT_MITIGATED_RE = re.compile(r"^(?:residual|accepted(?: \(B\d+(?:, ?B\d+)*\))?"
+# `no credible threat` is in this set (FIX-10). It was omitted originally, and that omission was
+# the whole of the H1 hole: a row could carry the "Mitigated" token AND dispose of itself as
+# "no credible threat", and neither direction of the biconditional objected.
+NOT_MITIGATED_RE = re.compile(r"^(?:no credible threat|residual"
+                              r"|accepted(?: \(B\d+(?:, ?B\d+)*\))?"
                               r"|unmitigated(?: \(B\d+(?:, ?B\d+)*\))?)$")
+LEVEL_RE = re.compile(r"^[HML]$")
+# `threat-modeling.md:78-82`, transcribed. Keyed (Likelihood, Impact).
+MATRIX = {
+    ("H", "L"): "Medium", ("H", "M"): "High", ("H", "H"): "Critical",
+    ("M", "L"): "Low",    ("M", "M"): "Medium", ("M", "H"): "High",
+    ("L", "L"): "Low",    ("L", "M"): "Low",   ("L", "H"): "Medium",
+}
 DISPOSITION_RE = re.compile(
     r"^(?:"
     r"no credible threat"
@@ -129,14 +175,15 @@ def main(path: pathlib.Path) -> int:
         if len(c) != 7:
             failures.append(f"row has {len(c)} columns, expected 7: {c[0]!r}")
             continue
-        rid, threat, risk, mitigation, test = c[0], c[1], c[4], c[5], c[6]
+        rid, threat, lik, imp, risk, mitigation, test = c[0], c[1], c[2], c[3], c[4], c[5], c[6]
         if not ID_RE.match(rid):
             failures.append(f"id {rid!r} does not match C<n>-<STRIDE letter><k>")
             continue
         if rid in rows:
             failures.append(f"duplicate row id {rid!r}")
             continue
-        rows[rid] = {"threat": threat, "risk": risk, "mitigation": mitigation, "test": test}
+        rows[rid] = {"threat": threat, "lik": lik, "imp": imp, "risk": risk,
+                     "mitigation": mitigation, "test": test}
 
     if not rows:
         print("FAIL: no STRIDE rows parsed; the table shape changed")
@@ -162,6 +209,42 @@ def main(path: pathlib.Path) -> int:
         """Return the §8 case named by this Test cell if it is absent from §8, else None."""
         case = test.split("§8:", 1)[1].strip()
         return None if re.sub(r"\s+", " ", case) in haystack else case
+
+    # 2b. RATINGS ARE COMPUTED, NOT CHOSEN (FIX-10 / H2). §11 convention 3 asserts "Machine-checked:
+    #     every rated row agrees with [the matrix]". Until this loop existed, no machine checked it -
+    #     the claim was hand-checked at R3, R4 and R5 while the docstring below disclaimed the check
+    #     outright. That is the same shape as the universally quantified coupling sentence §11
+    #     retired: a claim about coverage is worth exactly the check that was run against it.
+    #
+    #     This is also the gate's own worst declared blind spot. Without it, a Critical row rerated
+    #     to Medium with its Likelihood and Impact left untouched escapes the Critical/High
+    #     strictness entirely and every other check waves it through.
+    #
+    #     It FAILS on a row it cannot evaluate rather than skipping it. Skipping is what FIX-8 was:
+    #     the selector decided the check never ran. A row is either fully unrated (all three cells
+    #     "-") or fully rated with L and I drawn from the ladders at `:62-74`; anything else -
+    #     a blank cell, "Med", a half-rated row - is a failure, not a row to pass over.
+    unrated: set[str] = set()
+    for rid in sorted(rows):
+        lik, imp = rows[rid]["lik"], rows[rid]["imp"]
+        rating = rows[rid]["risk"].strip("* ")
+        if lik == "-" and imp == "-" and rating == "-":
+            unrated.add(rid)
+            continue
+        if not (LEVEL_RE.match(lik) and LEVEL_RE.match(imp)):
+            failures.append(
+                f"{rid} cannot be evaluated against the matrix: Likelihood {lik!r} and Impact "
+                f"{imp!r} must each be H, M or L, or all three of Likelihood, Impact and Risk "
+                f"must be '-' for an unrated row"
+            )
+            continue
+        expected = MATRIX[(lik, imp)]
+        if rating != expected:
+            failures.append(
+                f"{rid} is rated {rating!r} but Likelihood {lik} x Impact {imp} yields "
+                f"{expected!r} by the matrix at threat-modeling.md:78-82; the Risk cell is "
+                f"computed, not chosen"
+            )
 
     high = {r for r, v in rows.items() if "Critical" in v["risk"] or "High" in v["risk"]}
     all_mitigated = {r for r, v in rows.items() if "Mitigated" in v["mitigation"]}
@@ -205,6 +288,27 @@ def main(path: pathlib.Path) -> int:
                 f"or one of: no credible threat / residual / accepted / unmitigated / "
                 f"not required (<rating>)"
             )
+        # H1 / FIX-10. `no credible threat` is not a disposition a rated row may take. §11
+        # convention 4 defines it as what a row says WHERE A CATEGORY CARRIES NO CREDIBLE THREAT,
+        # and every such row carries "-" in Likelihood, Impact and Risk. Nothing tied the
+        # disposition to an unrated row, so it fell through DISPOSITION_RE unconditionally at every
+        # severity - and because it was absent from NOT_MITIGATED_RE, a row could carry the
+        # "Mitigated" token beside it and neither direction of the biconditional objected. Measured
+        # before the fix: ALL 19 rows naming a §8 case could swap it for this string and the gate
+        # stayed green, the four Criticals included. Enforced as a biconditional in both
+        # directions, because either half alone leaves the other open.
+        if test == "no credible threat" and rid not in unrated:
+            failures.append(
+                f"{rid} is a rated {rating} row and may not dispose of itself as "
+                f"'no credible threat'; that disposition belongs only to a row whose Likelihood, "
+                f"Impact and Risk are all '-'"
+            )
+        if rid in unrated and test != "no credible threat":
+            failures.append(
+                f"{rid} is unrated (Likelihood, Impact and Risk are all '-') but its Test cell is "
+                f"{test!r}; an unrated row disposes of itself as 'no credible threat'"
+            )
+
         if (test.startswith("§8:") or NOT_REQUIRED_RE.match(test)) and rid not in all_mitigated:
             # The other half of the biconditional. A Test cell that names a §8 case or claims a
             # "not required" exemption is asserting the row IS mitigated, so the Mitigation column
@@ -260,6 +364,7 @@ def main(path: pathlib.Path) -> int:
     #  part of check 3, which iterates every row. Keeping it separate is what let the two loops
     #  disagree about which rows they covered.)
 
+    rated = set(rows) - unrated
     tested = sum(1 for r in rows if rows[r]["test"].startswith("§8:"))
     print(f"{path}: {len(rows)} STRIDE rows, {len(high)} Critical/High "
           f"({len(mitigated)} mitigated by the roster's reckoning, {len(unmitigated)} not); "
@@ -269,11 +374,14 @@ def main(path: pathlib.Path) -> int:
         for f in failures:
             print(f"  - {f}")
         return 1
-    print(f"PASS: ids unique, STRIDE coverage complete, all {len(rows)} rows at EVERY severity "
-          "dispose of themselves by naming a §8 case that exists or carrying a recognised "
-          "disposition at their own rating, no Critical/High row claims exemption from having a "
-          "test, mitigation status and Test cell agree in both directions, every unmitigated "
-          "Critical/High row is disposed of, and every id the closing tables name is defined.")
+    print(f"PASS: ids unique, STRIDE coverage complete, all {len(rated)} rated rows agree with the "
+          f"matrix at threat-modeling.md:78-82 and all {len(unrated)} unrated rows are fully "
+          f"unrated, all {len(rows)} rows at EVERY severity dispose of themselves by naming a §8 "
+          "case that exists or carrying a recognised disposition at their own rating, "
+          "'no credible threat' is used by unrated rows and only by unrated rows, no Critical/High "
+          "row claims exemption from having a test, mitigation status and Test cell agree in both "
+          "directions, every unmitigated Critical/High row is disposed of, and every id the "
+          "closing tables name is defined.")
     return 0
 
 

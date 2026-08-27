@@ -927,6 +927,10 @@ when a key lands; rows 1-4 are blocking.
 Required cases, each failing if its defence is removed:
 - the 200-with-401-body trap;
 - a secret never reaching a log record, including the `jobFeed` URL;
+- **`.gitignore` covers the credential patterns and `.env.example` carries no real value** - asserted
+  against the committed files, since the row this covers is about what reaches the repository rather
+  than what reaches a log, and reusing the log-redaction case above would have been a test whose name
+  did not match what it exercises;
 - **the audit event is emitted and carries its mandated fields** - tool name, redacted arguments,
   result status, latency, `request_id`, the resolved client id on the HTTP transport and an
   explicit attribution-unavailable marker on stdio, and on the write `approval_state` together with
@@ -1075,11 +1079,18 @@ with limited activity in the critical path, and a silent hazard we would have in
 hazard rather than guarding it, so the module-confinement rule and its AST test in §8 are dropped
 as unnecessary.
 
-CI runs `python3 docs/reviews/check-coupling.py docs/DESIGN.md`, which enforces six properties of
-§11 against §8 and ships with eight positive controls proving each can fail. It costs milliseconds
-and it is the only thing standing between this document and a fifth wrong assertion that the threat
-model and the test list agree. A checker that has only ever passed is the same failure as the
-sentence it replaced.
+CI runs `python3 docs/reviews/check-coupling.py docs/DESIGN.md`, which enforces §11's internal
+properties against §8 - row ids, STRIDE category coverage, ratings computed from likelihood and
+impact, disposition legality, and the closing tables - together with a positive-control harness and
+a subject-free mutation sweep (`check-coupling-sweep.py`) that both prove the checks can fail.
+
+**Described rather than counted, deliberately.** An earlier version of this sentence said "six
+properties" and "eight positive controls". Both numbers were wrong when written and went wronger as
+the gate grew, which is the same stale-count defect the reviews kept finding elsewhere in this
+document. A count is a claim that decays on every change; a description does not.
+
+A checker that has only ever passed is the same failure as the sentence it replaced, which is why
+the sweep can be pointed at a reverted gate and made to report holes.
 
 CI also runs: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
 in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output is emitted and
@@ -1297,7 +1308,7 @@ asserted that placement in the same edit that failed to make it.
 | C5-S1 | A rejected credential returns `HTTP 200` with a `{"status":{"code":401}}` body and is read as success, reporting zero candidates for an unauthenticated caller (§4.2) | H | H | **Critical** | The invariant: successful only if the body carries no `status.code >= 400` **and** the HTTP status is below 400, both, every call. Mitigated | §8: the 200-with-401-body trap |
 | C5-T1 | Response substituted or modified in transit to Jobvite | L | H | Medium | HTTPS with `httpx2` default verification, never disabled (§7.1). Mitigated | not required (Medium) |
 | C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Unmitigated.** Log each retry and breaker transition with the correlation field. Depends on B40's `request_id_var` ContextVar, also missing | unmitigated (B39, B40) |
-| C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
+| C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: `.gitignore` covers the credential patterns and `.env.example` carries no real value |
 | C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Bounded retry budget inside the inbound timeout, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). Mitigated | not required (Medium) |
 | C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Unmitigated.** Document that a read-only Jobvite key is required where writes are disabled. Whether Jobvite offers one is unknown, which makes this an operator instruction rather than an enforceable control | unmitigated (B21) |
 
