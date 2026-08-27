@@ -8,8 +8,19 @@ Last updated: 2026-08-27 03:15 PM CDT.
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
 
-**Every framework claim in this document rests on an executed spike or a quoted clause.** No
-reasoned-but-unverified claim remains.
+**What is and is not verified in this document**, stated precisely because a blanket compliance
+claim is exactly the kind of self-certification that has already been wrong once on this project:
+
+- **Every claim about FastMCP or the MCP protocol is executed.** Each rests on a spike in
+  `FASTMCP-SPIKE-4.md` against `fastmcp==4.0.0b4`, or on a clause quoted at its `file:line`.
+- **Every claim about Jobvite's error transport is recorded.** Byte-exact captures.
+- **No claim about a Jobvite success response is verified**, because none has ever been observed.
+- **Two mechanisms designed here have never been executed** and cannot be without a credential:
+  the runtime `start`-base probe (§4.5) and the capability-drift diff (§10). Both are marked at
+  their point of use, not only in §11.
+
+A reviewer should treat "verified" in this document as meaning one of the first two, and should
+challenge any sentence that reads as verified without belonging to them.
 
 ---
 
@@ -199,7 +210,9 @@ the *transport* limits. The *result* limit returned to a model is separate and c
 statement from Jobvite is its own v1 documentation, which is 1-based. If we are wrong we silently
 skip the first record of every page.
 
-**We detect it rather than disclose it.** On the first paged call of a process, the client issues
+**We detect it rather than disclose it. This probe is a design mechanism that has never been
+executed - it cannot be, without a credential - so it is marked UNVERIFIED here rather than only
+in the open-questions list.** On the first paged call of a process, the client issues
 the probe `CREDENTIAL-CHECKLIST.md` row 2 specifies for a human: request `start=0` and `start=1`
 with `count=1` and compare the returned ids. Identical first ids means the server clamps and
 either base is safe; different ids resolve the base. The result is cached for the process
@@ -588,7 +601,9 @@ as unnecessary.
 CI: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
 in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output is emitted and
 **diffed between builds**, so capability drift arriving through a dependency bump is visible in
-review rather than at runtime.
+review rather than at runtime. **UNVERIFIED:** that this actually catches the drift it is meant to
+catch is reasoning, not an executed result - the `ResponseLimiting` regression is the case it is
+modelled on, and nobody has replayed that bump against this check.
 
 **Two commit-time gates, both exceeding the standard deliberately:**
 - Secret scanning pre-commit, not only in CI. On a public remote a pushed secret is compromised
