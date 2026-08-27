@@ -393,7 +393,16 @@ Banner confirms: `Starting MCP server 'dp' with transport 'http' on http://127.0
 
 Canonical repo confirmed before citing anything: **`PrefectHQ/fastmcp`**. `api.github.com/repos/jlowin/fastmcp` returns **301**, and PyPI `project_urls.Repository` is `https://github.com/PrefectHQ/fastmcp`. Your caution was warranted.
 
-**Not filed.** Drafted for your review, per the brief.
+**FILED upstream** by the team lead on 2026-08-27:
+
+- **[#4926](https://github.com/PrefectHQ/fastmcp/issues/4926)** — `ResponseLimitingMiddleware` regression (§8.1)
+- **[#4927](https://github.com/PrefectHQ/fastmcp/issues/4927)** — lifespan teardown not running on SIGTERM (§8.2)
+
+Zero open duplicates existed for either at filing time. One correction to my own draft, established during
+filing: I had listed **#4118** ("terminate active streamable-HTTP transports before lifespan shutdown") as
+"related but distinct" without checking its timing. It merged **2026-05-10**, *before* 4.0.0b4 was published
+on 2026-08-26 — so **that fix is already present in the version tested and the teardown gap survives it**.
+That is a stronger statement than "related", and it is now in the filed issue.
 
 ### 8.1 Draft — regression
 
@@ -741,6 +750,126 @@ The one genuinely 4.0-specific hazard is what the `ResponseLimitingMiddleware` r
 
 ---
 
+---
+
+## 13. The previously-untested middleware (D4 input)
+
+Run on Python 3.12.3, `fastmcp==4.0.0b4`. You asked for `RateLimitingMiddleware` specifically because D4 has us doing in-process rate limiting.
+
+### 13.1 ⚠️ RateLimitingMiddleware — works, but the DEFAULT IS NOT PER-CLIENT
+
+```
+RateLimitingMiddleware(max_requests_per_second: float = 10.0,
+                       burst_capacity: int | None = None,
+                       get_client_id: Callable[[MiddlewareContext], str] | ... | None = None,
+                       global_limit: bool = False)
+```
+
+The docstring says `global_limit: If True, apply limit globally; if False, per-client`. **But with `global_limit=False` and no `get_client_id`, every caller shares one bucket.** The refusal message says so:
+
+```
+call 1: RAISED MCPError: Rate limit exceeded for client: global
+```
+
+Source confirms — `_get_client_identifier` returns the literal string `"global"` when no `get_client_id` is supplied (`fastmcp/server/middleware/rate_limiting.py:156`). So **the default is a server-wide limit wearing a per-client label.** One noisy integrator would rate-limit every other Jobvite user.
+
+**Second finding: it counts every MCP request, not just tool calls.** A counting middleware placed ahead of it recorded, for a single tool call in a fresh session:
+
+```
+requests the limiter counts for ONE tool call in a fresh session:
+   - server/discover
+   - tools/call
+   - tools/list
+   total = 3
+```
+
+Which means session setup burns tokens before any work happens. Quantified across three bucket sizes:
+
+```
+burst_capacity=3:  successful tool calls before refusal = 1  (MCPError at call 2)
+burst_capacity=5:  successful tool calls before refusal = 3  (MCPError at call 4)
+burst_capacity=10: successful tool calls before refusal = 8  (MCPError at call 9)
+```
+
+Exactly **N-2** — the bucket starts full, and `server/discover` + `tools/list` consume two tokens per new session. **Size the burst as `desired_tool_calls + 2` per session**, and note that a client which reconnects frequently pays that toll every time.
+
+**Per-client keying works when you supply it.** Keyed on the authenticated token's `client_id`:
+
+```python
+def client_id_from_auth(context) -> str:
+    from fastmcp.server.dependencies import get_access_token
+    tok = get_access_token()
+    return tok.client_id if tok else "anonymous"
+
+mcp.add_middleware(RateLimitingMiddleware(
+    max_requests_per_second=2.0, burst_capacity=12,
+    get_client_id=client_id_from_auth))
+```
+
+```
+=== per-client buckets keyed on authenticated client_id ===
+  alpha (drains its own bucket): successful tool calls = 6 (None)
+  beta  (should be UNAFFECTED by alpha): successful tool calls = 6 (None)
+  alpha again (should still be empty): successful tool calls = 2 (MCPError at call 3)
+```
+
+Beta was unaffected by alpha's traffic, and alpha on return had only partial refill. **Separate buckets confirmed.**
+
+**Verdict: ✅ USABLE for D4, with a mandatory `get_client_id`.** Do not ship the default. Also note the refusal is a raised `MCPError`, i.e. a JSON-RPC protocol error, not an `is_error=True` tool result — clients see a transport-level failure, not a tool failure.
+
+*(Methodology note: my first per-client run failed with `MCPError: Rate limit exceeded for client: alpha` raised during `initialize`. That was my test being too tight — negotiation traffic drained a 6-token bucket across three sequential connections — not a defect. Re-run with `burst_capacity=12` and it isolated cleanly. Recording it because the failure looked like a bug and was not.)*
+
+### 13.2 ⛔ ErrorHandlingMiddleware — the DEFAULT BREAKS our error contract
+
+Three arms, identical tools, verbatim:
+
+```
+--- NO middleware (baseline) ---
+   boom: is_error=True content=["Error calling tool 'boom': PLAIN-DETAIL placeholder"]
+   terr: is_error=True content=['TOOLERROR-DETAIL placeholder']
+--- ErrorHandlingMiddleware(transform_errors=True)  [DEFAULT] ---
+   boom: RAISED MCPError: Invalid params: Error calling tool 'boom': PLAIN-DETAIL placeholder
+   terr: RAISED MCPError: Internal error: TOOLERROR-DETAIL placeholder
+--- ErrorHandlingMiddleware(transform_errors=False) ---
+   boom: is_error=True content=["Error calling tool 'boom': PLAIN-DETAIL placeholder"]
+   terr: is_error=True content=['TOOLERROR-DETAIL placeholder']
+```
+
+With the **default** `transform_errors=True`:
+
+1. A tool failure stops being a tool result and becomes a **raised JSON-RPC `MCPError`**. That undoes the entire `ToolError` contract we standardised on in §5.
+2. A clean, actionable `ToolError` is **relabelled "Internal error"** — strictly worse than no middleware, because the message now reads like a server fault rather than the caller's input problem.
+3. **`raise_on_error=False` stops working**, since there is no longer a tool result to inspect. That breaks the test pattern in §12.6.
+
+**Verdict: ⛔ do NOT add `ErrorHandlingMiddleware`.** If it is ever wanted for its `error_callback` hook, it must be constructed with `transform_errors=False`.
+
+### 13.3 ✅ RetryMiddleware — works as documented
+
+```
+--- RetryMiddleware ---
+   flaky: is_error=False content=['ok after 3 attempts'] server-side attempts=3
+```
+
+Configured `max_retries=3, base_delay=0.01, retry_exceptions=(ConnectionError,)`; the tool raised `ConnectionError` twice and succeeded on the third attempt. The retry is **server-side and invisible to the client**.
+
+**Verdict: ✅ VERIFIED.** Caveat for our use: retries are silent, so a flaky Jobvite endpoint would inflate latency with no client-visible signal. Pair it with `TimingMiddleware` if adopted, and keep `retry_exceptions` narrow — never retry a non-idempotent Jobvite write.
+
+### 13.4 Middleware scoreboard after this spike
+
+| Middleware | Verdict |
+|---|---|
+| `ResponseCachingMiddleware` | ✅ safe (opt-in per tool) |
+| `TimingMiddleware` | ✅ safe |
+| `StructuredLoggingMiddleware` | ✅ safe with `include_payloads=False` |
+| `RetryMiddleware` | ✅ safe, narrow `retry_exceptions` |
+| `RateLimitingMiddleware` | ⚠️ usable **only** with an explicit `get_client_id` |
+| `ErrorHandlingMiddleware` | ⛔ default breaks the error contract; needs `transform_errors=False` |
+| `ResponseLimitingMiddleware` | ⛔ broken (§6.3) |
+| `PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ still untested |
+
+**Three of the seven exercised so far ship a default that is wrong for us.** That is the durable lesson: on this framework, a middleware's defaults are not a safe starting point — each one needs its own spike before adoption.
+
+
 ## What I could NOT verify
 
 - **Python 3.10, and 3.13+.** Ran 3.11.15 and 3.12.3. The declared floor is `>=3.10`; 3.10 untested.
@@ -749,7 +878,7 @@ The one genuinely 4.0-specific hazard is what the `ResponseLimitingMiddleware` r
 - **Whether the SIGTERM behaviour also affects stdio transport.** Only HTTP was tested.
 - **`ctx.elicit()` era-gating.** The upgrade guide says it raises on sessionless connections. Not exercised — we have no elicitation use case yet, and I did not want to report a guess.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
-- **`RateLimitingMiddleware`, `ErrorHandlingMiddleware`, `RetryMiddleware`, `PingMiddleware`.** Not exercised. Two of the five middlewares I *have* now tested turned out defective, so **assume nothing about the untested ones.**
+- **`PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimitingMiddleware`, `ErrorHandlingMiddleware` and `RetryMiddleware` are now covered in §13. Three of the seven tested ship a default that is wrong for us, so **assume nothing about the remaining four.**
 - **`JWTVerifier`, `DebugTokenVerifier`, `IntrospectionTokenVerifier`, `OAuthProxy`.** Only `StaticTokenVerifier` was run; the others need an IdP I will not fake.
 - **Token expiry**, and **cache TTL expiry** — I proved cache insertion and hit, never eviction.
 - **Concurrency.** Every test was single-client and sequential.

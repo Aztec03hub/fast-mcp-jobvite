@@ -1,9 +1,17 @@
-# FastMCP — Current Developer Reference (researched 2026-08-27)
+# FastMCP — Current Developer Reference
+
+**Target: `fastmcp==4.0.0b4` on Python 3.12.** Last revised 2026-08-27.
 
 Research method: PyPI JSON API, the official docs site `gofastmcp.com`, `modelcontextprotocol.io`,
-and direct inspection of the **installed fastmcp 3.4.7 source tree** in
-`/home/plafayette/claude_projects/evolv/repos/fast-mcp-jira/.venv/lib/python3.11/site-packages/fastmcp/`.
-Claims read out of that tree rather than the docs are tagged `[FROM SOURCE]`.
+and direct inspection of installed source trees. Claims read out of a source tree rather than the
+docs are tagged `[FROM SOURCE]`. Claims marked **[SPIKE]** were executed — see
+[`FASTMCP-SPIKE-4.md`](FASTMCP-SPIKE-4.md) for the evidence.
+
+> **Changelog.** This document originally recommended pinning `fastmcp>=3.4.7,<4.0.0` and staying
+> off the 4.0 beta. Phil overruled that on 2026-08-27: we are deliberate early adopters of
+> 4.0.0b4 and the sessionless 2026-07-28 spec. The prose below has been rewritten to the new
+> target rather than annotated, so nothing here describes 3.4.7 as our version. Sections that
+> were never re-verified on 4.0 are marked as such inline.
 
 ---
 
@@ -11,20 +19,32 @@ Claims read out of that tree rather than the docs are tagged `[FROM SOURCE]`.
 
 | Decision | Recommendation |
 |---|---|
-| **Version to pin** | `fastmcp>=3.4.7,<4.0.0` (3.4.7 is the latest **stable**, released 2026-08-10). Do **not** pin `>=3.1.0` — that floor predates the auth, middleware, and `fastmcp.json` surface we want. |
-| **MCP spec revision we get** | fastmcp 3.4.7 ships `mcp` 1.29.0, whose `LATEST_PROTOCOL_VERSION` is **`2025-11-25`** `[FROM SOURCE]`. The *current* published MCP spec revision is **`2026-07-28`** (sessionless). Only the **fastmcp 4.0 beta line** speaks `2026-07-28`. See "The 3 vs 4 decision" below — this is the one thing worth a conscious call. |
-| **Transport** | Streamable HTTP: `mcp.run(transport="http", host=..., port=..., path="/mcp")`. `sse` is explicitly deprecated. `stdio` only for local/Claude-Desktop use. |
-| **Auth** | Do **not** hand-roll a `TokenVerifier` subclass for a static API key. Use `StaticTokenVerifier` from `fastmcp.server.auth.providers.jwt` for shared-secret/API-key auth, or `JWTVerifier` if we ever get a real IdP. `DebugTokenVerifier(validate=...)` covers "custom predicate" cases without a subclass. |
+| **Version to pin** | `fastmcp==4.0.0b4` **and** `fastmcp-slim==4.0.0b4` as direct dependencies, with `[tool.uv] prerelease = "explicit"`. Naming `fastmcp-slim` is not optional — without it the resolver either fails or drags in a *beta pydantic*. **[SPIKE §1.3]** Pin `mcp` too: the one 4.0 defect we found was caused by a dependency major-bump underneath unchanged code. |
+| **Python floor** | **3.12** (per the standards). Verified working on 3.11.15 and 3.12.3; behaviour identical. **[SPIKE §10.1]** |
+| **MCP spec revision we get** | **`2026-07-28`** (sessionless) by default, and `2025-11-25` for handshake-era clients — both served simultaneously from one server on one port. Proven, not quoted. **[SPIKE §3.3]** |
+| **Transport** | **stdio by default**, Streamable HTTP opt-in via config. `mcp.run(transport="http", host=..., port=..., path="/mcp")`; `/mcp` is also the default path. `sse` is deprecated. A public repo gets both local and hosted users, so hardcoding HTTP locks out every local client. **[SPIKE §7]** |
+| **Auth** | `StaticTokenVerifier` from `fastmcp.server.auth.providers.jwt`, token dict loaded from the environment. Never hand-roll a `TokenVerifier` subclass. Per-tool authorization via `@mcp.tool(auth=require_scopes(...))`. **[SPIKE §4]** |
+| **Errors** | `raise ToolError(...)` for anything actionable; let unexpected exceptions raise and set `mask_error_details=True`. **[SPIKE §5]** |
+| **Required config** | pydantic-settings with non-defaulted fields. `fastmcp.json` **cannot** express a required env var and fails *silently*. **[SPIKE §10]** |
+| **Mandatory workaround** | `signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))` before `mcp.run(...)`, or lifespan teardown never runs on container stop. **[SPIKE §9.2]** |
 
-### Top 5 things `fast-mcp-jira` does that are now outdated/wrong
+### The httpx → httpx2 decision (open)
 
-1. **`mcp-server.json` is not a FastMCP artifact.** `grep -rn "mcp-server.json"` over the entire installed fastmcp 3.4.7 package returns **zero hits** `[FROM SOURCE]`. The real, schema-backed manifest is **`fastmcp.json`** (`$schema: https://gofastmcp.com/public/schemas/fastmcp.json/v1.json`), with top-level keys `source` (required), `environment`, `deployment`. `fast-mcp-jira/mcp-server.json`'s `env_vars` array with `display_name`/`sensitive`/`validation` is **bespoke** — nothing in FastMCP reads it. Note `fastmcp.json` has **no mechanism to declare *required* env vars**; `deployment.env` only *sets* values with `${VAR}` interpolation.
-2. **Hand-rolled `ApiKeyVerifier(TokenVerifier)`** (`auth.py`). The base class still exists and the subclass still works in 3.4.7 `[FROM SOURCE]`, so this is not *broken* — but it reimplements `StaticTokenVerifier` plus a bespoke `AuthRateLimiter`, when FastMCP ships `RateLimitingMiddleware` / `SlidingWindowRateLimitingMiddleware` built in. Roughly 150 lines to delete.
-3. **`fastmcp>=3.1.0,<4.0.0` floor** in `pyproject.toml`. 3.1.0 is 2026-03-03. Everything between then and now — `MultiAuth`, `run_in_thread`, `fastmcp-slim`, `AuthCheck`/`require_scopes`, `timeout=` on tools, the whole `providers/` auth directory — is invisible to a resolver honoring that floor.
-4. **Tools return `build_response(False, error=...)` dicts on failure.** Current guidance is to `raise ToolError(...)` from `fastmcp.exceptions`; FastMCP converts it into a real MCP error and `ToolError` messages always transmit regardless of `mask_error_details`. Returning a success-shaped dict for a failure means the client sees `isError: false` on every JIRA 4xx. Combine with `FastMCP(mask_error_details=True)` in production.
-5. **No `Context`, no middleware, no output schemas.** `fast-mcp-jira` does its own logging via `logging_config.py` and its own caching via `services/cache.py` + a manual cache-key pattern in every tool. FastMCP 3.4.7 ships `ResponseCachingMiddleware`, `StructuredLoggingMiddleware`, `TimingMiddleware`, `ResponseLimitingMiddleware`, and `Context` (`ctx.info/debug/error`, `ctx.report_progress`, `ctx.get_state/set_state`). A large fraction of `fast-mcp-jira`'s custom infrastructure is now framework surface.
+4.0 replaces `httpx` with **`httpx2`**, which reaches the public API (`Client.__init__` is typed
+`auth: httpx2.Auth`). `httpx` is not installed at all. The two **do** coexist as separate modules,
+so our Jobvite client may use either — but `except httpx.HTTPError` will never catch a
+FastMCP-raised exception. Keep every `except httpx.*` in one module. **[SPIKE §1.2]**
 
-Honourable mention (**NOT outdated**, verified): `from fastmcp.server.lifespan import lifespan` used as a decorator **still exists and is the documented idiom in 3.4.7** — the module's own docstring shows exactly that pattern `[FROM SOURCE]`. Do not "fix" it.
+### Top 5 things `fast-mcp-jira` does that we must not copy
+
+1. **`mcp-server.json` is not a FastMCP artifact.** Zero hits across the installed package `[FROM SOURCE]`. The real manifest is **`fastmcp.json`** (`source` required, plus `environment`, `deployment`). `fast-mcp-jira`'s `env_vars` array with `display_name`/`sensitive`/`validation` is a half-remembered **`server.json`** (the MCP Registry artifact, whose keys are `environmentVariables`/`isRequired`/`isSecret`) under the wrong filename with the wrong casing — which is exactly why nothing reads it. See §12(b).
+2. **Hand-rolled `ApiKeyVerifier(TokenVerifier)`** (`auth.py`) — reimplements `StaticTokenVerifier` plus a bespoke `AuthRateLimiter`. ~150 lines to delete. Note the framework's own `RateLimitingMiddleware` is **not per-client by default** and needs an explicit `get_client_id` **[SPIKE §13.1]**.
+3. **A stale version floor.** `fastmcp>=3.1.0` (2026-03-03) hides `MultiAuth`, `run_in_thread`, `AuthCheck`/`require_scopes`, tool `timeout=`, and the whole `providers/` auth directory.
+4. **Tools return `build_response(False, error=...)` dicts on failure**, so the client sees `isError: false` on every upstream 4xx. Raise `ToolError` instead.
+5. **Hardcoded HTTP transport with no stdio path** (`__main__.py`), plus custom logging/caching infrastructure that framework middleware now covers.
+
+**NOT outdated, verified twice:** `from fastmcp.server.lifespan import lifespan` used as a decorator
+**survives into 4.0.0b4**, and `|` composition works. Do not "fix" that import. **[SPIKE §2]**
 
 ---
 
@@ -43,30 +63,28 @@ Source: `https://pypi.org/pypi/fastmcp/json`.
 | 4.0.0b1 | 2026-07-28 |
 | 4.0.0b4 (latest prerelease) | 2026-08-26T22:59:04Z |
 
-- `fastmcp` 3.4.7 `requires_python = ">=3.10"`, and is a thin metapackage: its only base dependency is `fastmcp-slim[client,server]==3.4.7`. Extras: `anthropic`, `apps`, `azure`, `code-mode`, `gemini`, `openai`, `tasks`.
+- `fastmcp` is a thin metapackage whose only base dependency is the matching `fastmcp-slim`. **This is why our pin must name both** — see the Bottom line. Extras: `anthropic`, `apps`, `azure`, `code-mode`, `gemini`, `openai`, `tasks`.
 - `fastmcp-slim` 4.0.0b4 depends on `mcp>=2.0.0,<3.0.0` and `httpx2>=2.5.0` — a **major** SDK jump vs the 3.x line.
 
 ### MCP protocol revision
 
 - Installed `mcp` is **1.29.0**. `mcp.types.LATEST_PROTOCOL_VERSION == "2025-11-25"`, `DEFAULT_NEGOTIATED_VERSION == "2025-03-26"` `[FROM SOURCE]`.
-- **The docs site does not publish a "fastmcp 3.4.7 implements spec revision X" statement anywhere I could find.** The `2025-11-25` figure is inferred from the pinned SDK, not asserted by FastMCP. Treat it as `[FROM SOURCE]`.
+- **The docs site does not publish an "implements spec revision X" statement for any FastMCP release.** For 4.0 this no longer matters: the server itself reports its supported versions via `server/discover`, and that was executed **[SPIKE §3.1]**.
 - Per `https://modelcontextprotocol.io/specification/versioning`: *"The **current** protocol version is [**2026-07-28**]."* That revision replaces the initialize-handshake with per-request version declaration via `io.modelcontextprotocol/protocolVersion` in `_meta` (and the `MCP-Protocol-Version` header over Streamable HTTP), adds a mandatory `server/discover` RPC, and returns `UnsupportedProtocolVersionError` on mismatch.
 - Per `https://gofastmcp.com/updates`, FastMCP **4.0.0b1** is where dual-era support lands: *"Dual protocol support: both sessionless `2026-07-28` and older session-based handshake per connection."*
 
-### The 3 vs 4 decision (flagging, not deciding)
+### Version and spec facts
 
-The brief says "built against the LATEST FastMCP and the LATEST MCP spec revision". Those two are currently in tension:
-
-- Latest **stable** FastMCP = 3.4.7 → speaks up to `2025-11-25`.
-- Latest **MCP spec** = `2026-07-28` → only reachable via fastmcp `4.0.0b4`, a **beta**, which additionally requires `mcp>=2.0`, `pydantic>=2.12`, `starlette 1.x` (needs FastAPI >= 0.133.0), and swaps `httpx` for `httpx2`.
-
-My recommendation: **pin 3.4.7 now**, write the code so the known 4.0 migrations are cheap (see §10), and revisit when 4.0 goes GA. Every client we care about still negotiates the handshake era, and `2025-11-25` clients are explicitly supported by 4.0's backward-compat path — so we lose nothing by not being early.
+- `fastmcp` 4.0.0b4 released **2026-08-26**; 3.4.7 (last stable) 2026-08-10. `requires_python >=3.10`.
+- 4.0 resolves to `mcp` **2.1.1**, `mcp-types` 2.1.1, `starlette` 1.6.0, `httpx2` 2.12.0, and requires `pydantic>=2.12`. **[SPIKE §1.1]**
+- The current published MCP spec revision is **`2026-07-28`**, per `https://modelcontextprotocol.io/specification/versioning`. 4.0 serves it **and** the older handshake revisions from the same server. **[SPIKE §3]**
+- `server/discover` reports `supportedVersions: ["2026-07-28"]` **only**, despite demonstrably serving 2025-11-25 clients — do not treat that list as exhaustive. **[SPIKE §3.1]**
 
 ---
 
 ## 2. Server construction — `FastMCP(...)`
 
-Signature `[FROM SOURCE]`, `fastmcp.server.server.FastMCP.__init__`, v3.4.7:
+Signature `[FROM SOURCE]`, `fastmcp.server.server.FastMCP.__init__`, **v4.0.0b4**:
 
 ```
 FastMCP(
@@ -75,7 +93,7 @@ FastMCP(
     *,
     version: str | int | float | None = None,
     website_url: str | None = None,
-    icons: list[mcp.types.Icon] | None = None,
+    icons: list[mcp_types.Icon] | None = None,
     auth: AuthProvider | None = None,
     middleware: Sequence[Middleware] | None = None,
     providers: Sequence[Provider] | None = None,
@@ -87,15 +105,22 @@ FastMCP(
     dereference_schemas: bool = True,
     strict_input_validation: bool | None = None,
     list_page_size: int | None = None,
+    resource_security: ResourceSecurity | None = ResourceSecurity(
+        reject_path_traversal=True, reject_absolute_paths=True,
+        reject_null_bytes=True, exempt_params=frozenset()),
+    request_state_security: RequestStateSecurity | None = None,
+    cache_ttl: int | None = None,
+    cache_scope: Literal["public", "private"] | None = None,
     tasks: bool | None = None,
     session_state_store: AsyncKeyValue | None = None,
-    sampling_handler: SamplingHandler | None = None,
-    sampling_handler_behavior: Literal["always", "fallback"] | None = None,
-    client_log_level: mcp.types.LoggingLevel | None = None,
+    client_log_level: mcp_types.LoggingLevel | None = None,
     experimental_capabilities: dict[str, dict[str, Any]] | None = None,
     **kwargs: Any,
 )
 ```
+
+Changed from 3.x: **`sampling_handler` and `sampling_handler_behavior` are gone**; `resource_security`,
+`request_state_security`, `cache_ttl` and `cache_scope` are new.
 
 Notes:
 - `middleware=[...]` can be passed at construction, or added later with `mcp.add_middleware(...)`.
@@ -122,7 +147,7 @@ So `FASTMCP_PORT`, `FASTMCP_MASK_ERROR_DETAILS`, etc. work out of the box — on
 
 ## 3. Tools — `@mcp.tool`
 
-Signature `[FROM SOURCE]`, v3.4.7:
+Signature `[FROM SOURCE]`, **v4.0.0b4**:
 
 ```
 FastMCP.tool(
@@ -136,7 +161,6 @@ FastMCP.tool(
     tags: set[str] | None = None,
     output_schema: dict[str, Any] | NotSetT | None = ...,
     annotations: ToolAnnotations | dict[str, Any] | None = None,
-    exclude_args: list[str] | None = None,
     meta: dict[str, Any] | None = None,
     app: AppConfig | dict[str, Any] | bool | None = None,
     task: bool | TaskConfig | None = None,
@@ -146,7 +170,9 @@ FastMCP.tool(
 ) -> ...
 ```
 
-Newer-than-3.1 options worth using: **`timeout`** (per-tool execution limit, returns an MCP error), **`auth`** (per-tool `AuthCheck` / `require_scopes(...)`), **`run_in_thread`** (sync functions), **`version`**, **`title`**, **`meta`**.
+⚠️ **`exclude_args` was removed in 4.0** — inject hidden parameters with `Depends()` instead.
+
+Options worth using: **`timeout`** (per-tool execution limit, returns an MCP error), **`auth`** (per-tool `AuthCheck` / `require_scopes(...)`), **`run_in_thread`** (sync functions), **`version`**, **`title`**, **`meta`**.
 
 ### Parameter documentation (from `https://gofastmcp.com/servers/tools`)
 
@@ -227,7 +253,7 @@ Full exception hierarchy `[FROM SOURCE]`, `fastmcp/exceptions.py`: `FastMCPError
 
 ## 4. Resources, templates, prompts
 
-`[FROM SOURCE]`, v3.4.7:
+`[FROM SOURCE]`, **v4.0.0b4**:
 
 ```
 FastMCP.resource(
@@ -384,9 +410,9 @@ fastmcp run server.py -- --config config.json        # pass args to the server
 
 ---
 
-## 7. Lifespan — verified, the reference project is CORRECT
+## 7. Lifespan — survives 4.0, and the reference project's import is CORRECT
 
-`fastmcp/server/lifespan.py` **exists in 3.4.7** and the `@lifespan` decorator import path `from fastmcp.server.lifespan import lifespan` is exactly what its own module docstring documents `[FROM SOURCE]`:
+`fastmcp/server/lifespan.py` **exists in 4.0.0b4** (and in 3.4.7) and the `@lifespan` decorator import path `from fastmcp.server.lifespan import lifespan` is exactly what its own module docstring documents `[FROM SOURCE]`. Composition and teardown order are executed and confirmed on 4.0 **[SPIKE §9.1]**:
 
 ```python
 from fastmcp import FastMCP
@@ -460,19 +486,24 @@ Hooks by specificity: `on_message`; `on_request` / `on_notification`; `on_call_t
 
 Built-ins (modules confirmed present at `fastmcp/server/middleware/` `[FROM SOURCE]`: `authorization, caching, dereference, error_handling, logging, ping, rate_limiting, response_limiting, timing, tool_injection`):
 
-- `LoggingMiddleware` / `StructuredLoggingMiddleware`
-- `TimingMiddleware` / `DetailedTimingMiddleware`
-- `ResponseCachingMiddleware` (TTL caching of tool calls, resources, lists)
-- `RateLimitingMiddleware` / `SlidingWindowRateLimitingMiddleware`
-- `ErrorHandlingMiddleware` / `RetryMiddleware`
-- `PingMiddleware`
-- `ResponseLimitingMiddleware`
+| Middleware | Status for us **[SPIKE §6, §13]** |
+|---|---|
+| `StructuredLoggingMiddleware` | ✅ safe — keep `include_payloads=False` (payloads are candidate PII) |
+| `TimingMiddleware` | ✅ safe |
+| `ResponseCachingMiddleware` | ✅ safe; tool-call caching is **opt-in** via `call_tool_settings` |
+| `RetryMiddleware` | ✅ safe; keep `retry_exceptions` narrow, never retry a non-idempotent write |
+| `RateLimitingMiddleware` | ⚠️ **not per-client by default** — requires an explicit `get_client_id`, and it counts protocol requests, so size burst as `calls + 2` |
+| `ErrorHandlingMiddleware` | ⛔ **default `transform_errors=True` breaks the `ToolError` contract** — turns tool failures into raised `MCPError`s and relabels `ToolError` as "Internal error". Only usable with `transform_errors=False` |
+| `ResponseLimitingMiddleware` | ⛔ **BROKEN** — truncation drops `structured_content` while the `outputSchema` remains, so the client raises. Cap sizes inside the tool instead |
+| `PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ untested — assume nothing |
+
+Three of the seven exercised ship a default that is wrong for us. **Spike any middleware before adopting it.**
 
 Access HTTP headers inside middleware via `get_http_headers()` from `fastmcp.server.dependencies`.
 
 ### Context
 
-Public API of `fastmcp.Context` in 3.4.7 `[FROM SOURCE]`:
+Public API of `fastmcp.Context` `[FROM SOURCE]`. ⚠️ This listing was enumerated on 3.4.7 and **not re-enumerated on 4.0.0b4**; the documented 4.0 removals (`sample`, `sample_step`, `list_roots`) are not reflected below. Treat it as indicative, not authoritative:
 
 ```
 client_id, client_supports_extension, close_sse_stream, debug, delete_state,
@@ -486,7 +517,7 @@ transport, warning
 
 Inject it by annotating a tool parameter `ctx: Context`. Logging: `ctx.debug/info/warning/error/log`. Progress: `await ctx.report_progress(...)`. Sampling: `ctx.sample` / `ctx.sample_step`. Elicitation: `ctx.elicit`. Per-request state: `ctx.get_state` / `ctx.set_state` / `ctx.delete_state`. Lifespan values: `ctx.lifespan_context`.
 
-⚠️ `ctx.sample()`, `ctx.sample_step()` and `ctx.list_roots()` are **removed in 4.0**, and `ctx.elicit()` is gated off on sessionless connections. Avoid building anything load-bearing on them.
+⚠️ `ctx.sample()`, `ctx.sample_step()` and `ctx.list_roots()` are **removed in 4.0** — as is `FastMCP(sampling_handler=...)`, confirmed by signature. `ctx.elicit()` requires `response_type` and is gated off on sessionless connections. Do not build anything load-bearing on them.
 
 ### Error masking
 
@@ -562,7 +593,7 @@ Schema `$id`: `https://gofastmcp.com/public/schemas/fastmcp.json/v1.json`. Top-l
 
 **Absence, stated loudly:** there is **no `required: true` / "declare a required env var" feature** in `fastmcp.json`. `deployment.env` only *sets* values. Any "this server needs `JOBVITE_API_KEY`" contract must be enforced in our own settings layer (pydantic-settings with a required field is the right call), not in the manifest. The `env_vars` array in `fast-mcp-jira/mcp-server.json` is a bespoke invention that no FastMCP code reads.
 
-### CLI (`fastmcp --help`, v3.4.7 `[FROM SOURCE]`)
+### CLI (`fastmcp --help` `[FROM SOURCE]`)
 
 ```
 auth          Authentication-related utilities and configuration.
@@ -583,7 +614,7 @@ version       Display version information and platform details.
 
 ---
 
-## 11. Deprecations and breaking changes
+## 11. Deprecations and breaking changes (3.x history, and what 4.0 changed)
 
 ### Within 3.x (3.1 → 3.4.7), from `https://gofastmcp.com/updates`
 
@@ -639,13 +670,13 @@ pip install "fastmcp==4.0.0b3"
 constraint-dependencies = ["fastmcp-slim==4.0.0b3"]
 ```
 
-### Design rules for `fast-mcp-jobvite` that keep the 4.0 door open
+### Design rules for `fast-mcp-jobvite` on 4.0
 
-1. Don't use `exclude_args=`, `serializer=`, `sampling_handler=`, `ctx.sample*`, `ctx.list_roots()`.
+1. Never use `exclude_args=`, `serializer=`, `sampling_handler=`, `ctx.sample*`, `ctx.list_roots()` — all removed in 4.0, confirmed by signature.
 2. If we call `ctx.elicit()`, always pass `response_type`.
 3. Keep our HTTP client wrapper's `except httpx.*` clauses in **one module** so the `httpx2` swap is a single-file change.
 4. Use `mcp.mount(namespace=...)` semantics from day one if we ever compose servers.
-5. Constrain pydantic to `>=2.12` now — costs nothing, removes a 4.0 blocker.
+5. Pin `mcp` alongside `fastmcp`. The one 4.0 defect we found (§8, `ResponseLimitingMiddleware`) was a **regression caused by the `mcp` 1.x → 2.x bump underneath unchanged middleware code** — the characteristic hazard of early adoption.
 
 ---
 
@@ -673,7 +704,7 @@ The only CI-adjacent page is `https://gofastmcp.com/development/contributing.md`
 
 ### (b) Registry — yes, but it is an **MCP** artifact, not a FastMCP one
 
-There **is** an official registry: `registry.modelcontextprotocol.io`. FastMCP itself has zero involvement — `grep -rn "server\.json\|mcp-name\|registry.modelcontextprotocol"` over the installed fastmcp 3.4.7 package returns **no hits** `[FROM SOURCE]`, and the docs index has no registry page.
+There **is** an official registry: `registry.modelcontextprotocol.io`. FastMCP itself has zero involvement — `grep -rn "server\.json\|mcp-name\|registry.modelcontextprotocol"` over the installed fastmcp package returns **no hits** `[FROM SOURCE]`, and the docs index has no registry page.
 
 ⚠️ **Status: preview.** The registry docs carry a standing note: *"The MCP Registry is currently in preview. Breaking changes or data resets may occur before general availability."*
 
@@ -809,9 +840,9 @@ So: **`server.json` is the declaration to clients; pydantic-settings is the enfo
 
 ## What I could NOT verify
 
-- **No official statement anywhere on gofastmcp.com naming the MCP spec revision that fastmcp 3.4.7 implements.** The `2025-11-25` figure is inferred from `mcp==1.29.0`'s `LATEST_PROTOCOL_VERSION` constant in the installed venv. I found exactly one hardcoded spec-date string in the whole 3.4.7 package (`2025-06-18`, in an OAuth consent-UI help link) — not a protocol declaration.
+- **The spec revision is no longer an open question.** It was resolved by execution: `server/discover` on 4.0.0b4 reports `supportedVersions: ["2026-07-28"]`, and a legacy client negotiates `2025-11-25` against the same server **[SPIKE §3]**.
 - **GitHub releases/CHANGELOG were not read directly.** `api.github.com/repos/jlowin/fastmcp/releases` returned a non-list payload (rate limit or the repo has moved — context7 redirects `/jlowin/fastmcp` to `/prefecthq/fastmcp`, suggesting an org transfer). The version/date table above is from the PyPI JSON API, which is authoritative for release timing; the change descriptions are from the official `gofastmcp.com/updates` page. **I did not cross-check the changelog against the git history.**
-- **fastmcp 4.0's own source was not inspected** — only 3.4.7 is installed locally. Every 4.0 claim in §11 is from the official upgrade guide and updates page, not from code. In particular I could **not** verify whether `fastmcp.server.lifespan.lifespan` survives into 4.0.
+- **The 3.x → 4.0 migration table in §11 is still documentation-derived**, taken from the official upgrade guide. The items I executed are marked **[SPIKE]**; the rest (tasks, `Depends()`, `create_proxy`, `mount`, `OpenAPIProvider`) are unverified. The lifespan question that used to sit here **is resolved: `fastmcp.server.lifespan.lifespan` survives into 4.0** **[SPIKE §2]**.
 - **`IntrospectionTokenVerifier` import path** is quoted from the docs (`fastmcp.server.auth.providers.introspection`) and the module file exists `[FROM SOURCE]`, but I did not instantiate it or read its constructor.
 - **`https://gofastmcp.com/deployment/testing` returns 404.** The testing content lives at `/patterns/testing`. If a `deployment/testing` page is referenced anywhere, it is stale.
 - **The `fastmcp install` subcommand surface** was not enumerated beyond the top-level help line.

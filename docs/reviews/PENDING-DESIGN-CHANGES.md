@@ -170,3 +170,75 @@ Two guardrails, both cheap:
 ErrorHandlingMiddleware, RetryMiddleware and PingMiddleware remain untested. Assume nothing about
 them; spike any before adopting. This is not pessimism - it is the observed base rate on this
 codebase at this version.
+
+---
+
+## P9 - D4 simplifies: use the framework rate limiter, with a mandatory `get_client_id`
+
+`RateLimitingMiddleware` **is** usable, so we do not build our own limiter. D4 changes from
+"build in-process rate limiting" to "configure the framework's". The ADR is still required,
+because we still decline the standard's mandated Redis token bucket, but it gets shorter.
+
+**Two conditions, both non-obvious, both executed:**
+
+1. **The default is not per-client, despite the docstring saying it is.** With
+   `global_limit=False` and no `get_client_id`, every caller shares one bucket - the refusal
+   literally reads `Rate limit exceeded for client: global`, and the source returns the literal
+   string `"global"`. One noisy integrator would rate-limit every other user of a shared
+   deployment. Supplying `get_client_id` derived from the authenticated token's `client_id`
+   gives real per-client buckets, proven by draining one client's bucket and showing a second
+   client's remained full and unaffected.
+2. **It counts every MCP request, not just tool calls.** A counting middleware ahead of it
+   recorded `server/discover` + `tools/list` + `tools/call` for a single tool call in a fresh
+   session. Measured: burst 3 yields 1 tool call, 5 yields 3, 10 yields 8 - exactly N-2. So
+   **burst must be sized as `desired_calls + 2` per session**, and a client that reconnects
+   frequently pays that toll every time.
+
+The refusal is a **raised `MCPError`**, a JSON-RPC protocol error, not an `is_error` tool result.
+It therefore does not flow through our RFC 9457 problem path, and the README must say what a
+rate-limit refusal looks like to a caller.
+
+**Interaction with our transports:** on stdio there is no authenticated token and thus no
+`client_id`, but there is also exactly one caller, so the global bucket is correct there.
+Per-client bucketing matters only on the HTTP transport, which is where tokens exist.
+
+---
+
+## P10 - `ErrorHandlingMiddleware` is excluded. Its default breaks our error contract.
+
+Do not add it. Verified across three arms with identical tools:
+
+- Baseline, no middleware: failures arrive as `is_error=True` tool results. Correct for us.
+- **Default `transform_errors=True`: a plain exception becomes a raised `MCPError` "Invalid
+  params", and a clean `ToolError` is relabelled "Internal error".** Strictly worse than no
+  middleware: a caller's input problem is reported as a server fault.
+- It also breaks `raise_on_error=False`, which is our test pattern.
+- `transform_errors=False` restores baseline exactly.
+
+If its `error_callback` is ever wanted, construct it with `transform_errors=False` explicitly.
+
+## P11 - `RetryMiddleware` works, with a usage constraint
+
+Verified: three server-side attempts, client sees success. **Retries are silent**, so pair it
+with `TimingMiddleware` or a retry is invisible in the logs, and keep `retry_exceptions` narrow.
+It must never cover `create_candidate` - a retry after a successful create duplicates a real
+candidate in a real ATS, and no sandbox exists in which to learn what that costs.
+
+---
+
+## P12 - A design principle, earned rather than assumed
+
+Of the seven middlewares now exercised, **three ship a default that is wrong for this project**:
+`ResponseLimiting` is broken outright, `ErrorHandling`'s default inverts our error contract, and
+`RateLimiting`'s default silently shares one bucket across all clients while its docstring says
+otherwise.
+
+**On this framework, a middleware's defaults are not a safe starting point.** Every middleware we
+adopt is constructed with explicit arguments, and the design states why each argument is set. No
+middleware is added on the strength of its documentation alone.
+
+Scoreboard:
+- **Safe:** `ResponseCaching`, `Timing`, `StructuredLogging` (`include_payloads=False`), `Retry`
+- **Conditional:** `RateLimiting`, only with `get_client_id`
+- **Do not use:** `ErrorHandling` (default), `ResponseLimiting` (broken)
+- **Untested:** `Ping`, `Dereference`, `ToolInjection`, `Authorization`
