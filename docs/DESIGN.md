@@ -285,7 +285,9 @@ documentation, which is the only statement from the vendor. Correctness does not
 right, because paging is made **base-agnostic**:
 
 - **Every scan starts at `start=0`.** This is the whole mechanism and it is one character. A
-  0-based server then returns record zero; a 1-based server **clamps 0 to 1** and returns the same
+  0-based server then returns record zero; a 1-based server **clamps 0 to 1** - confirmed against
+  the one genuine Jobvite `200` in our evidence (`JOBVITE-API.md:401`), which is the strongest
+  citation available for this paragraph and was previously unused and returns the same
   first page it would have anyway - which is our own finding above, used deliberately instead of
   worked around. Starting at 1 is the only choice that can silently lose a record, because on a
   0-based server record zero is never requested.
@@ -293,10 +295,15 @@ right, because paging is made **base-agnostic**:
   duplicates**. Note what this does and does not do: **de-duplication defends against over-reading
   only.** It cannot recover a record that was never returned, which is exactly why the fix is
   starting at 0 rather than de-duplicating harder.
-- **Completeness is checked against `total`, not by looking for gaps.** An earlier revision said a
-  gap would be "detected and logged", which had no mechanism: `eId` is an opaque 8-character
-  identifier, and you cannot find a hole in a set of opaque ids. Comparing the unique-id count to
-  the `total` the API reports is a real check; a mismatch is logged and surfaced.
+- **Completeness is checked against `total`, and ONLY on an exhaustive scan.** An earlier revision
+  said a gap would be "detected and logged", which had no mechanism - `eId` is an opaque
+  8-character identifier and you cannot find a hole in a set of opaque ids. Comparing the unique-id
+  count to the reported `total` is a real check, but **it is only meaningful when the caller asked
+  for everything.** A capped call is a mismatch by design: §7.7's own worked example is
+  `showing 50 of 1,240`. Wiring the check to every call would fire the alarm on the default path
+  and train everyone to ignore it. So the check runs when a scan terminates on a short page having
+  requested no limit, and a capped result reports `showing N of total` instead, which is not an
+  anomaly and is not logged as one.
 - The base is per-resource, not global. `/v1/jobFeed` is `[OFFICIAL]` 1-based; the v2 resources are
   `[INFERRED]`. They are configured separately.
 - `JOBVITE_PAGINATION_START_BASE` overrides per resource for anyone who has established the truth.
@@ -931,13 +938,24 @@ otherwise**, and every one was discovered by execution rather than anticipated:
 6. **The write path has never been executed against live Jobvite.** That caveat is removed only
    when `CREDENTIAL-CHECKLIST.md` rows 1-4 close, and not before.
 
-**Two standard behaviours cannot be met as written, and are recorded rather than quietly skipped.**
-Quickstart-CI parity (`:80`) is unmeetable in the obvious form: CI runs credential-free by §8, and a
-Quickstart that reaches a working state needs a Jobvite credential. CI will therefore exercise the
-Quickstart as far as a credential-free path allows - install, start, list tools - and the README
-will mark the remaining step as requiring a credential. And a **CI status badge cannot be live until
-CI exists**; adding one before then would be the forbidden static badge that does not reflect
-reality.
+**One standard behaviour is deferred rather than unmeetable, and an earlier draft got this wrong
+in both directions.** It claimed Quickstart-CI parity was impossible and proposed a README that
+marks the final step as requiring a credential. Both halves were wrong:
+
+- `readme-standard.md:67` requires the Quickstart commands to be exercised by CI on every merge.
+  **That is meetable**, by the credential-free path the same paragraph already described - install,
+  start the server, list tools. The obligation was excused on a misreading, not a constraint.
+- `readme-standard.md:83` lists *"Quickstart steps that require credentials, VPN access, or
+  undocumented prerequisites"* under Anti-patterns. **The standard forbids the exact remedy the
+  draft proposed.**
+
+**So the Quickstart is credential-free in full, and CI exercises all of it.** Anything needing a
+Jobvite credential belongs in Configuration and Usage, which is where the standard expects it. That
+satisfies both clauses and is a better README.
+
+**A CI status badge still cannot be live until CI exists**, since `:70` forbids a static badge that
+does not reflect reality. That one is genuinely deferred until the implementation lands, not
+excused.
 
 **Two commit-time gates, both exceeding the standard deliberately:**
 - Secret scanning pre-commit, not only in CI. On a public remote a pushed secret is compromised
