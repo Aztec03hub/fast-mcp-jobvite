@@ -242,3 +242,85 @@ Scoreboard:
 - **Conditional:** `RateLimiting`, only with `get_client_id`
 - **Do not use:** `ErrorHandling` (default), `ResponseLimiting` (broken)
 - **Untested:** `Ping`, `Dereference`, `ToolInjection`, `Authorization`
+
+---
+
+## P13 - `RetryMiddleware` is DISQUALIFIED. One tool call created four records.
+
+**This supersedes P11, which said Retry was safe. P11 was wrong and is retracted.** The agent
+refuted its own earlier verdict on execution.
+
+**It cannot be scoped to exclude a tool.** There is no `tools=`, `included_tools` or
+`excluded_tools` parameter - the full constructor is `(max_retries, base_delay, max_delay,
+backoff_multiplier, retry_exceptions, logger)` - and it hooks `on_request`, so it applies to
+every tool call on the server.
+
+**Executed, in the exact `create_candidate` shape:** side effect lands, then the connection
+drops. Verbatim result: `server-side invocations = 4 / ROWS CREATED = 4 / VERDICT: DUPLICATES
+CREATED`. **One tool call, four rows.** Against a real ATS with no sandbox, that is four real
+duplicate candidates from one network blip, and a recruiter's problem to clean up.
+
+**Narrowing `retry_exceptions` does not save you.** `_should_retry` unwraps one level of
+`__cause__`, and FastMCP wraps tool exceptions as `ToolError(...) from original`. So an
+`httpx.ConnectError` raised inside `create_candidate` and surfaced as a `ToolError` still matches
+and still retries. **`create_candidate` cannot be protected by configuration at all.**
+
+**Consequence for the design:** retries live INSIDE `services/jobvite_client.py`, per endpoint,
+where idempotency is known and `create_candidate` is excluded **by construction** rather than by
+configuration. This is not a preference. A config-level exclusion for this tool does not exist.
+
+---
+
+## P14 - RFC 9457 problem objects survive every configuration. Make them the primary channel.
+
+Tested across five arms: the problem objects are **completely unaffected** by
+`ErrorHandlingMiddleware`, by `transform_errors`, and by `mask_error_details`. They arrive intact
+with full structured content.
+
+**The mechanism is the point: they are RETURNED, not raised, so they never enter the error path
+at all.** They are the only error shape in the whole matrix that no configuration can distort.
+
+This is a strong independent argument for D6 beyond mere standards compliance: **problem objects
+become our primary error channel for expected conditions** - an unknown candidate id, a rejected
+credential, a validation failure. Raising is reserved for genuinely exceptional cases.
+
+Two supporting results:
+- `mask_error_details` still works underneath the middleware. They compose; masking is not
+  defeated.
+- `ErrorHandlingMiddleware`'s default still destroys the raised-error shape regardless of
+  masking: a clean `ToolError` becomes `MCPError: Internal error: ...` in both mask arms,
+  reporting a caller's input mistake as a server fault. Exclusion confirmed.
+
+---
+
+## P15 - Rate limiter: two further constraints for the ADR
+
+Supplements P9. Both new:
+
+- **It is not runtime-reconfigurable.** Mutating `max_requests_per_second` or `burst_capacity`
+  has no effect: each bucket is built with the values current at first use and never re-reads
+  them. Only `limiters.clear()` applies new settings. **And clearing resets every client's
+  quota** - so a config reload is also a quota amnesty, and repeated reloads are a trivial
+  bypass. Limits are set at startup; changing them requires a restart.
+- **Identical on both protocol eras.** Same server, same limiter, auto and legacy each yielded
+  exactly 4 tool calls from a 6-token bucket. No era interaction.
+
+**And the contractual gap:** a trip raises an `MCPError`, a JSON-RPC protocol error, **not** an
+`is_error` tool result. So a rate-limit refusal does **not** carry an RFC 9457 problem object. If
+limit refusals must be shaped like our other errors, the limiter cannot be what produces them.
+The ADR must say this rather than leave it implied.
+
+**Unverified, and it belongs in the ADR's limitations:** every limiter test was sequential and
+single-client. Bucket behaviour under simultaneous callers - the case that actually matters in
+production - is unverified, and `limiters.clear()` was not tested under load or checked for a
+race with in-flight consumption. If the D4 ADR leans on this limiter, one concurrency test is
+worth doing before it is final.
+
+## P16 - `PingMiddleware` is not applicable
+
+`ping()` returns "Method not found" on the sessionless era and works on legacy. Coherent:
+keep-alive exists to hold a long-lived session open, and sessionless has none. Harmless, but
+there is nothing for it to do. Not adopted.
+
+**Running scoreboard: four of the eight middlewares exercised are unusable or need their defaults
+overridden.** P12's principle holds and the base rate did not improve with sample size.
