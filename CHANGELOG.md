@@ -25,10 +25,6 @@ decisions and research that the implementation will be built against.
 - `docs/data-inventory.md`, the Article 30 record of processing. It names the language model host
   as a downstream processor, which is the disclosure a conventional integration does not make.
   (2026-08-27 04:56 PM CDT)
-- `docs/reviews/check-coupling.py` and its control harness: a machine check that every threat-model
-  row accounts for itself against the test list, with nineteen executable controls proving each
-  check can fail. Wired into CI. (2026-08-27 05:30 PM CDT)
-
 - Design document scoping v1.0 to five Jobvite operations, with the module layout, error
   contract, resilience model and testing strategy. **Not frozen.** Four adversarial rounds have
   run and the most recent recommended against freezing; the freeze rule is that a round must
@@ -51,8 +47,10 @@ decisions and research that the implementation will be built against.
 - Canonical hosting on `evolvconsulting/fast-mcp-jobvite` with an automatic mirror to
   `Aztec03hub/fast-mcp-jobvite`, via a dual-push-URL `origin` plus a `mirror.yml` workflow for
   pushes originating elsewhere. (2026-08-27 01:52 PM CDT)
-- Repository scaffolding: gitignore, the changelog-fragment workflow that keeps parallel agent
-  work off a single shared file, and the docs layout. (2026-08-27 01:37 PM CDT)
+- `.gitignore` and `.env.example`: the environment template names the ten variables settled so far,
+  with every value empty, since a placeholder that looks like a credential is what a reader copies
+  by accident. Two more are specified but unnamed - the result cap and the outbound rate-limit
+  setting - and the template is not complete until they land. (2026-08-27 01:37 PM CDT)
 
 ### Changed
 

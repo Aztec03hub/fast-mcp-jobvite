@@ -142,8 +142,18 @@ A candidate name carrying a NUL or a bidi override is a well-formed short string
 length-and-regex check passes it. The allow-list is an **output** filter and §6.1's fencing is
 applied on the way back out, so neither reaches an inbound argument on its way to Jobvite. Strings
 are validated as UTF-8 and rejected if they carry C0/C1 control characters other than tab, newline
-and carriage return, or Unicode bidirectional overrides. Rejection is a `400` problem object per
-§5.1, and the rule fails closed.
+and carriage return, or Unicode bidirectional overrides.
+
+**What a caller receives when one of these limits fires, stated here because this section said the
+wrong thing and §5.1 said the right one four hundred lines away.** Every check above lives in the
+input models, so every one of them runs **before the tool body** and is raised by the framework.
+By §5.1's own executed reasoning - a problem object is safe precisely because it is *returned*
+rather than *raised* - **nothing here can return one.** An earlier revision of this paragraph said
+*"Rejection is a `400` problem object per §5.1"*, which was wrong twice over: no problem object
+reaches the caller on this path at all, and had one done so its status would be **422**, not 400,
+per the registry mapping in §5.1. These rejections are §5.1's third exception rather than an
+exception to it. **The rule still fails closed**, which is the whole of what B25 and B30 require,
+and §8 tests each limit with a positive control showing an ordinary argument still passes.
 
 **Outputs are allow-listed models, not passthrough.** A field Jobvite returns that is not on the
 model does not reach the caller, and it fails closed: a new Jobvite field is dropped until someone
@@ -268,8 +278,9 @@ risk worth taking for a route that should never respond to us.
 Ordered timeout, then retry, then circuit breaker.
 
 - **Timeouts explicit and per-phase.** No SDK default, no single scalar.
-- **Retries live inside this module**, via `tenacity` with jitter, budget inside the inbound
-  timeout, and only for connection errors, timeouts and 5xx.
+- **Retries live inside this module**, via `tenacity` with jitter, and only for connection errors,
+  timeouts and 5xx. The retry budget is bounded by **a server-side ceiling we choose**, not by the
+  inbound request's deadline, because there is no inbound deadline here - see the note below.
 - **`create_candidate` is excluded from retry by construction**, not by configuration. This is
   forced: `RetryMiddleware` cannot be scoped to exclude a tool, and narrowing `retry_exceptions`
   does not help because FastMCP wraps tool exceptions as `ToolError(...) from original` and the
@@ -284,6 +295,25 @@ Ordered timeout, then retry, then circuit breaker.
 - **Jobvite's `429`, if it exists, is retried and then mapped to 503**, honouring `Retry-After`
   when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
   path is written defensively and is unexercised.
+
+**`resilience.md:74-76` has no referent on this transport, and saying so is the honest form of
+compliance with it.** The clause reads *"Timeouts MUST be **shorter than the inbound request's own
+deadline** so a slow dependency surfaces as a fast, typed error rather than a hung request
+worker."* **MCP gives us no inbound deadline to be shorter than.** There is no HTTP request worker
+to hang and no caller-supplied timeout the server can read, so a phrase like "budget inside the
+inbound timeout" - which this section used to carry - names a bound that does not exist and reads
+as compliance while establishing nothing.
+
+What the clause is *for* still applies, so we satisfy the intent by supplying the deadline the
+transport does not: **a total outbound budget, configured, that bounds all attempts for one tool
+invocation**, so a slow Jobvite surfaces as a typed 503 rather than an unbounded wait.
+
+**Where this does not reach, stated because the clause's own failure mode occurs here for a
+different reason.** §7.5 records that an abandoned approval **hangs the call** with no server-side
+bound, because the elicitation handler runs in the client's process. That is a hung call of exactly
+the kind `:74-76` exists to prevent, and no outbound budget touches it - it is not waiting on a
+dependency. It is C4-D1, it is in Residual Risks, and it is disclosed to integrators. The outbound
+budget bounds Jobvite; nothing bounds a client that never answers.
 
 ### 4.4 Rate limiting
 
@@ -440,12 +470,27 @@ common and was the last to be admitted:
   this**, because `rate-limiting.md:361-362` separately requires a 429 to use a problem detail, and
   substituting the limiter does not dispose of that clause.
 - An abandoned approval never resolves at all (§7.5).
-- **An argument-schema violation carries no problem object either.** FastMCP validates arguments
+- **No pre-dispatch argument rejection carries a problem object.** FastMCP validates arguments
   **before the tool body runs**, so by this section's own reasoning - problem objects are safe
   because they are *returned* rather than *raised* - nothing can return one. The rejection is
   raised by the framework. This is the failure path callers hit most often, so implying uniformity
   here would be the most misleading place to do it. The rejection still fails closed and is
   unit-tested, which is what B12 and B23 actually require.
+
+  **This exception covers all three of §2.1's inbound controls, not just the schema.** A schema
+  violation, a control-character or encoding rejection, and a structural-limit rejection are one
+  path with one shape: they all live in the input models, they all run before the body, and none of
+  them can return anything. Stating it as *"an argument-schema violation"* was narrower than the
+  truth and let §2.1 claim a `400` problem object for the other two without contradicting anything
+  a reader would notice.
+
+  **Consequence for the table above, recorded rather than left to be discovered.** Its
+  `/problems/validation-error` **422** row is therefore **unreachable on the pre-dispatch path**.
+  It is not dead: it is what a validation failure detected *inside* the tool body uses - a
+  semantically invalid argument combination, or a validation error Jobvite itself returns. The row
+  stays, and it is worth knowing which half of validation it actually serves, because a slug that
+  looks like it covers all validation and covers only some of it is the kind of thing that gets
+  cited in a compliance claim.
 
 ### 5.2 `problem+json` and the transport
 
@@ -646,7 +691,9 @@ alone is what an earlier revision gave:
 
 **An unrecognised name in `JOBVITE_TOOLS` is a startup failure**, not a silent skip, matching this
 section's fail-fast posture. A typo that silently disables a tool is exactly the shape of the
-`--strict-markers` problem in §8: a green start-up having done less than the operator asked.
+`--strict-markers` problem §8 describes: a green start-up having done less than the operator asked.
+§8 states that configuration and carries a required case asserting it, so this is a cross-reference
+that resolves; for one revision it named a control §8 did not contain.
 
 Fail-fast validates what each *enabled* tool requires, never the union - a deployment using only
 candidate search must not be forced to invent a `companyId` it has no use for:
@@ -851,6 +898,13 @@ event (§5.3), which was the token's only durable benefit, without a second tool
 Adopted, each constructed with explicit arguments: `Timing`, `StructuredLogging` with
 `include_payloads=False`, and `RateLimiting` with `get_client_id`.
 
+**These two plus §5.3's `audit.py` make three log producers per invocation, against a clause that
+says one**, and the deviation is now on the record rather than left as an arithmetic difference
+between two sections. `request-middleware.md:145` reads *"4. **One log per request**: The
+middleware emits exactly one structured log entry per request."* We keep three, because
+`include_payloads=False` emits *no* arguments while B17 mandates **redacted** ones, so `audit.py`
+is forced rather than chosen. **ADR-0011**, which also records what the deviation costs.
+
 **`ResponseCachingMiddleware` is NOT adopted, and this reverses an earlier revision.** Three facts
 from this design decide it: the cacheable responses are candidate PII (§2); §7.2's three scopes
 exist precisely so different callers see different data; and §4.4 **measured** that this
@@ -907,6 +961,19 @@ The default suite runs with no network and no credentials, and CI has **zero ski
 counts as a failure, so credential-dependent tests are excluded by *selection*, not marked
 `skipif`.
 
+**Selection means a marker, and a marker means `--strict-markers`, which is the configuration this
+strategy rests on.** `backend/testing.md:67` puts `"--strict-markers"` in `addopts` and `:71-75`
+declares the marker list; `:59` sets `asyncio_mode = "auto"` and `:82` sets `branch = true`. All
+four are adopted verbatim, and the first is not housekeeping here. **Without it, a typo in the
+exclusion marker's name selects nothing and the run goes green having tested less than it
+claimed** - the live suite excluded by accident rather than by design, on a project whose entire
+test strategy is "exclude the credentialed arm deliberately". `--strict-markers` turns that typo
+into a collection error instead. §7.3's fail-fast posture on an unrecognised `JOBVITE_TOOLS` name is
+the same rule applied to configuration, and it cites this paragraph.
+
+`markers` declares the credential-dependent marker explicitly, so the name the exclusion selects on
+and the name the tests carry are checked against one declared list rather than against each other.
+
 **The live suite must be collected even though it is not run.** A suite that is excluded and never
 collected rots silently: an import error or a renamed fixture in it is invisible until the day
 someone finally has a credential. CI runs `--collect-only` against it and fails on a collection
@@ -960,6 +1027,11 @@ Required cases, each failing if its defence is removed:
   with `uv sync --frozen`) succeeding without amending `uv.lock` (§10). Credential-free and
   runnable in CI. The `fastmcp inspect` capability-drift diff is a CI gate rather than a case in
   this suite, and it is unexecuted (§10);
+- **an undeclared pytest marker fails collection rather than selecting nothing** - the
+  `--strict-markers` guarantee the exclusion strategy above rests on, asserted by invoking pytest
+  against a file marked with a name absent from `markers` and requiring a non-zero exit. Its
+  positive control is the declared marker still selecting its tests. **This case exists because
+  §7.3 cites it**, and for one revision it cited a control §8 did not contain;
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
@@ -1113,10 +1185,29 @@ it**, so the obligation is discharged by specification rather than by fabricatio
 
 - **All fourteen sections, headings matching exactly**, because automated checks locate them by
   heading text.
-- **The Configuration table lists every environment variable the component reads** - the four
-  credential variables, `JOBVITE_TOOLS`, `JOBVITE_ENABLE_WRITES`, `JOBVITE_MCP_TRANSPORT`,
-  `JOBVITE_TLS_TERMINATED_BY_PROXY`, `JOBVITE_PAGINATION_START_BASE` and the rate-limit settings -
-  with secrets referenced by name only. A variable added later updates the table in the same PR.
+- **The Configuration table lists every environment variable the component reads**, with secrets
+  referenced by name only. A variable added later updates the table in the same PR.
+
+  **`.env.example` is the single enumeration and the table is checked against it**, rather than
+  both being maintained by hand. This is §2.1's argument about fencing paths applied to
+  configuration: two hand-kept lists that must correspond is a defect waiting for the first change,
+  and here there would be three, since §7.3's requirements table is a fourth statement of the same
+  set. `.env.example` is the one that must be complete, because it is the file an operator copies.
+
+  **An earlier revision enumerated the set in this bullet and said "the four credential
+  variables". There are five** - `JOBVITE_API_KEY`, `JOBVITE_API_SECRET`, `JOBVITE_FEED_KEY`,
+  `JOBVITE_FEED_SECRET`, `JOBVITE_COMPANY_ID` - as §7.3's own table says and `.env.example` now
+  shows. `JOBVITE_COMPANY_ID` is the job feed's separate credential, which §4.1 counts as a
+  credential class of its own. `readme-standard.md:66` requires **every** variable, so a miscount
+  in the sentence discharging the obligation produces precisely the incomplete table the clause
+  forbids. Removing the hand-kept list is the fix; restating it correctly would only reset the
+  clock.
+
+  **Two variables the component will read are not yet named, and neither list is complete until
+  they are.** §7.7's result cap and §4.4's outbound rate-limit setting are both specified as
+  configuration and neither has a name or a default. That is B15, it is on the
+  mitigate-before-production-release list in §11, and it is recorded here so their absence from
+  `.env.example` reads as an open item rather than as a complete file.
 - **An `mcp-name:` string, added before the first PyPI upload and not after.** PyPI ownership
   verification for the MCP registry reads it out of the README, which becomes the package
   description, so retrofitting it costs a version bump. Cheap now, annoying later, and free if we
@@ -1309,7 +1400,7 @@ asserted that placement in the same edit that failed to make it.
 | C5-T1 | Response substituted or modified in transit to Jobvite | L | H | Medium | HTTPS with `httpx2` default verification, never disabled (§7.1). Mitigated | not required (Medium) |
 | C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Unmitigated.** Log each retry and breaker transition with the correlation field. Depends on B40's `request_id_var` ContextVar, also missing | unmitigated (B39, B40) |
 | C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
-| C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Bounded retry budget inside the inbound timeout, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). Mitigated | not required (Medium) |
+| C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Retry budget bounded by a configured server-side outbound ceiling, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). The ceiling is ours because MCP supplies no inbound deadline to derive one from, which §4.3 now states rather than implying otherwise. Mitigated | not required (Medium) |
 | C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Unmitigated.** Document that a read-only Jobvite key is required where writes are disabled. Whether Jobvite offers one is unknown, which makes this an operator instruction rather than an enforceable control | unmitigated (B21) |
 
 **C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
@@ -1378,15 +1469,24 @@ and then silently omitted it, so the rule did not describe the table it introduc
 | C5-R1 | Retries and breaker transitions unlogged | Log both with the correlation field; needs `request_id_var` | B39, B40 |
 | C5-E1 | Jobvite credential not scoped to the enabled tool set | Document that a read-only key is required where writes are disabled | B21 |
 
-**Three, and the arithmetic is written out rather than carried forward, because it was carried
-forward wrongly once.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and
+**Two, and the arithmetic is written out rather than carried forward, because it was carried
+forward wrongly twice.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and
 C1-I1, and dropping `ResponseCaching` removed the cache-disclosure row from the model entirely
-rather than mitigating it, which took it to five. **C1-R1 and C4-R1 come off in this revision**:
-both were listed here as freeze blockers while §5.3 already stated the remedy performed, so two of
-the five stated blockers were work already done. That leaves three. **C9-T1 was added to the model
-after the count was last taken and does not join the list**, because its pins and frozen resolve
-are specified in §10 and covered by a §8 case; the unexecuted part, the capability-drift diff, is a
+rather than mitigating it, which took it to five. **C1-R1 and C4-R1 came off**: both were listed
+here as freeze blockers while §5.3 already stated the remedy performed, so two of the five stated
+blockers were work already done. That left three. **C8-I1 now comes off too**, because `.gitignore`
+is committed and covers the credential patterns, `.env.example` is committed with empty values, and
+the row is mitigated with a §8 case. That leaves **two**. **C9-T1 was added to the model after the
+count was last taken and does not join the list**, because its pins and frozen resolve are
+specified in §10 and covered by a §8 case; the unexecuted part, the capability-drift diff, is a
 residual risk rather than an implementation blocker.
+
+**The second miscount is why this paragraph now names its own failure mode twice.** The edit that
+mitigated C8-I1 removed its row from the table above and left this sentence reading *"Three"*, so a
+paragraph written specifically to stop a stale count from being carried forward carried one
+forward itself. **The count is a property of the table; whoever changes the table changes it here
+in the same edit, or the paragraph is worse than no paragraph** - it lends the authority of shown
+arithmetic to a number nobody rechecked.
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
 undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
@@ -1487,6 +1587,12 @@ revision listed it here while two other sections answered it.
 - **ADR-0010** - coverage targets remapped from the standard's category model, which has no
   category matching an MCP tool module. Loosening a mandated coverage number is exactly what this
   mechanism exists to record.
+- **ADR-0011** - three log producers per invocation against `request-middleware.md:145`'s *"exactly
+  one structured log entry per request"*. `StructuredLoggingMiddleware` runs with
+  `include_payloads=False` and so emits no arguments, while B17 mandates **redacted** ones, which
+  forces `audit.py` as a third producer. **Scope includes** the cost: three records correlated by
+  `request_id`, on a design that has not yet specified the `request_id_var` mechanism to propagate
+  it (B40, C5-R1).
 
 **Freeze procedure, and one step exists because it already failed once:** every **conditional**
 dismissal in the standards analysis is re-tested at freeze. `architecture/caching.md` was dismissed

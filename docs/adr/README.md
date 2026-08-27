@@ -19,6 +19,7 @@ Format: Status, Context, Decision, Consequences. Every ADR cites the clause it d
 | [0008](0008-eeo-fields-excluded.md) | Special-category EEO fields excluded from output models | Accepted |
 | [0009](0009-approver-identity-unknowable.md) | Approver identity cannot be recorded; caller identity can | Accepted |
 | [0010](0010-coverage-targets-remapped.md) | Coverage targets remapped from the standard's category model | Accepted |
+| [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
 
 ## Acknowledged non-conformances without an ADR
 
