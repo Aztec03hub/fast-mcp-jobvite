@@ -12,7 +12,7 @@ Sources: `docs/research/FASTMCP.md`, `docs/research/STANDARDS.md`, `docs/researc
 | D3 | `ai/` domain standards bind this repo by intent | Settled | Orchestrator ruling |
 | D4 | In-process rate limiting, opting out of the mandated Redis token bucket | Settled, needs ADR | Orchestrator ruling |
 | D5 | `error-contract.md` outranks `agentic-coding-standard.md` on error shape | Settled | Standard self-declaration |
-| D6 | `ToolError` carrying an RFC 9457 problem object | Provisional | Orchestrator, under review |
+| D6 | Full RFC 9457 problem object, delivered via `ToolError`. No envelope. | Settled | Standard + Phil ruling |
 | D7 | MIT, `Copyright (c) 2026 evolv Consulting` | Settled | Phil, 2026-08-27 |
 | D8 | Canonical on `evolvconsulting`, auto-mirrored to the personal fork | Settled | Phil, 2026-08-27 |
 | D9 | Commit `type(scope): description` + `Refs:`; semantic PR titles | Settled | Orchestrator ruling |
@@ -114,19 +114,41 @@ without network access. But the testing standard treats a SKIP as a FAIL and req
 count of zero, so the usual `skipif` idiom would turn CI red. Exclusion by selection satisfies
 both: CI has zero skips, and the live suite still exists for whoever holds a key.
 
-## D6 - `ToolError` carrying an RFC 9457 problem object (PROVISIONAL)
+## D6 - full RFC 9457, delivered via `ToolError`
 
-**Decision, provisional.** Tool failures `raise ToolError`, whose structured payload is an
-RFC 9457 problem object carrying all seven mandated fields.
+**Decision.** Tool failures raise `ToolError`. Its structured payload is a complete RFC 9457
+problem object carrying all seven mandated fields: `type`, `title`, `status`, `detail`,
+`instance`, `request_id`, `timestamp`. The `build_response(success=, error=)` envelope is not
+used anywhere in this repository.
 
-**Context.** `architecture/error-contract.md` mandates RFC 9457 `application/problem+json` and
-explicitly retires the `build_response(success=, error=)` envelope that `fast-mcp-jira` uses.
-But MCP tools return protocol results, not HTTP responses, and FastMCP's native failure signal
-is `ToolError` - which is what makes a client see `isError: true`. Returning a success-shaped
-dict on failure, as `fast-mcp-jira` does, reports every upstream 4xx as a success.
+**This was briefly marked provisional. That was my error.** Phil's standing ruling, 2026-08-27:
+where a reference project does not follow a standard, we follow the standard and do it right,
+and the only thing that overrides a standard is a specifically in-scope numbered ADR. A
+reference project is a source of patterns, never of authority. There was no dilemma here to
+adjudicate - the hierarchy already settled it, and `fast-mcp-jira` doing otherwise is a finding
+about `fast-mcp-jira`.
 
-**Why provisional.** Whether this satisfies B1-B8 *as written* is out for review. If it cannot
-be reconciled with the letter of the standard, it needs an ADR rather than a clever reading.
+**The two open questions, now resolved rather than deferred.** RFC 9457 requires `type` and
+`instance` to be URIs, and MCP has no request URI to hang them on:
 
-**Open question.** RFC 9457 requires `instance` and `type` as URIs. What those mean for a
-transport with no request URI is unresolved.
+- **`type`** is a relative, stable, slugged reference as `architecture/error-contract.md:210-211`
+  already requires: `/problems/<slug>`, for example `/problems/jobvite-auth-failed`. The
+  standard's own choice of relative references is what makes this transport-independent, so
+  nothing needs inventing.
+- **`instance`** identifies the specific occurrence. With no request URI available, it is a URN:
+  `urn:fast-mcp-jobvite:invocation:<request_id>`. A URN is a URI, it is stable, and it
+  identifies exactly one tool invocation. This is an adaptation of the transport, not a
+  deviation from the contract, so it needs no ADR.
+- **`status`** carries the upstream Jobvite HTTP status where one exists, and the
+  semantically-equivalent code otherwise (400 for input validation, 503 for an upstream 5xx per
+  `backend/error-handling.md:411-424`).
+
+**Why `ToolError` is the delivery mechanism and not a competing design.** `ToolError` is how
+MCP signals failure - it is what makes a client observe `isError: true`. That is protocol
+plumbing and is orthogonal to error *shape*. Returning a success-shaped dict on failure, as the
+reference project does, means every upstream 4xx is reported to the model as a success. The two
+requirements compose; they never conflicted.
+
+**Consequence.** A reviewer should fail this repo if any tool returns a failure as a normal
+result, if any problem object is missing one of the seven fields, or if a stack trace or
+upstream detail leaks into `detail`.
