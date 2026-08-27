@@ -18,3 +18,12 @@ build/
 # Local data
 *.db
 *.sqlite3
+
+# Vendored third-party source documents. Research cites and links sources; it does
+# not redistribute them. A CONFIDENTIAL vendor PDF reached this public repo once
+# already - see docs/adr/ and the section 0 licensing note in the research reports.
+docs/research/*.pdf
+docs/research/*.raml
+docs/research/*.doc
+docs/research/*.docx
+docs/research/*.zip
