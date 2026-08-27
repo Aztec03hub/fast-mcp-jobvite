@@ -324,3 +324,96 @@ there is nothing for it to do. Not adopted.
 
 **Running scoreboard: four of the eight middlewares exercised are unusable or need their defaults
 overridden.** P12's principle holds and the base rate did not improve with sample size.
+
+---
+
+## P17 - DESIGN-BLOCKING: `create_candidate` is CUT from v1.0
+
+**The HITL control the design assumed is unavailable, and the obvious implementation of it fails
+open. v1.0 ships four read tools. The write is deferred.**
+
+### What was found, by execution
+
+**1. Elicitation does not exist on our default era.** `ctx.elicit()` raises, verbatim:
+
+```
+ToolError: elicitation via server-initiated requests is unavailable on 2026-07-28 connections.
+```
+
+`context.py:1085-1089` shows this is a deliberate era guard raised before touching the wire,
+citing SEP-2577's removal of server-initiated requests. On sessionless - our default - elicitation
+is unavailable **by design, not by accident**.
+
+**2. The transport fails closed.** On sessionless it raises; on legacy with no client handler it
+raises `MCPError: Elicitation not supported`. The destructive counter stayed at zero in every
+arm. Good, and worth stating: an unavailable elicitation cannot silently approve.
+
+**3. But the result types fail OPEN, and this is the real hazard.** All three outcome types are
+truthy:
+
+| Type | `bool()` |
+|---|---|
+| `AcceptedElicitation` | `True` |
+| `DeclinedElicitation` | `True` |
+| `CancelledElicitation` | `True` |
+
+So the obvious guard - `result = await ctx.elicit(...)` then `if result:` - **treats a refusal as
+approval.** Run against a real client on the legacy era:
+
+```
+--- HUMAN DECLINES ---   create_naive: CREATED | rows=1
+--- HUMAN CANCELS ---    create_naive: CREATED | rows=2
+--- HUMAN ACCEPTS but answers 'no' --- create_naive: CREATED | rows=3
+```
+
+**Three refusals, three records created**, `is_error=False` every time so nothing upstream would
+flag it. A human clicking Decline, a human hitting Cancel, and a human explicitly answering "no"
+each produced a write, from a guard that reads as correct in review.
+
+The correct form needs **both** checks:
+`isinstance(result, AcceptedElicitation) and result.data == <expected>`. Checking the action
+alone is insufficient - the third arm shows an *accepted* elicitation carrying the answer "no" is
+still truthy and still has `.data`.
+
+**4. The server cannot compel a human to be asked.** On legacy, elicitation depends on the client
+implementing a handler; a client without one gets "Elicitation not supported". So approval is not
+something this server can guarantee on **any** era.
+
+### The decision, and why it is not an ADR
+
+**v1.0 ships four read tools: `search_candidates`, `get_candidate`, `search_jobs`,
+`get_job_feed`. `create_candidate` is deferred.**
+
+It would be easy to write an ADR saying "we ship the write without HITL because HITL is
+impossible here". That ADR should not exist. When the safety control a `priority: required`
+standard demands turns out to be unavailable, the correct response is **not to ship the dangerous
+thing** - not to document why we shipped it anyway. An ADR records a considered deviation; it is
+not a waiver for shipping a destructive capability with its mandated guard missing.
+
+The rest of the case was already uncomfortable and this settles it. `POST /api/v2/candidate`:
+
+- **has a success shape nobody has ever observed** - no credential, no sandbox, so the 201 body
+  is a hypothesis;
+- **cannot be rehearsed anywhere** - both staging hosts fail DNS;
+- **cannot be protected from `RetryMiddleware`** by configuration (P13), and one call was
+  measured creating four rows;
+- **emails a live human candidate** as its side effect;
+- **has unknown duplicate semantics** - the `409` behaviour is inferred, not seen.
+
+Shipping a write against a production applicant tracking system under all six of those conditions
+is not a close call.
+
+### What ships instead
+
+- The four read tools, which is the useful core: candidate search, candidate fetch, job search,
+  job feed.
+- `create_candidate` returns in v1.1, gated on two things: a real credential closing the
+  contract questions, and a HITL mechanism that actually exists. The README states the omission
+  and the reason plainly, so it reads as a decision rather than a gap.
+
+### Kept regardless
+
+The truthiness trap is documented in the design even though we no longer elicit, because it
+applies to any future use and it is exactly the kind of defect that survives code review. It also
+warrants an upstream report: `DeclinedElicitation` and `CancelledElicitation` being truthy makes
+the obvious guard silently unsafe.

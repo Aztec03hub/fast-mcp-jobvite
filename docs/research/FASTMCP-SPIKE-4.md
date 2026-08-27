@@ -1058,15 +1058,193 @@ long-lived handshake-era clients over a connection-dropping intermediary.
    masking configuration.
 
 
+---
+
+## 15. Elicitation, human-in-the-loop, and tool annotations
+
+Run on Python 3.12.3, `fastmcp==4.0.0b4`. This section exists because `ai/agent-guardrails.md:70`
+requires destructive operations to be default-deny **and** human-in-the-loop, **failing closed**, and
+`create_candidate` writes a real record to a real ATS and can email a live human.
+
+**Headline: elicitation cannot serve as our HITL control, and the obvious implementation of it
+fails OPEN.** Details below; both findings are independent and both matter.
+
+### 15.1 ⛔ `ctx.elicit()` is unavailable on the sessionless era — VERIFIED
+
+```
+ToolError: elicitation via server-initiated requests is unavailable on 2026-07-28 connections.
+```
+
+This is a deliberate era guard, raised **before hitting the wire** (`fastmcp/server/context.py`
+~line 1085) `[FROM SOURCE]`:
+
+```python
+# which the 2026-07-28 era removed (SEP-2577). Raise a clear era-aware
+# error before hitting the wire instead of the SDK's opaque "Method not
+# found". Handshake-era behavior is unchanged.
+if self._is_modern_protocol():
+    raise ToolError(_ELICIT_MODERN_ERROR)
+```
+
+Sessionless is **our default era**, so elicitation is unavailable by design in our default
+configuration. Note also that `response_type` is now a **required** parameter of `ctx.elicit()`
+`[FROM SOURCE]`, confirming the documented 4.0 change.
+
+### 15.2 Availability matrix — VERIFIED across eras and transports
+
+| Transport | Client mode | Handler | Result |
+|---|---|---|---|
+| HTTP | `auto` (default) | any | ⛔ `ToolError: ... unavailable on 2026-07-28 connections.` |
+| HTTP | `legacy` | present | ✅ works |
+| HTTP | `legacy` | **absent** | ⛔ `MCPError: Elicitation not supported` |
+| **stdio** | `auto` (default) | present | ⛔ `ToolError: ... unavailable on 2026-07-28 connections.` |
+| **stdio** | `legacy` | present | ✅ works |
+| **stdio** | `legacy` | absent | ⛔ `MCPError: Elicitation not supported` |
+
+Verbatim, stdio:
+
+```
+--- STDIO, mode=auto (DEFAULT) ---
+   handler ACCEPTS 'yes': ELICIT_RAISED ToolError: elicitation via server-initiated requests is unavailable on 2026-07-28 connections. | rows=0
+   handler DECLINES:      ELICIT_RAISED ToolError: ... | rows=0
+   NO handler at all:     ELICIT_RAISED ToolError: ... | rows=0
+--- STDIO, mode=legacy (forced handshake era) ---
+   handler ACCEPTS 'yes': CREATED | rows=1
+   handler DECLINES:      BLOCKED on DeclinedElicitation | rows=0
+   NO handler at all:     ELICIT_RAISED MCPError: Elicitation not supported | rows=0
+```
+
+**This is the load-bearing conclusion.** Elicitation works only when the **client** both forces
+`mode="legacy"` *and* supplies an elicitation handler. Both are client-side choices. **The server
+cannot compel either.** Even on stdio — the local-desktop case where a human is most likely
+actually present — the default negotiation is sessionless and elicitation is unavailable.
+
+**Verdict: ⛔ REFUTED as a HITL mechanism.** A control the server cannot guarantee is not a control.
+
+### 15.3 ⛔ Fails CLOSED at the transport, but the RESULT TYPES fail OPEN — VERIFIED
+
+Two separate questions, two different answers.
+
+**(a) Transport unavailability fails CLOSED. ✅** In every unavailable arm above the destructive
+counter stayed at `rows=0`. `ctx.elicit()` *raises*; it does not return a falsy sentinel. The only
+way to convert this into a fail-open is to wrap it in a `try/except` that swallows — which is
+exactly why `create_candidate` must never catch broadly around its own approval check.
+
+**(b) The result types fail OPEN. ⛔** All three outcomes are **truthy**:
+
+```
+Accepted   bool()=True   repr=AcceptedElicitation(action='accept', data={'ok': True})
+Declined   bool()=True   repr=DeclinedElicitation(action='decline')
+Cancelled  bool()=True   repr=CancelledElicitation(action='cancel')
+```
+
+So the natural-looking guard treats a refusal as approval. Constructed deliberately and run against
+a real client on the legacy era, with a naive and a strict guard side by side:
+
+```
+--- HUMAN DECLINES ---
+   create_naive:  CREATED via naive guard on DeclinedElicitation  | rows=1
+   create_strict: BLOCKED on DeclinedElicitation                  | rows=1
+--- HUMAN CANCELS ---
+   create_naive:  CREATED via naive guard on CancelledElicitation | rows=2
+   create_strict: BLOCKED on CancelledElicitation                 | rows=2
+--- HUMAN ACCEPTS but answers 'no' ---
+   create_naive:  CREATED via naive guard on AcceptedElicitation  | rows=3
+   create_strict: BLOCKED on AcceptedElicitation                  | rows=3
+```
+
+**Three refusals, three records created**, `is_error=False` on all three so nothing upstream would
+flag them either. In a real ATS that is three real candidates and three emails to live humans,
+produced by a guard that reads as correct in review.
+
+The naive form:
+
+```python
+result = await ctx.elicit("Create candidate?", response_type=str)
+if result:                     # ⛔ TRUE for Declined AND Cancelled
+    create()
+```
+
+The correct form needs **both** an action check and a value check — the third arm shows an
+*accepted* elicitation carrying the answer `"no"` is still truthy and still has `.data`:
+
+```python
+from fastmcp.server.elicitation import AcceptedElicitation
+
+result = await ctx.elicit("Create candidate?", response_type=str)   # let it RAISE if unavailable
+if not (isinstance(result, AcceptedElicitation) and result.data == "yes"):
+    raise ToolError("Not approved by a human; refusing.")
+create()
+```
+
+### 15.4 Tool annotations are transmitted, and are PURELY ADVISORY — VERIFIED
+
+Both eras, verbatim:
+
+```
+--- tools/list, mode=auto ---
+   create_candidate: annotations=title='Create Candidate' read_only_hint=False destructive_hint=True idempotent_hint=False open_world_hint=True
+   get_candidate:    annotations=title=None read_only_hint=True destructive_hint=False idempotent_hint=True open_world_hint=True
+   calling the destructiveHint=True tool: is_error=False -> created PLACEHOLDER
+--- tools/list, mode=legacy ---
+   (identical annotations)
+   calling the destructiveHint=True tool: is_error=False -> created PLACEHOLDER
+```
+
+- ✅ **Transmitted correctly on both eras**, wire-name `destructiveHint` mapping to `destructive_hint`.
+- ⛔ **Nothing in FastMCP acts on them.** A grep for `destructiveHint|destructive_hint` across the
+  entire installed package returns exactly **one** non-test hit — a field-name alias table in
+  `fastmcp/_compat.py:47`. There is no enforcement path, no prompt, no gate.
+- The tool annotated `destructiveHint=True` executed immediately, `is_error=False`, with no
+  interruption of any kind.
+
+**Verdict: ✅ transmitted / ⛔ advisory only.** Annotations are a *request* to the client, not a
+control. **We cannot claim the guardrail is satisfied by annotations.** They should still be set —
+correctly and honestly, since a well-behaved host may prompt on them — but the design must not
+count them as the HITL control.
+
+### 15.5 What this means for the compliance gap
+
+Stating the shape of the problem, since the design decision is yours:
+
+1. **Elicitation is not available in our default configuration** and cannot be made available by
+   anything the server does. (§15.1, §15.2)
+2. **Annotations are advisory** and enforce nothing. (§15.4)
+3. Therefore **no MCP-native mechanism lets the server guarantee a human approved a write.** Both
+   candidate mechanisms depend on client cooperation.
+4. The environment-variable gate currently in the design is, as you said, deploy-time rather than
+   per-invocation — but it has one property the others lack: **it is enforced server-side and cannot
+   be bypassed by a client.** It is a weaker control that actually holds, versus a stronger-sounding
+   control that a client can simply decline to implement.
+
+What *is* enforceable server-side, on the evidence here: anything that does not require the server
+to initiate a request to the client. A two-call confirmation pattern — the first call returns a
+short-lived token describing exactly what would be written, and the write requires that token —
+keeps the decision on the human's side of the conversation while remaining a plain tool result,
+which §14.2 showed is the one shape no era or middleware configuration distorts. **I have not
+spiked that pattern**; I am naming it because a prohibition needs a substitute, not asserting it works.
+
+### 15.6 Not a bug report
+
+Nothing in §15 is a FastMCP defect, so I have drafted no issue. The era guard is deliberate and
+well-implemented; the annotations are advisory by MCP's own design. The truthiness of
+`DeclinedElicitation` is arguably an ergonomic trap worth raising upstream, but it is defensible —
+the objects are dataclass-like results, not booleans — and I would rather not file noise against a
+project that has just accepted two real reports from us. **Flagging it for your call rather than
+deciding unilaterally.**
+
+
 ## What I could NOT verify
 
 - **Python 3.10, and 3.13+.** Ran 3.11.15 and 3.12.3. The declared floor is `>=3.10`; 3.10 untested.
 - **Whether the `ResponseLimitingMiddleware` regression also affects the network transport.** Reproduced in-memory; the failing assertion is client-side in `mcp/client/session.py`, so it should be transport-independent, but I did not re-run it over HTTP.
 - **Whether the SIGTERM behaviour differs under a real container runtime** (Docker `stop`, Kubernetes `preStop`). Tested with raw `kill -TERM` on Linux. A container adds an init process and a grace period that I did not simulate.
 - **Whether the SIGTERM behaviour also affects stdio transport.** Only HTTP was tested.
-- **`ctx.elicit()` era-gating.** The upgrade guide says it raises on sessionless connections. Not exercised — we have no elicitation use case yet, and I did not want to report a guess.
+- ~~`ctx.elicit()` era-gating~~ — **resolved by execution in §15**: it raises on sessionless, on every transport including stdio, and the result types fail open under a naive guard.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
 - **`DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimiting`, `ErrorHandling`, `Retry` and `Ping` are covered in §§13–14. Four of the eight tested are unusable or need their defaults overridden, so **assume nothing about the remaining three.**
+- **A two-call confirmation-token HITL pattern (§15.5).** Named as a candidate substitute, **not spiked**. Do not treat it as verified.
+- **Whether any real host (Claude Desktop, Claude Code, Cursor) forces `mode="legacy"` or ships an elicitation handler.** I tested with FastMCP's own client only, so §15.2's "the client must opt in" is proven as a mechanism but I have not surveyed which hosts actually do.
 - **Rate limiting under concurrency.** Every limiter test was sequential and single-client; I have not verified bucket behaviour under simultaneous callers, which is the case that matters in production.
 - **Whether `limiters.clear()` is safe to call on a live server.** I used it to prove reconfiguration requires it; I did not test it under load or check for a race with in-flight consumption.
 - **`JWTVerifier`, `DebugTokenVerifier`, `IntrospectionTokenVerifier`, `OAuthProxy`.** Only `StaticTokenVerifier` was run; the others need an IdP I will not fake.
