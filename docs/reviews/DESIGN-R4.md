@@ -5,6 +5,17 @@
 **Roles:** RED and BLUE both played by this agent.
 **Result: 0c / 6h / 11m surviving. I would NOT freeze.**
 
+**Correction, post-delivery, by the author.** H5 originally cited the credential-requiring-Quickstart
+anti-pattern as `readme-standard.md:88`. **The clause is at `:83`;** `:88` is a line in the Citations
+list. The lead caught it and checked the file rather than propagating it. Every occurrence is fixed
+above and the substance of H5 is unchanged: the clause exists, it forbids the remedy §10.1 proposed,
+and `:67` is meetable. **Recorded rather than silently corrected, because it is the same class H5
+reports.** The cause is worth naming: this is the only citation in the round I took from a `sed`
+window by counting offsets by eye instead of from `grep -n`, which is how every other `file:line`
+here was obtained. An instrument that prints a block without line numbers invites exactly this, and
+a reviewer auditing miscitations is the last person who should be reading one off an unnumbered
+window.
+
 ---
 
 ## What I read
@@ -237,13 +248,13 @@ is meeting, because the waiver is the thing a reviewer is meant to be able to ch
 
 **And the substance is wrong too.** §10.1 argues parity is unmeetable because a working-state
 Quickstart needs a credential, and proposes that *"the README will mark the remaining step as
-requiring a credential"*. `readme-standard.md:88`, in Anti-patterns, verbatim:
+requiring a credential"*. `readme-standard.md:83`, in Anti-patterns, verbatim:
 
 > "- Quickstart steps that require credentials, VPN access, or undocumented prerequisites."
 
 **The standard forbids exactly the remedy §10.1 proposes.** The standard's own position is that a
 Quickstart must not need a credential. A credential-free Quickstart - install, start, list tools - is
-what `:48` and `:88` together require, and §10.1 already says CI can exercise precisely that. **So
+what `:48` and `:83` together require, and §10.1 already says CI can exercise precisely that. **So
 `:67` is meetable, in full, by the path §10.1 has already described**, and it is meetable only
 because the credential-requiring step must be removed from the Quickstart rather than annotated
 inside it. Phil's stated doubt #5 was correct: the project has excused itself from something it can
@@ -430,7 +441,7 @@ repository."* What a caller receives is unspecified.
 | H2 | **Accept** | I walked the rows before writing this and both gaps are real. C2-R is the more damaging because R3 already found it and the fix went to two of the three named rows |
 | H3 | **Accept** | Two of five stated freeze blockers are closed elsewhere in the document. C1-R's unqualified remedy is the specific thing R3's R-3 asked to reconcile |
 | H4 | **Accept** | Six rows entered the analysis and none reached the outputs. The `:1112` sentence asserting C4-D is in Residual Risks is checkable and false |
-| H5 | **Accept** | `:80` is the wrong line and `:88` forbids the proposed remedy. I checked both at the file |
+| H5 | **Accept** | `:80` is the wrong line and `:83` forbids the proposed remedy. I checked both at the file |
 | H6 | **Accept** | Verified by grep, item by item. Eight accepted items unapplied or half-applied |
 | m1 | **Accept** | Wrong cross-reference plus a false closing claim in §12 |
 | m2 | **Accept** | The sweep row is unchanged and the arm it names is still absent from §8 |
@@ -472,7 +483,7 @@ layer. §10.1's opening premise is *"**The README is not written yet, deliberate
 assert a Quickstart that reaches 'a working state' ... for software that does not exist."* That is
 correct and well argued. But H5 shows the section then reasons **from the design's own constraint to
 a conclusion about the standard** - "we need a credential, therefore parity is unmeetable" - without
-opening the standard to see whether it anticipates that case. **It does: `:88` names
+opening the standard to see whether it anticipates that case. **It does: `:83` names
 credential-requiring Quickstarts as an anti-pattern.** The class here is not a typo in a line number.
 It is the same class as §6.2's `priority: optional` claim that R2 killed: **a scope argument
 compressed into a claim about what the standard says, made without reading the clause.** §6.2:444-448
@@ -505,7 +516,7 @@ say which attack it tried and could not land.
 | H2 | HIGH | §11:979-980 | The coupling claim is still false: C2-R (High, mitigated) and C9-T (High, mitigated, new) have no §8 test; C1-S/T/I need the escape clause that only appears at `:1163`. Fifth self-compliance assertion to be wrong | **Accepted, remedy changed per R-A.** Per-row `Test` column plus unique row ids; retire the universal sentence |
 | H3 | HIGH | §11:1032, `:1068`, `:1147-1148` vs §5.3:375,386 | C1-R and C4-R are marked Unmitigated and listed as freeze blockers; §5.3 says both are done. C1-R's remedy is also unqualified where §5.3 qualified it by transport (R3 R-3, half applied) | **Accepted.** Reconcile both rows and recompute the blocker list |
 | H4 | HIGH | §11:1112, `:1116`, `:1123`, `:1147-1161`, `:1170-1183` | The C9 block and C4-D never reached the disposition tables, the counts or Residual Risks. C9-T is an unlisted High; C9-D an unlisted unmitigated Medium; `:1112`'s claim that C4-D is in Residual Risks is false | **Accepted.** Carry all six new rows into the outputs and recompute "down from seven to five" |
-| H5 | HIGH | §10.1:934-937 | Quickstart parity cited as `readme-standard.md:80`; the clause is `:67`. The waiver is also substantively wrong: `:88` forbids credential-requiring Quickstarts, so the clause is meetable by the credential-free path §10.1 already describes. Same class as the `priority: optional` error R2 killed | **Accepted.** Fix the citation, withdraw the waiver, keep the badge item as "added when CI lands" |
+| H5 | HIGH | §10.1:934-937 | Quickstart parity cited as `readme-standard.md:80`; the clause is `:67`. The waiver is also substantively wrong: `:83` forbids credential-requiring Quickstarts, so the clause is meetable by the credential-free path §10.1 already describes. Same class as the `priority: optional` error R2 killed | **Accepted.** Fix the citation, withdraw the waiver, keep the badge item as "added when CI lands" |
 | H6 | HIGH | §1:21, §5.1:319, §8:778, §11:1005,1080,1107,1147,1165,1174,1175, §12:1190,1193 | Eight of Round 3's accepted findings unapplied or half-applied, including four confirmation-token rows, one of which offers the cut token as defence in depth for the document's highest residual risk | **Accepted.** Apply m1, m2, m3, m5, m6, m7, m4's second limb and m8's four survivors |
 | m1 | MED | §11:1123, §12:1201 | C9-T cites §12 for the unexecuted drift diff; §12 does not contain it, and §12:1201 claims no item is a reasoned-but-unexecuted claim about our own stack | Accepted |
 | m2 | MED | §5.1:342 | Asserts B23 is met; `CONFORMANCE-B1-B106.md:156`'s unbounded-loop arm still has no §8 case | Accepted |
