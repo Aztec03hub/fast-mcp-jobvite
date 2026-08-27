@@ -12,7 +12,7 @@ Sources: `docs/research/FASTMCP.md`, `docs/research/STANDARDS.md`, `docs/researc
 | D3 | `ai/` domain standards bind this repo by intent | Settled | Orchestrator ruling |
 | D4 | In-process rate limiting, opting out of the mandated Redis token bucket | Settled, needs ADR | Orchestrator ruling |
 | D5 | `error-contract.md` outranks `agentic-coding-standard.md` on error shape | Settled | Standard self-declaration |
-| D6 | Full RFC 9457 problem object, delivered via `ToolError`. No envelope. | Settled | Standard + Phil ruling |
+| D6 | Full RFC 9457 problem object, returned as a `ToolResult` with `is_error`. No envelope. | Settled, needs ADR | Standard + Phil ruling |
 | D7 | MIT, `Copyright (c) 2026 evolv Consulting` | Settled | Phil, 2026-08-27 |
 | D8 | Canonical on `evolvconsulting`, auto-mirrored to the personal fork | Settled | Phil, 2026-08-27 |
 | D9 | Commit `type(scope): description` + `Refs:`; semantic PR titles | Settled | Orchestrator ruling |
@@ -20,6 +20,9 @@ Sources: `docs/research/FASTMCP.md`, `docs/research/STANDARDS.md`, `docs/researc
 | D11 | Default transport is stdio; HTTP is opt-in | Settled | Orchestrator ruling |
 | D12 | Live-credential tests are a separate opt-in suite, never skipped in CI | Settled | Orchestrator ruling |
 | D13 | Licence choice reopened pending an org-wide survey | OPEN | Phil, 2026-08-27 |
+| D14 | Single `main` branch, not the mandated `main`+`develop` GitFlow | Settled, needs ADR | Orchestrator ruling |
+| D15 | Release tags `vX.Y.Z`, semver, since no standard covers tagging | Settled | Orchestrator ruling |
+| D16 | `mask_error_details=True` set explicitly at construction | Settled | Standard |
 
 ---
 
@@ -114,41 +117,65 @@ without network access. But the testing standard treats a SKIP as a FAIL and req
 count of zero, so the usual `skipif` idiom would turn CI red. Exclusion by selection satisfies
 both: CI has zero skips, and the live suite still exists for whoever holds a key.
 
-## D6 - full RFC 9457, delivered via `ToolError`
+## D6 - full RFC 9457, returned as an errored `ToolResult`
 
-**Decision.** Tool failures raise `ToolError`. Its structured payload is a complete RFC 9457
-problem object carrying all seven mandated fields: `type`, `title`, `status`, `detail`,
-`instance`, `request_id`, `timestamp`. The `build_response(success=, error=)` envelope is not
-used anywhere in this repository.
+**Decision.** Tool failures return `ToolResult(structured_content=<problem>, is_error=True)`,
+where `<problem>` is a complete RFC 9457 problem object carrying all seven mandated fields:
+`type`, `title`, `status`, `detail`, `instance`, `request_id`, `timestamp`. The
+`build_response(success=, error=)` envelope is not used anywhere in this repository.
 
-**This was briefly marked provisional. That was my error.** Phil's standing ruling, 2026-08-27:
-where a reference project does not follow a standard, we follow the standard and do it right,
-and the only thing that overrides a standard is a specifically in-scope numbered ADR. A
-reference project is a source of patterns, never of authority. There was no dilemma here to
-adjudicate - the hierarchy already settled it, and `fast-mcp-jira` doing otherwise is a finding
-about `fast-mcp-jira`.
+**Mechanism, verified rather than assumed.** An earlier version of this decision said "raise
+`ToolError` carrying the problem object as its structured payload". That is not implementable:
+`ToolError.__init__(self, *args: object, log_level: int = 40)` accepts a message string and a
+log level, and has no structured-payload parameter. `ToolResult(content, structured_content,
+meta, is_error)` is the type that carries structure. The intent was right and the call was
+wrong. Note this signature was read from fastmcp 3.4.7; it must be re-confirmed against
+4.0.0b4, which is our actual target - tracked as part of the 4.0 spike.
 
-**The two open questions, now resolved rather than deferred.** RFC 9457 requires `type` and
-`instance` to be URIs, and MCP has no request URI to hang them on:
+**Why the standard governs the shape.** `architecture/error-contract.md` mandates RFC 9457 and
+explicitly retires the envelope `fast-mcp-jira` uses. Per the standing rule, a reference project
+is a source of patterns and never of authority, so the reference doing otherwise is a finding
+about the reference. Returning a success-shaped dict on failure, as it does, reports every
+upstream Jobvite 4xx to the model as a success.
 
-- **`type`** is a relative, stable, slugged reference as `architecture/error-contract.md:210-211`
-  already requires: `/problems/<slug>`, for example `/problems/jobvite-auth-failed`. The
-  standard's own choice of relative references is what makes this transport-independent, so
-  nothing needs inventing.
-- **`instance`** identifies the specific occurrence. With no request URI available, it is a URN:
-  `urn:fast-mcp-jobvite:invocation:<request_id>`. A URN is a URI, it is stable, and it
-  identifies exactly one tool invocation. This is an adaptation of the transport, not a
-  deviation from the contract, so it needs no ADR.
-- **`status`** carries the upstream Jobvite HTTP status where one exists, and the
+**`type` and `instance` on a transport with no request URI.**
+- `type` is a relative, stable, slugged reference as `error-contract.md:210-211` already
+  requires: `/problems/<slug>`, for example `/problems/jobvite-auth-failed`. The standard's own
+  choice of relative references is what makes this transport-independent.
+- `instance` is a URN: `urn:fast-mcp-jobvite:invocation:<request_id>`. A URN is a URI, it is
+  stable, and it identifies exactly one tool invocation. `error-contract.md:290` defines
+  `instance` as the URI of the request that generated the error, so this is a synthesised value
+  rather than a natural one.
+- `status` carries the upstream Jobvite HTTP status where one exists, and the
   semantically-equivalent code otherwise (400 for input validation, 503 for an upstream 5xx per
-  `backend/error-handling.md:411-424`).
+  `backend/error-handling.md:411-424`). A tool error has no HTTP status of its own, so this is
+  also synthesised.
 
-**Why `ToolError` is the delivery mechanism and not a competing design.** `ToolError` is how
-MCP signals failure - it is what makes a client observe `isError: true`. That is protocol
-plumbing and is orthogonal to error *shape*. Returning a success-shaped dict on failure, as the
-reference project does, means every upstream 4xx is reported to the model as a success. The two
-requirements compose; they never conflicted.
+**This requires an ADR, and not because of a clever reading.** `error-contract.md:44` requires
+the media type `application/problem+json` on all error responses. An MCP tool error travels
+inside a 200 OK JSON-RPC body whose content type is fixed by the transport, and setting
+`problem+json` would break protocol conformance. **B3 is violated in the letter and no
+implementation can satisfy it.** The ADR records that, scoped to the MCP transport only.
+
+Where a real HTTP surface does exist - the health endpoint, transport-level auth rejections -
+`problem+json` is applied properly, so the clause is honoured everywhere it can be.
 
 **Consequence.** A reviewer should fail this repo if any tool returns a failure as a normal
 result, if any problem object is missing one of the seven fields, or if a stack trace or
 upstream detail leaks into `detail`.
+
+## D16 - `mask_error_details=True`, set explicitly
+
+**Decision.** The server is constructed with `mask_error_details=True`.
+
+**Why this is its own decision and not an implementation detail.** FastMCP defaults it to
+**False**. The unmasked raise path interpolates the original exception into the client-facing
+message, so out of the box the full text of any unhandled exception - httpx internals, whatever
+a Jobvite error body happens to contain - is sent to the caller. That is a direct violation of
+the error-contract's no-internal-detail rule, present before we write a line of our own code,
+and `fast-mcp-jira` does not set it.
+
+**Known limitation.** Masking is client-facing only. The full traceback, including the masked
+text, is still written to the server log. Credentials therefore must never be interpolated into
+an exception message, and the log stream is treated as sensitive.
+

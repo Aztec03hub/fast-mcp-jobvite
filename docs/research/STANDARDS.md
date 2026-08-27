@@ -576,7 +576,7 @@ because they desynchronize across replicas"*, `:94-97`). The stated rationale is
 multi-replica desynchronization.
 **Adaptation:** a single-process MCP server has no replica-desync problem, so the
 rationale for the Redis mandate does not obtain. Introducing Redis into a
-zero-dependency personal repo to satisfy a rule whose stated reason is inapplicable is
+zero-dependency single-process repo to satisfy a rule whose stated reason is inapplicable is
 the wrong trade. The binding residue: (a) an outbound limiter respecting Jobvite's own
 quota, since B34's 429 retry path presumes one; (b) the 429 response shape
 (`:361-362`, `RateLimitException` → `/problems/rate-limited`) if the server ever
@@ -740,8 +740,8 @@ ticket system, and it is conventional-commits-compatible so `amannn/action-seman
 
 **C4. PR title traceability assumes a ticket system this repo does not have.**
 B73 requires `[FEAT-XXX] Description` and `agentic-coding-standard.md:398-403` gives a
-CI check that **fails the build** on a PR title lacking `[FEAT-|FR-|BUG-]`. A personal
-public repo has no such ticket namespace. Meanwhile `devops/ci-cd.md:300-321` enforces
+CI check that **fails the build** on a PR title lacking `[FEAT-|FR-|BUG-]`. This
+standalone repo has no such ticket namespace. Meanwhile `devops/ci-cd.md:300-321` enforces
 a *semantic* (conventional-commit) PR title, which the bracketed-ID format would fail.
 The two required CI checks are mutually unsatisfiable as written.
 **Worse on re-sweep:** there are three incompatible ID vocabularies, not two —
@@ -794,7 +794,8 @@ closed. Obligations extracted as **B89-B96** in §6.
 *(Superseded and greatly expanded by §6 following the hosting change — §6 is now the
 authoritative treatment. Retained here for continuity.)*
 I grepped the full tree for "open source", "open-source release", and "public
-repository": **zero hits.** This project is going into Phil's personal *public* GitHub.
+repository": **zero hits.** This project is canonical at `evolvconsulting/fast-mcp-jobvite`
+— an evolv-owned *public* repository.
 Nothing in the corpus covers: which LICENSE to choose, whether an evolv copyright
 header is required, what may be published under an individual's account versus the
 org's, PyPI publication and trusted publishing, CONTRIBUTING/CODE_OF_CONDUCT, security
@@ -975,9 +976,11 @@ Sources: `devops/ci-cd.md:81, 85, 125, 157, 173, 246, 306, 501, 525, 552, 571, 7
    documents; I did not check any repository for compliance, and I did not verify that
    the CI jobs described in `ci-cd.md` exist in any real workflow file.
 
-7. **The correct license for a public personal repo containing evolv-derived work.**
-   No standard covers it (G2). The repo already has a `LICENSE` file I did not open
-   or evaluate — deliberately, since choosing it is Phil's call, not mine.
+7. ~~**The correct license for this repo.**~~ **RESOLVED by decision, not by standard.**
+   Phil has ruled: **MIT**, `Copyright (c) 2026 evolv Consulting`, and the team lead has
+   set it in the repo. The corpus remains silent (G2/§6.1-6.2 stand as the evidence that
+   no standard dictates it) — this was closed by a decision, which is the correct way to
+   close a gap a standard does not cover.
 
 8. **Whether `fast-mcp-jira` is intended as a reference implementation.** I noted
    three places where copying it would start this repo in violation (`build_response`

@@ -48,15 +48,23 @@ This repository is **public**, under a consulting org. That constrains what this
 
 `Jobvite/APIConnectorSamples` also carries **no licence file**. Short excerpts are quoted below as evidence of API mechanics; the code is not copied into this repo.
 
-### 0.2 A judgement call the team should review
+### 0.2 Verbatim vendor prose: removed by ruling
 
-The v1 sections (§12, §15.2) quote short passages from a document marked **CONFIDENTIAL**. My reasoning for quoting rather than paraphrasing: the brief requires verbatim evidence over paraphrase; the quotes are short and load-bearing; API parameter names, limits, and error codes are facts about an interface rather than creative expression; and the document was publicly served from `careers.jobvite.com` and publicly archived, i.e. it was not obtained from a customer tenant or any confidential channel.
+An earlier draft quoted short passages from the CONFIDENTIAL-marked Data Services v3.5 document as evidence. **Team-lead ruled on 2026-08-27 that no verbatim text from that document may appear in this repository**, and the ruling has been applied throughout - not only to the two sections originally flagged.
 
-That is a judgement, not a licence. **If the team prefers zero verbatim text from a CONFIDENTIAL-marked document in a public repo, §12 and §15.2 can be reduced to fact tables with the quotes stripped, at the cost of evidentiary strength.** Flagging rather than deciding silently.
+What that means in practice, and what a reader can rely on:
+
+* **Every fact is retained**: parameter names, types, defaults, limits, enumerations, error codes, pagination semantics, endpoint paths and methods. All of it is stated in my own words, in tables where possible.
+* **No sentence of Jobvite's prose remains.** Sample URLs from the document have been rewritten with placeholder credentials and values.
+* **Citations are retained** so a reader holding the document can verify any line.
+* Error-code tables give the code and my description of the condition rather than the vendor's message string. A client matching on numeric codes needs nothing more; the exact strings are in the cited document.
+
+Quotations from **third-party** sources (open-source clients, integration configs, help-centre search indexing) are retained, since the ruling concerns the confidential vendor document.
 
 ### 0.3 Credentials and identifiers
 
 * **No real credential appears in this report.** I found a **live-looking Jobvite API key and secret hard-coded** in a public third-party repo (`sahil-kho/ats-integrations`, in `JobVite/jobvite_data_model_integrations.json` and `JobVite/jobvite_customer_integration_config.json`). Per instruction, the location is named and **the values are not reproduced**. Someone should consider notifying that repo's owner; the secret appears to belong to a Jobvite integration partner, not to us.
+* A **second** live-looking credential pair exists in a different public repo: `atipica/jobvite_api` commits a VCR cassette whose recorded request URI contains an `api`/`sc` pair (`spec/fixtures/cassettes/client/candidates.yml`). Again the location is named and **no value is reproduced**. That repo has been dormant for years, so the credential is likely dead, but it should be treated as live until someone confirms otherwise.
 * **No customer hostname, tenant, or company id appears.** No data was pulled from any customer tenant - I hold no Jobvite credential, so every live probe was unauthenticated and returned only auth-challenge errors.
 * Sample record ids and company ids drawn from vendor documentation examples are replaced with placeholders (`<companyId>`, `<processInstanceId>`, `<applicationId>`) even though they are vendor samples rather than customer data.
 * All probes were **unauthenticated GETs** (plus a handful of POSTs with an empty `{}` body that were rejected at the auth layer before reaching any handler). Nothing was created, modified, or read from any Jobvite account.
@@ -73,6 +81,7 @@ Every line in this document carries one of four labels.
 | `[PROBE]` | I sent the request myself on 2026-08-27 and am quoting the server's actual response. This is first-party evidence from Jobvite's production host, but the *semantics* behind a status code are my reading. |
 | `[INFERRED]` | Read off a third-party client or integration config, not Jobvite's own docs. Corroboration, not documentation. |
 | `[ABSENT]` | I looked and it is not there. Stated as loudly as any positive finding. |
+| `[RECORDED-3P]` | A real server response, captured by a third party and committed to their repo, not produced by me. Stronger than `[INFERRED]` (it is the server's own output) but weaker than `[PROBE]` (I did not observe it, and cannot date or re-run it). |
 
 **Primary sources**
 
@@ -84,6 +93,7 @@ Every line in this document carries one of four labels.
 | raml-apis/Jobvite | `https://github.com/raml-apis/Jobvite/blob/master/api.raml` | `[INFERRED]` Third-party RAML 0.8 of the v1 API; matches the 2014 PDF closely enough to be a transcription of it. **Not vendored into this repo** (no licence - see [Licensing](#0-licensing-and-handling-of-sources)). |
 | kippnorcal/jobvite | `https://github.com/kippnorcal/jobvite/blob/master/jobvite.py` | `[INFERRED]` Working Python v2 client. Source of the header-auth mechanics. |
 | atipica/jobvite_api | `https://github.com/atipica/jobvite_api/blob/master/lib/jobvite_api/api/client.rb` | `[INFERRED]` Working Ruby v2 client (query-string auth era). |
+| **atipica/jobvite_api VCR cassette** | `https://github.com/atipica/jobvite_api/blob/master/spec/fixtures/cassettes/client/candidates.yml` | **`[RECORDED-3P]`** A recorded real HTTP interaction with `GET /api/v2/candidate` - request URI and full 200 response body. **The only observed Jobvite success response available anywhere in this research.** Third-party capture, not mine, so it reflects that account and that date - but it is a genuine server response, not a client's guess. See §6.1. |
 | jeremylivingston/jobvite | `https://github.com/jeremylivingston/jobvite/blob/master/src/Livingstn/Jobvite/Client.php` | `[INFERRED]` PHP v1 jobFeed client. Source of the staging hostname. |
 | frague/rm | `https://github.com/frague/rm/blob/master/server/controllers/integrations/jobvite.ts` | `[INFERRED]` TypeScript v2 client. |
 | sahil-kho/ats-integrations (JobVite/) | `https://github.com/sahil-kho/ats-integrations/tree/main/JobVite` | `[INFERRED]` A production ATS-integration config for Jobvite: exact header names, request bodies, response field paths, webhook payload fields. The richest v2 artifact I found. **Note: this repo leaks a live-looking Jobvite API secret; the value is not reproduced in this report.** |
@@ -122,7 +132,7 @@ This is the single most important input to our design, so it goes first.
 
 * `[OFFICIAL]` The public summary of the docs situation, as indexed from the help centre: *"Documentation is available to customers and ATS integration partners"* - i.e. gated by design.
 
-* `[OFFICIAL]` Credentials are issued by humans, not self-service: *"In order to access the services you will need to be issued an API key and secret key by the Jobvite Customer Success team. Please file a request here: http://recruiting.jobvite.com/support/customer"* (Data Services v3.5, "Accessing Our Services").
+* `[OFFICIAL]` Credentials are issued by humans, not self-service: the customer requests an API key and secret from the Jobvite Customer Success team via a support request. Source: Data Services v3.5, "Accessing Our Services" (see §0 - facts only, vendor prose not reproduced).
 
 **Consequence for us:** we cannot generate tools from a spec, and we cannot fully validate parameter names for most v2 resources without a customer sandbox and the gated PDF. Plan for a customer-supplied doc drop, or design for a narrow, evidence-backed subset. See §19.
 
@@ -158,7 +168,7 @@ This is the single most important input to our design, so it goes first.
 
 **Customer-specific identity.** There is **no per-customer hostname**. The company is identified two ways:
 
-* `[OFFICIAL]` **`companyId`** - a query parameter, required for `/v1/jobFeed` and present in the Employee JSON body as `CompanyId`. How to find it: *"You can find your company ID by looking in Admin/Profile and looking under the Career Site section. The company ID is the numbers and letters after the c= in the url."* The docs give a sample value of this shape (8 alphanumeric characters); the literal sample is replaced with `<companyId>` throughout this report.
+* `[OFFICIAL]` **`companyId`** - a query parameter, required for `/v1/jobFeed` and present in the Employee JSON body as `CompanyId`. How to find it: in Admin/Profile, under the Career Site section, it is the alphanumeric value following `c=` in the career-site URL. The docs give a sample value of this shape (8 alphanumeric characters); the literal sample is replaced with `<companyId>` throughout this report.
 * The **API key itself** scopes the caller to a company for the v2 endpoints - no `companyId` parameter appears in any working v2 client I read. `[INFERRED]`
 
 ---
@@ -171,12 +181,16 @@ This is the section that decides our config and security posture, so it is the m
 
 `[OFFICIAL]` Two opaque strings, issued by a human at Jobvite:
 
-> "What you need from us: • API key – This will give you access to a service to get data related to your company. • Secret key – This will be used to validate your API key."
-> - Data Services v3.5, "Accessing Our Services"
+| Credential | Purpose |
+|---|---|
+| API key | identifies the caller and scopes access to that company's data |
+| Secret key | validates the API key |
 
-`[OFFICIAL]` There is also an optional IP allowlist: *"You may also give us the IP address of the server that will be calling our service to increase security."* and *"What we need from you: • The IP address of the server accessing our services."*
+Source: Data Services v3.5, "Accessing Our Services".
 
-`[OFFICIAL]` For the Requisition (Jobs) API specifically, a feature flag must be turned on first: *"Before starting development, please file a support ticket with the Jobvite Customer Success team asking that the 'Jobs API' be enabled for your company. This can be done at the same time the customer requests their company specific API Key, API Secret, and Company ID."*
+`[OFFICIAL]` An optional IP allowlist is available: the customer supplies the IP address of the server that will call the API, and Jobvite restricts the credential to it.
+
+`[OFFICIAL]` The Requisition (Jobs) API requires a per-company feature flag: the customer must file a support ticket asking Customer Success to enable the "Jobs API" for their company. It can be requested alongside the API key, secret, and company id.
 
 `[ABSENT]` **There is no OAuth2, no bearer token, no token endpoint, and therefore no token lifetime.** `GET /api/v2/oauth`, `/api/v2/token`, `/api/v2/auth`, `/api/v2/login`, `/api/v2/authenticate` all return `404 Invalid URL Cannot find API.` The credentials are long-lived static secrets; rotation is a support ticket.
 
@@ -210,7 +224,7 @@ Independently corroborated by a production integration config, on both the read 
 `[OFFICIAL]` v1 uses query parameters, and the parameter names differ between endpoints - this is a real trap:
 
 * `/v1/candidate` uses **`api`** and **`secret`**:
-  > `https://api.jobvite.com/v1/candidate?api=jobvite&secret=test&action=getNewHires&format=hrxml&datestart=08-01-2009&dateend=2009-08-15T11:21:33-0700`
+  > `https://api.jobvite.com/v1/candidate?api=<api_key>&secret=<secret>&action=getNewHires&format=hrxml&datestart=<date>&dateend=<date>`
 * `/v1/jobFeed` and `/v1/contacts` use **`api`** and **`sc`**:
   > `https://api.jobvite.com/v1/jobFeed?companyId=<companyId>&api=<api_key>&sc=<secret>&start=10&count=100&type=full-time&availableTo=internal&category=Finance&department=Human Resource&location=Burlingame, CA, USA&region=Europe`
 
@@ -289,6 +303,19 @@ A 401 means *the route is registered and auth ran first*; it does **not** prove 
 `offer`, `user`/`users`, `requisition`, `hiringTeam`/`hiringteam`, `eeo`/`eeoc`, `attachment`, `application`/`applications`, `note`/`notes`, `activity`, `source`/`sources`, `referral`, `company`, `onboard`, `newHire`, `evaluation`, `questionnaire`, `survey`, `tag`, `jobFeed`, `careerSite`, `resume`, `file`, `document`, `picklist`, `metadata`, `schema`, `ping`, `health`, `status`, `version`, `agency`, `vendor`, `email`, `event`/`events`, `subscription`, `workflowState`, `stage`/`stages`, `rejectReason`, `background`, `assessment`, `feedback`, `interviewFeedback`, `scorecard`, `recruiter`, `hiringManager`, `interviewer`, `panel`, `schedule`, `calendar`, `search`, `report`, `analytics`, `export`, `import`, `bulk`, `sync`, `template`, `pipeline`, `jvx`, `bridge`, `engage`, `talemetry`, `hire`, `approval`, `permission`, `group`, `team`, `organization`, `salary`, `compensation`, `history`, `audit`, `config`, `settings`, `admin`, `profile`.
 
 **Important caveat about `application`.** `sahil-kho/ats-integrations` describes a *"2-step: start-chain → create"* application write and its README calls it `POST /application/create`. `[PROBE]` **`/api/v2/application` and `/api/v2/application/create` both 404 on GET and POST.** Reading the actual config resolves the contradiction: the real call is `POST /api/v2/candidate` with a nested `application` object (§7.2). The README's path is wrong; trust the config, not its prose.
+
+---
+
+### 6.1 The one observed success response `[RECORDED-3P]`
+
+Everything else in this document describes Jobvite's **error** behaviour or reconstructs success shapes from client code. There is exactly one genuine success response available: a VCR cassette committed to `atipica/jobvite_api`, recording `GET /api/v2/candidate?count=5&start=0&format=json`. It resolves four questions that no amount of unauthenticated probing could:
+
+1. **A success body DOES carry a `status` block.** The response envelope is `{"candidates": [...], "total": <int>, "status": {"code": 200, "messages": []}}`. So `status.code` is present on success as well as failure, and a client can read it uniformly rather than treating its absence as success. This closes the open question in the contract document's error rule.
+2. **`total` is the full result-set size, not the page size.** The recorded call requested 5 records and the response reported a `total` in the hundreds of thousands. A pagination loop must never treat `total` as a page count.
+3. **`start=0` is accepted and returns records**, rather than erroring. That falsifies the "1-based and strict" hypothesis, though it still does not distinguish "0-based" from "1-based with clamping" - see the contract document's pagination section.
+4. **The real candidate field map**, which is substantially richer than what any client's field mapping revealed - including EEO fields and an inline resume. Documented in the contract document rather than repeated here.
+
+**Handling note.** That cassette is a third-party artifact containing an `api`/`sc` credential pair in the recorded request URI, and candidate records including EEO attributes. The records appear to be demo or sanitised data (placeholder-looking names, empty email addresses, EEO values of `Undefined`), but that is an observation, not a guarantee. **Nothing from it is copied into this repository** - only the structure is described, and our fixtures are invented from scratch. The leaked credential is noted in §0.3 alongside the other one.
 
 ---
 
@@ -431,7 +458,7 @@ Everything in this section is `[OFFICIAL]`, from *Jobvite Data Services v3.5, Ju
 
 ### 12.1 Candidate API - `GET /v1/candidate`
 
-> "This service can be used to get information about candidates and new hires... **We will return up to 500 candidates.** Please note that this API returns HR-XML"
+Returns candidate and new-hire records, **capped at 500 per call**, encoded as **HR-XML** rather than JSON.
 
 | Parameter | Required | Description (verbatim) |
 |---|---|---|
@@ -445,13 +472,13 @@ Everything in this section is `[OFFICIAL]`, from *Jobvite Data Services v3.5, Ju
 | `dateformat` | Optional | "The supported defaults are: `MM/dd/yyyy`, `MM-dd-yyyy`, `MM-dd-yyyy'THH:mm:ssZ`" |
 | `start`, `count` | Optional | See pagination below |
 
-> "The API can only call up to 500 candidates at a time. To retrieve more than 500 at once, leverage the `count` and a `start` parameter you can specify in the URL. For example, if you already get the first 500 records and you want the next 500 records, you would add `start=501&count=500` in the URL. The count means how many you want (maximum 500). The start means from where you want the next set of candidates."
+**Pagination semantics, as documented:** `count` is the page size with a maximum of 500; `start` is the index the page begins at. The document's worked example retrieves records 501-1000 with `start=501&count=500`, which makes the indexing **1-based**.
 
 **Response** is HR-XML (`http://ns.hr-xml.org/2007-04-15`) wrapped in `<Results xmlns="http://api.jobvite.com/action/api/v1" action="getNewHires" version="1.0">` with a `<NewHires first="1" count="1" total="1">` or `<Candidates first="1" count="3" total="3">` envelope. Candidate ids appear as `<ns:IdValue name="applicationId">&lt;applicationId&gt;</ns:IdValue>`; EEO data as `<ns:DemographicDescriptors><ns:Race/></ns:DemographicDescriptors>` and `<ns:BiologicalDescriptors><ns:GenderCode>1</ns:GenderCode></ns:BiologicalDescriptors>`; custom fields as `<Field type="Candidate" name="...">value</Field>`.
 
 ### 12.2 `POST /v1/candidate` with `action=updateCandidates`
 
-> "Format – Required – hrxml/json/csv. POST Data: The json should be sent as a post parameter with name **`data`**."
+`format` is required and accepts `hrxml`, `json`, or `csv`. The JSON payload is sent as a POST parameter named **`data`** (not as a raw JSON request body).
 ```json
 [{ "applicationId": "xyz123", "wflowstate": "Offer Accepted" },
  { "applicationId": "xyz456", "wflowstate": "Rejected" }]
@@ -460,14 +487,15 @@ This is the **only documented way to advance a candidate's workflow state.**
 
 ### 12.3 Employee API - `POST /v1/employee`
 
-> "This operation is **not incremental**. If there are any employee information missing in subsequent feeds, that employee information is removed from the system."
-> "Note: This is a scheduled task that runs nightly and an email confirmation will be received upon completion after 24 hours."
+**Two documented behaviours that make this endpoint dangerous:**
+1. The operation is **not incremental**. It is a full-roster replace: any employee absent from a later feed is **removed from Jobvite**.
+2. It is processed as a **nightly scheduled task**, not synchronously. Confirmation arrives by email within roughly 24 hours, so the HTTP response does not tell you the sync succeeded.
 
 Required fields: `FirstName`, `LastName`, `Name` (the email address). Body-level flags: `CompanyId`, `ImporterEmail`, `ReportEmail`, `DoNotSyncOnWarnings`, `OverwriteEmployeeNamesAndEmail`, `DoNotRestoreDeleted`, `IgnoreExcludes`, `DoNotPerformEmployeeUpdates`, and an `Employees[]` array with `FirstName`, `LastName`, `Name`, `DepartmentName`, `LocationName`, `RegionName`, `SubsidiaryName`, `Role`, `Title`, `EmployeeId`.
 
-**Role enumeration** (verbatim): `Recruiter`, `Administrator`, `SuperUser`, `HR`, `Scheduler`, `HiringManager`, `Research`, `JobApprover`, `Employee` ("default if no role is provided"). And a live footgun: *"If you import a field called Role, we will overwrite all employees' existing roles in Jobvite."*
+**Role enumeration:** `Recruiter`, `Administrator`, `SuperUser`, `HR`, `Scheduler`, `HiringManager`, `Research`, `JobApprover`, `Employee` (applied by default when a row supplies no role). And a live footgun: *"If you import a field called Role, we will overwrite all employees' existing roles in Jobvite."*
 
-*"We never sync if there are errors."*
+Jobvite does not apply the sync at all if the submitted data contains errors; warnings alone can be configured to allow or block the sync via `DoNotSyncOnWarnings`.
 
 ### 12.4 Requisition API - `POST /v1/job`
 
@@ -483,7 +511,7 @@ Two feeds: an XML feed (URL obtained from Customer Support; standard fields `id`
 | `sc` | yes | - | Secret |
 | `companyId` | yes | - | "the numbers and letters after the c= in the URL" |
 | `start` | no | `1` | "denotes the starting index. Default start index: 1" |
-| `count` | no | `100` | "Default count: 100; **Posting Limit per call: 1000**" |
+| `count` | no | `100` | page size; **maximum 1000 postings per call** |
 | `type` | no | - | "Job type, configured in Admin" - e.g. `Contractor, Full-time, Intern, Part-time` |
 | `availableTo` | no | `External` | `External`, `Internal` |
 | `category` | no | - | "The categories used on your career site, configured in Admin" |
@@ -529,10 +557,9 @@ Auth: `api` + `sc` in the query string. Body: `userEmail*`, `importDuplicates` (
 * No documented requests-per-second, per-minute, per-hour, or per-day figure exists in any source I found - official or third-party.
 * `[PROBE]` The response headers contain **no** `X-RateLimit-*`, `RateLimit-*`, or `Retry-After` header. The full header set on a 401 is: `Date`, `Content-Type`, `Content-Length`, `Connection`, `Pragma`, `Cache-Control`, `Server: Jobvite`, four `Set-Cookie: AWSALBAPP-*`, `Access-Control-Allow-Origin: *`, `X-JOBVITE-PROXY: true`. That is all.
 * `[ABSENT]` I did **not** observe a 429 from Jobvite and cannot describe its backoff behaviour. I deliberately did not attempt to trigger one.
-* `[OFFICIAL]` What exists instead is **prose guidance**, not a limit:
-  > "Best Practices: Calling the API: • Jobvite recommends calling our API on an 'as needed' basis. Should customers need to call the API more frequently than **once a day**, it is required that parameters be set on one of the following: o Dates at which candidates hit a desired workflow state. o # of candidates per candidate list page (last 100, last 500 etc.) o Candidates specific to a given requisition. o Requisitions that have only seen changes"
+* `[OFFICIAL]` What exists instead is **cadence guidance**, not a limit. Data Services v3.5, "Best Practices: Calling the API", states that Jobvite expects the API to be called on an as-needed basis, and that any customer needing to call it **more often than once a day** is required to constrain the call with at least one of: a workflow-state date filter, a bounded page size (their examples: last 100, last 500), a specific requisition's candidates, or only requisitions that have changed.
 
-  Read that carefully: the *expected* cadence is **once a day**, and anything more frequent is expected to be **filtered**. That is a far tighter operating envelope than a typical SaaS API, and it is the closest thing to a documented limit that exists.
+The expected cadence is therefore **once a day**, with anything more frequent expected to be **filtered**. That is a far tighter operating envelope than a typical SaaS API, and it is the closest thing to a documented limit that exists.
 * `[INFERRED]` A production integration syncs Jobvite hourly (`"dataSyncFrequencyInHours": 1`, `sahil-kho/ats-integrations`), so hourly polling is evidently tolerated in practice.
 
 **Design consequence:** we must assume an undocumented limit exists, implement conservative client-side throttling plus exponential backoff on 429/5xx, and cache aggressively - and we must **not** put a number in our docs that Jobvite has never published.
@@ -562,33 +589,38 @@ Observed verbatim:
 
 ### 15.2 v1 error codes `[OFFICIAL]`
 
-Full catalogue from Appendix B of Data Services v3.5, verbatim:
+The full numeric catalogue is documented in Appendix B of Data Services v3.5. Codes and conditions are reproduced below **in my own words**; the vendor's exact message strings are not reproduced here (see §0) but are in the cited document, and a client matching on codes does not need them.
 
-| Code | Message |
+**Candidate retrieval (100 series)**
+
+| Code | Condition |
 |---|---|
-| 100 | No candidates or new hires found for the given query. |
-| 101 | API key & secret could not be validated. |
-| 102 | format is required. |
-| 103 | Unable to parse datestart=* |
-| 104 | Unable to parse dateend=* |
-| 105 | An error occurred retrieving candidates. |
-| 106 | Unknown format requested. |
-| 107 | Error preparing candidate information. |
-| 108 | Unrecognized candidate state (parameter wflowstate) in the request. |
-| 201 | Cannot load the company from the json. *(updateCandidates)* |
-| 202 | The data in the request is not a JSON array. |
-| 203 | "applicationId" item is missing from the JSON. |
-| 204 | Cannot find the application from the "applicationId". |
-| 205 | Cannot find the candidate. |
-| 206 | Candidate is not a candidate for this company. |
-| 207 | Cannot determine a workflow state from the "wflowstate" item. |
-| 208 | Error updating the candidate's record in the database. |
+| 100 | No candidates or new hires matched the query |
+| 101 | API key and secret could not be validated |
+| 102 | `format` parameter missing |
+| 103 | `datestart` could not be parsed |
+| 104 | `dateend` could not be parsed |
+| 105 | Failure while retrieving candidates |
+| 106 | Unrecognised value for `format` |
+| 107 | Failure while preparing the candidate payload |
+| 108 | Unrecognised value for `wflowstate` |
 
-(`*` = "Incorrect format value.")
+**`updateCandidates` (200 series)**
 
-v1 errors are returned in the response envelope: `<Errors><Error code="100">No candidates or new hires found for the given query.</Error></Errors>`, and *"If there are any errors processing the request, only the Errors data will be returned."*
+| Code | Condition |
+|---|---|
+| 201 | Company could not be resolved from the submitted JSON |
+| 202 | Submitted data was not a JSON array |
+| 203 | `applicationId` missing from an element |
+| 204 | No application matches the supplied `applicationId` |
+| 205 | Candidate not found |
+| 206 | Candidate does not belong to this company |
+| 207 | `wflowstate` value could not be resolved to a workflow state |
+| 208 | Database error while updating the candidate |
 
-`[ABSENT]` **There is no equivalent published error-code catalogue for v2.** The 2014 PDF itself admits the gap even for v1 new-hires: *"The exact new hire data and error codes will be provided in a revision of this document."* No such revision is public.
+Errors are returned inside the response envelope as `<Errors><Error code="N">...</Error></Errors>`, and when a request errors the response contains **only** the error data - no partial results.
+
+`[ABSENT]` **There is no equivalent published error-code catalogue for v2.** The 2014 document itself notes that new-hire error codes were deferred to a later revision; no such revision is public.
 
 ---
 
@@ -684,7 +716,7 @@ Listed without softening. Each one is a real hole.
 3. **The Onboard New Hire API** (`/hc/en-us/articles/22012542918813`) - SPA shell, no content. Its relationship to `/api/v2/task` is my inference, not established fact.
 4. **Whether query-string auth still works on v2.** A bogus header pair and a bogus query pair return byte-identical 401s, so my probe cannot discriminate. Only a valid credential can settle it.
 5. **The exact header-auth cutover date.** Two third parties give two dates (2023-10-01 and 2024-04-01) and the announcement is behind the login.
-6. **Whether `start` is 0-based or 1-based on v2.** Three working clients disagree (§13). Off-by-one risk on every paged read.
+6. **Whether `start` is 0-based or 1-based on v2 - STILL UNRESOLVED, now with better evidence.** Three working clients disagree (§13). A recorded call (§6.1) proves `start=0` is accepted and returns records, which rules out a strict 1-based server that rejects 0, but does **not** distinguish a 0-based server from a 1-based one that clamps `0` to `1`. The contract document specifies a defensive design that is correct under either, plus a two-request runtime probe that settles it once a credential exists.
 7. **The request/response contract for 13 of the 17 v2 resources** - `interview`, `employee`, `contact`, `workflow`, `department`, `location`, `category`, `customfield`, `message`, `webhook`, `disposition`, `offerLetter`, `role`, `batch`. I know only that the routes exist and answer with an auth challenge.
 8. **Which HTTP methods each v2 resource supports.** I probed POST on 7 resources and PUT/DELETE on 1. A 401 on GET says nothing about whether POST is routed.
 9. **Rate limits.** No numbers, no headers, no observed 429, no documented backoff. See §14.
@@ -694,7 +726,7 @@ Listed without softening. Each one is a real hole.
 13. **Any working sandbox.** `api-stg.jobvite.com` and `app-stg.jobvite.com` both fail DNS resolution today, despite `api-stg` being documented for every v1 endpoint. I could not confirm any non-production environment exists in 2026.
 14. **`/v1/contacts` liveness.** Documented in 2014, never probed (POST-only; a GET result would have been misleading).
 15. **The Talemetry API.** `https://api.talemetry.com` returns 401 at the root, so something is there. I found no documentation and did not map it.
-16. **Actual response bodies.** I hold **no valid credential**, so every response shape in this document comes from a third-party client's field mappings, never from a 200 I saw myself.
+16. **Actual response bodies - PARTIALLY RESOLVED since first draft.** I still hold no credential and have never seen a Jobvite success response myself. However, one genuine recorded 200 for `GET /api/v2/candidate` was found in a third-party VCR cassette (§6.1), which settles the success envelope, the `status`-on-success question, `total` semantics, and the candidate field map. **The other four in-scope operations remain entirely unobserved**: no recorded success exists for `POST /api/v2/candidate`, `GET /api/v2/job`, `POST /api/v2/task`, or `GET /v1/jobFeed`.
 17. **The `/api/v2/task` filter operator catalogue.** `eq` is the only operator in Jobvite's sample.
 18. **The 2014 PDF's currency.** It is the authority for v1 in this document and it is **12 years old**. Behaviour may have drifted; its own text promises a revision that was never published.
 

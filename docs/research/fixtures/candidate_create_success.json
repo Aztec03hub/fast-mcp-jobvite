@@ -1,0 +1,7 @@
+{
+  "application": {
+    "EId": "TESTAPP9",
+    "candidate": { "EId": "TESTCND9" }
+  },
+  "status": { "code": 201, "messages": [] }
+}

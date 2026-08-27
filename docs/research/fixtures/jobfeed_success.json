@@ -1,0 +1,19 @@
+{
+  "total": 1,
+  "jobs": [
+    {
+      "id": "TESTJOB1",
+      "title": "Fixture Position",
+      "requisitionid": "TESTREQ1",
+      "category": "Fixture Category",
+      "jobtype": "Full-time",
+      "location": "Fixtureville, ZZ, US",
+      "date": "2026-01-01",
+      "detail-url": "https://careers.example.invalid/job/TESTJOB1",
+      "apply-url": "https://careers.example.invalid/apply/TESTJOB1",
+      "briefdescription": "FIXTURE BRIEF DESCRIPTION",
+      "description": "<p>FIXTURE JOB DESCRIPTION</p>",
+      "hiringManager": "Fixture Manager"
+    }
+  ]
+}

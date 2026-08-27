@@ -1,0 +1,29 @@
+{
+  "requisitions": [
+    {
+      "eId": "TESTJOB1",
+      "title": "Fixture Position",
+      "description": "<p>FIXTURE JOB DESCRIPTION - recruiter-authored HTML.</p>",
+      "applyLink": "https://careers.example.invalid/apply/TESTJOB1",
+      "jobState": "Open",
+      "department": "Fixture Department",
+      "category": "Fixture Category",
+      "locations": [ { "city": "Fixtureville", "state": "ZZ", "country": "US" } ],
+      "lastUpdatedDate": 1700000004000,
+      "sentDate": 1700000000000
+    },
+    {
+      "eId": "TESTJOB2",
+      "title": "Second Fixture Position",
+      "description": null,
+      "applyLink": "https://careers.example.invalid/apply/TESTJOB2",
+      "jobState": "On Hold",
+      "department": null,
+      "category": "Fixture Category",
+      "lastUpdatedDate": 1700000005000,
+      "sentDate": null
+    }
+  ],
+  "total": 2,
+  "status": { "code": 200, "messages": [] }
+}
