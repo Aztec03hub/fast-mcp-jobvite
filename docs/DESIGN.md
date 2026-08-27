@@ -60,8 +60,11 @@ from a module-level variable.
 **Single-process is load-bearing**, not incidental: ADR-0002's rate-limiting argument assumes one
 process. Running this multi-worker breaks it silently: each worker gets its own buckets, so the
 effective limit multiplies by the worker count while every log line still reports the configured
-number. Stated here because it is the kind of assumption someone violates by
-deploying normally.
+number. **That is the standard's own objection, not our extrapolation** -
+`backend/rate-limiting.md:94-97` forbids in-memory limiters *"because they desynchronize across
+replicas"*, and gives the worked case: *"a 4-replica deployment with in-memory limits gives each
+client 4× the intended quota."* Workers substitute for replicas exactly. Stated here because it is the kind of assumption
+someone violates by deploying normally.
 
 ### 1.1 The constraint that shapes everything
 
@@ -160,7 +163,22 @@ hand-maintained lists that must correspond is a defect waiting for the first sch
 ### 2.2 `create_candidate` is guarded two ways
 
 It is the only write, it creates real records in a real ATS, its side effect is an email to a
-live human, and there is no sandbox. **Two gates, deliberately not three:**
+live human, and there is no sandbox.
+
+**The governing clause is `ai/agent-guardrails.md:70-73`**, and this section exists to discharge it:
+
+> *"**Default-deny destructive operations.** Any irreversible or high-blast-radius action (delete,
+> financial transaction, **outbound message to a third party**, infra change, mass update) MUST
+> pause for human approval before execution. Fail closed: no approver, no action."*
+
+Three things in it are load-bearing here and are easy to miss. It names **outbound message to a
+third party** as destructive in its own right, which is why §7.5's approval must disclose the email
+and not only the record - the email is not a side effect of the gated action, it *is* one of the
+gated actions. It says **MUST pause before execution**, which is a per-invocation obligation that a
+deploy-time flag alone cannot meet. And it says **fail closed: no approver, no action**, which is
+the rule every refusal path below is measured against.
+
+**Two gates, deliberately not three:**
 
 1. **Deploy-time.** Not registered unless `JOBVITE_ENABLE_WRITES=true`. Enforced server-side; a
    client cannot bypass it. Conceptually the weakest control and the only unconditionally
@@ -702,9 +720,13 @@ the retry. Accessors are `ctx.input_responses` and `ctx.request_state` on `Conte
 **The approval request must state what is actually being authorised, including the email.** This is
 the one place the strongest gate can be satisfied honestly and still produce the outcome it exists
 to prevent: an approver shown "create candidate Jane Doe" approves a database row, and thereby
-authorises **an email to Jane Doe** that nobody mentioned. The elicitation payload therefore names
-the candidate, the target job, and **whether `send_email` is true**, in those terms. An approval
-obtained without showing the email is not an approval for the email.
+authorises **an email to Jane Doe** that nobody mentioned. **The standard settles this rather than
+leaving it to our judgement**: `ai/agent-guardrails.md:70-73` lists *"outbound message to a third
+party"* among the destructive actions that must pause for approval, alongside deletes and financial
+transactions (§2.2). The email is therefore not an incidental consequence of an approved write - it
+is separately a gated action, so an approval that never mentioned it has not been obtained for it.
+The elicitation payload accordingly names the candidate, the target job, and **whether `send_email`
+is true**, in those terms.
 
 `send_email` is also an argument like any other and is subject to §2.1's schema rules; it defaults
 to `false` (§2.2) so the dangerous value is never the one reached by omission.
@@ -808,10 +830,18 @@ Adopted, each constructed with explicit arguments: `Timing`, `StructuredLogging`
 from this design decide it: the cacheable responses are candidate PII (§2); §7.2's three scopes
 exist precisely so different callers see different data; and §4.4 **measured** that this
 framework's sibling middleware defaults every caller to the literal string `"global"` while its
-docstring implies per-client. `architecture/caching.md:833` requires cache keys namespaced by
-tenant or user and `:841` names un-namespaced user-specific caching as a Don't. If the cache keys
-without client identity, a candidate-PII-scoped result can be served to a public-job-data token,
-defeating §7.2 entirely through one middleware line.
+docstring implies per-client. If the cache keys without client identity, a candidate-PII-scoped
+result can be served to a public-job-data token, defeating §7.2 entirely through one middleware line.
+
+**What `architecture/caching.md` contributes, at its actual strength**, because an earlier revision
+cited it as a requirement and it is not one: the file contains no `MUST` anywhere. Its strongest
+statement is `:841`, *"Cache user-specific data without proper namespacing"*, listed as a **Don't** -
+which is the clause that bears on us, since a candidate record is user-specific data. `:628`'s
+*Cache Key Namespacing* section shows the canonical shape, a tenant-scoped key built from the tenant
+id, and `:833` advises namespacing *"when needed"*. So the standard supplies a prohibition, a
+pattern, and an advisory tick. **The binding force here is ours, not the standard's:** §2's PII
+classification and §7.2's three scopes are what make un-namespaced caching unacceptable in this
+server, and `caching.md:841` agrees rather than compels.
 
 We have not executed its key derivation, and the honest position is that we do not need to: **the
 only benefit is latency against an upstream nobody has ever successfully called.** Dropping it

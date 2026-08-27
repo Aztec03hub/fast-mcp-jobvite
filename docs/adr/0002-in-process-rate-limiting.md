@@ -4,9 +4,15 @@
 
 ## Context
 
-`backend/rate-limiting.md:355-356` mandates a Redis token bucket on every public-facing surface and
-forbids in-memory limiting, requiring an ADR to opt out. Its stated rationale is desynchronisation
-across replicas.
+`backend/rate-limiting.md:356` mandates a token bucket via Redis and forbids in-memory limiters in
+production; `:355` requires an ADR to opt out of rate-limiting a public endpoint. Those two rules
+are terse and carry no rationale.
+
+**The rationale is at `:94-97`**, and it is specific enough to test our situation against rather
+than paraphrase. In-memory limiters are *"forbidden in production because they desynchronize across
+replicas"*, and the standard gives the worked case: *"a 4-replica deployment with in-memory limits
+gives each client 4× the intended quota."* That is the whole objection, and it is a statement about
+replica count.
 
 The standard also never defines "public-facing surface", so a localhost developer tool and an
 internet-hosted service carry identical obligations under its text.
@@ -17,10 +23,13 @@ Use FastMCP's own `RateLimitingMiddleware`, in process. Do not require Redis.
 
 ## Consequences
 
-A single-process server has no replicas to desynchronise, so the clause's rationale does not obtain.
-**Single-process is therefore load-bearing and is stated in the design**: running multi-worker
-multiplies the effective limit by the worker count while every log line still reports the configured
-number.
+A single-process server has no replicas to desynchronise, so the clause's rationale does not obtain
+at one replica. **But it obtains exactly as written at more than one**, and the standard's own
+worked example is the failure mode: 4 replicas, 4x the intended quota. **Single-process is therefore
+load-bearing and is stated in the design**: running multi-worker multiplies the effective limit by
+the worker count while every log line still reports the configured number. That is not an analogy to
+`:94-97`, it is the same defect with workers substituted for replicas, which is why the deviation is
+safe only while the process count stays at one.
 
 **Two further clauses this ADR must also dispose of**, since substituting the mechanism does not
 dispose of them:
