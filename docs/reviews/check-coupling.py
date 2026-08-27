@@ -50,10 +50,26 @@ What this script does NOT check, stated so a green is not read as more than it i
   - Whether a mitigation described in the Mitigation column is real, implemented, or sufficient.
   - Anything in §11 outside the STRIDE and closing tables: the prose, the counts written out in
     it, and the Residual Risks rationales are all unchecked.
-  - Row selection keys on the substring "Mitigated" in the Mitigation column, which is prose. A row
-    stating its mitigation without that word is silently treated as unmitigated. Tracked as FIX-8
-    and deliberately NOT changed here: narrowing the selector changes which rows the gate judges,
-    and that belongs in its own pass rather than in the one that widened the severity band.
+  - ONE property still depends on the prose keyword, and it cannot be made not to (FIX-8, below).
+    A row that describes a real mitigation without using the word "Mitigated" AND disposes of
+    itself as "residual"/"unmitigated"/"accepted" is not caught. Every other check reaches it.
+
+FIX-8, and the part of it that is not closeable here. Check 3 used to iterate only rows whose
+Mitigation column contained the literal word "Mitigated". Eight rows describe a real mitigation
+without ever using it - C1-D1's reads "`RateLimitingMiddleware` with a mandatory `get_client_id`,
+sized per session" - so they were skipped in silence. The check was right; the selector decided it
+never ran. Check 3 now iterates EVERY row, and vocabulary, band matching, the Critical/High
+exemption ban and §8 resolution are all keyed on the rating or on the Test cell itself, never on
+prose. Nothing can be made invisible by wording.
+
+The keyword survives in exactly one place: a row that DOES say "Mitigated" may not dispose of
+itself with a disposition meaning "not mitigated". Inverting the loop alone silently lost that
+property - controls 3, 10 and 11 went green - so it is kept, and it is used only to ADD a
+requirement to rows that carry the keyword, never to decide whether a row is checked at all. That
+direction is fail-safe: dropping the keyword loses one check instead of all of them.
+
+Closing it completely needs mitigation status to be DATA rather than prose - an explicit status
+token per row in §11. That is an edit to DESIGN.md, not to this script, and it is the lead's call.
 """
 
 from __future__ import annotations
@@ -70,6 +86,9 @@ CATEGORIES = ["S", "T", "R", "I", "D", "E"]
 # is rejected by check 7 rather than silently accepted, so an invented or mistyped disposition
 # cannot pass for a real one. Derived from the dispositions the document actually uses.
 NOT_REQUIRED_RE = re.compile(r"^not required \((Critical|High|Medium|Low)\)$")
+# Dispositions that assert the row is NOT mitigated. A row claiming a mitigation may not use one.
+NOT_MITIGATED_RE = re.compile(r"^(?:residual|accepted(?: \(B\d+(?:, ?B\d+)*\))?"
+                              r"|unmitigated(?: \(B\d+(?:, ?B\d+)*\))?)$")
 DISPOSITION_RE = re.compile(
     r"^(?:"
     r"no credible threat"
@@ -148,10 +167,14 @@ def main(path: pathlib.Path) -> int:
     mitigated = high & all_mitigated
     unmitigated = high - mitigated
 
-    # 3. every mitigated row, at ANY severity, accounts for itself: it either names a §8 case that
-    #    exists, or carries an explicit "not required (<rating>)". Critical/High may not use the
-    #    latter - at those ratings a mitigation must have a test.
-    for rid in sorted(all_mitigated):
+    # 3. EVERY row disposes of itself. This loop iterates all rows rather than a selected subset,
+    #    because the selection is what failed: this check used to run only over rows whose
+    #    Mitigation column contained the literal word "Mitigated", and eight rows describe a real
+    #    mitigation without ever using it (C1-D1's is "`RateLimitingMiddleware` with a mandatory
+    #    `get_client_id`, sized per session"). Those rows were skipped in silence, and the check
+    #    was correct the whole time - the selector decided it never ran. Nothing below consults
+    #    mitigation prose, so no future wording can make a row invisible again.
+    for rid in sorted(rows):
         test = rows[rid]["test"]
         rating = rows[rid]["risk"].strip("* ")
         if test.startswith("§8:"):
@@ -160,9 +183,12 @@ def main(path: pathlib.Path) -> int:
                 failures.append(f"{rid} names §8 case {missing!r}, which does not appear in §8")
         elif (m := NOT_REQUIRED_RE.match(test)) is not None:
             if rid in high:
+                # "not required" is an exemption from having a test. At Critical and High there is
+                # no such exemption: the row either names a §8 case, or says plainly that it is not
+                # mitigated (residual / unmitigated / accepted). Keyed on the rating, not on prose.
                 failures.append(
-                    f"{rid} is a mitigated {rating} row and may not use {test!r}: at Critical and "
-                    f"High a mitigation must name a §8 case"
+                    f"{rid} is a {rating} row and may not use {test!r}: at Critical and High a row "
+                    f"either names a §8 case or declares itself unmitigated"
                 )
             elif m.group(1) != rating:
                 # The disposition names the band it is claiming exemption at. If that band is not
@@ -172,10 +198,23 @@ def main(path: pathlib.Path) -> int:
                     f"{rid} is rated {rating} but its disposition {test!r} claims exemption at "
                     f"{m.group(1)}; the rating in the disposition must match the row's own"
                 )
-        else:
+        elif not DISPOSITION_RE.match(test):
             failures.append(
-                f"{rid} is a mitigated {rating} row but its Test cell neither names a §8 case nor "
-                f"carries a 'not required (<rating>)' disposition: {test!r}"
+                f"{rid} has an unrecognised Test cell {test!r}; expected a '§8: <case>' reference "
+                f"or one of: no credible threat / residual / accepted / unmitigated / "
+                f"not required (<rating>)"
+            )
+        elif rid in all_mitigated and NOT_MITIGATED_RE.match(test):
+            # A row that claims a mitigation may not dispose of itself with a disposition that
+            # means "not mitigated". This is the ONE place the prose keyword is still consulted,
+            # and it is deliberately used to ADD a requirement, never to decide whether the row is
+            # checked at all - which is the direction that produced FIX-8. A row that drops the
+            # keyword loses this extra check but keeps every other one above; see the limitation
+            # recorded in the module docstring.
+            failures.append(
+                f"{rid} states a mitigation but its Test cell is {test!r}, which means the row is "
+                f"NOT mitigated; a mitigated row names a §8 case or carries 'not required "
+                f"(<rating>)'"
             )
 
     # 4. unmitigated Critical/High must be disposed of
@@ -204,35 +243,23 @@ def main(path: pathlib.Path) -> int:
         for missing in sorted(mitigated - claimed):
             failures.append(f"roster omits {missing}, a mitigated Critical/High row")
 
-    # 7. every Test cell on every row is drawn from the recognised vocabulary, and any §8 reference
-    #    resolves even on a row that is not mitigated. A dangling reference is a defect regardless
-    #    of severity, and an invented disposition must not read as a real one.
-    for rid in sorted(rows):
-        test = rows[rid]["test"]
-        if test.startswith("§8:"):
-            if rid not in all_mitigated:
-                missing = names_missing_case(test)
-                if missing is not None:
-                    failures.append(f"{rid} names §8 case {missing!r}, which does not appear in §8")
-        elif not DISPOSITION_RE.match(test):
-            failures.append(
-                f"{rid} has an unrecognised Test cell {test!r}; expected a '§8: <case>' reference "
-                f"or one of: no credible threat / residual / accepted / unmitigated / "
-                f"not required (<rating>)"
-            )
+    # (The former check 7 - vocabulary, and §8 resolution on rows that are not mitigated - is now
+    #  part of check 3, which iterates every row. Keeping it separate is what let the two loops
+    #  disagree about which rows they covered.)
 
-    tested = sum(1 for r in all_mitigated if rows[r]["test"].startswith("§8:"))
+    tested = sum(1 for r in rows if rows[r]["test"].startswith("§8:"))
     print(f"{path}: {len(rows)} STRIDE rows, {len(high)} Critical/High "
-          f"({len(mitigated)} mitigated, {len(unmitigated)} not); "
-          f"{len(all_mitigated)} mitigated at all severities, {tested} naming a §8 case.")
+          f"({len(mitigated)} mitigated by the roster's reckoning, {len(unmitigated)} not); "
+          f"all {len(rows)} rows checked for disposition, {tested} naming a §8 case.")
     if failures:
         print(f"FAIL: {len(failures)} problem(s)")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print("PASS: ids unique, STRIDE coverage complete, every mitigated row AT EVERY SEVERITY names "
-          "a §8 case that exists or an explicit disposition, every unmitigated Critical/High row is "
-          "disposed of, every Test cell uses the recognised vocabulary, and every id the closing "
+    print(f"PASS: ids unique, STRIDE coverage complete, all {len(rows)} rows at EVERY severity "
+          "dispose of themselves by naming a §8 case that exists or carrying a recognised "
+          "disposition at their own rating, no Critical/High row claims exemption from having a "
+          "test, every unmitigated Critical/High row is disposed of, and every id the closing "
           "tables name is defined.")
     return 0
 

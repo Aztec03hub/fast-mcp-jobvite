@@ -76,7 +76,7 @@ CONTROLS = [
 
     ("3  High mitigated row's §8 case replaced by a bare 'residual' (C1-R1)",
      lambda t: test_cell(t, "C1-R1", "residual"),
-     "C1-R1 is a mitigated High row"),
+     "C1-R1 states a mitigation but its Test cell is 'residual'"),
 
     ("4  §8 case deleted, §11 unchanged (H2's exact failure mode)",
      lambda t: s8_drop_case(t, "an off-loopback bind without TLS refuses to start"),
@@ -108,13 +108,13 @@ CONTROLS = [
 
     ("10 NEW BAND: Medium mitigated row C3-D1 swaps its §8 case for a bare 'residual'",
      lambda t: test_cell(t, "C3-D1", "residual"),
-     "C3-D1 is a mitigated Medium row but its Test cell neither names a §8 case nor carries a "
-     "'not required (<rating>)' disposition"),
+     "C3-D1 states a mitigation but its Test cell is 'residual', which means the row is NOT "
+     "mitigated"),
 
     ("11 NEW BAND: Low mitigated row C6-T1 swaps its §8 case for a bare 'residual'",
      lambda t: test_cell(t, "C6-T1", "residual"),
-     "C6-T1 is a mitigated Low row but its Test cell neither names a §8 case nor carries a "
-     "'not required (<rating>)' disposition"),
+     "C6-T1 states a mitigation but its Test cell is 'residual', which means the row is NOT "
+     "mitigated"),
 
     ("12 VOCABULARY: invented disposition on a Medium row (typo 'not required (Meduim)')",
      lambda t: test_cell(t, "C2-I1", "not required (Meduim)"),
@@ -122,7 +122,28 @@ CONTROLS = [
 
     ("13 STRICTNESS SURVIVES: mitigated High row C1-S1 uses 'not required (High)'",
      lambda t: test_cell(t, "C1-S1", "not required (High)"),
-     "C1-S1 is a mitigated High row and may not use 'not required (High)'"),
+     "C1-S1 is a High row and may not use 'not required (High)'"),
+
+    # --- the arm that would have caught FIX-8 ---
+    # C1-D1's Mitigation column describes a real mitigation and never uses the word "Mitigated".
+    # Under the keyword selector every one of these three passed at exit 0. They are the reason
+    # check 3 now iterates every row: a control whose subject is chosen from the covered set can
+    # only ever confirm the coverage it was chosen from.
+    ("14a KEYWORD-BLIND ROW, band laundering: C1-D1 (no literal 'Mitigated' in its prose)",
+     lambda t: test_cell(t, "C1-D1", "not required (Low)"),
+     "C1-D1 is rated Medium but its disposition 'not required (Low)' claims exemption at Low"),
+
+    ("14b KEYWORD-BLIND ROW, dangling §8 case: C4-I1 (no literal 'Mitigated' in its prose)",
+     lambda t: test_cell(t, "C4-I1", "§8: a case that was never written"),
+     "C4-I1 names §8 case 'a case that was never written', which does not appear in §8"),
+
+    ("14c KEYWORD-BLIND ROW, invented disposition: C9-S1 (no literal 'Mitigated' in its prose)",
+     lambda t: test_cell(t, "C9-S1", "not requried (Medium)"),
+     "C9-S1 has an unrecognised Test cell 'not requried (Medium)'"),
+
+    ("14d CRITICAL/HIGH may not claim exemption, even with no keyword: C5-R1 (High, unmitigated)",
+     lambda t: test_cell(t, "C5-R1", "not required (High)"),
+     "C5-R1 is a High row and may not use 'not required (High)'"),
 
     ("14 BAND LAUNDERING: Medium row C5-T1 claims exemption at Low",
      lambda t: test_cell(t, "C5-T1", "not required (Low)"),
