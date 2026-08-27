@@ -276,10 +276,11 @@ Ordered timeout, then retry, then circuit breaker.
   retry check unwraps one level of `__cause__`. Measured: one call, **four rows created**.
 - **One circuit breaker for Jobvite. 4xx must not trip it** - a bad candidate id is the caller's
   problem, not a health signal.
-- **An open breaker is distinguishable from an outage.** It returns `/problems/jobvite-circuit-open`
-  with `status` 503 and a `retry_after` hint, where a genuine upstream failure returns
-  `/problems/jobvite-unavailable`. Without distinct slugs a caller cannot tell "Jobvite is down"
-  from "we have stopped calling Jobvite", and those need different responses.
+- **An open breaker is distinguishable from an outage without inventing a type.** Both use
+  `/problems/service-unavailable` at 503, per the registry; what distinguishes them is `detail`,
+  which says whether Jobvite failed or whether we have stopped calling it, plus a `retry_after`
+  hint. An earlier revision minted two slugs for this. The distinction is real and worth making;
+  a new contract-bearing type URI is not the way to make it.
 - **Jobvite's `429`, if it exists, is retried and then mapped to 503**, honouring `Retry-After`
   when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
   path is written defensively and is unexercised.
@@ -999,8 +1000,8 @@ Jobvite's, not ours, each needing explicit handling:
 6. **Duplicate creates return `409`, and none of §2.2's gates prevent one.** Both gates stop
    an *unauthorised* write; none stops an *authorised* write being made twice - a model calling the
    tool again after a timeout, or a user approving twice. The `409` shape is `[INFERRED]` and never
-   observed. So `create_candidate` surfaces a `409` as `/problems/jobvite-duplicate-candidate`
-   rather than a generic failure, and never retries (§4.3). This is a real residual risk, not a
+   observed. So `create_candidate` surfaces a `409` as `/problems/conflict`
+   with the duplicate named in `detail`, rather than as a generic failure, and never retries (§4.3). This is a real residual risk, not a
    solved one: we can report a duplicate, not prevent it.
 7. **Route-level 404s.** `404 "Invalid URL Cannot find API."` means the route does not exist, not
    that a record was not found. The record-level not-found shape is unknown.
@@ -1279,7 +1280,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C4-R1 | The approval decision is not among the audited fields, so there is no record that a gated write was authorised. `agent-guardrails.md:122` requires it (B17) | H | M | **High** | **Mitigated in §5.3:** the audit event includes `approval_state` and the mechanism that produced it. `agent-guardrails.md:79` separately requires recording *who* approved, which is unsatisfiable here and is scoped out by ADR-0009 for the approver only | §8: the audit event is emitted and carries its mandated fields |
 | C4-I1 | **The approval request describes the candidate about to be written, so the audit stream holds candidate PII by construction** - the exposure the cut token would have carried moved here rather than disappearing (§5.3) | M | M | Medium | `approval_state` falls inside §4.1's single redaction point rather than beside it, and the audit stream carries the same handling class as the log stream Mitigated. | §8: candidate PII never reaching a log or audit record |
 | C4-D1 | An abandoned approval hangs the call. A client-side timeout does not bound it because the handler runs in the client's process (§7.5) | M | M | Medium | No server-side bound is possible. Disclosed to integrators. Carried to Residual Risks | residual |
-| C4-D2 | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/jobvite-duplicate-candidate` rather than a generic failure. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Carried to Residual Risks | residual |
+| C4-D2 | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/conflict` with the duplicate named in `detail`. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Carried to Residual Risks | residual |
 | C4-E1 | An accepted elicitation carrying `approve: false` treated as approval | M | H | **High** | The guard checks action **and** value: `action == "accept" and content.get("approve") is True`, with a deny arm and an accept-carrying-false arm in the required tests (§7.5, §8). Mitigated | §8: accept-carrying-false refuses |
 | C4-E2 | Era misdetection downgrades or bypasses the control - `protocol_version` absent, or a future era value nobody has seen | L | H | Medium | The discriminator is measured rather than inferred (§7.5), which removed the inert-`hasattr` failure. **An unidentifiable era now refuses the write and logs the observed value**; with the token cut there is no weaker path to fall through to, so the failure mode is refusal rather than silent downgrade. Mitigated | §8: approval on BOTH eras |
 
@@ -1398,7 +1399,7 @@ is derived from the table rather than maintained beside it; the script checks th
 | A host may auto-respond to elicitation with no human present, so an approval attests to a host response and not to a person (C4-S1) | High | Not mitigable by a tool provider. The MCP specification places human-in-the-loop on the host. §7.5 states the honest claim and never asserts human approval. The one control that operates without host cooperation is the deploy-time flag; the confirmation token an earlier revision named beside it was cut (§7.6) and is not defence in depth for anything |
 | Fencing reduces but cannot eliminate indirect prompt injection from candidate free text (C6-S1) | Medium | Fencing plus delimiter stripping plus an allow-listed output model is the strongest available server-side control. The remaining exposure is the calling model's susceptibility, which is the host's boundary. Red-team cases are merge-gating (§6.1, §8) |
 | An abandoned approval hangs the call with no server-side bound (C4-D1) | Medium | The elicitation handler runs in the client's process, so no server-side timeout reaches it. The write is safe on every refusal path including abandonment, with `rows=0` confirmed. Disclosed to integrators |
-| An authorised write can be made twice, creating a duplicate candidate and a second email to a live person (C4-D2) | Medium | Detection, not prevention: the write is never retried (§4.3) and a `409` surfaces as `/problems/jobvite-duplicate-candidate`. The `409` shape is inferred rather than observed, so even the detection rests on a hypothesis until a credential exists |
+| An authorised write can be made twice, creating a duplicate candidate and a second email to a live person (C4-D2) | Medium | Detection, not prevention: the write is never retried (§4.3) and a `409` surfaces as `/problems/conflict` with the duplicate named in `detail`. The `409` shape is inferred rather than observed, so even the detection rests on a hypothesis until a credential exists |
 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is an operator assertion the server cannot verify (C8-E2) | Medium | The server cannot see what terminates TLS in front of it. The alternative, trusting `X-Forwarded-Proto`, is spoofable by anyone who can reach the port and would be a worse control. An unverifiable assertion that fails loudly when absent beats a verifiable-looking one that lies |
 | A configuration reload is a quota amnesty and repeated reloads bypass rate limiting (C2-D1) | Low | Requires operator access, already inside the trust boundary. Framework limitation: only `limiters.clear()` applies new values |
 | The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I2) | Medium | Accepted only until C7-I2's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
