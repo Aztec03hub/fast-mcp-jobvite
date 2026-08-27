@@ -508,10 +508,10 @@ Required cases, each failing if its defence is removed:
   leg actually consumes `ctx.input_responses`;
 - token replay, expiry, and payload mismatch each refused;
 - a 4xx not tripping the circuit breaker;
-- the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug;
-- **no `except httpx.` outside `services/jobvite_client.py`**, checked by AST import analysis
-  rather than grep. A grep misses aliased imports, `from httpx import ...`, and matches inside
-  strings and comments.
+- the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug.
+
+Transport substitution uses `httpx2`'s built-in `MockTransport`. No third-party mocking library is
+required, which matters because a credential-free test strategy cannot afford to depend on one.
 
 Coverage: 80% floor overall, 85% tool modules, 90% the Jobvite client, 95% line and 90% branch on
 critical paths (auth, argument rejection, the error rule, approval, the write).
@@ -562,10 +562,28 @@ prerelease = "explicit"
 resolve because `fastmcp-slim` arrives transitively. Naming it directly resolves pydantic to
 stable.
 
-**HTTP client is `httpx`, not FastMCP's `httpx2`: ADR-0007.** Our whole test strategy rests on
-transport mocking, and httpx2's mocking ecosystem is unproven. The hazard this creates is that
-`except httpx.HTTPError` will never catch a FastMCP-raised exception - guarded by module
-confinement plus the AST test in §8.
+**HTTP client is `httpx2`, the same one FastMCP ships: ADR-0007.** One HTTP stack in the image,
+not two.
+
+An earlier revision chose `httpx` on the belief that httpx2 was "a fork with a much smaller
+ecosystem" whose mocking support was unproven. **That characterisation was wrong and was never
+checked.** Verified:
+
+- `httpx2` is authored by **Tom Christie, httpx's own author**, and published under the
+  **pydantic** organisation. Its README states plainly that *"With HTTPX itself seeing limited
+  activity recently, Pydantic is picking up stewardship under the HTTPX2 name so that users have a
+  reliably maintained path forward - including timely security updates."*
+- It is **the maintained continuation**, not a competitor. Releases through 2.12.0 in August 2026;
+  `httpx` itself has shipped only `1.0.devN` prereleases.
+- It ships `httpx2/_transports/mock.py`. **`MockTransport` is built in**, so the entire premise -
+  that our credential-free test strategy would rest on unproven mocking - was false. We need no
+  third-party mocking library at all.
+
+Choosing `httpx` would have meant two HTTP stacks and two TLS surfaces in one image, a dependency
+with limited activity in the critical path, and a silent hazard we would have invented ourselves:
+`except httpx.HTTPError` can never catch a FastMCP-raised exception. Adopting httpx2 removes that
+hazard rather than guarding it, so the module-confinement rule and its AST test in §8 are dropped
+as unnecessary.
 
 CI: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
 in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output is emitted and
@@ -613,6 +631,6 @@ All are external unknowns. None is a reasoned-but-unexecuted claim about our own
 - **ADR-0004** - `ResponseLimitingMiddleware` excluded; size bounded in-tool.
 - **ADR-0005** - the `ai/` standards domain binds this repository by intent.
 - **ADR-0006** - single `main` branch rather than the mandated `main`+`develop` GitFlow.
-- **ADR-0007** - `httpx` rather than FastMCP's `httpx2`.
+- **ADR-0007** - `httpx2` rather than `httpx`, matching what FastMCP ships.
 - **ADR-0008** - special-category EEO fields excluded from output models (§6.2), since the GDPR
   machinery is non-binding and this is therefore a decision rather than a cited obligation.
