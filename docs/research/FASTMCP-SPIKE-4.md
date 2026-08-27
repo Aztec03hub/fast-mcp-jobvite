@@ -843,16 +843,59 @@ With the **default** `transform_errors=True`:
 
 **Verdict: ⛔ do NOT add `ErrorHandlingMiddleware`.** If it is ever wanted for its `error_callback` hook, it must be constructed with `transform_errors=False`.
 
-### 13.3 ✅ RetryMiddleware — works as documented
+### 13.3 ⛔ RetryMiddleware — mechanically works, but UNSAFE for us and CANNOT be scoped
+
+It does retry, as documented:
 
 ```
 --- RetryMiddleware ---
    flaky: is_error=False content=['ok after 3 attempts'] server-side attempts=3
 ```
 
-Configured `max_retries=3, base_delay=0.01, retry_exceptions=(ConnectionError,)`; the tool raised `ConnectionError` twice and succeeded on the third attempt. The retry is **server-side and invisible to the client**.
+**But it cannot be excluded from a single tool, and that is disqualifying.** Full constructor
+`[FROM SOURCE]`:
 
-**Verdict: ✅ VERIFIED.** Caveat for our use: retries are silent, so a flaky Jobvite endpoint would inflate latency with no client-visible signal. Pair it with `TimingMiddleware` if adopted, and keep `retry_exceptions` narrow — never retry a non-idempotent Jobvite write.
+```
+RetryMiddleware(max_retries=3, base_delay=1.0, max_delay=60.0,
+                backoff_multiplier=2.0,
+                retry_exceptions=(ConnectionError, TimeoutError),
+                logger=None)
+```
+
+There is **no `tools=`, `included_tools` or `excluded_tools` parameter**, and it hooks `on_request`,
+so it applies to every tool call on the server. Demonstrated against a non-idempotent tool whose
+side effect lands *before* the transient failure — the shape of a real `create_candidate` that
+writes the row and then loses the connection:
+
+```
+=== Does RetryMiddleware retry a non-idempotent tool? ===
+   -> NO tools=/included_tools/excluded_tools parameter exists.
+   result: is_error=True content=["Error calling tool 'create_candidate': transient failure AFTER the write landed"]
+   server-side invocations of create_candidate = 4
+   ROWS CREATED = 4 -> ['PLACEHOLDER-CANDIDATE#1', 'PLACEHOLDER-CANDIDATE#2',
+                        'PLACEHOLDER-CANDIDATE#3', 'PLACEHOLDER-CANDIDATE#4']
+   VERDICT: DUPLICATES CREATED
+```
+
+**One tool call produced four candidate records.** In a real ATS with no sandbox, that is four real
+duplicates from a single transient network blip.
+
+Worse, `_should_retry` also unwraps one level of `__cause__` `[FROM SOURCE]`:
+
+```python
+if isinstance(error, self.retry_exceptions):
+    return True
+cause = error.__cause__
+return cause is not None and isinstance(cause, self.retry_exceptions)
+```
+
+FastMCP wraps tool exceptions as `ToolError(...) from original`, so **an httpx `ConnectError`
+raised inside `create_candidate` and surfaced as a `ToolError` still triggers the retry.** Narrowing
+`retry_exceptions` does not protect a non-idempotent write; it only changes which transient causes
+trip it.
+
+**Verdict: ⛔ DO NOT USE.** If we want retries, they belong **inside the Jobvite client**, per-endpoint,
+where idempotency is known and `create_candidate` can be excluded by construction.
 
 ### 13.4 Middleware scoreboard after this spike
 
@@ -861,13 +904,158 @@ Configured `max_retries=3, base_delay=0.01, retry_exceptions=(ConnectionError,)`
 | `ResponseCachingMiddleware` | ✅ safe (opt-in per tool) |
 | `TimingMiddleware` | ✅ safe |
 | `StructuredLoggingMiddleware` | ✅ safe with `include_payloads=False` |
-| `RetryMiddleware` | ✅ safe, narrow `retry_exceptions` |
+| `RetryMiddleware` | ⛔ **cannot exclude a tool** — retries every call, duplicated a non-idempotent write 4x (§13.3) |
 | `RateLimitingMiddleware` | ⚠️ usable **only** with an explicit `get_client_id` |
 | `ErrorHandlingMiddleware` | ⛔ default breaks the error contract; needs `transform_errors=False` |
 | `ResponseLimitingMiddleware` | ⛔ broken (§6.3) |
-| `PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ still untested |
+| `PingMiddleware` | ➖ inert on our default era — the `ping` RPC does not exist in 2026-07-28 (§14.4) |
+| `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ still untested |
 
-**Three of the seven exercised so far ship a default that is wrong for us.** That is the durable lesson: on this framework, a middleware's defaults are not a safe starting point — each one needs its own spike before adoption.
+**Four of the eight exercised are unusable or need their defaults overridden.** That is the durable lesson: on this framework, a middleware's defaults are not a safe starting point — each one needs its own spike before adoption.
+
+
+---
+
+## 14. Middleware, round 2 — the D4 questions
+
+Run on Python 3.12.3, `fastmcp==4.0.0b4`. §13 established the basics; this section answers the
+specific decision questions. Where it contradicts §13, §13 has been **rewritten in place** — see
+§13.3, whose verdict is now REFUTED.
+
+### 14.1 RateLimitingMiddleware — the D4 verdict
+
+**Is the framework's limiter usable instead of building one?** ✅ **Yes, with three constraints.**
+Since Jobvite publishes no limits and returns no rate-limit headers, anything we use is purely
+client-side and configuration-driven, which is exactly what this middleware is.
+
+**(a) Per-client requires an explicit `get_client_id`** (§13.1). The default keys every caller to the
+literal string `"global"`.
+
+**(b) Identical on both protocol eras** — same server, same limiter, `burst_capacity=6`:
+
+```
+=== same limiter, both protocol eras ===
+   mode=auto  : tool calls before refusal = 4 (MCPError: Rate limit exceeded for client: global)
+   mode=legacy: tool calls before refusal = 4 (MCPError: Rate limit exceeded for client: global)
+```
+
+Both eras give **4 tool calls from a 6-token bucket** — consistent with the N-2 protocol-overhead
+finding in §13.1, and it holds on both, since both run `server/discover` + `tools/list` at
+connect. **✅ No era interaction.**
+
+**(c) ⚠️ NOT runtime-reconfigurable by attribute assignment.** The public attributes are
+`max_requests_per_second`, `burst_capacity`, `get_client_id`, `global_limit`, `limiters` — but
+mutating them does nothing to buckets that already exist:
+
+```
+   burst=4 initial: 2 calls (MCPError)
+   mutating rl.burst_capacity=20 and rl.max_requests_per_second=50 at runtime
+   after mutating attrs: 1 calls (MCPError)          <- NO EFFECT
+   existing limiter objects: 1 -> ['global']
+   clearing rl.limiters to force rebuild
+   after clearing limiters: 12 calls (None)          <- new settings applied
+```
+
+Each `TokenBucketRateLimiter` is constructed with the values current at first use and never
+re-reads them. A live config change requires `rl.limiters.clear()`, **which resets every client's
+quota** — i.e. a config reload is also a quota amnesty, and repeated reloads would be a trivial
+bypass. If runtime tuning matters, set limits at startup and restart to change them, or treat
+`limiters.clear()` as a deliberate, rate-limited admin action.
+
+**What it returns when it trips:** a **raised `MCPError`**, i.e. a JSON-RPC protocol error, not an
+`is_error=True` tool result:
+
+```
+MCPError: Rate limit exceeded for client: global
+```
+
+Consequence for our contract: a rate-limit refusal does **not** arrive as a tool error and will not
+carry an RFC 9457 problem object. A client sees a transport-level failure. If we want limit
+refusals to be contractually shaped like our other errors, the limiter cannot be the thing that
+produces them.
+
+**Verdict: ✅ USABLE for D4** — the ADR can say the framework limiter replaces a custom one,
+provided it documents the explicit `get_client_id`, the `calls + 2` burst sizing, the
+restart-to-reconfigure constraint, and that refusals are protocol errors rather than problem objects.
+
+### 14.2 ErrorHandlingMiddleware × `mask_error_details` × RFC 9457
+
+Five arms, verbatim. `problem` returns an RFC 9457 object as a **normal** return value:
+
+```
+--- mask=False, NO middleware (baseline) ---
+   terr: is_error=True content=['TOOLERROR-DETAIL placeholder']
+   plain: is_error=True content=["Error calling tool 'plain': PLAIN-DETAIL placeholder"]
+   problem: is_error=False structured={'type': '...', 'title': 'Candidate not found', 'status': 404, ...}
+--- mask=True,  NO middleware (baseline) ---
+   terr: is_error=True content=['TOOLERROR-DETAIL placeholder']
+   plain: is_error=True content=["Error calling tool 'plain'"]
+   problem: is_error=False structured={'type': '...', 'title': 'Candidate not found', 'status': 404, ...}
+--- mask=False, ErrorHandling(default transform_errors=True) ---
+   terr: RAISED MCPError: Internal error: TOOLERROR-DETAIL placeholder
+   plain: RAISED MCPError: Invalid params: Error calling tool 'plain': PLAIN-DETAIL placeholder
+   problem: is_error=False structured={'type': '...', 'title': 'Candidate not found', 'status': 404, ...}
+--- mask=True,  ErrorHandling(default transform_errors=True) ---
+   terr: RAISED MCPError: Internal error: TOOLERROR-DETAIL placeholder
+   plain: RAISED MCPError: Invalid params: Error calling tool 'plain'
+   problem: is_error=False structured={'type': '...', 'title': 'Candidate not found', 'status': 404, ...}
+--- mask=True,  ErrorHandling(transform_errors=False) ---
+   terr: is_error=True content=['TOOLERROR-DETAIL placeholder']
+   plain: is_error=True content=["Error calling tool 'plain'"]
+   problem: is_error=False structured={'type': '...', 'title': 'Candidate not found', 'status': 404, ...}
+```
+
+Three answers to your contractual questions:
+
+1. **RFC 9457 problem objects are completely unaffected** — by the middleware, by `transform_errors`,
+   and by `mask_error_details`, in all five arms. ✅ Because they are **returned, not raised**, they
+   never enter the error path at all. **This is a strong argument for making problem objects our
+   primary error channel**: they are the only shape in this matrix that no configuration can distort.
+2. **`mask_error_details` still works underneath the middleware** — the plain exception's detail is
+   stripped under `mask=True` even with `transform_errors=True`. The two compose; masking is not
+   defeated. ✅
+3. **But the default still destroys the raised-error shape**, and does so regardless of masking:
+   a clean `ToolError` becomes `MCPError: Internal error: ...` in both mask arms. A caller's input
+   mistake is reported as a server fault.
+
+**Verdict: ⛔ do not add it.** If ever needed for `error_callback`, construct with
+`transform_errors=False`, which restores baseline exactly.
+
+### 14.3 RetryMiddleware — see §13.3 (REFUTED)
+
+Answered directly: **it cannot be scoped to exclude a tool.** No `tools=`/`excluded_tools` parameter
+exists, it hooks `on_request`, and a non-idempotent tool produced **four rows from one call**.
+`_should_retry` also unwraps `__cause__`, so an httpx `ConnectError` surfaced as a `ToolError` still
+retries. `create_candidate` cannot be protected by configuration. Full evidence in §13.3.
+
+### 14.4 PingMiddleware — inert on our default era
+
+```
+PingMiddleware.__init__: (self, interval_ms: int = 30000)
+hooks it overrides: ['on_message']
+   mode=auto  : tool OK (ok) | ping() -> MCPError: Method not found
+   mode=legacy: tool OK (ok) | ping() -> True
+```
+
+The `ping` RPC **does not exist in the sessionless 2026-07-28 era** — it returns `Method not found` —
+while it works on the handshake era. That is coherent: keep-alive exists to hold a long-lived
+session open, and sessionless has no session to hold. Installing the middleware is harmless (tools
+still work in both modes), but on our default era it has nothing to do.
+
+**Verdict: ➖ NOT APPLICABLE for our default configuration.** Only relevant if we ever serve
+long-lived handshake-era clients over a connection-dropping intermediary.
+
+### 14.5 Recommendations arising
+
+1. **D4 ADR: adopt `RateLimitingMiddleware`**, do not build a custom limiter. Document the four
+   constraints in §14.1.
+2. **Do not adopt `RetryMiddleware`.** Put retries in the Jobvite client, per-endpoint, with
+   `create_candidate` excluded by construction rather than by config.
+3. **Do not adopt `ErrorHandlingMiddleware`.**
+4. **`PingMiddleware`: no.**
+5. **Prefer RFC 9457 problem objects as returns over raised errors** wherever the condition is
+   expected. §14.2 shows returned objects are the only error shape immune to middleware and
+   masking configuration.
 
 
 ## What I could NOT verify
@@ -878,7 +1066,9 @@ Configured `max_retries=3, base_delay=0.01, retry_exceptions=(ConnectionError,)`
 - **Whether the SIGTERM behaviour also affects stdio transport.** Only HTTP was tested.
 - **`ctx.elicit()` era-gating.** The upgrade guide says it raises on sessionless connections. Not exercised — we have no elicitation use case yet, and I did not want to report a guess.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
-- **`PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimitingMiddleware`, `ErrorHandlingMiddleware` and `RetryMiddleware` are now covered in §13. Three of the seven tested ship a default that is wrong for us, so **assume nothing about the remaining four.**
+- **`DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimiting`, `ErrorHandling`, `Retry` and `Ping` are covered in §§13–14. Four of the eight tested are unusable or need their defaults overridden, so **assume nothing about the remaining three.**
+- **Rate limiting under concurrency.** Every limiter test was sequential and single-client; I have not verified bucket behaviour under simultaneous callers, which is the case that matters in production.
+- **Whether `limiters.clear()` is safe to call on a live server.** I used it to prove reconfiguration requires it; I did not test it under load or check for a race with in-flight consumption.
 - **`JWTVerifier`, `DebugTokenVerifier`, `IntrospectionTokenVerifier`, `OAuthProxy`.** Only `StaticTokenVerifier` was run; the others need an IdP I will not fake.
 - **Token expiry**, and **cache TTL expiry** — I proved cache insertion and hit, never eviction.
 - **Concurrency.** Every test was single-client and sequential.

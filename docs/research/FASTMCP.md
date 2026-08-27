@@ -491,13 +491,16 @@ Built-ins (modules confirmed present at `fastmcp/server/middleware/` `[FROM SOUR
 | `StructuredLoggingMiddleware` | ✅ safe — keep `include_payloads=False` (payloads are candidate PII) |
 | `TimingMiddleware` | ✅ safe |
 | `ResponseCachingMiddleware` | ✅ safe; tool-call caching is **opt-in** via `call_tool_settings` |
-| `RetryMiddleware` | ✅ safe; keep `retry_exceptions` narrow, never retry a non-idempotent write |
-| `RateLimitingMiddleware` | ⚠️ **not per-client by default** — requires an explicit `get_client_id`, and it counts protocol requests, so size burst as `calls + 2` |
+| `RetryMiddleware` | ⛔ **cannot exclude a tool** — no `tools=` parameter, hooks `on_request`, and it duplicated a non-idempotent write 4x in one call. Put retries in the Jobvite client instead **[SPIKE §13.3]** |
+| `RateLimitingMiddleware` | ✅ **adopt for D4**, with: explicit `get_client_id` (default keys everyone to `"global"`), burst sized `calls + 2`, restart-to-reconfigure (attribute mutation has no effect), and refusals arriving as raised `MCPError`s not problem objects **[SPIKE §14.1]** |
 | `ErrorHandlingMiddleware` | ⛔ **default `transform_errors=True` breaks the `ToolError` contract** — turns tool failures into raised `MCPError`s and relabels `ToolError` as "Internal error". Only usable with `transform_errors=False` |
 | `ResponseLimitingMiddleware` | ⛔ **BROKEN** — truncation drops `structured_content` while the `outputSchema` remains, so the client raises. Cap sizes inside the tool instead |
-| `PingMiddleware`, `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ untested — assume nothing |
+| `PingMiddleware` | ➖ inert — the `ping` RPC does not exist on the sessionless era **[SPIKE §14.4]** |
+| `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ untested — assume nothing |
 
-Three of the seven exercised ship a default that is wrong for us. **Spike any middleware before adopting it.**
+Four of the eight exercised are unusable or need their defaults overridden. **Spike any middleware before adopting it.**
+
+**Error-shape note:** RFC 9457 problem objects *returned* from a tool are unaffected by `ErrorHandlingMiddleware`, `transform_errors` and `mask_error_details` alike — they are the only error shape no configuration can distort, which argues for making them our primary error channel for expected conditions **[SPIKE §14.2]**.
 
 Access HTTP headers inside middleware via `get_http_headers()` from `fastmcp.server.dependencies`.
 
