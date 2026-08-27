@@ -417,3 +417,65 @@ The truthiness trap is documented in the design even though we no longer elicit,
 applies to any future use and it is exactly the kind of defect that survives code review. It also
 warrants an upstream report: `DeclinedElicitation` and `CancelledElicitation` being truthy makes
 the obvious guard silently unsafe.
+
+---
+
+## P18 - Correction to P17's reasoning. The cut stands; my framing of the env var was wrong.
+
+P17's decision is unchanged - `create_candidate` is cut from v1.0 - but one line of its reasoning
+needs correcting, and the correction came from the agent pushing back on my brief.
+
+### Three further findings
+
+**Stdio does not save us.** Stdio also negotiates the sessionless era by default, so elicitation
+is unavailable there too, even with a working handler installed. Verbatim:
+`STDIO, mode=auto (DEFAULT) | handler ACCEPTS 'yes': ELICIT_RAISED ... unavailable on 2026-07-28
+connections | rows=0`. It works over stdio **only** when the client forces `mode="legacy"` **and**
+supplies a handler. The local-desktop case, where a human is most likely actually present, is not
+an escape hatch under default settings.
+
+**Annotations are transmitted but purely advisory.** All four hints arrive correctly on both
+eras. But nothing acts on them: grepping `destructiveHint` across the entire installed package
+returns exactly **one** non-test hit, a field-name alias table in `_compat.py:47`. There is no
+enforcement path, and a `destructiveHint=True` tool executed immediately with no interruption.
+**We set them - honestly and correctly, because a well-behaved host may prompt on them - but the
+design must never count them as satisfying the guardrail.**
+
+**Therefore: there is no MCP-native mechanism by which a server can guarantee a human approved a
+write.** Both candidates depend on client cooperation, and a control the server cannot guarantee
+is not a control.
+
+### The correction I owe
+
+I briefed this work calling the environment-variable gate "a compliance gap" and elicitation "the
+obvious fix". The first half is right. **The second half was wrong, and I would have made the
+design worse by acting on it.**
+
+The env var has one property neither alternative has: **it is enforced server-side and cannot be
+bypassed by a client.** Elicitation and annotations both require the client to opt in - to force
+legacy mode, to supply a handler, to honour a hint - and the server can compel none of it.
+Swapping the env var for elicitation would have traded *an enforceable weak control* for *an
+unenforceable strong-sounding one*. That is a net loss dressed as a compliance improvement.
+
+The gap is real: an env var is deploy-time, not per-invocation, and does not satisfy the
+guardrail's HITL requirement. But elicitation was never the fix, and I had assumed it was.
+
+### Why the cut is the right answer anyway
+
+Because the honest conclusion is that **the mandated control cannot be implemented at all**, not
+that we picked the wrong implementation. Combined with the five independent reasons in P17 - a
+success shape nobody has observed, nowhere to rehearse, no protection from the retry middleware,
+an email to a live human as the side effect, and unknown duplicate semantics - deferring is the
+only defensible call.
+
+### The path back, so this is a deferral and not an abandonment
+
+A prohibition needs a substitute. The candidate is a **two-call confirmation pattern**: the first
+call returns a short-lived token describing exactly what would be written, and the write requires
+that token. It keeps the decision on the human's side of the conversation, never requires the
+server to initiate a request, and rides on a plain tool result - the one shape that P14 showed no
+era or middleware configuration distorts.
+
+**This is a named candidate, not a verified mechanism.** It is being spiked before it goes in the
+design, because "we will figure it out in v1.1" is not a path back, and a pattern presented as a
+finding without being executed is exactly what this project has been careful to avoid.
