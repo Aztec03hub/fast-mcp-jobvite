@@ -11,3 +11,4 @@ Timestamps are America/Chicago.
 
 ### Added
 - Repository scaffolding: license, gitignore, changelog-fragment workflow, docs layout. (2026-08-27 01:37 PM CDT)
+- Canonical hosting on `evolvconsulting/fast-mcp-jobvite` with an automatic mirror to `Aztec03hub/fast-mcp-jobvite`, via a dual-push-URL `origin` plus a `mirror.yml` workflow for pushes from elsewhere. (2026-08-27 01:52 PM CDT)
