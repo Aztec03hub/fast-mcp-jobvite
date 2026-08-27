@@ -1,11 +1,25 @@
 # fast-mcp-jobvite - Design
 
-Status: **DRAFT, revision 3.** Incorporates adversarial review rounds 1 and 2
-(`DESIGN-R1.md` 0c/2h/1m, `DESIGN-R2.md` 0c/3h/1m), the B1-B106 conformance sweep
-(`CONFORMANCE-B1-B106.md`), the design-artifact sweep (`CONFORMANCE-DESIGN-ARTIFACT.md`), and all
-runtime-spike findings. Frozen at 0C/0H/0M, after which only a numbered ADR in
-`docs/adr/` may change it.
-Last updated: 2026-08-27 03:45 PM CDT.
+Status: **DRAFT, revision 4. NOT FROZEN.**
+
+Review history, which is a record rather than a status anyone must keep in sync:
+
+| Round | Result |
+|---|---|
+| `DESIGN-R1.md` | 0c / 2h / 1m |
+| `DESIGN-R2.md` | 0c / 3h / 1m |
+| `DESIGN-R3.md` | 0c / 5h / 6m, threat model VALIDATED WITH CHANGES |
+| `DESIGN-R4.md` | 0c / 6h / 11m, **recommended against freezing** |
+| `CONFORMANCE-B1-B106.md` | 42 satisfied / 22 partial / 37 unaddressed |
+| `CONFORMANCE-DESIGN-ARTIFACT.md` | threat model mandated and missing; caching standard had gone live |
+| `SPIKE-CLAIM-AUDIT.md` | 55 claims: 39 supported, 8 overstated, 3 unsupported, 2 not found, 4 stale |
+
+**The freeze rule, stated as a rule rather than as an accomplished fact:** this document freezes
+when a review round returns 0C/0H/0M against it, and **after that** only a numbered ADR in
+`docs/adr/` may change it. An earlier revision stated the second half in the present tense while
+four rounds were still finding defects, which read as though the freeze had happened.
+
+Last updated: 2026-08-27 05:10 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
