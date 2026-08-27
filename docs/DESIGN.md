@@ -1387,7 +1387,8 @@ limits, each with a §8 case.
 and not quietly removed later: C5-S1 the 200-with-401 trap, C6-S1 indirect prompt injection, C6-I1
 EEO exclusion, C7-I1 PII in logs, C4-E1 accept-carrying-false, C5-I1 the jobFeed URL, C1-S1, C1-T1
 and C1-I1 the TLS requirement, C2-R1 the audit event existing at all, C1-R1 caller attribution,
-C4-R1 the approval decision, and C9-T1 the pinned and frozen resolve. **Each names its §8 case in
+C4-R1 the approval decision, C9-T1 the pinned and frozen resolve, and C8-I1 the credential and
+`.env` exposure the repository has already suffered once. **Each names its §8 case in
 the `Test` column above, and `check-coupling.py` fails if any of them stops doing so.** This list
 is derived from the table rather than maintained beside it; the script checks that it matches.
 
