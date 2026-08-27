@@ -540,6 +540,37 @@ types are defensible as dataclass-like results.
 > check both the action **and** the answer value — an accepted elicitation carrying a negative answer
 > is still an acceptance.
 
+
+### 8.4 Draft — `context.py` cites SEP-2577 for a change SEP-2577 did not make
+
+> **Title:** `ctx.elicit()` era-guard comments cite SEP-2577, which deprecated Roots/Sampling/Logging, not the server-initiated request mechanism
+>
+> **Environment:** `fastmcp==4.0.0b4`. Also present in 3.4.7's equivalent path.
+>
+> **What happens:** `fastmcp/server/context.py` explains the 2026-07-28 elicitation guard as:
+> ```python
+> # Foreground push path: server-initiated elicitation needs a back-channel,
+> # which the 2026-07-28 era removed (SEP-2577).
+> ```
+> and similarly at line 947: "The 2026-07-28 era (SEP-2577) has no back-channel for server-initiated…".
+>
+> **Why it is wrong:** per the official 2026-07-28 changelog, SEP-2577 deprecates the **Roots,
+> Sampling and Logging** features. The removal of the back-channel comes from statelessness
+> (SEP-2575 / SEP-2567), and the sanctioned replacement for server-initiated requests is **MRTR,
+> SEP-2322** — which the *same file* cites correctly at lines 214, 359, 381 and 402.
+>
+> **Impact:** the runtime error message is accurate and well-judged ("elicitation via
+> *server-initiated requests* is unavailable"), but a reader who follows the neighbouring comment to
+> SEP-2577 finds a deprecation notice for three unrelated features and no mention of elicitation. In
+> our case this contributed to two people independently concluding that human-in-the-loop approval
+> was impossible on 2026-07-28 connections, when `InputRequiredResult` — which FastMCP implements —
+> is exactly the supported path.
+>
+> **Suggested fix:** cite SEP-2322 (and optionally SEP-2575) in those two comments, and consider
+> adding a one-line pointer in `_ELICIT_MODERN_ERROR` itself, e.g. "…unavailable on 2026-07-28
+> connections; return an `InputRequiredResult` instead (SEP-2322)." That turns a dead end into a
+> signpost at the exact moment a developer hits it.
+
 ---
 
 ## 9. Lifespan — composition ✅, teardown ⛔ on SIGTERM
@@ -1420,9 +1451,37 @@ FastMCP's error message is precise, and I under-read it:
 ToolError: elicitation via server-initiated requests is unavailable on 2026-07-28 connections.
 ```
 
-The qualifier **"via server-initiated requests"** is doing real work. What 2026-07-28 removed
-(SEP-2577) is the server's ability to *initiate* a request mid-call — not elicitation itself. I
-treated `ctx.elicit()` as the definition of elicitation, found it unavailable, and generalised.
+The qualifier **"via server-initiated requests"** is doing real work. What 2026-07-28 removed is
+the server's ability to *initiate* a request mid-call — not elicitation itself. I treated
+`ctx.elicit()` as the definition of elicitation, found it unavailable, and generalised.
+
+⚠️ **Citation correction, and its origin.** I originally attributed that removal to **SEP-2577**.
+That is wrong, and it is worth recording where it came from. Per the official changelog
+(`modelcontextprotocol.io/specification/2026-07-28/changelog`), verbatim:
+
+> **Deprecated 1.** "Deprecate the **Roots, Sampling, and Logging** features (SEP-2577)."
+
+SEP-2577 never touched elicitation. The statelessness that removed the back-channel is **SEP-2575**
+(remove the `initialize` handshake) with **SEP-2567** (remove sessions), and the replacement
+mechanism is **SEP-2322**:
+
+> **Major change 7.** "Multi Round-Trip Requests (MRTR) pattern introduced which **replaces** the
+> previous approach of sending server-initiated requests, such as `roots/list`,
+> `sampling/createMessage`, or `elicitation/create`. Servers return an `InputRequiredResult`
+> (`resultType: "input_required"`) whose `inputRequests` field carries the requests … Clients
+> respond with `inputResponses` on a retry of the original request (SEP-2322)."
+
+**I got SEP-2577 from FastMCP's own source comment**, which cites it twice on the `ctx.elicit()`
+path (`fastmcp/server/context.py:947` and ~1085) `[FROM SOURCE]`:
+
+```python
+# Foreground push path: server-initiated elicitation needs a back-channel,
+# which the 2026-07-28 era removed (SEP-2577). Raise a clear era-aware
+```
+
+The same file cites **SEP-2322 correctly** for all the MRTR machinery (lines 214, 359, 381, 402).
+So the miscitation is internally inconsistent within one file, and it is the proximate cause of two
+people independently concluding a capability was impossible. Drafted as a documentation issue in §8.4.
 
 The official spec says so plainly (`https://modelcontextprotocol.io/docs/2026-07-28/learn/client-concepts`):
 
@@ -1522,7 +1581,62 @@ a test on our side asserting the second leg actually consumes `ctx.input_respons
    cooperation. The two compose: elicit when the client can, require a token when it cannot.
 4. **§15.4 is unaffected.** Annotations remain advisory.
 
-### 17.6 The lesson I am recording against myself
+### 17.6 The abandonment arms — does it fail closed on EVERY path?
+
+§17.3 proved approve / deny / no-handler. Those are the paths where the client answers. The harder
+question is what happens when a client supports MRTR but the **human never answers** — abandons the
+dialog, closes the window, or the handler dies. "Fails closed" has to mean closed on every path.
+
+Four arms, each run in isolation against a live server, with the row count queried **independently
+afterwards** so the counter is the server's own and not the probe's:
+
+```
+--- cancel (client timeout=None) ---
+   is_error=True content=["Not approved (action='cancel'); refusing."]
+   server row count AFTER = 0
+--- approve_false (client timeout=None) ---
+   is_error=True content=["Not approved (action='accept'); refusing."]
+   server row count AFTER = 0
+--- raises (client timeout=None) ---
+   RAISED MCPError: handler crashed / window closed
+   server row count AFTER = 0
+--- hang (client timeout=5.0) ---
+   (hang arm exceeded 60s wall)
+   server row count AFTER abandoned approval = 0
+```
+
+**Results:**
+
+- ✅ **Cancelled** → refused, no write.
+- ✅ **Accepted carrying `approve: False`** → refused, no write. This is the fail-open case in its
+  MRTR shape, and the `action == "accept" and content.get("approve") is True` conjunction catches it.
+  Note the message reads `action='accept'` — the *action* was an acceptance; only the value check
+  saved it.
+- ✅ **Handler crashes / window closed** → `MCPError` propagates to the caller, no write.
+- ⚠️ **Abandoned (human never answers)** → **the write does NOT happen (`rows = 0`), so it fails
+  closed on the thing that matters.** But the *call hangs*: it exceeded a 60s wall clock even with
+  `Client(timeout=5)` set.
+
+**Characterising the hang precisely, because "hangs" and "unsafe" are different claims:**
+
+- The **write is safe.** The tool returned `InputRequiredResult` and exited; the second leg never
+  arrives, so the write code never runs. Independently confirmed: `rows = 0`.
+- **No server resource is pinned.** The server continued serving other requests throughout —
+  a concurrent `tools/list` returned **HTTP 200** while the abandoned call was outstanding.
+- The hang is **client-side liveness only.** The elicitation handler runs *inside the client
+  process*; a handler that never returns blocks that client's own call. `Client(timeout=...)` did
+  **not** bound it, which is consistent with that timeout guarding the server round-trip rather than
+  the client's own callback.
+
+**Verdict: ✅ fails closed on every path for the write.** ⚠️ **but an abandoned approval hangs the
+calling client rather than returning a refusal**, and the client-level `timeout` does not rescue it.
+
+**Design consequence:** we get safety for free, but not liveness. If a caller abandons an approval,
+the tool call does not resolve. That is a caller-side concern rather than a server one — but it is
+worth one sentence in the README, because "the write silently never completes" is a confusing
+failure mode for an integrator, and the obvious mitigation (setting a client timeout) does not work.
+
+### 17.7 The lesson I am recording against myself
 
 The finding in §15 was *correct*; the conclusion was *over-generalised*. I tested one API
 (`ctx.elicit()`), found it unavailable, and reported that the capability was unavailable. The
@@ -1530,6 +1644,85 @@ qualifier in the error message, the spec's own client-concepts page, and a sourc
 already pasted into this document all pointed at the other path. **A negative result about one API
 is not a negative result about a capability**, and I should have gone looking for the second route
 before telling the lead a design was blocked.
+
+
+---
+
+## 18. Host survey — which clients can actually do this?
+
+Requested to size the practical picture for v1.1. **This is documentation research, not execution** —
+I have not driven these hosts against our server. Sources cited inline; where only secondary sources
+exist I say so.
+
+### 18.1 Findings
+
+| Host | Elicitation | Speaks 2026-07-28? | Source |
+|---|---|---|---|
+| **Claude Code** | ✅ **Yes**, no configuration required | ✅ **Yes**, on its v2 runtime | first-party, `code.claude.com/docs/en/mcp` |
+| **Cursor** | ✅ Listed "Supported" in its capability table | ❓ not stated | first-party, `cursor.com/docs/context/mcp` |
+| **Claude Desktop** | ⚠️ **Apparently not** — open feature requests | ❓ not stated | secondary only — treat as unconfirmed |
+
+**Claude Code**, quoting its own docs:
+
+> "Servers can request structured input from you mid-task using elicitation. When a server needs
+> information it can't get on its own, Claude Code displays an interactive dialog and passes your
+> response back to the server. **No configuration is required on your side**: elicitation dialogs
+> appear automatically when a server requests them."
+
+and on protocol negotiation:
+
+> "The v2 runtime is the same code on MCP TypeScript SDK 2.0, which adds **MCP protocol revision
+> 2026-07-28**. … Asks HTTP and claude.ai connector servers whether they support the newer revision,
+> and uses it with those that do. It asks **stdio** servers only if you set
+> `MCP_PROTOCOL_NEGOTIATION` to `auto`, and connects to every other server as v1 does."
+
+Two things follow. First, **our primary client supports exactly the mechanism §17 verified**, on
+exactly the era we default to. Second — and this is a deployment detail worth capturing — **Claude Code
+negotiates 2026-07-28 for HTTP servers automatically, but for stdio only when
+`MCP_PROTOCOL_NEGOTIATION=auto`.** A stdio install therefore lands on the handshake era by default,
+where `ctx.elicit()` works and MRTR does not. **A guard tool must handle both paths**, which is an
+argument for implementing the check once and branching on `ctx.input_responses` being available
+rather than assuming an era.
+
+**Cursor**'s docs mark Tools, Prompts, Resources, Roots, Elicitation and Apps all "Supported"; no
+protocol version is stated, so whether it reaches MRTR elicitation is unknown.
+
+**Claude Desktop**: I found **no first-party statement**. Secondary sources and several open
+Anthropic issues indicate elicitation is not supported there, with an MCP-repo PR updating client
+capability docs to credit Claude Code with Elicitation and Claude Desktop with Roots. **I am not
+reporting this as established** — it is consistent across sources but none of them is authoritative,
+and it is exactly the kind of claim that should be checked against the product before the design
+leans on it.
+
+### 18.2 ⚠️ The nuance that limits what we may claim
+
+Claude Code's docs also say:
+
+> "To auto-respond to elicitation requests without showing a dialog, use the `Elicitation` hook."
+
+So even on a host that fully supports elicitation, **the approval can be configured to happen
+without a human seeing anything.** That is a legitimate feature, and it means our honest claim is:
+
+> The server **requires an approval response from the host** before writing, and refuses if the host
+> cannot or will not provide one.
+
+Not: "a human approved this." We can guarantee the *request* and the *refusal*; we cannot guarantee
+a human was on the other end. The design and the README should say the former.
+
+This is the same limit §16.4 recorded for the confirmation-token pattern, arrived at from a different
+direction — and it is worth noting the MCP spec itself places human-in-the-loop confirmation on the
+**host**, not the server (`docs/2026-07-28/develop/clients/client-best-practices`, Security
+Considerations: *"Apply the same human-in-the-loop confirmation policy to sandbox-originated calls
+that you apply to direct calls"*).
+
+### 18.3 What this means for v1.1
+
+- The mechanism verified in §17 has **real client support today** in our primary host, on our default
+  era, with no user configuration.
+- A stdio deployment needs the handshake path too, so build the guard to handle both.
+- Claude Desktop support is unconfirmed and may be absent; the fail-closed behaviour (§17.3) means
+  such a client simply cannot perform the write, which is the correct outcome.
+- Whatever we ship, describe it as *host approval*, not *human approval*.
 
 
 ## What I could NOT verify
@@ -1542,7 +1735,7 @@ before telling the lead a design was blocked.
 - **Tasks / `TasksExtension`, `Depends()` injection, `create_proxy`, `mount`, `OpenAPIProvider`.** None exercised. `exclude_args` removal was confirmed by signature only.
 - **`DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware`.** Still not exercised. `RateLimiting`, `ErrorHandling`, `Retry` and `Ping` are covered in §§13–14. Four of the eight tested are unusable or need their defaults overridden, so **assume nothing about the remaining three.**
 - ~~A two-call confirmation-token HITL pattern~~ — **now spiked in §16** and verified on both eras. Its remaining limit is stated there: it enforces confirmation, **not human** confirmation. Untested under concurrency, and the token store is in-process (a multi-worker deployment would need shared state).
-- **Whether any real host (Claude Desktop, Claude Code, Cursor) forces `mode="legacy"` or ships an elicitation handler.** I tested with FastMCP's own client only, so §15.2's "the client must opt in" is proven as a mechanism but I have not surveyed which hosts actually do.
+- **Host behaviour is surveyed from documentation in §18, NOT executed.** I have not driven Claude Code, Cursor or Claude Desktop against our server. Claude Desktop's lack of elicitation support rests on secondary sources only and should be confirmed against the product.
 - **Rate limiting under concurrency.** Every limiter test was sequential and single-client; I have not verified bucket behaviour under simultaneous callers, which is the case that matters in production.
 - **Whether `limiters.clear()` is safe to call on a live server.** I used it to prove reconfiguration requires it; I did not test it under load or check for a race with in-flight consumption.
 - **`JWTVerifier`, `DebugTokenVerifier`, `IntrospectionTokenVerifier`, `OAuthProxy`.** Only `StaticTokenVerifier` was run; the others need an IdP I will not fake.

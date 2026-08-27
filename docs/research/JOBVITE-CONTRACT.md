@@ -182,7 +182,7 @@ Full v1 numeric catalogue (100-108, 201-208) is in `JOBVITE-API.md` §15.2. `[AB
 | `kippnorcal/jobvite` (Python) | `start = 0`, then `start += batch_size` |
 | `atipica/jobvite_api` (Ruby) | `(page - 1) * per_page`, i.e. 0 for the first page |
 | `frague/rm` (TypeScript) | `if (start < 1) start = 1` - explicitly forces 1-based |
-| `[OFFICIAL]` v1 PDF | 1-based: *"Default start index: 1"*, and *"you would add start=501&count=500"* to get records 501-1000 |
+| `[OFFICIAL]` Data Services v3.5 | **1-based.** The document states the default start index is 1, and its worked example retrieves records 501-1000 with `start=501&count=500` - i.e. `start` names the first record wanted, not an offset before it |
 
 **Failure mode either way:** if the API is 1-based and we send 0, the first page may return the first record twice or the server may reject it; if it is 0-based and we send 1, we silently skip record one. **A silently skipped record is the worse outcome and would not surface in any test built on §11 fixtures.**
 

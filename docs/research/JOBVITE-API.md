@@ -48,18 +48,38 @@ This repository is **public**, under a consulting org. That constrains what this
 
 `Jobvite/APIConnectorSamples` also carries **no licence file**. Short excerpts are quoted below as evidence of API mechanics; the code is not copied into this repo.
 
-### 0.2 Verbatim vendor prose: removed by ruling
+### 0.2 Handling policy for the confidential source
 
-An earlier draft quoted short passages from the CONFIDENTIAL-marked Data Services v3.5 document as evidence. **Team-lead ruled on 2026-08-27 that no verbatim text from that document may appear in this repository**, and the ruling has been applied throughout - not only to the two sections originally flagged.
+**The rule, so the next person does not have to rediscover it:**
 
-What that means in practice, and what a reader can rely on:
+> **No verbatim text from the Jobvite *Data Services v3.5* document may appear in this repository.**
+> Every **fact** it contains may and should be recorded — parameter names, types, defaults, limits,
+> enumerations, error codes and their meanings, pagination semantics, endpoint paths and methods —
+> **restated in our own words, in tables where possible, with the citation retained** so a reader
+> holding the document can verify any line.
 
-* **Every fact is retained**: parameter names, types, defaults, limits, enumerations, error codes, pagination semantics, endpoint paths and methods. All of it is stated in my own words, in tables where possible.
-* **No sentence of Jobvite's prose remains.** Sample URLs from the document have been rewritten with placeholder credentials and values.
-* **Citations are retained** so a reader holding the document can verify any line.
-* Error-code tables give the code and my description of the condition rather than the vendor's message string. A client matching on numeric codes needs nothing more; the exact strings are in the cited document.
+The document is stamped `CONFIDENTIAL - Jobvite Data Services` on all 8 pages and carries no
+redistribution grant. Facts about an API are not the vendor's expression of them; the prose is.
 
-Quotations from **third-party** sources (open-source clients, integration configs, help-centre search indexing) are retained, since the ruling concerns the confidential vendor document.
+**Scope of the rule.** It covers the confidential Data Services document only. Quotations from
+**public or third-party** sources are retained and are *not* in scope: open-source client code and
+comments, integration configs and their READMEs, help-centre article titles, and text indexed from
+the public help centre. Those are labelled at their point of use. One `[OFFICIAL]`-labelled quote
+remains in §2 — it is help-centre indexing text, public by construction, not from the confidential
+PDF. Flagging that explicitly so it is not repeatedly re-raised in review.
+
+**Enforcement history — stated accurately, because an earlier version of this section was not.**
+
+| Date | Event |
+|---|---|
+| 2026-08-27 | Team lead ruled that no verbatim text from the document may appear. |
+| 2026-08-27 | An earlier revision of §0.2 asserted the ruling "has been applied throughout" and that "no sentence of Jobvite's prose remains". **That claim was false when written.** |
+| 2026-08-27 | Design review M2 found four surviving passages: the pagination example in `JOBVITE-CONTRACT.md` §4.1, and the Contact Import availability sentence, the requisition-overwrite paragraph and the Employee `Role` warning in this document. |
+| 2026-08-27 | All four rewritten as facts in our own words, citations kept. Verified by grep for italic-quoted strings attributed to the document: none remain. |
+
+The lesson worth carrying: **a document asserting its own compliance is a claim, not a control.**
+The assertion was added at the same time as a partial application of the ruling and was never
+re-checked against the body. §0.4 exists so the check does not depend on someone remembering.
 
 ### 0.3 Credentials and identifiers
 
@@ -68,6 +88,70 @@ Quotations from **third-party** sources (open-source clients, integration config
 * **No customer hostname, tenant, or company id appears.** No data was pulled from any customer tenant - I hold no Jobvite credential, so every live probe was unauthenticated and returned only auth-challenge errors.
 * Sample record ids and company ids drawn from vendor documentation examples are replaced with placeholders (`<companyId>`, `<processInstanceId>`, `<applicationId>`) even though they are vendor samples rather than customer data.
 * All probes were **unauthenticated GETs** (plus a handful of POSTs with an empty `{}` body that were rejected at the auth layer before reaching any handler). Nothing was created, modified, or read from any Jobvite account.
+
+### 0.4 The committed-file-type gate
+
+**Why the previously-named control was inadequate.** The stated defence against a repeat was
+TruffleHog plus pre-commit secret scanning. **Secret scanners detect credentials, not confidential
+documents.** A PDF stamped CONFIDENTIAL contains no high-entropy token, matches no credential
+regex, and passes every secret scanner cleanly. The control named as preventing this incident
+**would not have caught this incident.** That is the finding; the gate below is the remedy.
+
+**Specification.** A pre-commit hook plus the same check in CI, so a bypassed local hook is still
+caught on the branch. **Checks run in this order, and the allowlist (step 0) short-circuits the
+rest** — without that ordering a legitimately allowlisted `.png` is rejected by the binary
+heuristic, which I confirmed by running the checks (see "Verification" below):
+
+0. **Allowlist first.** If the path matches the narrow allowlist in step 4, accept and stop.
+1. **Extension denylist.** Reject any added or modified path matching, case-insensitively:
+   `*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.odt *.ods *.odp *.rtf *.pages *.numbers *.key`
+   `*.zip *.tar *.tar.gz *.tgz *.7z *.rar *.epub *.mobi *.msg *.eml`
+2. **Content sniffing, because a renamed `.pdf` is the obvious evasion.** Do not trust the
+   extension. For every added or modified file, read the first 8 bytes and reject on known magic
+   numbers regardless of name:
+
+   | Magic (hex) | Format |
+   |---|---|
+   | `25 50 44 46` (`%PDF`) | PDF |
+   | `D0 CF 11 E0 A1 B1 1A E1` | Legacy MS Office (OLE2) |
+   | `50 4B 03 04` | ZIP container — also `.docx`/`.xlsx`/`.pptx`/`.odt`/`.epub` |
+   | `52 61 72 21 1A 07` | RAR |
+   | `37 7A BC AF 27 1C` | 7-Zip |
+   | `1F 8B` | gzip |
+
+   A bare `50 4B 03 04` match must not be waved through as "just a zip" — modern Office and
+   OpenDocument files *are* zips, which is precisely why extension checks miss them.
+3. **Binary heuristic as a backstop** for formats not enumerated above: reject a file containing a
+   NUL byte in its first 8 KB. (Allowlisted paths never reach this step — see step 0.)
+4. **Allowlist, narrow and explicit.** Only these binary paths may be committed:
+   `docs/**/*.png`, `docs/**/*.svg` (SVG is text, but pinned here for intent), and anything under a
+   future `tests/fixtures/binary/` added by deliberate exception. Every allowlist entry needs a
+   one-line comment saying why.
+5. **Failure mode.** The hook **fails closed**: on an unreadable file, an unknown error, or its own
+   crash, it rejects rather than passes. A scanner that fails open is the same class of defect as
+   the guard in `FASTMCP-SPIKE-4.md` §15.3.
+6. **Override.** A deliberate exception requires adding the path to the allowlist in the same
+   commit, so the exception is reviewable in the diff rather than hidden in a `--no-verify`.
+
+**Verification.** The magic-number and heuristic rules were executed against real files rather
+than reasoned about, including the evasion the spec exists to catch:
+
+| File | Result |
+|---|---|
+| `spec.pdf` (real PDF bytes) | REJECT: PDF |
+| `notes.md` (**same PDF bytes, innocuous name**) | REJECT: PDF |
+| `handover.txt` (**a real zip/docx renamed**) | REJECT: ZIP container |
+| `real.md` (ordinary markdown) | allow |
+| `diagram.png` | REJECT by the binary heuristic — **which is why step 0 exists** |
+
+The last row is the useful one: it is a false positive against a file the allowlist is meant to
+permit, and it only surfaced because the checks were run. It is fixed by evaluating the allowlist
+first. A gate that red-lights a legitimate file gets disabled by the first person it inconveniences,
+so a false positive here is a real defect and not a safe-side error.
+
+**What this gate does and does not do.** It stops a *file* of the wrong type entering the repo. It
+does **not** stop someone pasting confidential prose into a Markdown file — that is what §0.2 and
+review cover. Naming the limit here so the gate is not over-trusted the way the secret scanner was.
 
 ---
 
@@ -145,7 +229,7 @@ This is the single most important input to our design, so it goes first.
 | **Jobvite API v2** (`/api/v2/*` on `api.jobvite.com`) | **CURRENT.** This is what modern integrations use. | `[PROBE]` 17 resources respond with an auth challenge; `[INFERRED]` every working client from 2019 onward targets `https://api.jobvite.com/api/v2` |
 | **Jobvite API v1** (`/v1/*` on `api.jobvite.com`) | **LEGACY but STILL LIVE.** `/v1/candidate`, `/v1/job`, `/v1/employee`, `/v1/jobFeed` all still answer. Returns HR-XML for candidates. | `[OFFICIAL]` Data Services v3.5; `[PROBE]` see §12 |
 | **Job Feed** (`/v1/jobFeed`) | **LIVE.** Public-ish career-site feed, still v1-only. There is no v2 job feed on `api.jobvite.com`: `GET /api/v2/jobFeed` → 404. | `[OFFICIAL]` + `[PROBE]` |
-| **Contact Import API** (`/v1/contacts`) - Jobvite **Engage** CRM | Documented in 2014; **I could not confirm it is still live** (not probed to avoid a POST-only endpoint returning misleading results; a GET was not attempted for `/v1/contacts`). *"This API is only available to Jobvite Engage Customers."* | `[OFFICIAL]` Data Services v3.5 |
+| **Contact Import API** (`/v1/contacts`) - Jobvite **Engage** CRM | Documented in 2014; **I could not confirm it is still live** (not probed to avoid a POST-only endpoint returning misleading results; a GET was not attempted for `/v1/contacts`). The document restricts this API to Jobvite **Engage** customers only. | `[OFFICIAL]` Data Services v3.5 |
 | **CRM Candidate Data API** | Exists as a help-centre article (`/hc/en-us/articles/24314987912733`) whose title is *"CRM Candidate Data API"*, described in search indexing as allowing third-party vendors to pull candidates created/updated/deleted in a date range. **Article body is 401-gated; I could not read it.** | `[ABSENT]` for content |
 | **Jobvite Onboard - New Hire API** | Exists as a gated help-centre article (`/hc/en-us/articles/22012542918813`). The `/api/v2/task` endpoint in Jobvite's own sample code, with its `processInstanceId` filter, is workflow/onboarding-shaped and is my best guess at the Onboard surface - but that link is `[INFERRED]`. | `[OFFICIAL]` sample code; `[ABSENT]` doc content |
 | **Bridge / JVX** | `[ABSENT]` I found **no** evidence of any API family under these names. `GET /api/v2/jvx` and `/api/v2/bridge` → 404. Do not assume these exist. |
@@ -406,7 +490,15 @@ Resume upload is inline base64 inside the same POST; there is no separate attach
 
 ### 8.2 `POST /api/v2/job`
 
-`[PROBE]` Returns `401`, so the route exists. `[OFFICIAL]` for v1 the equivalent (`POST /v1/job`) creates/synchronises requisitions from an external system, with these documented semantics that almost certainly still apply: *"Each time you update a requisition, we will overwrite any fields that are different – unless you manually update the requisition in Jobvite. In that case, we will stop overwriting the information. We will close the requisition when it's no longer in your feed."* `[ABSENT]` v2 body schema unverified.
+`[PROBE]` Returns `401`, so the route exists. `[OFFICIAL]` for v1 the equivalent (`POST /v1/job`) creates/synchronises requisitions from an external system, with these documented semantics that almost certainly still apply, stated in our own words:
+
+| Behaviour | Effect |
+|---|---|
+| Field overwrite on update | Differing fields are overwritten from the feed on each update |
+| Manual-edit precedence | A requisition edited by hand inside Jobvite stops being overwritten by the feed |
+| Absence from feed | A requisition no longer present in the feed is **closed** |
+
+`[ABSENT]` v2 body schema unverified.
 
 ---
 
@@ -493,7 +585,7 @@ This is the **only documented way to advance a candidate's workflow state.**
 
 Required fields: `FirstName`, `LastName`, `Name` (the email address). Body-level flags: `CompanyId`, `ImporterEmail`, `ReportEmail`, `DoNotSyncOnWarnings`, `OverwriteEmployeeNamesAndEmail`, `DoNotRestoreDeleted`, `IgnoreExcludes`, `DoNotPerformEmployeeUpdates`, and an `Employees[]` array with `FirstName`, `LastName`, `Name`, `DepartmentName`, `LocationName`, `RegionName`, `SubsidiaryName`, `Role`, `Title`, `EmployeeId`.
 
-**Role enumeration:** `Recruiter`, `Administrator`, `SuperUser`, `HR`, `Scheduler`, `HiringManager`, `Research`, `JobApprover`, `Employee` (applied by default when a row supplies no role). And a live footgun: *"If you import a field called Role, we will overwrite all employees' existing roles in Jobvite."*
+**Role enumeration:** `Recruiter`, `Administrator`, `SuperUser`, `HR`, `Scheduler`, `HiringManager`, `Research`, `JobApprover`, `Employee` (applied by default when a row supplies no role). And a live footgun, stated in our own words: **if the feed includes a `Role` field at all, every employee's existing role in Jobvite is overwritten from the feed** - not merely the rows that supply one.
 
 Jobvite does not apply the sync at all if the submitted data contains errors; warnings alone can be configured to allow or block the sync via `DoNotSyncOnWarnings`.
 
