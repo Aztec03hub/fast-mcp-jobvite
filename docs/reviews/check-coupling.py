@@ -28,6 +28,23 @@ was wrong three rounds running, so the band it is done in does not make it relia
 
 Usage: python3 docs/reviews/check-coupling.py [path/to/DESIGN.md]
 Exit code 0 on success, 1 on any failure. No dependencies.
+
+A green from this script is only worth what its failure modes are worth, so every check has been
+made to fire against a deliberately broken copy. To re-run those controls, copy DESIGN.md, apply
+one break, and confirm a non-zero exit:
+
+  check 1  duplicate a row id                    -> "duplicate row id 'C3-T1'"
+  check 2  rename a row so a category is missing -> "component C1 has no row for STRIDE E"
+  check 3  point a High row's §8 case at nothing -> "C5-S1 names §8 case '...', which does not
+                                                    appear in §8"
+  check 3  point a MEDIUM row's §8 case at nothing (this is the band the script was blind to
+           before the widening; the pre-widening version passes this break)
+  check 3  give a Critical row "not required (Critical)"
+  check 4  renumber an unmitigated High row      -> "appears in neither the must-mitigate table
+                                                    nor Residual Risks"
+  check 5  reference an undefined id in §11's closing prose
+  check 6  delete a row from the "Already mitigated" roster
+  check 7  replace a disposition with invented text (the pre-widening version passes this too)
 """
 
 from __future__ import annotations
