@@ -284,10 +284,19 @@ candidate always probes "identical") and applied one verdict across resources wh
 documentation, which is the only statement from the vendor. Correctness does not rest on that being
 right, because paging is made **base-agnostic**:
 
-- Pages are requested by `start` and every returned record's id is checked against a per-scan seen
-  set. **A record already seen is dropped, and a gap is detected and logged.** A 1-off error then
-  costs a duplicate read of one boundary record per page, which is invisible to the caller, rather
-  than silently skipping a record.
+- **Every scan starts at `start=0`.** This is the whole mechanism and it is one character. A
+  0-based server then returns record zero; a 1-based server **clamps 0 to 1** and returns the same
+  first page it would have anyway - which is our own finding above, used deliberately instead of
+  worked around. Starting at 1 is the only choice that can silently lose a record, because on a
+  0-based server record zero is never requested.
+- Returned ids are checked against a per-scan seen set, so a clamped or overlapping page **drops
+  duplicates**. Note what this does and does not do: **de-duplication defends against over-reading
+  only.** It cannot recover a record that was never returned, which is exactly why the fix is
+  starting at 0 rather than de-duplicating harder.
+- **Completeness is checked against `total`, not by looking for gaps.** An earlier revision said a
+  gap would be "detected and logged", which had no mechanism: `eId` is an opaque 8-character
+  identifier, and you cannot find a hole in a set of opaque ids. Comparing the unique-id count to
+  the `total` the API reports is a real check; a mismatch is logged and surfaced.
 - The base is per-resource, not global. `/v1/jobFeed` is `[OFFICIAL]` 1-based; the v2 resources are
   `[INFERRED]`. They are configured separately.
 - `JOBVITE_PAGINATION_START_BASE` overrides per resource for anyone who has established the truth.
@@ -373,8 +382,15 @@ the caller.**
 
 That distinction is load-bearing and is the kind an ADR silently swallows. Two different identities
 are in play: *who approved* is unknowable, because a host may auto-respond with no human present;
-*which client invoked the tool* is entirely knowable, and §4.4 **already derives that value** through
-`get_client_id` in order to rate-limit on it. **The caller identity is recorded in the audit event.**
+*which client invoked the tool* is knowable **on the HTTP transport**, where §4.4 already derives it
+through `get_client_id` in order to rate-limit on it. **That value is recorded in the audit event.**
+
+**On stdio there is no client identity to record**, because there is no token - §4.4 says so, and
+this section must not contradict it. The audit event records the transport and, on stdio, states
+that caller attribution is unavailable rather than emitting the literal `"global"` and implying an
+identity. An implementer who wires `get_client_id` on stdio, receives `"global"`, and closes this
+finding believing attribution exists would leave the gap open behind a value that looks like an
+answer.
 An ADR read as "identity in the audit log is unsatisfiable" would close a gap it never considered,
 in a document about to be frozen.
 
@@ -388,7 +404,9 @@ rather than beside it, and the audit stream carries the same handling class as t
   worse than losing one audit line.
 - **After a successful write:** return **success with a warning**, never an error. If a post-write
   audit failure surfaced as an error, the model would retry, and **a second live human would be
-  emailed.** The audit hole is the lesser harm and it is recorded as a warning in the same stream.
+  emailed.** The audit hole is the lesser harm. **The warning goes to stderr, not to the audit stream that
+  just failed** - routing it down the channel whose failure it reports is how the record of the
+  failure is lost too.
 
 `mask_error_details=True` is set explicitly at construction; FastMCP defaults it to `False`,
 which sends the full text of any unhandled exception to the client. **Masking is client-facing
@@ -502,8 +520,19 @@ pydantic-settings enforces them.
 
 **Configuration is scoped to the tools actually enabled**, and the enable surface is defined here
 rather than presupposed. `JOBVITE_TOOLS` is a comma-separated allow-list of tool names; unset means
-all read tools. `JOBVITE_ENABLE_WRITES` additionally gates `create_candidate` (§2.2) and is
-independent, so a write cannot be enabled by naming it alone.
+all **read** tools and never the write.
+
+**The two variables are ANDed, and the answer is stated in both directions** because the converse
+alone is what an earlier revision gave:
+- `create_candidate` is registered **only if** `JOBVITE_ENABLE_WRITES=true` **and** it is named in
+  `JOBVITE_TOOLS`.
+- So `JOBVITE_ENABLE_WRITES=true` with `JOBVITE_TOOLS` unset does **not** register it. Enabling
+  writes is deliberately two steps, and the obvious single step is the one that does nothing.
+- Naming it in `JOBVITE_TOOLS` without the flag does not register it either.
+
+**An unrecognised name in `JOBVITE_TOOLS` is a startup failure**, not a silent skip, matching this
+section's fail-fast posture. A typo that silently disables a tool is exactly the shape of the
+`--strict-markers` problem in §8: a green start-up having done less than the operator asked.
 
 Fail-fast validates what each *enabled* tool requires, never the union - a deployment using only
 candidate search must not be forced to invent a `companyId` it has no use for:
@@ -588,6 +617,16 @@ unchanged, no client handler fails closed.
 Implementation: the tool inspects `ctx.input_responses` - `None` on the first leg, populated on
 the retry. Accessors are `ctx.input_responses` and `ctx.request_state` on `Context`, **not** on
 `request_context`.
+
+**The approval request must state what is actually being authorised, including the email.** This is
+the one place the strongest gate can be satisfied honestly and still produce the outcome it exists
+to prevent: an approver shown "create candidate Jane Doe" approves a database row, and thereby
+authorises **an email to Jane Doe** that nobody mentioned. The elicitation payload therefore names
+the candidate, the target job, and **whether `send_email` is true**, in those terms. An approval
+obtained without showing the email is not an approval for the email.
+
+`send_email` is also an argument like any other and is subject to §2.1's schema rules; it defaults
+to `false` (§2.2) so the dangerous value is never the one reached by omission.
 
 **The guard must check the action AND the value:**
 `action == "accept" and content.get("approve") is True`. An *accepted* elicitation carrying
@@ -725,6 +764,12 @@ when a key lands; rows 1-4 are blocking.
 Required cases, each failing if its defence is removed:
 - the 200-with-401-body trap;
 - a secret never reaching a log record, including the `jobFeed` URL;
+- **candidate PII never reaching a log or audit record** - a distinct case from the secret test
+  above, because §5.3 spends a paragraph distinguishing them and the threat model rates it Critical;
+- **EEO fields never appearing in any tool result**, asserted against the output models rather than
+  by inspection, since §6.2 rates that Critical and an allow-list is only as good as its test;
+- **an argument-schema violation failing closed**, which B12 and B23 require and which §5.1 claims
+  is satisfied - the claim is only true once this test exists;
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
@@ -928,6 +973,12 @@ without them.**
 
 **Every mitigated Critical or High row below has a required test in §8. That coupling is the
 point: if a mitigation loses its test, this threat model becomes false.**
+
+That sentence was checked rather than asserted, and it did not hold on first writing: three rated
+rows - EEO exclusion, candidate PII in logs, and the audit-repudiation row - had no corresponding
+test, so the threat model was false by its own criterion. The tests were added (§8). **A claim
+about coverage is worth exactly the check that was run against it**, which is the fourth time in
+four review rounds this document has asserted its own compliance and been wrong.
 
 Authored before implementation, per `architecture/threat-modeling.md:143`. Four of the six Required
 triggers at `:120-127` fire on this project: it handles PII, it changes authentication and
