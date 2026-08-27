@@ -291,14 +291,38 @@ reads as rigour while costing the reader the time I saved.
 
 ## 8. Recommended actions
 
-| # | Action | Priority |
-|---|---|---|
-| 1 | **B103: add `documentation/readme-standard.md:43`**, the `MUST` clause carrying "all 14 sections". Keep `:34-35` for the location half. | **Do this one.** |
-| 2 | B92, B54, B100: cite the binding lead-in (`:126`, `:146`, `:48`) alongside the item, or name it in prose the way B45 and B88 already do. | Low |
-| 3 | B40: widen the range to `:172-175` so it starts where the quoted sentence starts. | Trivial |
-| 4 | B31, B55, B58, B99: make the four Evidence-column quotations verbatim, or drop the quotation marks. | Trivial |
-| 5 | Audit the 7 code-identifier citations left unchecked here (§7 item 2). | Medium |
-| 6 | Re-verify the *verdicts*, not the citations (§7 item 1). | Medium - the largest remaining gap |
+| # | Action | Priority | Status |
+|---|---|---|---|
+| 1 | **B103: add `documentation/readme-standard.md:43`**, the `MUST` clause carrying "all 14 sections". Keep `:34-35` for the location half. | **Do this one.** | **APPLIED** |
+| 2 | B92, B54, B100: cite the binding lead-in (`:126`, `:146`, `:48`) alongside the item, or name it in prose the way B45 and B88 already do. | Low | **APPLIED** |
+| 3 | B40: widen the range to `:172-175` so it starts where the quoted sentence starts. | Trivial | Open |
+| 4 | B31, B55, B58, B99: make the four Evidence-column quotations verbatim, or drop the quotation marks. | Trivial | Open |
+| 5 | Audit the 7 code-identifier citations left unchecked here (§7 item 2). | Medium | Open |
+| 6 | Re-verify the *verdicts*, not the citations (§7 item 1). | Medium - the largest remaining gap | Open |
 
 Nothing here blocks a freeze. **Action 1 is the only one that changes what a reader would conclude
 from following a citation.**
+
+### Actions 1 and 2, as applied
+
+Four rows now cite the clause that makes the item binding, alongside the item itself. Each added
+coordinate was taken from `grep -n` on a distinctive phrase and re-checked against the file:
+
+| B | Added | Quoted verbatim from the file |
+|---|---|---|
+| B103 | `readme-standard.md:32` and `:43` | *"A `README.md` is **required** in each of the following locations:"* and *"Every README MUST contain the following sections, in this order. Section headings must match exactly so that automated checks can locate them."* |
+| B92 | `agentic-coding-standard.md:126` | *"# NEVER generate code that:"* |
+| B54 | `agentic-coding-standard.md:146` | *"- Approved cryptographic libraries only"* |
+| B100 | `quality-gates.md:48` | *"PR must include:"* |
+
+The second coordinate in each pair uses the relative `` `:NN` `` form, which is the style B45 and
+B77 already use, so the total citation count is unchanged at 116.
+
+**Re-run after the edit:** the lead-in sweep that found six instances now returns **0 rows citing
+enumerated content with an uncited binding lead-in**, and all 116 citations still resolve at their
+coordinates. B92's addition also records that `:126`'s scope is *generated* code, with
+`development-workflow.md:280` carrying the claim for source generally.
+
+**No verdict changed.** These are evidence fixes: every affected row keeps the SATISFIED,
+NOT-APPLICABLE or UNADDRESSED verdict it already had. Nothing in `DESIGN.md` or any ADR was
+touched.

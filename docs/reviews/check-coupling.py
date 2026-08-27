@@ -50,11 +50,7 @@ What this script does NOT check, stated so a green is not read as more than it i
   - Whether a mitigation described in the Mitigation column is real, implemented, or sufficient.
   - Anything in §11 outside the STRIDE and closing tables: the prose, the counts written out in
     it, and the Residual Risks rationales are all unchecked.
-  - ONE property still depends on the prose keyword, and it cannot be made not to (FIX-8, below).
-    A row that describes a real mitigation without using the word "Mitigated" AND disposes of
-    itself as "residual"/"unmitigated"/"accepted" is not caught. Every other check reaches it.
-
-FIX-8, and the part of it that is not closeable here. Check 3 used to iterate only rows whose
+FIX-8 and FIX-9, and how the loophole was closed from both ends. Check 3 used to iterate only rows whose
 Mitigation column contained the literal word "Mitigated". Eight rows describe a real mitigation
 without ever using it - C1-D1's reads "`RateLimitingMiddleware` with a mandatory `get_client_id`,
 sized per session" - so they were skipped in silence. The check was right; the selector decided it
@@ -62,14 +58,19 @@ never ran. Check 3 now iterates EVERY row, and vocabulary, band matching, the Cr
 exemption ban and §8 resolution are all keyed on the rating or on the Test cell itself, never on
 prose. Nothing can be made invisible by wording.
 
-The keyword survives in exactly one place: a row that DOES say "Mitigated" may not dispose of
-itself with a disposition meaning "not mitigated". Inverting the loop alone silently lost that
-property - controls 3, 10 and 11 went green - so it is kept, and it is used only to ADD a
-requirement to rows that carry the keyword, never to decide whether a row is checked at all. That
-direction is fail-safe: dropping the keyword loses one check instead of all of them.
+Inverting the loop alone was NOT sufficient, and the controls proved it: doing only that let a
+mitigated row swap its §8 case for a bare "residual" and go green - controls 3, 10 and 11 all
+started passing. Mitigation status is information the Test cell cannot supply, so the status token
+in the Mitigation column is still consulted. What changed is that §11 now states that token
+deliberately on every row that claims a mitigation (FIX-9), so it is data rather than a word the
+prose happened to contain.
 
-Closing it completely needs mitigation status to be DATA rather than prose - an explicit status
-token per row in §11. That is an edit to DESIGN.md, not to this script, and it is the lead's call.
+The token and the Test cell must now agree BOTH ways, which is what closes the loophole:
+  - a row claiming a mitigation (a §8 case, or "not required (<rating>)") must carry the token;
+  - a row carrying the token may not dispose of itself as residual / unmitigated / accepted.
+Verified against the document: 33 rows claim a mitigation, 33 carry the token, zero violations in
+either direction. Neither half alone is enough - the first lets a mitigation hide by dropping the
+token, the second lets one hide by never claiming anything.
 """
 
 from __future__ import annotations
@@ -204,7 +205,19 @@ def main(path: pathlib.Path) -> int:
                 f"or one of: no credible threat / residual / accepted / unmitigated / "
                 f"not required (<rating>)"
             )
-        elif rid in all_mitigated and NOT_MITIGATED_RE.match(test):
+        if (test.startswith("§8:") or NOT_REQUIRED_RE.match(test)) and rid not in all_mitigated:
+            # The other half of the biconditional. A Test cell that names a §8 case or claims a
+            # "not required" exemption is asserting the row IS mitigated, so the Mitigation column
+            # must say so with the status token. Without this, mitigation status could drift back
+            # into being inferred from prose - which is the FIX-8 defect re-entering by the door
+            # it left by. Verified against the document: 33 rows claim a mitigation, 33 carry the
+            # token, zero violations in either direction.
+            failures.append(
+                f"{rid} claims a mitigation in its Test cell ({test!r}) but its Mitigation column "
+                f"carries no status token; a row that claims a mitigation must state it"
+            )
+
+        if rid in all_mitigated and NOT_MITIGATED_RE.match(test):
             # A row that claims a mitigation may not dispose of itself with a disposition that
             # means "not mitigated". This is the ONE place the prose keyword is still consulted,
             # and it is deliberately used to ADD a requirement, never to decide whether the row is
@@ -259,8 +272,8 @@ def main(path: pathlib.Path) -> int:
     print(f"PASS: ids unique, STRIDE coverage complete, all {len(rows)} rows at EVERY severity "
           "dispose of themselves by naming a §8 case that exists or carrying a recognised "
           "disposition at their own rating, no Critical/High row claims exemption from having a "
-          "test, every unmitigated Critical/High row is disposed of, and every id the closing "
-          "tables name is defined.")
+          "test, mitigation status and Test cell agree in both directions, every unmitigated "
+          "Critical/High row is disposed of, and every id the closing tables name is defined.")
     return 0
 
 

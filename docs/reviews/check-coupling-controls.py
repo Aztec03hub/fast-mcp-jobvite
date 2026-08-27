@@ -36,6 +36,13 @@ def test_cell(text: str, rid: str, new: str) -> str:
     return assert_changed(text, out, f"test cell of {rid}")
 
 
+def mitigation_cell(text: str, rid: str, new: str) -> str:
+    """Replace the Mitigation cell (column 6 of 7) of the STRIDE row `rid`."""
+    out = re.sub(rf"(?m)^(\| {rid} \|(?:[^|]*\|){{4}} )[^|]*(\| [^|]*\|)$",
+                 lambda m: m.group(1) + new + " " + m.group(2), text)
+    return assert_changed(text, out, f"mitigation cell of {rid}")
+
+
 def in_closing(text: str, fn) -> str:
     i = text.index(CLOSING_MARK)
     return assert_changed(text, text[:i] + fn(text[i:]), "closing-section edit")
@@ -148,6 +155,20 @@ CONTROLS = [
     ("14 BAND LAUNDERING: Medium row C5-T1 claims exemption at Low",
      lambda t: test_cell(t, "C5-T1", "not required (Low)"),
      "C5-T1 is rated Medium but its disposition 'not required (Low)' claims exemption at Low"),
+
+    # --- the status-token invariant (FIX-9): the token and the Test cell must agree both ways ---
+    ("16a STATUS TOKEN STRIPPED from a row that names a §8 case (C1-S1)",
+     lambda t: mitigation_cell(t, "C1-S1", "Off-loopback requires TLS or a declared terminating "
+                                           "proxy; absence is a startup failure, not a warning "
+                                           "(§7.1)"),
+     "C1-S1 claims a mitigation in its Test cell ('§8: an off-loopback bind without TLS refuses "
+     "to start') but its Mitigation column carries no status token"),
+
+    ("16b STATUS TOKEN STRIPPED from a keyword-added row that claims exemption (C1-D1)",
+     lambda t: mitigation_cell(t, "C1-D1", "`RateLimitingMiddleware` with a mandatory "
+                                           "`get_client_id`, sized per session (§4.4)"),
+     "C1-D1 claims a mitigation in its Test cell ('not required (Medium)') but its Mitigation "
+     "column carries no status token"),
 
     ("15 DANGLING REF ON AN UNMITIGATED ROW: C3-I1 points at a case never written",
      lambda t: test_cell(t, "C3-I1", "§8: a case that was never written"),
