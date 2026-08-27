@@ -33,7 +33,7 @@ Sources: `docs/research/FASTMCP.md`, `docs/research/STANDARDS.md`, `docs/researc
 **Context.** Research recommended the opposite: pin the stable `3.4.7`, which speaks spec
 `2025-11-25`, and revisit at 4.0 GA. The latest spec revision is only reachable through the
 4.0 beta line, which also forces `mcp>=2.0`, `pydantic>=2.12`, Starlette 1.x and swaps
-`httpx` for `httpx2`.
+`httpx` for `httpx2`, which turned out to be an improvement rather than a cost - see D17.
 
 **Why the reversal.** Phil's call, on appetite rather than analysis: we are deliberately early
 adopters. Bugs found in the beta are to be characterised precisely, reproduced minimally, and
@@ -41,7 +41,7 @@ reported upstream as issues or PRs rather than worked around silently.
 
 **Consequences.** Every 4.0 claim in `FASTMCP.md` came from the upgrade guide rather than
 executed code, so all of it is unverified until the runtime spike lands. Two specific risks:
-whether `fastmcp.server.lifespan` survives into 4.0 is unknown, and the `httpx` -> `httpx2`
+whether `fastmcp.server.lifespan` survives into 4.0 is unknown (it does), and the `httpx` -> `httpx2`
 swap reaches the Jobvite client directly.
 
 ## D3 - the `ai/` standards bind, by intent
@@ -215,3 +215,36 @@ owner]` verbatim. Verified: zero placeholders remain in our LICENSE.
 
 **The real failure mode this guards against is not choosing wrong, it is not choosing at all** -
 which is how 14 public repos ended up legally unusable.
+
+## D17 - `httpx2`, reversing an earlier call made on an unchecked claim
+
+**Decision.** The Jobvite client is written against `httpx2`, the client FastMCP already ships.
+One HTTP stack, not two.
+
+**What the earlier decision said, and why it was wrong.** A previous revision chose `httpx`,
+reasoning that our credential-free test strategy depends entirely on transport mocking and that
+httpx2 was "a fork with a much smaller ecosystem" whose mocking support was unproven. **That
+characterisation came from a research note, I repeated it without checking, and every part of it
+was false.** Verified against PyPI and the repository:
+
+- `httpx2` is authored by **Tom Christie, the author of httpx**, and published under the
+  **pydantic** organisation.
+- Its README states the position directly: *"With HTTPX itself seeing limited activity recently,
+  Pydantic is picking up stewardship under the HTTPX2 name so that users have a reliably
+  maintained path forward - including timely security updates for a library that sits in the
+  critical path of so many production systems."*
+- It ships regular releases (2.12.0, August 2026) while `httpx` has shipped only `1.0.devN`
+  prereleases.
+- **It ships `MockTransport` in the box** (`httpx2/_transports/mock.py`), which collapses the
+  original argument entirely: the test strategy needs no third-party mocking library at all.
+
+**What choosing `httpx` would have cost.** Two HTTP stacks and two TLS surfaces in one image; a
+dependency with limited upstream activity sitting in our critical path; and a silent hazard we
+would have created ourselves, since `except httpx.HTTPError` can never catch a FastMCP-raised
+exception. Adopting httpx2 **removes** that hazard rather than guarding it, so the
+module-confinement rule and its AST test are dropped as unnecessary.
+
+**The process failure is the part worth keeping.** This is the third decision in one session built
+on a characterisation I relayed without verifying. The check was a single PyPI request. See
+[[i_propagate_the_citation_i_did_not_check]] - and note that here the wrong claim did not merely
+mislead, it very nearly shipped a worse architecture that I had already written a guard for.
