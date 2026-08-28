@@ -79,7 +79,15 @@ Fail condition: any tool or endpoint returns `{"success": false, "error": ...}`,
 `architecture/error-contract.md:66` — *"We elevate `type`, `title`, `status`,
 `detail`, `instance`, `request_id`, and `timestamp` to required for consistency
 across our services."*
-Fail condition: an error payload missing any of the seven.
+The same obligations restated as numbered rules at `architecture/error-contract.md:205-209`
+(2. `Content-Type`; 4. always include `request_id`; 5. always include `timestamp`;
+6. always include `instance`) and `:212` (9. *"`about:blank` for unknowns: Unmapped
+HTTP errors use `about:blank` as the type."*). **Rules 2, 4, 5, 6 and 9 were uncited
+until CONF-5** — the corpus cited rules 1, 3, 7 and 8 out of the same list of ten. Rule
+9 is the one to note: `DESIGN.md` §5.1 already cites `:212` directly, so the design was
+using a clause no B-number tracked.
+Fail condition: an error payload missing any of the seven, or an unmapped error given a
+minted `type` URI instead of `about:blank`.
 
 **B3. HTTP error responses set `Content-Type: application/problem+json`.**
 `architecture/error-contract.md:44` — *"All error responses MUST use the media
@@ -142,6 +150,14 @@ runs; the body receives the typed object, never the raw dict.**
 `ai/tool-calling.md:97-99` — *"**Never pass raw model arguments through to a tool.**
 Parse the model-supplied JSON against the tool's schema first; the tool body receives
 the **validated, typed object**, never the raw dict/string."*
+`ai/tool-calling.md:104-107` — *"Tool arguments are **model output**, hence untrusted
+at the sink the tool touches (SQL, shell, paths, HTTP). Apply
+[`./output-handling.md`] sink rules inside the tool — schema validation is necessary,
+not sufficient."*
+**The second clause is the operative half and was uncited until CONF-5.** A schema
+bounds the *shape* of an argument; it does not make the value safe at the sink it
+reaches. For this server the sink is an outbound HTTP path/query, which is why §2.1's
+identifier regexes and control-character rejection are part of B11 and not decoration.
 
 **B12. A schema violation fails closed with a typed tool error and never reaches the
 tool body — and this path is unit-tested.**
@@ -186,10 +202,20 @@ candidate personal data (names, emails, phone numbers, résumés).
 
 **B18. Destructive / irreversible Jobvite operations are default-deny and require an
 explicit approval gate; they fail closed with no approver.**
-`ai/agent-guardrails.md:70-73` — *"**Default-deny destructive operations.** Any
+`ai/agent-guardrails.md:70-76` — *"**Default-deny destructive operations.** Any
 irreversible or high-blast-radius action (delete, financial transaction, outbound
 message to a third party, infra change, mass update) MUST pause for human approval
-before execution. Fail closed: no approver, no action."*
+before execution. Fail closed: no approver, no action."* — and, in the same section,
+*"The gate decides on the **validated tool call** — the exact tool name and resolved
+arguments the agent is about to run — not on free-form model prose. Render the
+concrete operation to the approver."* (`:74-76`).
+`ai/agent-guardrails.md:80-84` — *"The approval decision is a policy/code check, never
+something the model can grant itself. Model output never directly triggers a
+privileged action without passing this gate"*.
+`ai/tool-calling.md:131-132` states `:74-76` again from the tool-definition side.
+**`:74-76` and `:80-84` were uncited until CONF-5** and are what make the *content* of
+an approval request an obligation rather than a courtesy: an approver shown only a
+tool name has not been shown the operation.
 `ai/tool-calling.md:140` classifies *"Destructive / irreversible (delete, payment,
 send, deploy)"* as **"Approval gate required"**.
 Concretely for Jobvite: rejecting a candidate, deleting a requisition, and **any tool
@@ -288,13 +314,16 @@ blanket"* exception. Retry table at `:130`.
 MUST NOT be blindly"* retried.
 
 **B37. One circuit breaker per dependency, using `circuitbreaker`; caller (4xx)
-errors do not trip it.** `backend/resilience.md:159-161`, `:167-169` — *"a caller
-error (4xx) is not an outage and MUST NOT"* trip the breaker.
+errors do not trip it.** `backend/resilience.md:159-161`, `:166-168` — *"Count **only outage-class errors**
+toward the breaker via `expected_exception` — a caller error (4xx) is not an outage
+and MUST NOT trip it."* (CONF-5: was cited `:167-169`, off by one at both ends.)
 
 **B38. Composition order is timeout (innermost) → retry → circuit breaker
 (outermost).** `backend/resilience.md:209` — *"**timeout (innermost) → retry →
-circuit breaker (outermost)**"*, with `:216` — *"Never let a retry loop sit outside
-the breaker"*.
+circuit breaker (outermost)**"*, with `:214-217` — *"The **breaker** wraps the retried
+call, so **retries count toward the breaker** ... Never let a retry loop sit outside
+the breaker — that lets retry storms defeat the breaker and keep hammering a down
+upstream."*
 
 **B39. Retries and breaker transitions are logged with the correlation field, never
 silent.** `backend/resilience.md:226` — *"`request_id` correlation field. Never retry
@@ -321,7 +350,7 @@ error.** `backend/request-middleware.md:142` and `:144` — *"3. **Always echo**
 
 **B43. Exactly one structured log entry per request, carrying method, path, status,
 duration, request_id.** `backend/request-middleware.md:145` — *"4. **One log per
-request**"*; required-fields table at `:471-477`.
+request**"*; required-fields table at `:80-86`.
 
 **B44. `loguru` is the logging library.**
 `architecture/reference-architecture.md:94` — *"| Logging | **loguru** | — | std +
@@ -550,6 +579,72 @@ Composite of `ai/tool-calling.md:171-172` (arguments logged *"PII redacted"*),
 This is the one obligation most likely to be missed: a Jobvite candidate tool logs
 names and emails by default unless redaction is built in from the start.
 
+### Obligations recovered by the CONF-5 citation-range audit
+
+**These four were binding all along.** They are added here, not discovered here: each is an
+imperative clause in a standard this project already treats as binding, which no B-number's cited
+range ever covered. See `docs/reviews/CITATION-RANGE-AUDIT.md` for how they were found and why no
+existing instrument could have found them.
+
+**B107. A tool does not act with ambient authority: caller identity/tenant is passed
+explicitly and authorization is enforced inside the tool, off the request principal
+and never off a model-supplied value.**
+`ai/agent-guardrails.md:54-56` — *"**No ambient authority.** A tool must not act on
+behalf of an arbitrary user. Pass the caller's identity/tenant explicitly and enforce
+authorization inside the tool"*.
+`ai/tool-calling.md:108-111` — *"Tools **re-validate authorization independently** of
+the model: enforce the authenticated caller's tenant / row-level access inside the
+tool, off the request principal, never off a value the model supplied."*
+**The corpus cited `:47-49`, `:50-53` and `:57-58` and stepped over `:54-56`.**
+Fail condition: a tool resolving a record purely from a model-supplied identifier in a
+deployment where more than one tenant's records are reachable.
+**Disposed in `DESIGN.md` §7.2** (*"No ambient authority, and why a model-supplied id
+is not an instance of it here"*): one Jobvite tenant credential means there is no
+caller-scoped record set to enforce, so this is a statement the design makes rather
+than a control it builds. **The disposal carries an expiry** — if Jobvite ever exposes
+per-user or multi-tenant access, the clause goes live and this B-number becomes a real
+gate. That is why it is a B-number and not a one-line dismissal: a dismissal is not
+re-tested at freeze, and this one must be.
+
+**B108. A write that a caller can replay is guarded by an idempotency key, or the
+residual duplicate is accepted with its ceiling named.**
+`backend/resilience.md:146-151` — *"Make a write retry-safe by guarding it with an
+**idempotency key** so the downstream dedupes the replay ... Only then may the write
+be retried."* and *"Never auto-retry across an already-committed side effect; resume
+from a durable checkpoint or hand off to a background job instead."*
+**The corpus cited `:143-145` (B36) and `:159-161` (B37) and stepped over the six
+lines between them.** B36 and B19 both concern the *server's own* auto-retry and are
+discharged by `create_candidate` never being retried; this clause concerns the **other
+replay path**, a caller re-issuing the write, and names its remedy.
+**This supersedes the `backend/idempotency.md` dismissal below**, whose stated
+rationale — *"B19's tool-level idempotency covers the residue"* — does not survive
+reading B19's verdict, which covers auto-retry and not the residue.
+Open question, not settled by CONF-5: whether Jobvite accepts a dedupe key at all
+(`grep -i idempot` over `JOBVITE-API.md` and `JOBVITE-CONTRACT.md` returns nothing).
+If it does not, the obligation is discharged by naming the ceiling, as §7.2 does for
+the unverifiable read-only key.
+
+**B109. Tool logs are an audit trail with append-only intent; an audit-write failure
+has a stated disposition.**
+`ai/agent-guardrails.md:130-131` — *"Tool logs are an audit trail: append-only intent,
+never log secrets or raw credentials."*
+The "never log secrets" half is B17 via `ai/tool-calling.md:178-179`; the **audit-trail
+half was uncited**. `DESIGN-R2.md:325` raised it, the design answered it in §5.3, and
+no B-number was ever created — so the discharge was invisible to every instrument.
+
+**B110. The threat model is STRIDE per-component: all six categories evaluated
+against every component in the feature's data flow, following the seven-step process.**
+`architecture/threat-modeling.md:35` — *"Use **STRIDE per-component** as the default
+approach. For each component in the feature's data flow, evaluate all six STRIDE
+categories."*; the process at `:50-56` (identify assets, map trust boundaries,
+enumerate components, apply STRIDE, rate risk, define mitigations, document residual
+risk).
+**Before CONF-5 this 174-line binding standard was tracked by exactly one cited line**
+(`:86`, the Critical/High threshold, B-numbered as the risk-disposition rule). The
+completeness of §11's grid — the most structurally complete claim in `DESIGN.md` — was
+guaranteed by nothing. Fail condition: a component in §11 missing any of S, T, R, I, D
+or E, or a data-flow component absent from the grid entirely.
+
 ---
 
 ## 2. Applicable with adaptation
@@ -586,7 +681,7 @@ ADR as part of the design rather than discovering it at review.
 
 **A3. Request middleware → MCP transport middleware.**
 `backend/request-middleware.md` is Starlette-specific (`request.state`,
-`add_middleware`, LIFO ordering at `:481-489`). FastMCP's Streamable HTTP transport is
+`add_middleware`, LIFO ordering at `:90-98`). FastMCP's Streamable HTTP transport is
 ASGI, so the mechanism transfers; `request.state.request_id` becomes the
 `request_id_var` ContextVar the AI standards already require (B40).
 The CORS-outermost rule (`:146`, Rule 5) is inapplicable — no browser origin.
@@ -608,6 +703,19 @@ Clerk/JWT (`:68-517`) is not applicable — no human users.
 `ai/agent-guardrails.md` addresses the *agent loop*. This server is a tool
 **provider**, not a host: it does not run a loop, so the autonomy bounds at `:93-99`
 (max steps, recursion depth, tool-call budget, token ceiling) have no loop to bound.
+**The full clause set this adaptation disposes of, named so that "no loop here" is a
+citation and not an inference** (widened by CONF-5, which found these covered by A5's
+reasoning but by nobody's citation): `ai/agent-guardrails.md:90-91` (bounded on all
+axes), `:93-99` (the bounds table), `:101-103` (hard stop plus alert on breach),
+`:104-105` (a repeated tool-call pattern is a breach signal), `:139-151` (runtime
+mapping for the Bedrock loop, `claude-agent-sdk`, LangChain and LangGraph); and
+`ai/tool-calling.md:74-82` (provider mapping and the LangGraph exclusion), `:101-103`
+(bounded re-ask versus an unbounded repair loop), `:156-157` (never let a tool result
+auto-trigger a privileged action), `:163-170` (cap iterations per run, typed error on
+breach). Each governs a loop this server does not run.
+**Two neighbours of that set are NOT disposed of and bind in full**, because they sit
+on the tool side: `ai/agent-guardrails.md:54-56` with `ai/tool-calling.md:108-111`
+(B107) and `ai/agent-guardrails.md:130-131` (B109).
 **Adaptation:** the guardrails that live on the tool side — B13, B18, B19, B20, B21,
 B17 — bind in full. The wall-clock timeout row survives as B32's per-call timeout. The
 HITL gate (B18) is the delicate one: this server cannot *implement* an approval UI, so
@@ -670,7 +778,7 @@ Dismissed with a reason each, per the brief's preference for explicit dismissal.
 | `repos/evolv-coder/docs/adrs/adr-ec-350-04-public-share-rate-limit.md` | (TIER-1 #18) | A decision about evolv-coder's public share-link endpoint. No share links here. |
 | `database/*` (9 files) | required | No database. No schema, migrations, multi-tenancy, audit tables, Neo4j, or TimescaleDB. |
 | `backend/pagination.md` | required | Cursor pagination for a DB-backed API this project does not serve. Jobvite's own paging is consumed, not implemented. |
-| `backend/idempotency.md` | required | The `Idempotency-Key` HTTP recipe is for inbound mutating endpoints. B19's tool-level idempotency covers the residue. |
+| `backend/idempotency.md` | required | **Dismissal reopened by CONF-5 — see B108.** The `Idempotency-Key` HTTP recipe is for inbound mutating endpoints, which this server has none of. The former rationale, *"B19's tool-level idempotency covers the residue"*, was circular: B19 is discharged by `create_candidate` never being **auto-retried**, which is not the residue. The residue is a **caller** replaying the write (C4-D2), and `backend/resilience.md:146-151` names a dedupe key as its remedy. Live until B108 is answered. |
 | `backend/background-jobs.md` | required | No Celery, no queue, no worker. |
 | `backend/auth-guard.md`, `backend/openapi-contract.md`, `backend/delete-response.md`, `backend/realtime.md`, `backend/file-storage.md`, `backend/document-*.md` | required / recommended | Each governs a REST/FastAPI surface shape this server does not expose. |
 | `backend/{go,rust,java,csharp,cpp,php,ruby,kotlin,swift,dart,typescript}.md` | required | Other languages. |

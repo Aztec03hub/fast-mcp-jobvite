@@ -4,7 +4,21 @@
 
 ## Context
 
-`ai/agent-guardrails.md:79` requires recording who approved what and when.
+`ai/agent-guardrails.md:77-79` reads, whole:
+
+> *"**Approvals are scoped and expire.** An approval authorizes one specific call (or a narrow,
+> declared batch), not a standing capability. Record *who* approved *what* and *when* in the audit
+> log."*
+
+**The bullet has two halves and this ADR disposes of one of them.** The citation here was `:79`
+alone until the CONF-5 citation-range audit; a reader could reasonably have taken the whole bullet
+as scoped out, which it is not.
+
+- **`:77-78`, scoped-and-expires: SATISFIED, not scoped out.** MRTR binds an approval to the retry
+  of the exact call it was requested for (`DESIGN.md` §7.5), so an approval cannot become a standing
+  capability - there is no token to carry forward and no batch to widen. §7.6 records that the one
+  mechanism which could have created a standing grant, the confirmation token, was cut.
+- **`:79`, record who approved: the subject of this ADR**, below.
 
 ## Decision
 

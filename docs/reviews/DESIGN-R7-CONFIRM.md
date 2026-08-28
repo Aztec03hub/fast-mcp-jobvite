@@ -30,11 +30,17 @@ round, and the L and N findings do not gate anything. But the rule as written is
 defect sits in the evidence chain of an inherent-High row inside text about to become
 ADR-only-changeable, and I am not going to call it a Low to clear a gate.
 
-**Update after the pass closed: M-1 is applied and green (`f5c63e7`), and a second Medium arrived.**
-`M-2` below rules on the "No ambient authority" clause referred to me after this report was first
-written. It is a required clause in two binding standards, disposed nowhere in the corpus, and it
-keeps the verdict at **DO NOT FREEZE** until one paragraph lands in §7.2. Running tally:
-**0C / 0H / 2M (one applied, one open) / 5L / 2N.**
+**Update after the pass closed - three Mediums total, two now closed.** Findings referred to me after
+this report was first written:
+
+| # | Finding | State |
+|---|---|---|
+| **M-1** | §7.2 asserted a README that does not exist as C5-E1's mitigation | **Applied `f5c63e7`**, gates green |
+| **M-2** | "No ambient authority" (`agent-guardrails.md:54-56`, `tool-calling.md:108-111`) disposed nowhere | **Applied `90b0504`** as §7.2:763-792 + B107, gates green. I verified the paragraph: it carries the expiry trigger and states single-tenancy as a property of our deployment model rather than of Jobvite, which is what I asked for |
+| **M-3** | The caller-replay clause (`resilience.md:146-151`) names a remedy nobody evaluated | **OPEN.** B108 is written in the corpus; `DESIGN.md` still does not dispose of it |
+
+**M-3 is the only thing between this document and a freeze.** Verdict stays **DO NOT FREEZE**.
+Running tally: **0C / 0H / 3M (two applied, one open) / 5L / 2N.**
 
 ### Status of these findings at the time of writing
 
@@ -298,6 +304,70 @@ One caution on the wording: state the single-tenant fact as a property of **the 
 (one API key, one `companyId`, per deployment), not as a Jobvite guarantee. We have never seen
 Jobvite's permission model - §7.2:785-788 says so about read-only keys - and asserting it as a vendor
 property would be the same over-read this document has corrected twice.
+
+### M-3 - The caller-replay clause names a remedy nobody evaluated, and DESIGN.md still does not dispose of it
+
+`backend/resilience.md:146-151`; `DESIGN.md:1602` (C4-D2), `:1874`; `STANDARDS.md:605-621` (B108).
+
+Referred to me as F10 and rated above F1 by the referrer. Verified independently. **I rate it the
+same as F1 - Medium - and I explain below why I do not rate it higher, because I was asked not to
+deflate it and I want the reasoning visible rather than the number asserted.**
+
+**The clause exists and was stepped over.** `backend/resilience.md:146-148` - *"Make a write
+retry-safe by guarding it with an **idempotency key** so the downstream dedupes the replay ... Only
+then may the write be retried."* The corpus cites `:143-145` as B36 (`STANDARDS.md:313`) and
+`:159-161` as B37 (`:317`) - the clauses on either side - and stepped over the six lines between.
+Positive control: `resilience.md:224` / `:74` resolve 23 times across `docs/`, so the instrument
+finds resilience citations.
+
+**The dismissal that should have caught it is circular, and the corpus now says so itself.** B36 and
+B19 both concern the **server's own** auto-retry and are discharged by `create_candidate` never being
+retried (§4.3). The residue is **caller** replay, which never-auto-retrying does not touch.
+`STANDARDS.md:615-617` now records that the `backend/idempotency.md` dismissal - *"B19's tool-level
+idempotency covers the residue"* - does not survive reading B19's own verdict.
+
+**The exposure is the project's worst harm, and its rated mitigation is a hypothesis.** C4-D2
+(`DESIGN.md:1602`) is a duplicate candidate and **a second email to a live person** - the same harm
+§5.3's audit-failure branch is built to avoid. Its treatment is "Never retried (§4.3); a `409` is
+surfaced as `/problems/conflict`... **Detection, not prevention**", and the row itself concedes the
+`409` shape is **inferred rather than observed**. So the accepted residual rests on detection that
+has never been seen working, and the acceptance was made without the named remedy ever being
+considered.
+
+**Why Medium and not High.** A High would mean the design permits a bad outcome it could close. It
+may not be able to close it: `grep -i idempot` over `JOBVITE-API.md` and `JOBVITE-CONTRACT.md`
+returns **zero**, so whether Jobvite accepts a dedupe key is unknown, and if it does not, the correct
+disposal is a named ceiling - which is a documentation fix, exactly like F1. The bounded worst case
+is "accept, and say why". That caps it at Medium. What makes it a Medium rather than a Low is that
+**an acceptance made in ignorance of an available remedy is not a valid acceptance**, and after the
+freeze only an ADR can revisit it.
+
+**Suggested fix (mine, verify before adopting) - a §4.3 or §2.2 paragraph plus two small edits.**
+
+1. **Dispose of the clause where the write is specified**, discharging B108: state that the server
+   never auto-retries `create_candidate` (already true, B36/B19), that the remaining path is a
+   **caller** re-issuing the write, and then the decision - either an idempotency key is sent to
+   Jobvite, or **the ceiling is named**: we do not know that Jobvite accepts a dedupe key, the
+   research corpus contains no evidence either way, and until a credential exists this cannot be
+   established. Model it on §7.2's read-only-key treatment, which is the right precedent and already
+   in the document.
+2. **Point C4-D2 at it.** The row should cite the clause and the disposal rather than stopping at
+   "Detection, not prevention", so a reader auditing the residual can see the remedy was considered.
+   I am **not** proposing a re-rating: L=M × I=M yields Medium by the matrix and that is unchanged.
+3. **Fix `DESIGN.md:1874`, which is now stale in an unfortunate direction.** It reads
+   "`devops/docker.md` and `backend/idempotency.md` are the two most likely to have gone live" -
+   still future-tense about a condition that **has** now tripped. The document predicted this exact
+   failure and the prediction outlived its own event. Suggested: "`backend/idempotency.md` **did** go
+   live - reopened as B108 - which is the second time a conditional dismissal tripped unnoticed;
+   `devops/docker.md` remains the outstanding one."
+
+**One option I want on the record before the disposal is written, offered as a hypothesis and not a
+recommendation.** The choice is not only "Jobvite dedupe key or accept". A **server-side** guard is
+possible and independent of Jobvite's support - §4.5 already specifies a de-duplication seen-set for
+pagination, so the pattern is in this design's vocabulary. It carries real costs (state, TTL,
+behaviour across restart) and may well be rejected. **My point is only that the disposal should say
+it was considered**, because "Jobvite may not support it" does not by itself establish that nothing
+can be done. I have not designed this and I am not asking for it to be built.
 
 ### L-1 - The "not reconstructible" sentence invites the next editor to reconstruct it
 
