@@ -1,6 +1,27 @@
 # fast-mcp-jobvite - Design
 
-Status: **DRAFT, revision 5. NOT FROZEN.**
+Status: **FROZEN, revision 6.** Frozen 2026-08-28 03:04 PM CDT.
+
+**Only a numbered ADR in `docs/adr/` may change this document from here.** ADR-0012 onward carries a
+`Type:` field, because an ADR does two different jobs here and after the freeze the difference
+decides whether the change was permitted (§13).
+
+**What the freeze does and does not certify.** It certifies that a review round returned 0 Critical,
+0 High and 0 Medium; that §11's must-mitigate table is empty; and that every conditional dismissal
+in the standards register was re-tested and recorded standing or tripped. It does **not** certify
+that this document is correct. Three carried risks are recorded rather than resolved:
+
+- **§8's SIGTERM case is the one required case whose deletion the gate provably cannot see**, and it
+  guards a defect verified 3-of-3 in the wild. It is the most expensive case in §8 to write and
+  dropping it would cost nothing anyone notices. It is carried as a named line item with an owner on
+  the implementation plan, because this document cannot carry it.
+- **The last review's own findings were applied without being independently re-reviewed.** Reviewing
+  the application of a round's findings is infinite regress, so it was stopped deliberately; one of
+  those fixes was a choice between two options the reviewer left open, not a dictated edit.
+- **Five defects were found by attempting to build, none by reading** - a README that did not exist,
+  a CI pipeline that did not exist, and three settings specified in prose with no name. Prose review
+  reached 0C/0H/0M while a unit sat unbuildable. **The next defect of that class is reachable only by
+  implementation, and freezing is how this document stops pretending otherwise.**
 
 Review history, which is a record rather than a status anyone must keep in sync:
 
@@ -28,7 +49,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:59 PM CDT.
+Last updated: 2026-08-28 03:04 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -265,9 +286,9 @@ src/fast_mcp_jobvite/
   audit.py                    the per-invocation audit event (§5.3)
   approval.py                 the dual-era approval guard (§7.5)
   services/jobvite_client.py  httpx2: auth, the error rule, pagination, resilience
-  tools/candidates.py         search_candidates, get_candidate, create_candidate
-  tools/jobs.py               search_jobs, get_job_feed
-  models/                     allow-listed output models, one per tool
+  tools/candidates.py         search_candidates, get_candidate, create_candidate; their input models
+  tools/jobs.py               search_jobs, get_job_feed; their input models
+  models/                     allow-listed OUTPUT models, one per tool; no input model lives here
   utils/correlation.py        request_id_var, the per-invocation correlation ContextVar (§5.3)
   utils/redaction.py          log redaction; untrusted-content fencing
   utils/normalise.py          casing, dates, empty-string/null unification
@@ -1614,7 +1635,7 @@ column and the check is a script.
 
 | Asset | Sensitivity | Location |
 |---|---|---|
-| Candidate personal data (names, emails, phone numbers, résumés, cover letters, interview notes) | Restricted | Jobvite responses in transit; tool results; `models/`; logs if redaction fails |
+| Candidate personal data (names, emails, phone numbers, résumés, cover letters, interview notes) | Restricted | Jobvite responses in transit; tool results; `models/`; **`create_candidate`'s input model in `tools/candidates.py`, which carries name, email and phone by construction**; logs if redaction fails |
 | Special-category EEO data (`gender`, `race`, `veteranStatus`) | Restricted | Jobvite responses only. Excluded from every output model (§6.2), so never leaves the server |
 | Jobvite v2 API credential (`x-jvi-api`, `x-jvi-sc`) | Restricted | Environment; `config.py` as `SecretStr`; request headers |
 | Jobvite job-feed credential (`api`, `sc`, `companyId`) | Restricted | Environment; the `/v1/jobFeed` query string, which is why that URL is classified sensitive (§4.1) |

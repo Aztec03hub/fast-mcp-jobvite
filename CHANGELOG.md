@@ -14,6 +14,15 @@ decisions and research that the implementation will be built against.
 
 ### Added
 
+- **`docs/DESIGN.md` is frozen at revision 6.** Only a numbered ADR may change it from here.
+  The freeze certifies a 0C/0H/0M round, an empty must-mitigate table, and every conditional
+  dismissal re-tested and recorded. It explicitly does not certify correctness: three carried risks
+  are named in the status block, including that five defects were found by attempting to build and
+  none by reading. (2026-08-28 03:04 PM CDT)
+- §3 records where input models live - beside their tools, with `models/` explicitly output-only.
+  A file boundary rather than a naming choice, and it is what lets implementation agents run
+  concurrently without overwriting each other. (2026-08-28 03:04 PM CDT)
+
 - `JOBVITE_MCP_HOST`, `JOBVITE_MCP_PORT` and the secret-class `JOBVITE_HTTP_TOKENS`. §7.1 said the
   server binds loopback "unless told otherwise" and named nothing that does the telling, and §7.2
   said the token verifier is "built from environment" without naming the variable. Found by trying

@@ -269,3 +269,102 @@ that guards itself.
 
 The cheap hedge, if wanted before the freeze: make the implementation plan's §8 checklist carry this
 case as a named line item with a person against it, since the document cannot carry it.
+
+---
+
+## Addendum: Q5, where input models live
+
+Routed in mid-round by the team lead as the one in-scope addition. Answered here, not folded into
+the tally above, because it is not a defect in the two commits.
+
+### 1. Does it block the freeze? **No.**
+
+It is an **omission, not a false claim**, and that distinction is the whole answer. Every Medium
+above is the document asserting something measurably untrue. Q5 is the document not asserting
+anything - and nothing anywhere resolves against the missing answer:
+
+- `check-coupling.py` never reads §3. I inserted the proposed lines below and re-ran all three
+  gates: `check-coupling.py` exit 0, `check-coupling-controls.py` exit 0, `check-coupling-sweep.py`
+  exit 0 with 0 holes. §3's layout block is outside every selector.
+- No §8 case names a module for input validation. The three inbound cases (`:1205`, `:1209`,
+  the schema case) assert *behaviour before dispatch*, not a file.
+- §11's C3 is scoped **by concept**, not by module: `:1647` reads *"C3. Tool argument layer (input
+  models, `strict=True`)"* with no path. Only one row names modules for this at all, and it already
+  answers the question in passing - `:1638` (C2-T1) reads *"Payload shaping happens in the tools and
+  in `models/`, which is C3 and C6"*, mapping **C3 to the tools** and C6 to `models/`.
+
+So the design is not silent so much as under-written: it implies the answer in a threat-model row
+and never records it in the map. Nothing built on it is wrong today, and the plan has a correct
+sequential path. Freezing does not propagate a falsehood.
+
+The lead's read is right, and I did not reach it by agreeing with the framing - I checked whether
+anything resolves against the gap, and nothing does.
+
+### 2. Is a one-line addition to §3 the right fix?
+
+**Right in kind, wrong in count. It needs three edits, not one, and one of the three is an ADR.**
+
+A single line saying where the input models live answers the smaller half. The half that actually
+produced the collision is that **the shared inbound controls have no home either**, and they cannot
+live in a per-tool model without being copied four times:
+
+- the control-character and bidi rejection (`:151-158`), one rule for every string argument on every
+  tool;
+- three of the four structural limits (`:141-143`) - depth 5, list 1,000, dict keys 100.
+
+The fourth limit is already placed: `:136-137` puts body size **at the middleware**, which is C2.
+The other three and the character rule are not placed anywhere, and this document's own pattern for
+a rule with many callers is a single enforcement point (§4.1: *"Enforced in one place,
+`utils/redaction.py`"*). Naming where the models sit while leaving the validators unhoused re-runs
+the same file-ownership ambiguity one layer down, which is exactly what broke the wave.
+
+**The two edits I would make now** (MY SUGGESTION, verify before adopting). Replace `:268-270`:
+
+```
+  tools/candidates.py         search_candidates, get_candidate, create_candidate; their input models
+  tools/jobs.py               search_jobs, get_job_feed; their input models
+  models/                     allow-listed OUTPUT models, one per tool; no input model lives here
+```
+
+That is recording what `:1638` already implies rather than deciding something new, which is why it
+belongs in §3 now: an input model has exactly one consumer, co-locating it with that consumer keeps
+`models/` scoped to the output pipeline as §11's C6 has it, and it gives each `tools/*.py` sole
+ownership of its own inputs - which is the property concurrent implementation needs.
+
+**The alternative I would not take**: putting input models in `models/`. It merges C3's and C6's
+module footprints while §11 keeps them as separate components with different ratings, and it is the
+reading under which the plan's unit collides with three others.
+
+### 3. The third edit belongs in an ADR, and I am saying so because it does, not because it was offered
+
+The shared-constraint module is **not** a clarification. Adding
+
+```
+  utils/constraints.py        the shared inbound constraint types every input model reuses:
+                              control-character and bidi rejection, and the depth/list/dict-key
+                              limits (§2.1)
+```
+
+adds a **module** to a block whose closing sentence exists to enumerate the modules this design
+refuses (`:276-277`: *"No cache module, no bulk module, no custom logging module"*). A section that
+justifies its absences owes a justification for an addition. There is also a real alternative -
+rescope `models/` to hold both input and output models and merge C3/C6's module footprint - which
+deserves a recorded rejection rather than a silent one. That is the shape of a decision, and this
+project's rule is that a decision goes in a numbered ADR.
+
+**ADR-0012, `Type:` field and all.** That is not a failure mode; it is the mechanism working on its
+first real customer, and it is cheaper to find out now whether the `Type:` field is usable than on
+something contentious.
+
+If the lead wants a single pre-freeze edit instead, take the `:268-270` replacement alone and file
+the constraint module as ADR-0012 after. That ordering is coherent: the part that records an
+existing implication lands in the map, the part that makes a new choice goes through the mechanism
+built for new choices.
+
+### One sibling to check, whichever answer is adopted
+
+`:1597`'s data-inventory row lists `models/` among the places candidate personal data lives. If
+`models/` becomes explicitly output-only, `create_candidate`'s **input** model - which carries a
+candidate's name, email and phone by construction - is the PII location that row no longer names.
+It is one clause, and it is the kind of sibling that goes stale exactly the way §12's variable count
+did. Out of scope for this round; flagged so the edit does not create the next finding.
