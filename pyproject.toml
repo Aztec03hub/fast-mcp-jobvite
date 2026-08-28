@@ -3,7 +3,7 @@ name = "fast-mcp-jobvite"
 version = "0.1.0"
 description = "An MCP server for the Jobvite ATS."
 requires-python = ">=3.12"
-license = "Apache-2.0"
+license = "Apache-2.0"  # B89 SPDX id; README section deferred with B77
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "evolv Consulting" }]
 
@@ -138,7 +138,7 @@ show_missing = true
 # `line-length = 100` as do-not-copy item 16, inherited from fast-mcp-jira.
 # It was set here and never argued: a grep for line-length across DESIGN.md,
 # the plan, every ADR, DECISIONS.md and the worklogs returns nothing.
-line-length = 88
+line-length = 88  # B49, code half only; the 72-char half is B49b
 target-version = "py312"
 src = ["src", "tests"]
 # docs/reviews/*.py are the design-coupling gate harnesses. They are owned by the
@@ -154,20 +154,20 @@ select = [
   "E", "W",   # pycodestyle       [STD] python.md:28
   "F",        # pyflakes          [STD] quality-gates.md:63
   "I",        # isort             [STD] python.md:54-58
-  "N",        # pep8-naming       [STD] python.md:62-72
+  "N",        # pep8-naming       [STD] python.md:62-72 (B52)
   "D",        # pydocstyle        [STD] python.md:29
   "UP",       # pyupgrade         [REC]
   "B",        # bugbear           [REC] python.md:193-206
   "S",        # bandit            [REC] agentic-coding-standard.md:123-135
   "ASYNC",    # async correctness [REC]
-  "DTZ",      # naive datetimes   [STD] python.md:227, no datetime.utcnow
+  "DTZ",      # naive datetimes   [STD] python.md:227, no datetime.utcnow (B51)
   "T20",      # flake8-print      [STD] observability.md:642, no print statements
-  "ANN",      # annotations       [STD] python.md:76, type hints required
+  "ANN",      # annotations       [STD] python.md:76, type hints required (B50 type-hint half)
 ]
 ignore = ["D203", "D213"]   # mutually exclusive with D211/D212
 
 [tool.ruff.lint.pydocstyle]
-convention = "google"       # python.md:97
+convention = "google"       # python.md:97 (B50 docstring half)
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [

@@ -1,6 +1,6 @@
 # Contributing to `fast-mcp-jobvite`
 
-`readme-standard.md:56` requires a repository to link `CONTRIBUTING.md` **or** inline the
+`readme-standard.md:56 (B104)` requires a repository to link `CONTRIBUTING.md` **or** inline the
 contribution rules under the README's Contributing heading. This file is that document, so the
 README's Contributing section links here rather than restating it.
 
@@ -61,7 +61,7 @@ Refs: EC-###
   `.github/workflows/pr-title.yml`; a rejected title can be fixed by editing it, and the check
   re-runs on the edit.
 - At least **1 approval** (`development-workflow.md:73`), all CI green, no unresolved threads.
-- **Squash merge** (`development-workflow.md:82`). Delete the branch after merge.
+- **Squash merge** (`development-workflow.md:82 (B102; enforcement is branch protection, out of tree: B98)`). Delete the branch after merge.
 
 ## The gates, and how to run them before you push
 

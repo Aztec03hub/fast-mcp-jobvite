@@ -1,6 +1,6 @@
 <!--
 F-7. Body copied VERBATIM from devops/development-workflow.md:201-241, which
-mandates it. quality-gates.md:50 gates PR creation on "Completed PR template",
+mandates it. quality-gates.md:50 (B100 - and this does NOT close B101, the reviewer checklist) gates PR creation on "Completed PR template",
 so the artifact itself is the obligation. COMPLIANCE-SPEC.md:320 marks the
 CONTENT [STD] REQUIRED and the PATH [REC] - .github/pull_request_template.md is
 the GitHub convention, not a standards requirement.

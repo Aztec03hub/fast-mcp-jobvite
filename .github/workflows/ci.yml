@@ -172,7 +172,7 @@ jobs:
       # credentialed and network arms are excluded by SELECTION - the `-m` in
       # addopts - and never by skipif. The grep is the enforcement: pytest itself
       # exits 0 on a run full of skips, so the exit code alone cannot see this.
-      - name: Default suite, zero skips
+      - name: Default suite, zero skips  # B59 - no positional path, so testpaths stays authoritative
         run: |
           set -uo pipefail
           out=$(uv run --frozen pytest 2>&1); rc=$?
@@ -429,7 +429,7 @@ jobs:
   # autolinks, raw <a href> - and contains none, so inline `[x](y)` is the whole
   # relative-link surface lychee will see here.
   #
-  # readme-standard.md:69 - "a link checker MUST run in CI; a broken link blocks
+  # readme-standard.md:69 (B82) - "a link checker MUST run in CI; a broken link blocks
   # merge." COMPLIANCE-SPEC.md:84 makes it job 12 and picks no tool (:659-661
   # lists the choice as something that document deliberately left open).
   #
