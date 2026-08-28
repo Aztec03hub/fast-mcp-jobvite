@@ -19,7 +19,7 @@ no frontend, no deployed environment.**
 | C4 | PR title semantic/conventional; **do not** install the `[FEAT-XXX]` check | CI job list |
 | C5 | Redis rate-limiter **opted out, with an ADR** | no Redis; ADR required at design freeze |
 | C6 | `ai/tool-calling.md` + `ai/agent-guardrails.md` **bind, by intent** | B9-B23 are in force; ADR at design freeze |
-| G2 | **MIT**, `Copyright (c) 2026 evolv Consulting` | already set; §3 treats as settled |
+| G2 | **Apache-2.0**, `Copyright (c) 2026 evolv Consulting` | **Settled by D13, and this row said MIT until 2026-08-28.** MIT was the default this repo started from, not a choice; `docs/DECISIONS.md` D13 decided Apache-2.0 on the express patent grant, and the tree has been Apache-2.0 since (`pyproject.toml:6`, `LICENSE`, `NOTICE`) |
 
 > **Note on the Python floor.** The task brief for this spec says "the repo targets
 > Python 3.11+", but ruling C1 (issued later, and explicit) sets `>=3.12`. **I have
@@ -312,7 +312,7 @@ Create `tests/test_collection_guard.py` asserting no `test_*.py` exists outside
 |---|---|---|
 | `README.md` | **[STD] REQUIRED** | `readme-standard.md:34` — *"The top level of every Git repository"* |
 | `CHANGELOG.md` | **[STD] REQUIRED** | `changelog-standard.md:42` Keep a Changelog 1.1.0 |
-| `LICENSE` | **[STD] REQUIRED** | `readme-standard.md:57` — SPDX id + link. **Settled: MIT, `Copyright (c) 2026 evolv Consulting`** |
+| `LICENSE` | **[STD] REQUIRED** | `readme-standard.md:57` - SPDX id + link. **Settled: Apache-2.0, `Copyright (c) 2026 evolv Consulting`** (D13; this line said MIT until 2026-08-28, after the tree had already changed) |
 | `CONTRIBUTING.md` | **[STD] REQUIRED *or* inlined** | `readme-standard.md:56` — *"link to `CONTRIBUTING.md` or equivalent. Repos without that file must inline the contribution rules under this heading."* |
 | `SECURITY.md` | **SILENT** → **[REC] add** | 0 hits corpus-wide. A public repo brokering recruiting PII with no disclosure route is indefensible; ~10 lines. |
 | `CODE_OF_CONDUCT.md` | **SILENT** → **[REC] optional** | 0 hits. Conventional for public org repos; low value for a solo-maintained integration. |
@@ -343,7 +343,7 @@ them."* (`:45-58`)
     exactly"; **[REC]** keep the heading and state "not deployed; consumed as an MCP
     server" rather than delete it
 12. Contributing
-13. License — **`MIT` (SPDX)** + link to `LICENSE`
+13. License - **`Apache-2.0` (SPDX)** + link to `LICENSE`. **Not MIT** - D13, and the LICENSE file in the tree is the Apache 2.0 text
 14. Maintainers
 
 **[STD]** ≤500 lines (`:64`); every env var appears in the Configuration table and new
@@ -606,7 +606,7 @@ One line each; markable without interpretation.
 - [ ] README has all 14 sections, exact headings, correct order
 - [ ] README ≤500 lines
 - [ ] Configuration table lists every env var with Name/Required/Default/Description
-- [ ] README License section says **MIT** (SPDX) and links `LICENSE`
+- [ ] README License section says **Apache-2.0** (SPDX) and links `LICENSE`. **A README saying MIT is the specific defect this line used to cause** - it said MIT until 2026-08-28 while the tree shipped Apache-2.0
 - [ ] `LICENSE` reads `Copyright (c) 2026 evolv Consulting`
 - [ ] At least one live CI badge
 - [ ] `CHANGELOG.md` is Keep a Changelog 1.1.0 with `## [Unreleased]`

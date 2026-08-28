@@ -41,7 +41,7 @@ do carry one:
 
 | Repo | Visibility | Archived | Language | SPDX (GitHub) | Verbatim copyright line |
 |---|---|---|---|---|---|
-| `fast-mcp-jobvite` | public | no | - | MIT | `Copyright (c) 2026 evolv Consulting` (this repo, provisional) |
+| `fast-mcp-jobvite` | public | no | - | MIT **at survey time; now Apache-2.0** | `Copyright (c) 2026 evolv Consulting` (this repo. The MIT reading was **provisional** and this survey's own recommendation is what changed it - D13, 2026-08-27) |
 | `snowddl` | public | no | Python | Apache-2.0 | `Copyright 2026 Vitaly Markov` |
 | `claude-conduit-app` | public | no | JavaScript | AGPL-3.0 | none of evolv's own; GPL text only bears `Copyright (C) 2007 Free Software Foundation, Inc.`. `package.json` says `"author": "evolv consulting <info@evolvconsulting.com>"` |
 | `evolv-coder-lite` | public | no | JavaScript | NOASSERTION (MIT + preamble) | `Copyright (c) 2026 evolv Consulting` |

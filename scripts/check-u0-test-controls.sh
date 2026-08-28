@@ -44,7 +44,21 @@ TOTAL=0
 # scripts/check-committed-file-types.py, so without it this harness's copied
 # tree fails at COLLECTION and every control below aborts. This is a one-entry
 # data addition, not a change to U0's harness logic.
-COPY=(pyproject.toml uv.lock .env.example .gitignore src tests docs scripts)
+#
+# .github added after 9ca76fe: tests/test_workflow_pins.py walks
+# .github/workflows/ and carries a positive control asserting the walk actually
+# found mirror.yml. Without .github staged, that control fires CORRECTLY - the
+# walk really did find nothing in the copied tree - the BASELINE goes red, and
+# the harness aborts before running a single control. So the gate went down
+# reporting a true fact about a tree this script had built wrong.
+#
+# THIS IS THE THIRD TIME. Whenever a unit adds a test that reads a path outside
+# this list, the harness aborts and every control silently stops running. The
+# list is the fragile part, not the tests: it is an allow-list that has to be
+# updated by whoever adds a test, and nothing reminds them. If it happens a
+# fourth time, stage the whole tree minus .git/.venv/caches instead of naming
+# members - an allow-list of paths selects for exactly the path nobody thought of.
+COPY=(pyproject.toml uv.lock .env.example .gitignore src tests docs scripts .github)
 
 stage () {
   local dest="$1"
