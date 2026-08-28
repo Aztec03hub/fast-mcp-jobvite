@@ -8,6 +8,16 @@ build/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+# Coverage artifacts. `.coverage` is a SQLite database and appeared untracked and
+# UNIGNORED after the first test run that produced one - exactly the shape a broad
+# `git add` sweeps in, which is the mechanism behind this repository's own incident.
+# The committed-file-type gate does refuse it (verified), but that gate is the
+# backstop and this is the primary layer.
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/
 
 # Environment / secrets
 .env
