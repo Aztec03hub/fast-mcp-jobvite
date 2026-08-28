@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:21 PM CDT.
+Last updated: 2026-08-28 02:29 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -396,7 +396,7 @@ that as a limitation rather than implying coverage we do not have.
 **Outbound, we throttle ourselves against Jobvite's only documented operating envelope**, which is
 prose rather than a number: call it on an as-needed basis, and anything more frequent than once a
 day must be filtered. That is the sole guidance Jobvite gives. So the client carries a configurable
-outbound rate limit with a conservative default, and the README states the envelope, because a user
+outbound rate limit with a conservative default, and the README must state the envelope once one exists (§10.1), because a user
 syncing hourly is outside what the vendor documents and should know it.
 
 The mandated Redis token bucket is not used: the standard's rationale is replica
@@ -811,7 +811,7 @@ property is a mistake this document has already had to correct twice.
 
 **The ceiling, which is the part that expires.** **If Jobvite ever exposes per-user or multi-tenant
 scoping, or a deployment is ever configured with more than one company id, this disposal is void and
-both clauses become live obligations** - `get_candidate` would then need an authorization check
+both clauses become live obligations**. The second limb is observable in `JOBVITE_COMPANY_ID` by anyone reading a deployment. **The first was observable by nobody as first written** - it named no document, no checklist row and no moment at which anyone looks - so `CREDENTIAL-CHECKLIST.md` row 0 now asks Jobvite about the permission model as well as about read-only keys, and that row is where this limb is settled - `get_candidate` would then need an authorization check
 against the request principal before returning a record. Without that trigger written down, this
 paragraph rots silently on the day the assumption changes, which is precisely how the conditional
 dismissal of `backend/idempotency.md` went unnoticed (§13's freeze procedure).
@@ -829,7 +829,7 @@ environment of the process.
 is stated **today** in `docs/CREDENTIAL-CHECKLIST.md`, whose row 0 records the question to Jobvite
 and its answer either way, and **the README must carry it in the deployment section when the
 implementation produces one** (§10.1). The tense matters and an earlier revision got it wrong: it
-asserted the README stated this while §10.1, 582 lines away, deliberately withholds the README
+asserted the README stated this while §10.1, most of a document away, deliberately withholds the README
 because describing an unbuilt system is a false claim in the present tense. The checklist is the
 document the first key request actually passes through, and before implementation it is the only
 point at which this instruction can be acted on at all. It is
@@ -1370,7 +1370,10 @@ as unnecessary.
 what the pipeline must do, not a report of what it does.** `.github/workflows/` currently holds one
 file, `mirror.yml`, which pushes to the mirror remote and nothing else. This is stated once, here,
 because the present tense elsewhere would otherwise read as a claim about a pipeline that has never
-run - the same false-tense defect §7.2 already had to correct about the README, and it survived
+run. **This covers every sentence in this document that describes CI in the present tense** -
+*"CI runs"*, *"CI also runs"*, *"CI has"*, *"CI installs"*, *"CI exercises"* - and not only the one
+phrasing. An earlier version of this paragraph named a single string form, which is a selector, and
+the cheapest way to satisfy a selector is to leave every non-matching sentence alone - the same false-tense defect §7.2 already had to correct about the README, and it survived
 seven review rounds and a machine gate in this section. **Standing the pipeline up is the first unit
 of implementation, and until it exists these gates are run by hand.**
 
@@ -1387,7 +1390,7 @@ document. A count is a claim that decays on every change; a description does not
 A checker that has only ever passed is the same failure as the sentence it replaced, which is why
 the sweep can be pointed at a reverted gate and made to report holes.
 
-CI also runs: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
+CI must also run: lint, format, types, tests, plus `pip-audit`, CodeQL, TruffleHog with full history depth, SBOM
 in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output is emitted and
 **diffed between builds**, so capability drift arriving through a dependency bump is visible in
 review rather than at runtime. **UNVERIFIED:** that this actually catches the drift it is meant to
@@ -1637,7 +1640,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C3-S1 | No credible threat at this layer. Identity is established at C1 | - | - | - | The argument layer sees an already-authenticated caller | no credible threat |
 | C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | **Mitigated in §2.1:** strings are validated as UTF-8 and rejected before dispatch if they carry C0/C1 control characters other than tab, newline and carriage return, or Unicode bidi overrides. `max_length` and the output allow-list do not reach this - a NUL-bearing name is a well-formed short string, and the allow-list is an output filter | §8: a control character or bidi override in a string argument rejected before dispatch |
 | C3-R1 | No credible threat beyond C1-R1. Arguments are recorded redacted by `audit.py` (§5.3) | - | - | - | Covered by C1-R1 | no credible threat |
-| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is still undocumented (B15)** | unmitigated (B15) |
+| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). ****The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
 | C3-D1 | A deeply nested or very large argument payload consumes parse time and memory (B30) | M | M | Medium | **Mitigated in §2.1:** the four limits from `input-validation.md:220-226` - nesting depth 5, list items 1,000, dict keys 100, body 1 MiB - enforced before dispatch. §4.5's page caps are outbound transport limits and bound nothing a caller sends | §8: an argument payload exceeding a structural limit rejected |
 | C3-E1 | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is stated in §5.1 and the failure-closed case is required in §8, which is what closed B12. Mitigated | §8: an argument-schema violation failing closed |
 
@@ -1669,7 +1672,7 @@ asserted that placement in the same edit that failed to make it.
 | C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Mitigated in §5.3.** `request_id_var`, a ContextVar set where the id is minted and reset in a `finally`, carries it to the retry and breaker hooks, which the resilience library calls with no argument we control. Every retry and transition is logged with it, and without the URL, since the v1 feed URL is itself a secret | §8: every retry and breaker-transition log line carries the invocation's own `request_id`, asserted under concurrency |
 | C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
 | C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Retry budget bounded by a configured server-side outbound ceiling, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). The ceiling is ours because MCP supplies no inbound deadline to derive one from, which §4.3 now states rather than implying otherwise. Mitigated | not required (Medium) |
-| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Mitigated in §7.2 as an operator instruction with a stated ceiling, not as an enforceable control.** Where writes are disabled a read-only key is required, stated in the README and the credential checklist. The server cannot verify a key's rights - no Jobvite endpoint reports them - and whether Jobvite issues read-only keys at all is unknown, so if the answer is no the residual stands and is recorded rather than ticked | §8: the read-only-key requirement is present in `CREDENTIAL-CHECKLIST.md`, and in the README's deployment section once a README exists |
+| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Mitigated in §7.2 as an operator instruction with a stated ceiling, not as an enforceable control.** Where writes are disabled a read-only key is required, stated today in `docs/CREDENTIAL-CHECKLIST.md` row 0, and required of the README's deployment section once a README exists (§7.2, §10.1). The server cannot verify a key's rights - no Jobvite endpoint reports them - and whether Jobvite issues read-only keys at all is unknown, so if the answer is no the residual stands and is recorded rather than ticked | §8: the read-only-key requirement is present in `CREDENTIAL-CHECKLIST.md`, and in the README's deployment section once a README exists |
 
 **C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
 
@@ -1680,7 +1683,7 @@ asserted that placement in the same edit that failed to make it.
 | C6-R1 | No credible threat. This component produces no auditable decision | - | - | - | It transforms a response that C5 already fetched and C1/C4 already authorised | no credible threat |
 | C6-I1 | Special-category EEO fields (`gender`, `race`, `veteranStatus`) flow to the model | H | H | **Critical** | Not present in any output model, so they never leave the server (§6.2, ADR-0008). Mitigated | §8: EEO fields never appearing in any tool result |
 | C6-I2 | A newly added Jobvite field leaks to the model without review | M | M | Medium | Path-keyed allow-list fails closed: an unlisted field is dropped until someone adds it deliberately (§2.1). Mitigated | not required (Medium) |
-| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). **The default is still undocumented (B15)** | unmitigated (B15) |
+| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). ****The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
 | C6-E1 | No credible threat. This component grants no capability | - | - | - | It produces data, never a capability; the tool set is fixed at registration (§7.3) | no credible threat |
 
 **C7. Audit and logging** (`audit.py`, `utils/redaction.py`, `loguru`)
@@ -1773,7 +1776,7 @@ and frozen resolve are specified in §10 and covered by a §8 case; the unexecut
 capability-drift diff, is a residual risk rather than an implementation blocker.
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
-undocumented result cap (B15), C7-I2 log-stream handling, and C8-R1 configuration-change logging.
+result cap whose default is shipped but unvalidated against a live tenant (B15), C7-I2 log-stream handling, and C8-R1 configuration-change logging.
 
 **Three rows have LEFT that list and are not members of it:** C3-T1 (B25), C3-D1 (B30) and C9-D1
 (B72). §2.1 specifies the control-character and encoding rejection and the four structural limits,
@@ -1935,3 +1938,5 @@ recorded neither.**
 round 6 to re-test these two by name and round 6 did not, which is how a procedure that has now
 failed twice has never once caught its own quarry. Whoever performs the freeze runs the re-test and
 records the outcome for each conditional dismissal, standing or tripped.
+
+**And for each disposal elsewhere in this document that states a condition voiding it** - B107 in §7.2 and B108 in §2.2 today. *Conditional dismissal* is this section's term of art for an entry in the standards register, and both of those disposals live outside it: B107's own argument is that an untriggered paragraph *"rots silently... which is precisely how the conditional dismissal of `backend/idempotency.md` went unnoticed"*, and it was then written outside the sweep that would have caught it. **A procedure that has already failed twice would not have caught these a third time.**
