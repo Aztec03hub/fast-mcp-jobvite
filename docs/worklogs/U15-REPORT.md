@@ -43,6 +43,11 @@ that ran it.
 `pre-commit install`, then real `git commit` attempts. `head_moved` is read from `git rev-parse`
 after each attempt, not inferred from the exit code, and the last column is each hook's own verdict.
 
+> **Read this section against D7.** The refusals below are real and reproducible. But the
+> `pre-commit` binary that ran them is installed on this machine only and is **not** a dependency of
+> this project, so on a fresh clone none of these hooks would be installed at all. What §2 proves is
+> that the gates block **when installed**; it does not prove they are installed for anyone else.
+
 ```
 === do U15's OWN new files pass the gate when staged? ===
 committed-file-type gate: 9 file(s) checked, none refused.
@@ -319,6 +324,76 @@ Passed, having checked zero files. The separate `--all` CI step is what actually
 the step **"Secret scan hook runs clean"** rather than "Pre-commit hooks run clean" and wrote the
 measurement into its comment, so nobody deletes the `--all` step believing this one duplicates it.
 
+### D7 - HIGH, found last, and it qualifies my own evidence above. NOT FIXED - it is U0's file.
+
+**`pre-commit` is not a dependency of this project, so on a fresh clone the two gates silently do
+not exist.**
+
+I found this only when the task assignment's "expect a standards defect" prompted me to read the
+standards, which I had not done. `backend/tech-stack.md:157` and `:172` both carry
+`"pre-commit>=4.0.0"` in the dev group. This project's dev group
+(`pyproject.toml:32-38`) is `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`, `mypy`. **`pre-commit`
+appears nowhere in `pyproject.toml` and nowhere in `uv.lock`.**
+
+My first check reported this as fine, and was a false green:
+
+```
+$ uv run --frozen --offline pre-commit --version
+pre-commit 4.6.2                                          EXIT=0
+```
+
+`uv run` falls through to `PATH` when the command is not in the venv. The correct measurement, with
+a positive control on a dependency that IS declared:
+
+```
+$ ls .venv/bin/ | grep '^pre-commit$'          -> NOT in .venv/bin
+$ uv run ... python -c "shutil.which('pre-commit')"
+                                               -> /home/plafayette/.local/bin/pre-commit
+$ uv run ... python -c "metadata.version('pre-commit')"
+                                               -> PackageNotFoundError
+$ ls .venv/bin/ | grep '^ruff$'                -> ruff          # control: a real dev dep
+$ grep -c 'name = "pre-commit"' uv.lock        -> 0
+```
+
+**What this costs, stated plainly because it partly undercuts §2.** Every `pre-commit install` and
+`pre-commit run` in this report used a binary that exists only on this machine, installed outside
+the project. The gates genuinely block - that evidence stands, and the refusals are real. But
+**"the gates are installed for the team" is false.** On a fresh clone, `pre-commit install` is
+`command not found`, no hook is written to `.git/hooks`, and **every commit proceeds ungated with no
+error anywhere.** That is the whole control failing open, one level above the gate's own
+fail-closed behaviour: the gate cannot fail closed if it was never installed.
+
+It is also why my CI step reads `uv tool run pre-commit@4.6.2` rather than `uv run pre-commit` -
+I worked around the missing dependency without noticing that the workaround was evidence of a
+defect. `uv tool run` resolves outside the frozen lock, which quietly contradicts this project's
+`uv sync --frozen` discipline.
+
+*Suggested fix, a hypothesis to verify not an instruction, and it is U0's call because
+`pyproject.toml` and `uv.lock` are U0's files:* add `"pre-commit>=4.0.0"` to the dev group per
+`tech-stack.md:157`, run `uv lock`, and change my CI step from `uv tool run pre-commit@4.6.2` to
+`uv run --frozen pre-commit`. **I did not do this myself**: it mutates the frozen lock, and U0's
+`test_uv_lock_check_passes_without_amending_the_lockfile` asserts on exactly that object. A
+dependency addition by a unit that does not own the manifest is how a green lock quietly stops
+matching its manifest.
+
+**Until that lands, the gates are documentation on any machine but this one**, and C8-I1's Critical
+mitigation is not in force for the team. This is the single most important item in this report.
+
+### D8 - LOW. A deviation from the standard's example config, deliberate, stated for a ruling.
+
+`backend/python.md:373-382` shows a `.pre-commit-config.yaml` carrying `ruff` and `ruff-format`
+hooks. **Mine carries neither**, so this is a deviation and the standard beats my judgement unless
+someone rules otherwise.
+
+My reasoning, offered rather than assumed: U0 put lint and format in CI as their own steps and set
+`extend-exclude = ["docs"]` for a measured reason (U0-REPORT's decisions section). Adding ruff hooks
+here would run a second, differently-configured formatter on every commit and duplicate a CI gate
+that already exists. The brief also scoped this unit to the two gates.
+
+*Suggested resolution:* either add the two hooks so the file matches `python.md:373-382`, or record
+the deviation. I have not decided this unilaterally because it changes what every developer's commit
+does, which is not a call a gates unit should make silently.
+
 ### D6 - LOW. A note on the design, not a change to it.
 
 The brief is right that C8-I1's `.gitignore` clause was unqualified where the file was
@@ -441,6 +516,14 @@ in §6.2, is fixed, and the harness that found it is committed so the fix cannot
 
 - **Neither gate has run on GitHub.** All local. `uv tool run pre-commit@4.6.2` in Actions, and the
   three new steps as job wiring, are unexercised until the first push.
+- **Neither gate has run on a machine other than this one**, and per D7 it could not have: the
+  `pre-commit` binary is not a project dependency. The first clean-clone install is its first real
+  evidence, and it will fail until D7 is closed.
+- **I did not read the standards until the task assignment prompted it**, which is how D7 and D8
+  went unfound through a full build-and-verify pass. Both were found by reading
+  `evolv-coder-standards/standards/` for fifteen minutes at the end, not by any harness. Neither
+  harness could have found them: both measure the gate against itself, and a control absent from the
+  dependency set is invisible to a suite that assumes it is installed.
 - **detect-secrets' detector coverage is not characterised.** I proved it catches an AWS key and two
   keyword-shaped credentials (§2.1). I have **not** measured what it misses, and a Jobvite API
   secret is not a shape I tested against a real example. TruffleHog in CI is a second engine over

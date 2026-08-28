@@ -1,0 +1,71 @@
+name: PR title
+
+# F-2. THIS CLOSES A DECISION, IT DOES NOT ADD A RULE. docs/DECISIONS.md:18 is
+# D9 - "Commit `type(scope): description` + `Refs:`; semantic PR titles |
+# Settled | Orchestrator ruling". The commit half is enforced by review; the PR
+# title half was decided and then enforced by nothing at all. COMPLIANCE-SPEC.md
+# requires it twice, as job 11 (:83) and as a pinned action (:143), against
+# ci-cd.md:305-321.
+#
+# WHY A SEPARATE FILE, and this is the load-bearing reason rather than tidiness.
+# amannn's action must re-run when a title is EDITED, or fixing a rejected title
+# leaves the check red forever and the only way out is an empty commit. That
+# needs `types: [... edited ...]`. Adding `edited` to ci.yml's own
+# `pull_request:` trigger would re-run lint, mypy, the whole pytest suite, the
+# SBOM and CodeQL every time somebody touches a PR description. Triggers are
+# per-workflow in GitHub Actions, not per-job, so the split is the only way to
+# get the right trigger for this check without that cost.
+# COMPLIANCE-SPEC.md:38-39 explicitly sanctions splitting the workflow.
+#
+# NEVER EXECUTED. This action cannot run on a developer machine - it reads the
+# pull request from the API and there is no pull request locally. The file is
+# written to the standards' pinned version and its first real run on a PR is its
+# first evidence, the same disclosure ci.yml:16-19 makes about codeql and
+# trufflehog.
+#
+# DELIBERATELY NOT INSTALLED: the `[FEAT-XXX]` PR-title check of
+# agentic-coding-standard.md:398-403. Ruling C4 excludes it as irreconcilable
+# with this job - COMPLIANCE-SPEC.md:117 - and the two cannot both pass on one
+# title. Adding it later is a reversal of C4 and needs an ADR, not an edit here.
+
+on:
+  pull_request:
+    # `edited` is the one that matters - see above. `synchronize` and `reopened`
+    # keep the check present on every state a PR can be merged from, so it never
+    # sits as a stale green from an earlier title.
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-title:
+    name: Semantic PR title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      # The action reads the title from the API itself. The title is NEVER
+      # interpolated into a `run:` block here, deliberately: a PR title is
+      # attacker-controlled text, and `run: echo "${{ ...title }}"` is the
+      # standard Actions script-injection sink.
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Types left at the action's conventional-commit defaults on purpose.
+          # Ruling C3 fixes the SHAPE - `type(scope): description` - and names no
+          # closed list of types, so inventing one here would be stricter than
+          # the standard and would reject a legitimate `perf:` or `build:`.
+          #
+          # A scope is optional but must be lowercase when present, matching the
+          # commit convention the same ruling sets.
+          requireScope: false
+          subjectPattern: '^(?![A-Z]).+$'
+          subjectPatternError: |
+            The subject "{subject}" must start lowercase, matching the commit
+            convention in ruling C3: type(scope): description

@@ -220,7 +220,9 @@ def classify(path: str, data: bytes) -> str | None:
     """Return a refusal reason, or None if the file may be committed."""
     name = Path(path).name
     # A dotfile with no further dot ('.gitignore') is a basename, not an extension.
-    suffix = "" if (name.startswith(".") and name.count(".") == 1) else Path(name).suffix
+    suffix = (
+        "" if (name.startswith(".") and name.count(".") == 1) else Path(name).suffix
+    )
     lowered = suffix.lower()
 
     if lowered in DENIED_EXTENSIONS:  # rule 1
@@ -228,7 +230,9 @@ def classify(path: str, data: bytes) -> str | None:
 
     if lowered not in ALLOWED_EXTENSIONS and name not in ALLOWED_BASENAMES:  # rule 2
         shown = lowered if lowered else f"basename {name!r}"
-        return f"{shown} is not on the allowlist (allowlist-first: unknown means refused)"
+        return (
+            f"{shown} is not on the allowlist (allowlist-first: unknown means refused)"
+        )
 
     for signature, label in MAGIC:  # rule 3
         if data.startswith(signature):
@@ -245,7 +249,10 @@ def main(argv: list[str]) -> int:
     check_all = "--all" in argv[1:]
     unknown = [a for a in argv[1:] if a != "--all"]
     if unknown:
-        print(f"check-committed-file-types: unknown argument(s): {unknown}", file=sys.stderr)
+        print(
+            f"check-committed-file-types: unknown argument(s): {unknown}",
+            file=sys.stderr,
+        )
         return 2
 
     reader = worktree_blob if check_all else staged_blob
@@ -275,7 +282,9 @@ def main(argv: list[str]) -> int:
             print(f"  {path}: {reason}")
         print("")
         print(f"If a file genuinely belongs here, add its path to {ALLOWLIST_FILE}")
-        print("AND STAGE THAT FILE IN THE SAME COMMIT, so the exception is in the diff.")
+        print(
+            "AND STAGE THAT FILE IN THE SAME COMMIT, so the exception is in the diff."
+        )
         return 1
 
     print(f"committed-file-type gate: {len(paths)} file(s) checked, none refused.")
