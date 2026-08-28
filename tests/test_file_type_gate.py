@@ -42,7 +42,7 @@ REAL_PDF = (
     b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
     b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
     b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R>>endobj\n"
-    b"4 0 obj<</Length 46>>stream\nBT /F1 24 Tf 72 700 Td (CONFIDENTIAL) Tj ET\nendstream endobj\n"
+    b"4 0 obj<</Length 46>>stream\nBT /F1 24 Tf 72 700 Td (CONFIDENTIAL) Tj ET\nendstream endobj\n"  # noqa: E501
     b"trailer<</Root 1 0 R>>\n%%EOF\n"
 )
 
@@ -67,7 +67,9 @@ gate = _load_gate()
 
 
 def test_the_gate_script_exists_and_is_executable_and_is_not_empty() -> None:
-    assert GATE_PATH.is_file(), f"{GATE_PATH} does not exist; every test below is vacuous"
+    assert GATE_PATH.is_file(), (
+        f"{GATE_PATH} does not exist; every test below is vacuous"
+    )
     assert GATE_PATH.stat().st_mode & 0o111, "the gate is not executable"
     # Not decoration. A ZERO-BYTE Python file runs and exits 0, so an empty gate
     # is indistinguishable from a working one to anything that only reads an
@@ -109,7 +111,9 @@ def test_the_rule_tables_are_populated() -> None:
     ],
 )
 def test_an_ordinary_repository_file_is_permitted(path: str, data: bytes) -> None:
-    assert gate.classify(path, data) is None, f"{path} was refused but must be permitted"
+    assert gate.classify(path, data) is None, (
+        f"{path} was refused but must be permitted"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +333,9 @@ def test_e2e_an_ordinary_staged_file_passes(scratch_repo: pathlib.Path) -> None:
     assert int(match.group(1)) >= 1, "the gate exited 0 having checked nothing"
 
 
-def test_e2e_a_real_pdf_staged_as_markdown_is_refused(scratch_repo: pathlib.Path) -> None:
+def test_e2e_a_real_pdf_staged_as_markdown_is_refused(
+    scratch_repo: pathlib.Path,
+) -> None:
     (scratch_repo / "vendor-spec.md").write_bytes(REAL_PDF)
     _git(scratch_repo, "add", "vendor-spec.md")
     result = _run_gate(scratch_repo)
@@ -344,7 +350,9 @@ def test_e2e_a_real_pdf_staged_as_markdown_is_refused(scratch_repo: pathlib.Path
     # had been deleted.
     reason_lines = [ln for ln in result.stdout.splitlines() if "vendor-spec.md:" in ln]
     assert reason_lines, f"no per-file reason emitted: {result.stdout!r}"
-    assert "PDF" in reason_lines[0], f"refused, but not by its bytes: {reason_lines[0]!r}"
+    assert "PDF" in reason_lines[0], (
+        f"refused, but not by its bytes: {reason_lines[0]!r}"
+    )
 
 
 def test_e2e_a_nul_bearing_file_is_refused(scratch_repo: pathlib.Path) -> None:
@@ -355,7 +363,9 @@ def test_e2e_a_nul_bearing_file_is_refused(scratch_repo: pathlib.Path) -> None:
     assert "NUL" in result.stdout
 
 
-def test_e2e_the_gate_reads_the_index_not_the_worktree(scratch_repo: pathlib.Path) -> None:
+def test_e2e_the_gate_reads_the_index_not_the_worktree(
+    scratch_repo: pathlib.Path,
+) -> None:
     """A file fixed in the worktree but still poisoned in the index is refused.
 
     This is the property that makes the gate meaningful at all: what gets
@@ -369,7 +379,9 @@ def test_e2e_the_gate_reads_the_index_not_the_worktree(scratch_repo: pathlib.Pat
     assert result.returncode == 1, "the gate read the worktree, not the index"
 
 
-def test_e2e_an_override_needs_its_allowlist_entry_staged(scratch_repo: pathlib.Path) -> None:
+def test_e2e_an_override_needs_its_allowlist_entry_staged(
+    scratch_repo: pathlib.Path,
+) -> None:
     """DESIGN.md:1582-1583 - the exception must be in the same commit's diff."""
     (scratch_repo / "thing.bin").write_text("hello\n")
     (scratch_repo / ".file-type-allowlist").write_text("thing.bin\n")
@@ -420,4 +432,6 @@ def test_e2e_all_mode_checks_every_tracked_file(scratch_repo: pathlib.Path) -> N
     _git(scratch_repo, "add", "sneaked.md")
     _git(scratch_repo, "commit", "-q", "--no-verify", "-m", "bypassed the hook")
     dirty = _run_gate(scratch_repo, "--all")
-    assert dirty.returncode == 1, "--all did not catch a file committed with --no-verify"
+    assert dirty.returncode == 1, (
+        "--all did not catch a file committed with --no-verify"
+    )

@@ -1,5 +1,6 @@
-"""DESIGN.md §8 case #3 - `.gitignore` covers the credential patterns, and
-`.env.example` carries no real value.
+"""DESIGN.md §8 case #3 - the credential patterns and the env template.
+
+`.gitignore` covers the credential patterns, and `.env.example` carries no real value.
 
 Asserted against the COMMITTED files, because the row this covers (C8-I1) is about
 what reaches the repository rather than what reaches a log.
@@ -51,7 +52,7 @@ CREDENTIAL_PATTERNS = [".env", ".env.*", "*.key", "*.pem", "secrets/"]
 
 
 def _declared_variables() -> dict[str, str]:
-    """Parse `.env.example` into name -> value. Derived from the file, never remembered."""
+    """Parse `.env.example` to name -> value, from the file, never remembered."""
     out: dict[str, str] = {}
     for line in ENV_EXAMPLE.read_text().splitlines():
         stripped = line.strip()
@@ -71,7 +72,7 @@ def test_the_parser_actually_found_variables() -> None:
     """
     variables = _declared_variables()
     assert len(variables) == 15, (
-        f"expected the design's fifteen variables, parsed {len(variables)}: {sorted(variables)}"
+        f"expected fifteen variables, parsed {len(variables)}: {sorted(variables)}"
     )
 
 
@@ -102,7 +103,9 @@ def test_no_value_in_env_example_looks_like_a_real_credential() -> None:
     """
     variables = _declared_variables()
     suspicious = {
-        name: value for name, value in variables.items() if name in SECRET_CLASS or len(value) >= 20
+        name: value
+        for name, value in variables.items()
+        if name in SECRET_CLASS or len(value) >= 20
     }
     offenders = {name: value for name, value in suspicious.items() if value != ""}
     assert not offenders, f"values that could be mistaken for credentials: {offenders}"
@@ -126,6 +129,10 @@ def test_gitignore_does_not_negate_the_credential_patterns() -> None:
     the entries above cannot see a `!` line.
     """
     negations = {
-        line.strip() for line in GITIGNORE.read_text().splitlines() if line.strip().startswith("!")
+        line.strip()
+        for line in GITIGNORE.read_text().splitlines()
+        if line.strip().startswith("!")
     }
-    assert negations == {"!.env.example"}, f"unexpected gitignore negations: {negations}"
+    assert negations == {"!.env.example"}, (
+        f"unexpected gitignore negations: {negations}"
+    )

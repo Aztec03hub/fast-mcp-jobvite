@@ -35,6 +35,12 @@ dev = [
   "pytest-cov>=5",
   "ruff>=0.6",
   "mypy>=1.11",
+  # COMPLIANCE-SPEC.md:194 requires this in dev and it was absent. The licence gate
+  # worked only via `uv run --with pip-licenses`, which resolves it UNPINNED on every
+  # run, outside uv.lock - so the tool auditing the frozen resolve was itself unfrozen,
+  # which is the one property ci.yml builds two assertions to guarantee for everything
+  # else. ADR-0015 also asserted it WAS a dev dependency; it was not.
+  "pip-licenses>=5",
 ]
 
 # ---------------------------------------------------------------------------
@@ -121,7 +127,11 @@ fail_under = 80
 show_missing = true
 
 [tool.ruff]
-line-length = 100
+# 88, not 100. python.md:35 mandates it and COMPLIANCE-SPEC.md:513 lists
+# `line-length = 100` as do-not-copy item 16, inherited from fast-mcp-jira.
+# It was set here and never argued: a grep for line-length across DESIGN.md,
+# the plan, every ADR, DECISIONS.md and the worklogs returns nothing.
+line-length = 88
 target-version = "py312"
 src = ["src", "tests"]
 # docs/reviews/*.py are the design-coupling gate harnesses. They are owned by the
@@ -131,10 +141,38 @@ src = ["src", "tests"]
 extend-exclude = ["docs"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]
+select = [
+  # COMPLIANCE-SPEC.md:205-218 verbatim. Five [STD] families were missing and are
+  # added here while src/ is one file - at U8 this becomes a whole-tree diff.
+  "E", "W",   # pycodestyle       [STD] python.md:28
+  "F",        # pyflakes          [STD] quality-gates.md:63
+  "I",        # isort             [STD] python.md:54-58
+  "N",        # pep8-naming       [STD] python.md:62-72
+  "D",        # pydocstyle        [STD] python.md:29
+  "UP",       # pyupgrade         [REC]
+  "B",        # bugbear           [REC] python.md:193-206
+  "S",        # bandit            [REC] agentic-coding-standard.md:123-135
+  "ASYNC",    # async correctness [REC]
+  "DTZ",      # naive datetimes   [STD] python.md:227, no datetime.utcnow
+  "T20",      # flake8-print      [STD] observability.md:642, no print statements
+  "ANN",      # annotations       [STD] python.md:76, type hints required
+]
+ignore = ["D203", "D213"]   # mutually exclusive with D211/D212
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"       # python.md:97
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S603", "S607"]
+"tests/*" = [
+  "S101", "S603", "S607",  # asserts and subprocess are the point in a test
+  "D103", "ANN",           # undocumented, unannotated tests are fine
+  "N802",                  # test names use CAPS for emphasis, deliberately:
+                           # test_the_gate_does_NOT_stop_confidential_prose_in_markdown
+                           # pins a ceiling, and the capitals are load-bearing to a reader
+]
+# The gate script is a CLI: printing IS its interface, and its refusal message is
+# the control being tested. T20 would forbid the thing the tests assert on.
+"scripts/*" = ["T201", "D103"]
 
 [tool.mypy]
 python_version = "3.12"

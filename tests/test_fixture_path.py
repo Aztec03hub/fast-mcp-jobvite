@@ -43,12 +43,16 @@ def test_fixtures_directory_resolves() -> None:
 
 def test_every_expected_fixture_is_present() -> None:
     on_disk = {p.name for p in FIXTURES_DIR.iterdir() if p.is_file()}
-    assert EXPECTED_FIXTURES <= on_disk, f"missing: {sorted(EXPECTED_FIXTURES - on_disk)}"
+    assert EXPECTED_FIXTURES <= on_disk, (
+        f"missing: {sorted(EXPECTED_FIXTURES - on_disk)}"
+    )
 
 
 def test_fixtures_are_readable_and_non_empty() -> None:
     """A zero-byte fixture would satisfy a presence check and nothing else."""
     empty = [
-        name for name in sorted(EXPECTED_FIXTURES) if (FIXTURES_DIR / name).stat().st_size == 0
+        name
+        for name in sorted(EXPECTED_FIXTURES)
+        if (FIXTURES_DIR / name).stat().st_size == 0
     ]
     assert not empty, f"zero-byte fixtures: {empty}"

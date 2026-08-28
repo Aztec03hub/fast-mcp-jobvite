@@ -17,7 +17,7 @@ defect API-03 names, so the minimal form does not detect it.
 
 The stakes here are higher than in a normal project, because **this suite's entire
 strategy is selection-based**: the default run is
-`-m "not credentialed and not network"`, there is a `tests/credentialed/` subtree that is
+`-m "not credentialed and not network"`, and a `tests/credentialed/` subtree that is
 collected but never run, and CI enforces zero skips. Under that design a file outside
 `testpaths`, or a single marker typo, yields **a green over fewer tests than anyone
 believes** — and green is currently this repository's only evidence.
@@ -125,10 +125,14 @@ def test_the_guard_can_see_anything_at_all() -> None:
     """
     discovered = _discovered_test_files()
     collected = _collected_test_files()
-    assert discovered, "the filesystem walk found no test_*.py at all - the walker is broken"
-    assert collected, "parsed no collected files from --collect-only - the parser is broken"
+    assert discovered, (
+        "the filesystem walk found no test_*.py at all - the walker is broken"
+    )
+    assert collected, (
+        "parsed no collected files from --collect-only - the parser is broken"
+    )
     assert __file__ and Path(__file__).resolve() in discovered, (
-        "the walker did not find this very file, so it cannot be trusted about any other"
+        "the walker missed this very file, so it cannot be trusted about any other"
     )
 
 
@@ -142,7 +146,9 @@ def test_every_test_file_is_reachable_from_testpaths() -> None:
     collected = _collected_test_files()
     # The credentialed subtree is collected but deselected by marker, so it appears in
     # `--collect-only` output. Anything discovered and NOT collected is the defect.
-    orphans = sorted(p.relative_to(REPO_ROOT).as_posix() for p in discovered - collected)
+    orphans = sorted(
+        p.relative_to(REPO_ROOT).as_posix() for p in discovered - collected
+    )
     assert not orphans, (
         "test files exist but are not reachable from `testpaths`, so they never run "
         "and the suite is green without them:\n  " + "\n  ".join(orphans)

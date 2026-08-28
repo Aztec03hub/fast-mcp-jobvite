@@ -27,7 +27,7 @@ from .conftest import PYPROJECT
 
 
 def _isolated_project(tmp_path: pathlib.Path, test_body: str) -> pathlib.Path:
-    """A temp project inheriting the REAL pyproject.toml, so the real config is under test."""
+    """A temp project inheriting the real pyproject, so real config is tested."""
     shutil.copy(PYPROJECT, tmp_path / "pyproject.toml")
     (tmp_path / "src" / "fast_mcp_jobvite").mkdir(parents=True)
     (tmp_path / "src" / "fast_mcp_jobvite" / "__init__.py").touch()
@@ -72,7 +72,7 @@ def test_an_undeclared_marker_fails_collection(tmp_path: pathlib.Path) -> None:
     combined = proc.stdout + proc.stderr
     assert proc.returncode != 0, (
         "pytest accepted an undeclared marker. --strict-markers is not in effect, "
-        f"and a typo in the exclusion marker would now select nothing silently:\n{combined}"
+        f"a typo in the exclusion marker would now select nothing silently:\n{combined}"
     )
     assert "jobvite_credentialed_typo" in combined, (
         f"non-zero, but not because of the undeclared marker:\n{combined}"
@@ -84,15 +84,19 @@ def test_the_declared_marker_still_selects_its_tests(tmp_path: pathlib.Path) -> 
     project = _isolated_project(tmp_path, DECLARED)
     proc = _run_pytest(project, "-m", "credentialed", "--collect-only", "-q")
     combined = proc.stdout + proc.stderr
-    assert proc.returncode == 0, f"the declared marker did not select cleanly:\n{combined}"
+    assert proc.returncode == 0, (
+        f"the declared marker did not select cleanly:\n{combined}"
+    )
     assert "test_carrying_the_declared_marker" in combined, combined
     assert "test_unmarked" not in combined, (
-        f"-m credentialed selected an unmarked test; the marker is not filtering:\n{combined}"
+        f"-m credentialed took an unmarked test; marker not filtering:\n{combined}"
     )
 
 
-def test_the_default_selection_deselects_the_credentialed_arm(tmp_path: pathlib.Path) -> None:
-    """The zero-skips property (DESIGN.md:1185-1188), asserted on behaviour not on config.
+def test_the_default_selection_deselects_the_credentialed_arm(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Zero skips (DESIGN.md:1185-1188), asserted on behaviour not on config.
 
     The credentialed test must be DESELECTED, not skipped: pytest must report
     `1 deselected` and zero skips.
@@ -101,5 +105,9 @@ def test_the_default_selection_deselects_the_credentialed_arm(tmp_path: pathlib.
     proc = _run_pytest(project, "-q")
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
-    assert "1 deselected" in combined, f"the credentialed test was not deselected:\n{combined}"
-    assert "skipped" not in combined, f"a skip is a green that tested nothing:\n{combined}"
+    assert "1 deselected" in combined, (
+        f"the credentialed test was not deselected:\n{combined}"
+    )
+    assert "skipped" not in combined, (
+        f"a skip is a green that tested nothing:\n{combined}"
+    )

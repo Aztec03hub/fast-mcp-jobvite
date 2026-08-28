@@ -1,4 +1,4 @@
-"""DESIGN.md §8 case #11 - the manifest pins `mcp` and the frozen resolve has no lock drift.
+"""DESIGN.md §8 case #11 - `mcp` is pinned and the frozen resolve has no drift.
 
 Three arms, and the third is the one that earns the case its keep:
 
@@ -54,7 +54,7 @@ def test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version() -> None:
 
 
 def test_prerelease_is_explicit() -> None:
-    """`--prerelease=allow` is global in uv and pulls in a beta pydantic (DESIGN.md:1381-1383)."""
+    """`--prerelease=allow` is global in uv; `explicit` confines it (DESIGN.md:1381)."""
     with PYPROJECT.open("rb") as fh:
         assert tomllib.load(fh)["tool"]["uv"]["prerelease"] == "explicit"
 
@@ -74,8 +74,12 @@ def test_uv_lock_check_passes_without_amending_the_lockfile() -> None:
         text=True,
     )
     after = hashlib.sha256(UV_LOCK.read_bytes()).hexdigest()
-    assert proc.returncode == 0, f"uv lock --check failed:\n{proc.stdout}\n{proc.stderr}"
-    assert before == after, "uv lock --check rewrote uv.lock; its agreement proves nothing"
+    assert proc.returncode == 0, (
+        f"uv lock --check failed:\n{proc.stdout}\n{proc.stderr}"
+    )
+    assert before == after, (
+        "uv lock --check rewrote uv.lock; its agreement proves nothing"
+    )
 
 
 @pytest.mark.network
@@ -87,7 +91,9 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     by skipif - a skip is a green that tested nothing (DESIGN.md:1185-1188).
     """
     manifest = PYPROJECT.read_text()
-    mutated = "\n".join(line for line in manifest.splitlines() if "fastmcp-slim" not in line)
+    mutated = "\n".join(
+        line for line in manifest.splitlines() if "fastmcp-slim" not in line
+    )
     assert mutated != manifest, "mutation was a no-op; this control would be vacuous"
 
     (tmp_path / "src" / "fast_mcp_jobvite").mkdir(parents=True)
@@ -101,7 +107,9 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
         "or the pin is no longer load-bearing; DESIGN.md:1358-1360 needs an ADR "
         f"before the line is touched. Output:\n{combined}"
     )
-    assert "fastmcp-slim" in combined, f"failed, but not for the stated reason:\n{combined}"
+    assert "fastmcp-slim" in combined, (
+        f"failed, but not for the stated reason:\n{combined}"
+    )
 
 
 @pytest.mark.network
