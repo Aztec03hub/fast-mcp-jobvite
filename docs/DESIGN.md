@@ -769,7 +769,13 @@ gates stop *this server* from using that power; they do nothing about anyone who
 environment of the process.
 
 **Operator requirement: where writes are disabled, the Jobvite key must be a read-only key.** This
-is stated in the README's deployment section and in `docs/CREDENTIAL-CHECKLIST.md`, and it is
+is stated **today** in `docs/CREDENTIAL-CHECKLIST.md`, whose row 0 records the question to Jobvite
+and its answer either way, and **the README must carry it in the deployment section when the
+implementation produces one** (§10.1). The tense matters and an earlier revision got it wrong: it
+asserted the README stated this while §10.1, 582 lines away, deliberately withholds the README
+because describing an unbuilt system is a false claim in the present tense. The checklist is the
+document the first key request actually passes through, and before implementation it is the only
+point at which this instruction can be acted on at all. It is
 **an instruction to a human, not a control this server can enforce**, for two reasons that should
 not be blurred together:
 
@@ -1154,8 +1160,10 @@ Required cases, each failing if its defence is removed:
   passes against a module global, which is the bug `request_id_var` exists to prevent, so the
   concurrent arm is the case and the single call is not sufficient. The same case asserts no URL
   appears in a retry line, since the `jobFeed` URL is itself a secret;
-- **the read-only-key requirement is present in the README deployment section and in
-  `CREDENTIAL-CHECKLIST.md`**, asserted against the committed files (B21, §7.2). This tests that the
+- **the read-only-key requirement is present in `CREDENTIAL-CHECKLIST.md`, and in the README's
+  deployment section once a README exists** - asserted against the committed files, with the README
+  arm **gated on the file's presence rather than skipped**, because a skip is a green that tested
+  nothing (B21, §7.2). This tests that the
   instruction exists and is discoverable, which is **all that is testable** - the server cannot
   verify a key's permissions, and the row it covers is mitigated as an operator instruction rather
   than as a control. A test asserting anything stronger would misrepresent what the design achieves;
@@ -1578,7 +1586,7 @@ asserted that placement in the same edit that failed to make it.
 | C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Mitigated in §5.3.** `request_id_var`, a ContextVar set where the id is minted and reset in a `finally`, carries it to the retry and breaker hooks, which the resilience library calls with no argument we control. Every retry and transition is logged with it, and without the URL, since the v1 feed URL is itself a secret | §8: every retry and breaker-transition log line carries the invocation's own `request_id`, asserted under concurrency |
 | C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
 | C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Retry budget bounded by a configured server-side outbound ceiling, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). The ceiling is ours because MCP supplies no inbound deadline to derive one from, which §4.3 now states rather than implying otherwise. Mitigated | not required (Medium) |
-| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Mitigated in §7.2 as an operator instruction with a stated ceiling, not as an enforceable control.** Where writes are disabled a read-only key is required, stated in the README and the credential checklist. The server cannot verify a key's rights - no Jobvite endpoint reports them - and whether Jobvite issues read-only keys at all is unknown, so if the answer is no the residual stands and is recorded rather than ticked | §8: the read-only-key requirement is present in the README deployment section and in `CREDENTIAL-CHECKLIST.md` |
+| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Mitigated in §7.2 as an operator instruction with a stated ceiling, not as an enforceable control.** Where writes are disabled a read-only key is required, stated in the README and the credential checklist. The server cannot verify a key's rights - no Jobvite endpoint reports them - and whether Jobvite issues read-only keys at all is unknown, so if the answer is no the residual stands and is recorded rather than ticked | §8: the read-only-key requirement is present in `CREDENTIAL-CHECKLIST.md`, and in the README's deployment section once a README exists |
 
 **C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
 

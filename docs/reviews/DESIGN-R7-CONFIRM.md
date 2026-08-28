@@ -30,6 +30,20 @@ round, and the L and N findings do not gate anything. But the rule as written is
 defect sits in the evidence chain of an inherent-High row inside text about to become
 ADR-only-changeable, and I am not going to call it a Low to clear a gate.
 
+### Status of these findings at the time of writing
+
+While this report was being written the team lead applied **L-1 through L-5, N-1 and N-2** to the
+working tree (uncommitted at `ce1017a`). I re-read each edit against the finding it answers and all
+seven are faithful, including the two I was least sure would survive rewording: L-1's replacement
+names both disputed totals (seven and nine) and forbids deriving one from the ledger, and L-4's
+replacement states the *unmitigated* distinction explicitly instead of leaving it implicit.
+
+**I re-ran all three gates against the edited working tree: exit 0, 0, 0, with 60 STRIDE rows,
+17 Critical/High, 16 mitigated and 23 naming a §8 case - identical to the pre-edit run.** The prose
+fixes moved no row and changed no rating.
+
+**M-1 is the one finding not yet applied**, and it is the one the freeze rule turns on.
+
 ---
 
 ## A note on the tree moving under the pass
