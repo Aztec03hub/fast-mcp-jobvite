@@ -575,6 +575,15 @@ would put transport plumbing inside the model-facing payload, drag it through §
 and §7.7's size budget, and make it part of five tools' data contracts. `_meta` is the protocol's
 own channel for this, and the validator never inspects it.
 
+**One way to set `meta` and have it silently discarded, which is worth knowing before it is
+debugged.** `ToolResult.to_mcp_result()` short-circuits on `_raw_mcp_result` before it looks at
+`meta` (`fastmcp/tools/base.py:176-177`), and `from_mcp_result` stashes exactly that when it wraps
+an upstream `CallToolResult` (`:168`). **Setting `.meta` on a wrapped result is therefore dropped
+with no error and no warning** - the id simply never appears. Our tools construct their results
+rather than wrapping an upstream one, so this should not arise; it is recorded because the failure
+is silent, and because it is why §8's case asserts the id **on the wire result rather than on the
+`ToolResult` object** - the latter assertion would pass while the wire carried nothing.
+
 **A caller reads it as a normal field on the result** - `result.meta["com.evolvconsulting.fast-mcp-jobvite/requestId"]`
 on the raw SDK, and the same through FastMCP, which copies `meta` through. **The README must
 document the key**, because a caller cannot guess it, and an id a caller cannot reach discharges
@@ -1158,7 +1167,9 @@ Required cases, each failing if its defence is removed:
   a successful write, the audit-failure warning branch, and an error, each matched against the
   audit event's own id. The success arms assert it in `_meta` under the namespaced key and assert
   the structured content still validates against the output model, since an undeclared top-level
-  key is rejected by the validator (B42, §5.3);
+  key is rejected by the validator. **Each arm asserts the id on the WIRE result, not on the
+  `ToolResult` the tool returned** - see §5.3's note on `_raw_mcp_result`: asserting the object
+  would pass while the wire carried nothing (B42, §5.3);
 - **trace context is recorded when the caller supplies it and absent when it does not** - two arms,
   one with a `traceparent` in the request `_meta` and one without. **Both arms are required**: a
   field that is always absent and a field that is always synthesised each pass a single-arm test,
