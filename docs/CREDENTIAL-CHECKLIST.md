@@ -34,6 +34,18 @@ live API, and say so in any report.
 
 ---
 
+## Ask this when the key is requested, not after
+
+**Row 0 is not an observation against the API. It is a question to a human, and it must be asked
+before a key is issued rather than discovered afterwards**, because the answer changes what a
+deployment is allowed to claim and there is no way to establish it from our side.
+
+| # | Ask Jobvite Customer Success | Why it cannot wait, and why we cannot answer it ourselves |
+|---|---|---|
+| 0 | **Does Jobvite issue a read-only API key, and if so, request one for every deployment that runs with `JOBVITE_ENABLE_WRITES=false`.** Record the answer here either way | DESIGN.md §7.2 requires a read-only key where writes are disabled, and C5-E1 is a **High** residual precisely because we cannot enforce it. **No Jobvite endpoint reports a key's own permissions**, so a read-only key and a write-capable key are indistinguishable to us; establishing it by attempting a write is the destructive probe §1.1 forbids. **If the answer is no, the exposure is undiminished** and the Residual Risks entry stands as written - which is the outcome to record plainly, not to leave as an unticked box that reads like an oversight |
+
+---
+
 ## Non-blocking rows
 
 | # | Check | What observing it settles |
