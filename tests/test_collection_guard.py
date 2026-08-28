@@ -17,10 +17,17 @@ defect API-03 names, so the minimal form does not detect it.
 
 The stakes here are higher than in a normal project, because **this suite's entire
 strategy is selection-based**: the default run is
-`-m "not credentialed and not network"`, and a `tests/credentialed/` subtree that is
-collected but never run, and CI enforces zero skips. Under that design a file outside
+`-m "not credentialed and not network"`, plus a `tests/credentialed/` subtree, and CI
+enforces zero skips. Under that design a file outside
 `testpaths`, or a single marker typo, yields **a green over fewer tests than anyone
 believes** — and green is currently this repository's only evidence.
+
+**A sentence here used to say the credentialed subtree is "collected but never
+run", and that was false.** It was never tested, because the subtree held only a
+README, so no file existed that could contradict it. Under the default selector such a
+file is NOT collected - and the guard, which passed that same selector, called it an
+orphan. That is collision 11, fixed in `_collected_test_files` and pinned by
+`test_a_wholly_credentialed_file_is_not_reported_as_an_orphan` below.
 
 Tracked as **B58** in the project's conformance corpus, where it was recorded as a
 required-check breach and then reached neither the design, the plan, nor the tree until
@@ -66,6 +73,25 @@ def _collected_test_files() -> set[Path]:
     # Parsing that tree looked like six orphaned files on the first run - the parser was
     # broken, not the tree. Clearing addopts pins the machine-readable node-id format
     # regardless of what someone later adds to it.
+    #
+    # NO `-m` SELECTOR HERE, and its absence is the fix for collision 11.
+    #
+    # This call used to pass `-m "not credentialed and not network"`, mirroring the
+    # default run. That made the guard ask "is this file SELECTED?" when the property
+    # it exists to check is "is this file REACHABLE?" - and the two differ for exactly
+    # one shape of file: one whose tests are ALL credentialed or all network. Such a
+    # file is discovered by the walk, produces no node ids under the selector, and was
+    # reported as an orphan "not reachable from testpaths" while sitting inside
+    # `tests/`. The message was false and the suite went red.
+    #
+    # It survived seven review rounds because `tests/credentialed/` held only a
+    # README, so no file of that shape had ever existed. U5 is scheduled to create the
+    # first one. The module docstring below asserted the opposite behaviour - that the
+    # credentialed subtree "appears in --collect-only output" - which was true only
+    # because nothing was there to appear.
+    #
+    # Marker selection is irrelevant to reachability, so the selector was never right
+    # here, not merely inconvenient.
     result = subprocess.run(
         [
             sys.executable,
@@ -78,8 +104,6 @@ def _collected_test_files() -> set[Path]:
             "addopts=",
             "-p",
             "no:cacheprovider",
-            "-m",
-            "not credentialed and not network",
         ],
         capture_output=True,
         text=True,
@@ -144,8 +168,10 @@ def test_every_test_file_is_reachable_from_testpaths() -> None:
     """
     discovered = _discovered_test_files()
     collected = _collected_test_files()
-    # The credentialed subtree is collected but deselected by marker, so it appears in
-    # `--collect-only` output. Anything discovered and NOT collected is the defect.
+    # Collection runs WITHOUT the marker selector (see `_collected_test_files`), so
+    # every file inside `testpaths` appears here regardless of how its tests are
+    # marked - including a wholly-credentialed one. Anything discovered and NOT
+    # collected is genuinely unreachable, which is the defect.
     orphans = sorted(
         p.relative_to(REPO_ROOT).as_posix() for p in discovered - collected
     )
@@ -153,3 +179,52 @@ def test_every_test_file_is_reachable_from_testpaths() -> None:
         "test files exist but are not reachable from `testpaths`, so they never run "
         "and the suite is green without them:\n  " + "\n  ".join(orphans)
     )
+
+
+def test_a_wholly_credentialed_file_is_not_reported_as_an_orphan() -> None:
+    """Collision 11, pinned so it cannot come back.
+
+    A file whose tests are ALL `credentialed` is inside `testpaths` and perfectly
+    reachable, but produces no node ids under the default run's `-m` selector. The
+    guard used to pass that selector, so such a file was reported as "not reachable
+    from `testpaths`" and turned the suite red on a correct change.
+
+    **It survived seven review rounds because no file of this shape existed** -
+    `tests/credentialed/` held only a README, so the case was unreachable by
+    inspection and invisible to every green run. U5 is scheduled to create the first
+    one. This test creates it on demand instead of waiting for U5.
+
+    The file is written inside the repository rather than into a `tmp_path`, because
+    the guard walks `REPO_ROOT` and a file outside it would not exercise the walk at
+    all - it would pass vacuously, which is the failure this whole module exists to
+    prevent one level up.
+
+    It goes in `tests/` and NOT `tests/credentialed/`, which is where U5's real file
+    will live. First attempt wrote it to `tests/credentialed/` and raised
+    `FileNotFoundError` wherever that directory does not exist - including the scratch
+    copy that `docs/reviews/check-plan-measurements.py` builds, whose control arm went
+    red and reported the probe vacuous. **That is the same assumed-path defect this
+    commit fixes elsewhere, reintroduced inside the regression test for it.** `tests/`
+    is `testpaths`, so it always exists, and the property under test does not depend on
+    the subdirectory.
+    """
+    probe = REPO_ROOT / "tests" / "test_collision_11_probe.py"
+    probe.write_text(
+        '"""Written by the guard\'s own regression test. Removed in its finally."""\n'
+        "\nimport pytest\n\n\n@pytest.mark.credentialed\n"
+        "def test_needs_a_live_tenant() -> None:\n    assert True\n"
+    )
+    try:
+        discovered = _discovered_test_files()
+        collected = _collected_test_files()
+        assert probe.resolve() in discovered, (
+            "the walk did not find the probe file, so this test proves nothing "
+            "about the comparison below"
+        )
+        assert probe.resolve() in collected, (
+            "a wholly-credentialed file inside `testpaths` was not collected. The "
+            "guard is selecting rather than checking reachability - collision 11 has "
+            "regressed, and U5's test file will red the suite."
+        )
+    finally:
+        probe.unlink(missing_ok=True)

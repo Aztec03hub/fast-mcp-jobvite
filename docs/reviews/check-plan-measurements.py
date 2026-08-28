@@ -17,10 +17,12 @@ Run: `python3 docs/reviews/check-plan-measurements.py`
 Exit 0 = every measurement the plan cites still reproduces. Non-zero = a plan claim has
 gone stale, and the plan is what needs fixing, not this script.
 
-**M4 IS EXPECTED TO FAIL TODAY.** It is the eleventh collision, found by round 7 and
-independently reproduced: it is a real defect in `tests/test_collection_guard.py`, not a
-stale claim. It flips to passing when that guard drops `-m` from its collection call. Do
-not "fix" this script to make it green.
+**M4 WAS EXPECTED TO FAIL, AND NO LONGER DOES.** It is the eleventh collision, found by
+round 7 and independently reproduced: a real defect in `tests/test_collection_guard.py`,
+not a stale claim. The guard passed `-m` to its own collection call, so a file whose
+tests are all deselected read as unreachable. Dropping `-m` fixed it and M4 went green,
+which is what a documented-open probe is for - it is now a regression test rather than a
+record of a defect. Do not "fix" any probe here to make it green.
 """
 
 from __future__ import annotations
@@ -192,7 +194,12 @@ PROBES = [
     ("M4 guard vs a wholly-deselected file", m4_collection_guard_survives_a_wholly_credentialed_file),
 ]
 
-KNOWN_OPEN = {"M4 guard vs a wholly-deselected file"}
+# Empty, and it should stay that way. M4 was the one entry: collision 11, a real
+# defect in tests/test_collection_guard.py that this harness documented rather
+# than tolerated. It was fixed by dropping `-m` from the guard's collection call,
+# so M4 now PASSES and is no longer excused. An entry here means "known broken",
+# never "expected to fail forever".
+KNOWN_OPEN: set[str] = set()
 
 
 def main() -> int:
