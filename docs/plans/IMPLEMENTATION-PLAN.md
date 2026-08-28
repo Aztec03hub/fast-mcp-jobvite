@@ -1,15 +1,41 @@
 # fast-mcp-jobvite - Implementation Plan
 
-Status: **DRAFT 8.** Revised against `PLAN-REVIEW-R6.md` (0C / 1H / 2M / 5L). Rounds 1-5 are
-answered in drafts 3-7. **U0, U15 and U2 are built and merged.** Round 6's High is the **tenth**
-collision, and it binds **before U1 is dispatched**.
+Status: **DRAFT 9.** Revised against `PLAN-REVIEW-R7.md` (0C / 1H / 1M / 5L). Rounds 1-6 are
+answered in drafts 3-8. **U0, U15 and U2 are built and merged; U1 is in flight.** Round 7's High is
+the **eleventh** collision, and it binds **U5**, not U1.
+
+**Every measurement this plan rests a decision on is now a runnable probe, not a paragraph.**
+`docs/reviews/check-plan-measurements.py` re-runs all four - each two-armed, treatment and control -
+and exits non-zero when a plan claim stops reproducing. Rounds 6 and 7 each re-ran some of these by
+hand and reproduced them, which is the right instinct and the wrong mechanism: it does not survive
+the reviewer who does not think of it. **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6, FROZEN** at commit `135c3ac` - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1795`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
 finding against the design is no longer an edit request - it is an ADR, and every open item below
 is written that way.
 
-**What draft 8 changed.** Round 6 returned **0C / 1H / 2M / 5L** and draft 8 applies all eight,
+**What draft 9 changed.** Round 7 returned **0C / 1H / 1M / 5L** and draft 9 applies all seven.
+
+- **The HIGH is the eleventh collision and it is collision 10's twin.** The collection guard runs
+  collection **through the marker selector**, so a test file whose tests are ALL `credentialed` or
+  all `network` reads as an orphan and reds the suite - and **U5 is scheduled to create exactly that
+  file.** The guard's own comment claims the opposite and was never tested, because
+  `tests/credentialed/` holds only a README. §4 had told units the trigger was a file *"outside
+  `testpaths`"*; `tests/credentialed/` is **inside** it. **This is a defect in shipped code, not a
+  gap in the plan** - `tests/` is U0's, and the fix is a U0 follow-up.
+- **The MEDIUM is a control that is not wired.** `docs/OBLIGATIONS.md` and
+  `docs/reviews/check-obligations.py` landed with no CI step, no hook, and no ownership row, while
+  their anchors sit in the files U1, U5, U11, U13 and U15 all edit. **This repository has now built
+  the same defect twice** - it is the file-type gate's `--all` mode with no CI step, one artifact
+  later.
+- **Two Lows are draft 8's own corrections recreating the defect they corrected.** The
+  count-behind-its-own-table error was fixed in two places and recreated one section away; and the
+  verification command draft 8 offered to a doubting reader named `.github/workflows/ci.yml` rather
+  than the directory - **the same name-one-file defect that had just let `mirror.yml` slip an entire
+  C-1 sweep, appearing inside the remedy for it.**
+
+**What draft 8 changed.** Round 6 returned **0C / 1H / 2M / 5L** and draft 8 applied all eight,
 **plus five numeric errors draft 7 introduced and its own author found afterwards** (recorded in
 `docs/worklogs/PLAN-DRAFT7-SELF-AUDIT.md`). Round 6 independently re-ran both pytest measurements
 draft 7's §4 decision rests on, and both reproduce - so that decision stands on evidence a second
@@ -26,7 +52,7 @@ requires.
   `pre-commit` undeclared, so the gates did not exist on a fresh clone - **was closed at `80a7fd0`,
   one commit past the basis draft 7 measured at.** Draft 7 re-checked round 5's findings against the
   moved tree and did not re-check the paragraph it was itself writing. Two residues survive and are
-  now the live items. The other Medium: three places gate on **"until ADR-0012 exists"** when it
+  now the live items. The other Medium: **two** places gate on **"until ADR-0012 exists"** when it
   exists and is `Proposed` - **an agent discharges that gate with `ls`**, and builds the module the
   gate was written to prevent. Every ADR gate now reads **Accepted**.
 - **Three of the five Lows were inherited unchanged from draft 6 and had survived every round.** The
@@ -66,9 +92,13 @@ ACCIDENT**. It was not a green, which is the strongest available confirmation th
 structural claim was right. **All nine of its defects are now disposed of**, across four commits and
 not two - F-1/F-2/F-3/F-6/F-7 in `ff0bbdf`, F-4 and C-2 in `2d2e1a3`, F-5 in `35de193`, and C-1 in
 `5519032`, which fixed five of the six places and **missed `mirror.yml:28`** (§4). *Draft 7 said "six
-of its nine ... (`2d2e1a3`, `ff0bbdf`)", undercounting by three and omitting two commits.* The two
-that land on this plan - the README's Contributing section and the unowned
-changelog obligation - are folded into U13 and §4 below. **§8's "I did not read `COMPLIANCE-SPEC.md`"
+of its nine ... (`2d2e1a3`, `ff0bbdf`)", undercounting by three and omitting two commits.* **Two
+further items land on this plan and are NOT among those nine** - the README's Contributing section
+(**F-6**, one of the nine, whose plan-side half U13 owns) and the unowned changelog obligation
+(**A-5**, which is a *MET BY ACCIDENT* row and not a defect at all). Both are folded into U13 and §4
+below. *Draft 8 fixed this sentence's arithmetic and left its population wrong, calling A-5 one of
+"the two" immediately after "all nine of its defects" - **a correction that repaired the number and
+not the set it counted**, which is the same error one level down.* **§8's "I did not read `COMPLIANCE-SPEC.md`"
 bullet is rewritten rather than left standing**, because a declared limitation that has since been
 discharged is a false statement about the plan's own coverage.
 
@@ -495,20 +525,31 @@ description of a tree that no longer exists.** All of it is in `pyproject.toml`,
 |---|---|---|
 | `db5c21e` (U15) | three steps added to `ci.yml`'s `test` job; `scripts/check-u0-test-controls.sh` repaired (6 insertions, 1 deletion) | U15's own gates, and a control U15 broke. **This is why U15 is now on the `ci.yml` editor list in §4** |
 | `35de193` (B58) | `tests/test_collection_guard.py` added | the guard above |
+| `2228f19` | `ci.yml`: TruffleHog pinned to a release tag, not a branch tip | **predates every other row here** and was missed by drafts 7, 8 and by round 6 - a table of amendments that begins after the first amendment |
 | `2d2e1a3` | `pyproject.toml`: ruff `line-length` **88, not 100**; five further `[STD]` rule families selected - `W`, `N`, `D`, `DTZ`, `T20`, `ANN` - with `convention = "google"`; **`pip-licenses>=5` added to the dev group** | `COMPLIANCE-SPEC.md:513` lists `line-length = 100` as **do-not-copy item 16** and it had been inherited from `fast-mcp-jira` and never argued; the five families are `[STD]` and were unenforced; the licence gate had been running via `uv run --with pip-licenses`, resolving **unpinned outside `uv.lock`**, so the tool auditing the frozen resolve was itself unfrozen |
 | `ff0bbdf` | `ci.yml`: a **weekly `cron: '0 0 * * 0'` sweep** and a `links` job; plus `.github/workflows/pr-title.yml`, `CONTRIBUTING.md` and `.github/pull_request_template.md` | five `COMPLIANCE-SPEC-PASS.md` findings. **`CONTRIBUTING.md` changes U13's obligation** - see that unit |
 | `5519032` | `ci.yml`: `actions/checkout` `@v4` → `@v6` in **five** places; **ADR-0016** filed | `COMPLIANCE-SPEC-PASS` C-1. **It did not reach `mirror.yml:28`, which is still `@v4`** - see §4 |
 | `80a7fd0` | `pyproject.toml` + `uv.lock`: **`pre-commit>=3.7` declared**; and this plan's draft 7 committed | closes `U15-REPORT.md` D7, the HIGH that said the gates did not exist on a fresh clone |
 | `196512b` | `.gitignore`: coverage artifacts | the file-type gate had already caught them, which is the gate working |
 | `6072f5a` (U2) | `src/fast_mcp_jobvite/errors.py`, `utils/correlation.py`, `utils/__init__.py`, two test modules | **the first `src/` module beyond `__init__.py`.** U1's coverage step is now unblocked in substance |
+| `b7fd35d` | `docs/OBLIGATIONS.md`, `docs/reviews/check-obligations.py`, and **three U0-owned files edited from outside §4's closed editor lists** | the obligation map. **The checker is not wired** - see §4. The out-of-list edits are the shared-file rule being bypassed by a doc-side task, which is the rule's first live test and it did not hold |
+| `9ca76fe` | `.github/workflows/mirror.yml`: `checkout@v4` → `@v6` | closes C-1 at **6 of 6**. Draft 8 reported this as an open residue; it landed while round 7 was running |
 
 **This table is itself the thing it warns about, and draft 7 shipped it four commits stale.** It was
 written naming three commits, in a section whose stated reason for existing is that a description of
 a tree goes out of date the moment anyone fixes a defect in it. **A table of amendments needs a rule
 for its own upkeep or it becomes another stale count**: whoever amends a U0 file adds the row, in the
 same commit, exactly as the `changelog.d` rule works - and a reader who needs certainty runs
-`git log --oneline b53886e..HEAD -- pyproject.toml .github/workflows/ci.yml tests/ scripts/`, which
-is the derivation this table is a convenience for and never a substitute for.
+`git log --oneline b53886e..HEAD -- pyproject.toml uv.lock .github/workflows/ tests/ scripts/ docs/OBLIGATIONS.md`,
+which is the derivation this table is a convenience for and never a substitute for. **No count is
+stated for it here**, because a number beside a command that computes the number is a second source
+of truth nothing keeps in step - the rule this plan already applies to the threat rows and the
+controls harness.
+
+*Draft 8 wrote this command naming `.github/workflows/ci.yml` and omitting `uv.lock`, so **the
+verification step offered to a doubting reader carried the same name-one-file-in-a-directory defect
+that had just let `mirror.yml` slip through an entire C-1 sweep** - the third instance of that one
+lesson, this time inside the remedy for it.*
 
 **Two consequences later units must not discover by conflict.** The **88-column limit is live and
 lints every file from U1 onward** - draft 6 was written against a 100-column tree, and at U8 the
@@ -1323,8 +1364,9 @@ are ones nobody thought of as code.**
 |---|---|
 | `.github/workflows/ci.yml` | **U0 owns the file.** It landed three steps commented out and addressed by name. **U1, U11, U13 and U15 each own exactly the block naming their unit and touch nothing else** - U11 the advisory audit, U1 the coverage floors and the capability-drift diff, U13 the Quickstart, **U15 its three commit-time-gate steps (landed at `db5c21e`)**. U5 additionally tightens the credentialed-collect step (L3 below). The blocks are non-adjacent by construction, so the edits are disjoint line ranges |
 | `pyproject.toml` | **U0 owns the file.** U11 edits rows inside the advisory-ignore table U0 landed empty; **U1 adds `[project.scripts]`**, which U0 deliberately omitted because it names a function U1 writes; U13 adds `readme`. Same rule: touch your own key, nothing else. **No unit adds a coverage key** - see U0 and `COMPLIANCE-SPEC.md:292-295` |
-| `.github/workflows/mirror.yml` and `pr-title.yml` | **U0 owns both, and they appeared in NO ownership row until now**, which is why a sweep that fixed `actions/checkout` in five places inside `ci.yml` never reached `mirror.yml:28` - **still `@v4` today**, a `COMPLIANCE-SPEC-PASS` C-1 residue the project believes closed. **`.github/workflows/` is the unit of ownership, not `ci.yml`**: a rule naming one file in a directory selects for the files it does not name |
-| `[project] dependencies` in `pyproject.toml`, **`uv.lock`, and `tests/test_manifest.py`** | **One surface, not three, and it has NO owner - this is the row that breaks U1.** `tests/test_manifest.py` asserts **exact set-equality** over the whole runtime dependency list against the three pins. **Every unit that adds a runtime dependency must, in ONE commit: add the pin, re-run `uv lock`, and widen that assertion** - U1 `pydantic-settings`, U3 `loguru`, U4 `defusedxml`, U7 `tenacity` and possibly `circuitbreaker`. **`uv.lock` is regenerated whole**, so §4's disjoint-line-ranges mechanism does not exist for it: two units adding a dependency concurrently conflict on the entire file. **Units adding a runtime dependency are therefore SEQUENCED on this surface, never concurrent** |
+| `.github/workflows/mirror.yml` and `pr-title.yml` | **U0 owns both, and they appeared in NO ownership row until draft 8.** A sweep that fixed `actions/checkout` in five places inside `ci.yml` did not reach `mirror.yml:28`, and the project recorded C-1 as closed while it was not. **`9ca76fe` has since closed it at 6 of 6** - `mirror.yml:28` is `@v6` today - so the residue is gone and **the row is what remains, which is what the finding was actually for**: `.github/workflows/` is the unit of ownership, not `ci.yml`, because a rule naming one file in a directory selects for the files it does not name |
+| `docs/OBLIGATIONS.md` and `docs/reviews/check-obligations.py` | **U0 owns both. The checker is NOT WIRED - no CI step, no pre-commit hook** (positive-controlled: zero hits in `ci.yml` and `.pre-commit-config.yaml` against eight repo-wide, all in `docs/`). It runs green by hand today, and **its anchors sit in `pyproject.toml`, `ci.yml`, `.env.example` and `CONTRIBUTING.md` - the files U1, U5, U11, U13 and U15 all edit**, so it decays the moment those units land. **A control that is not wired is not a control**, which this repository has now paid for twice: it is the `--all` file-type mode with no CI step, one artifact later. Wiring it is a U0 follow-up; **no unit may treat a hand-run green as a gate** |
+| `[project] dependencies` in `pyproject.toml`, **`uv.lock`, and `tests/test_manifest.py`** | **One surface, not three, and it has NO owner - this is the row that breaks U1.** `tests/test_manifest.py` asserts **exact set-equality** over the whole runtime dependency list against the three pins. **Every unit that adds a runtime dependency must, in ONE commit: add the pin, re-run `uv lock`, and widen that assertion** - U1 `pydantic-settings`, U3 `loguru`, U4 `defusedxml`, U7 `tenacity` and possibly `circuitbreaker`. **`uv.lock` is regenerated whole**, so §4's disjoint-line-ranges mechanism does not exist for it: two units adding a dependency concurrently conflict on the entire file. **Units adding a runtime dependency are therefore SEQUENCED on this surface, never concurrent** - and **this costs no lane**: under the wave tables below no two dependency-adding units are ever concurrent anyway, so the rule records a property the schedule already has rather than imposing one an orchestrator must enforce |
 | `tests/conftest.py` | **U0 owns the file and it stays small.** It holds repo paths and the fixtures-directory accessor, and nothing else. **A unit that needs fixtures creates `tests/fixtures/<subject>.py` and registers it with one entry in `conftest.py`'s `pytest_plugins` list** - `tests/fixtures/transport.py` (U4), `tests/fixtures/tools.py` (U5), `tests/fixtures/http.py` (U9). One file per unit, write sets disjoint by construction, and the `pytest_plugins` entry is a row in a container, which is the same mechanism as the advisory-ignore table. **No unit adds a fixture body to `conftest.py`** |
 
 **Enabling a commented step is a write.** Draft 5 called U1 and U11 *"genuinely disjoint"* in this
@@ -1403,14 +1445,21 @@ unit that adds a network-touching arm without the marker puts a live resolve in 
 suite**, where it fails for the wrong reason or passes by accident depending on the runner - and
 `--strict-markers` means a marker that is not in `pyproject.toml`'s `markers` list fails collection
 outright, which is the intended behaviour and not a defect to work around. Second, **the collection
-guard is live**: a `test_*.py` created anywhere outside `testpaths` now turns the suite red rather
-than being silently uncollected.
+guard is live, and it reds the suite on TWO things, not one**: a `test_*.py` created anywhere outside
+`testpaths`, **and - today, as a defect - any file inside `testpaths` whose tests are ALL
+`credentialed` or all `network`** (collision 11). *Drafts 7 and 8 stated only the first, which is
+the case a unit will not hit, and omitted the second, which is the case U5 hits by design.*
 
 **Genuinely disjoint, restated for what the table now says.** In Wave A itself the only files two
-units touch are the three in the shared-file table, and each is governed by a container-and-rows
+units touch are the **six** in the shared-file table, and each is governed by a container-and-rows
 rule rather than by sequencing. **Draft 6 said "the one shared file is `pyproject.toml`" in the same
-section whose table already listed two, and now lists three** - a sentence that survived the finding
-that falsified it, which is why it is rewritten here rather than corrected in a footnote.
+section whose table already listed two** - a sentence that survived the finding that falsified it.
+**Draft 8 corrected it to "three" and the table it sits under is now SIX rows, so the same defect was
+recreated inside its own correction**, one paragraph from where draft 8 had just fixed two other
+count-behind-its-own-table errors. *That is the argument for not writing the number at all:* the
+table is the count, and this sentence now says "the six in the table" only because a reader needs to
+know the table is the exhaustive list rather than a sample. **If a seventh row lands and this
+sentence still says six, delete the number instead of incrementing it.**
 
 ### Wave B - after U2
 
@@ -1447,12 +1496,22 @@ U5, U8 and U12 having written their input models - into `tools/*.py`, which thos
 **U14 therefore still owns no file exclusively and still runs last.** It is a dependency that keeps
 it out of Wave C now, not a missing boundary.
 
-**Ten collisions to plan around, all real, and TEN IS A FLOOR.** The count has now been understated
-five times - four in draft 3, five in draft 4, six in draft 5, eight in draft 6, nine in draft 7 -
-and **every single correction found the next one**, which is the only fact about this number worth
-carrying. Draft 7 wrote *"the next reader will find the tenth"* as a prediction; **round 6 found the
-tenth, and it is the one that bites the very next unit dispatched.** Treat ten as the current floor
-and never as a ceiling. **Collisions 7, 8 and 9 were all
+**Eleven collisions to plan around, all real, and ELEVEN IS A FLOOR.** The count has been understated
+six times - four in draft 3, five in draft 4, six in draft 5, eight in draft 6, nine in draft 7, ten
+in draft 8 - and **every single correction found the next one**. Draft 7 predicted a tenth and round
+6 found it; **draft 8 predicted an eleventh and round 7 found it, in the next round, on the first
+look.** Treat eleven as the current floor and never as a ceiling.
+
+**Collisions 10 and 11 are one species and it is worth naming, because the mechanism predicts where
+the twelfth is.** Both are **an assertion that closes a set the plan schedules units to grow**, and
+in both the test's NAME describes something narrower than its body does:
+`test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version` closes the whole dependency list, and
+a guard named for files *"outside `testpaths`"* actually fails on any file whose tests are all
+deselected. **A reader auditing "what will U-next break?" reads names, and both names are true and
+incomplete.** Round 7 enumerated all eleven closed-set assertions in `tests/` and `scripts/` against
+what this plan schedules and found the rest safe - so this species is now swept once, at one moment,
+and the sweep is the thing to repeat when a unit adds an assertion rather than a claim to inherit.
+**Collisions 7, 8 and 9 were all
 invisible from the plan and visible only from the build or from a reviewer reading a document the
 plan had declared unread**, which is the pattern: the ownership model is drawn on source modules, and
 the surfaces that actually collide are the ones nobody classified as code:
@@ -1520,7 +1579,7 @@ the surfaces that actually collide are the ones nobody classified as code:
    `fcc2341`, Status **Proposed**. Drafts 5-7 gated on existence, which an agent discharges by
    running `ls docs/adr/`: it would find the file and be licensed to build the very module this gate
    was written to prevent. **The operative property is Accepted, never existence**, and this is the
-   same error in all three places the plan gates on an ADR.*
+   same error in both places the plan gates on an ADR.*
 9. **`tests/conftest.py` is one file that every test-bearing unit must write, in the widest wave.**
    U0 owns it and it already carries module-level shared state, not just fixtures. U4 needs an
    accessor per recorded fixture; U5 and U8 both need a `MockTransport` factory; U9 needs a
@@ -1539,6 +1598,28 @@ the surfaces that actually collide are the ones nobody classified as code:
     partitioning is not available at all. **It bites U1, which is the next unit to be dispatched**,
     and it survived six review rounds because the test's name describes two pins while its body
     asserts the whole list.
+11. **The collection guard reds the suite on the first wholly-credentialed test file, and U5 is
+    scheduled to create one.** `tests/test_collection_guard.py` compares files found on disk against
+    files pytest reports as collected - but `_collected_test_files()` runs collection **through the
+    marker selector**, `-m "not credentialed and not network"`. **A file whose tests are ALL
+    `credentialed`, or all `network`, is discovered and not collected, reads as an orphan, and fails
+    the guard.** The plan schedules exactly that file: U5 *"adds the FIRST credentialed arm"*, and
+    each tool unit adds its own. **The guard's own comment asserts the opposite** - that the
+    credentialed subtree *"appears in `--collect-only` output"* - and it is false; it was never
+    tested, because `tests/credentialed/` holds only `README.md` and the two `network` tests sit in
+    `test_manifest.py` beside unmarked ones, so that file is collected anyway.
+
+    **Reproduced both arms** (`docs/reviews/check-plan-measurements.py`, probe M4): planting one
+    wholly-`credentialed` and one wholly-`network` file fails the guard naming both; the same tree
+    without them passes 3/3. **§4's only warning about the guard says the trigger is a file "outside
+    `testpaths`" - and `tests/credentialed/` is INSIDE `testpaths`**, so a unit reading this plan is
+    told the opposite of what will happen to it.
+
+    **This is collision 10's species, not collision 1-9's**: a name describing something narrower
+    than the body, on a surface nobody classified as code. **It is also a real defect in shipped
+    code rather than a gap in this plan** - `tests/` is U0's, so the fix belongs to a U0 follow-up
+    and not to whichever unit trips it first. **U5 must not "fix" it by moving its credentialed arm
+    into a file with an unmarked test in it**, which greens the guard by hiding the case from it.
 
 **Read this from the earliest-start column rather than from this sentence: Wave C is two lanes at
 U4-landing - U5 and U6→U7 - stays two at U5-landing as U5 hands off to U9, and widens to FOUR when
@@ -1855,11 +1936,17 @@ pinned this block to `ff0bbdf` and said the tree had moved "seven" commits; it h
 the time anyone read the sentence it was six. The count is dropped here in favour of the SHA, which
 is checkable.*
 
-The `pytest_plugins` mechanism §4 mandates was probed on pytest 9.1.1 rather than assumed, and so was
-the per-directory alternative it rejects - **and round 6 re-ran both independently and reproduced
-them, including a positive control that the plugin's fixture actually resolved.** Round 6 also probed
-a third case: registration works **without** `tests/fixtures/__init__.py`, so the mechanism is more
-permissive than §4 claims. **Each `DESIGN.md` line cited by anything draft 7 or 8 touched was
+**The four measurements this plan rests decisions on are no longer described here; they are RUN.**
+`python3 docs/reviews/check-plan-measurements.py` re-executes all four, each with a treatment arm
+that must fail and a control arm that must pass, and exits non-zero when a claim stops reproducing.
+At `4e5a1b2`: **M1 pass** (`pytest_plugins` loads in a non-rootdir conftest under `-W error`, with
+the unregistered control failing as required), **M2 pass** (a per-directory conftest fixture is
+invisible to a sibling directory, and visible in its own - so §4's rejection holds), **M3 pass**
+(adding a dependency breaks `test_manifest.py`'s set-equality; unmutated satisfies it), **M4 OPEN**
+- collision 11, correctly red, and it flips green when the guard drops `-m`. Rounds 6 and 7 each
+re-ran some of these by hand and reproduced them; **the script is what makes that survive a reviewer
+who does not think of it.** Round 6 also probed a case §4 does not require: registration works
+**without** `tests/fixtures/__init__.py`, so the mechanism is more permissive than §4 claims. **Each `DESIGN.md` line cited by anything draft 7 or 8 touched was
 re-derived by `grep -n` on the quoted fragment against `git show 135c3ac:docs/DESIGN.md`, never off
 the working tree**, and `C7-I2`'s three anchors were matched by row id at line start; round 6
 subject-verified 15 of them at source and found 15/15 on subject.
@@ -1988,10 +2075,19 @@ whether the design wants the pairing stated where it states the other one**, so 
 
 ---
 
-*Draft 8 by `impl-plan-draft7`, 2026-08-28, revised against `PLAN-REVIEW-R6.md` (0C/1H/2M/5L) and
-against this author's own audit of draft 7 in `docs/worklogs/PLAN-DRAFT7-SELF-AUDIT.md`. Gates and
-suite re-run at `b7fd35d`. Cited against the frozen `docs/DESIGN.md` at `135c3ac`, read from the git
-object. `docs/DESIGN.md` was not edited and nothing was committed by this draft.*
+*Draft 9 by `impl-plan-draft7`, 2026-08-28, revised against `PLAN-REVIEW-R7.md` (0C/1H/1M/5L).
+Draft 8 answered `PLAN-REVIEW-R6.md` and this author's own audit of draft 7
+(`docs/worklogs/PLAN-DRAFT7-SELF-AUDIT.md`). Gates, suite and
+`docs/reviews/check-plan-measurements.py` re-run at `4e5a1b2`. Cited against the frozen
+`docs/DESIGN.md` at `135c3ac`, read from the git object. `docs/DESIGN.md` was not edited and nothing
+was committed by this draft.*
+
+*A note on this document's own git history, because it is now misleading and a reader will trust it:
+**`4e5a1b2` carries the message "Land plan draft 7, with its six known defects held open for draft
+8" and its content is draft 8 with all six applied** - the first line of the committed file reads
+`Status: **DRAFT 8**`. The log therefore reports the opposite of what landed, in the instrument this
+plan tells readers to derive the amendment table from. Whoever next touches this file should say so
+in that commit's message rather than leaving the contradiction to be rediscovered.*
 
 *The footer read "Draft 6 … `PLAN-REVIEW-R4.md`" through drafts 7 and 8's predecessor, byte-identical,
 because a footer is the one line a reviewer reads last and an author never re-reads. It is the
