@@ -41,6 +41,13 @@ dev = [
   # which is the one property ci.yml builds two assertions to guarantee for everything
   # else. ADR-0015 also asserted it WAS a dev dependency; it was not.
   "pip-licenses>=5",
+  # C8-I1 is a CRITICAL row and DESIGN.md:1573-1586's two commit-time gates are its
+  # stated mitigation. `.pre-commit-config.yaml` existed and pre-commit itself was
+  # declared NOWHERE, so on a fresh clone `uv sync --frozen` produced an environment
+  # in which the hooks could never install: the mitigation was in force only for the
+  # machine that happened to have the tool. A control absent by default is worse than
+  # no control, because the repository looks protected.
+  "pre-commit>=3.7",
 ]
 
 # ---------------------------------------------------------------------------

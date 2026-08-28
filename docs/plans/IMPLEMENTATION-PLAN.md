@@ -1,13 +1,48 @@
 # fast-mcp-jobvite - Implementation Plan
 
-Status: **DRAFT 6.** Revised against `PLAN-REVIEW-R4.md` (0C / 3H / 5M / 3L). Rounds 1-3 are
-answered in drafts 3-5. **U0 is built and merged**, and round 4 is the first review with a shipped
-unit to check the plan against.
+Status: **DRAFT 7.** Revised against `PLAN-REVIEW-R5.md` (0C / 2H / 3M / 1L). Rounds 1-4 are
+answered in drafts 3-6. **U0 and U15 are both built and merged**, and round 5 is the first review
+whose findings sat unapplied while the tree moved under them - seven commits, one of which closed a
+finding outright.
 Written against `docs/DESIGN.md` at **revision 6, FROZEN** at commit `135c3ac` - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1795`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
 finding against the design is no longer an edit request - it is an ADR, and every open item below
 is written that way.
+
+**What draft 7 changed, and the one thing that makes this draft different from every earlier one.**
+Draft 6's author was killed mid-session; only the reviewer was re-dispatched, so `PLAN-REVIEW-R5.md`
+landed committed and **unapplied**, and seven commits went in on top of it. **A finding written
+against a tree that has since moved is not a finding until it is re-checked against the tree that
+exists**, and re-checking round 5 changed the disposition of two of its six items:
+
+- **H1 is CLOSED BY BUILD, not by argument.** The collection guard the review said existed nowhere is
+  `tests/test_collection_guard.py`, landed at `35de193` as B58, in the thorough variant the review
+  asked for. It is recorded below as done and named in U0's CI list. **The review was right and is
+  now spent** - that is a different outcome from "the review was stale", and the plan says which.
+- **M3 got stronger, not weaker.** The review called U15 a *possible* future writer of `ci.yml`
+  because a `--all` mode existed with no CI step. U15 has since landed **three** steps in that file
+  (`.github/workflows/ci.yml`, the *"Committed file types, whole tree"*, *"U15 gate controls"* and
+  *"Secret scan hook runs clean"* steps). The hypothetical is now a fact in the tree, and U15 is on
+  the `ci.yml` editor list below.
+
+The other four applied as written: **H2** gives `tests/conftest.py` a shared-file rule and a
+mechanism (**and this draft picks between the review's two options, on a measurement, rather than
+leaving the choice open**); **M1** rewrites the per-module coverage floors around
+`COMPLIANCE-SPEC.md` §2.3's existing ruling; **M2** adds `C7-I2`, which appeared nowhere in 1,543
+lines while the frozen design puts it on the mitigate-before-production-release list; **L1** gives
+every unit a `changelog.d` obligation.
+
+**And round 5's headline recommendation has already been executed, which retires §8's largest
+declared blind spot.** The review's judgement section said the unread `COMPLIANCE-SPEC.md` was where
+the unlooked-at defects lived and asked for one pass by one agent with a diff. That pass ran:
+`docs/reviews/COMPLIANCE-SPEC-PASS.md`, 78 obligations, **7 MISSING / 2 CONTRADICTED / 5 MET BY
+ACCIDENT**. It was not a green, which is the strongest available confirmation that the review's
+structural claim was right. Six of its nine defects have since been fixed in the tree (`2d2e1a3`,
+`ff0bbdf`); the two that land on this plan - the README's Contributing section and the unowned
+changelog obligation - are folded into U13 and §4 below. **§8's "I did not read `COMPLIANCE-SPEC.md`"
+bullet is rewritten rather than left standing**, because a declared limitation that has since been
+discharged is a false statement about the plan's own coverage.
 
 **What draft 6 changed.** Round 4 verified the two classes that dominated rounds 2 and 3 as closed -
 all 25 case anchors land on their own case, and **every unit has an arm that fails if the unit
@@ -81,9 +116,16 @@ It contains no code. It does not estimate effort or duration.
 
 ## 0. Two facts about the repository, established before planning
 
-**`src/` and `tests/` are empty. Zero files.** Everything below is greenfield.
+**Both facts below were true when this plan was written and BOTH HAVE SINCE BEEN CHANGED BY U0 AND
+U15, deliberately - they are the premises the ordering was derived from, not a description of the
+tree.** They are kept in the past tense rather than deleted, because a reader who cannot see what
+this plan assumed cannot tell which parts of the order were forced and which were chosen. The
+current tree carries `src/fast_mcp_jobvite/`, a populated `tests/` and a real `ci.yml`; where this
+section and the tree disagree, the tree is simply later.
 
-**There is no CI, and the design now says so once, plainly.** `.github/workflows/` contains exactly
+**`src/` and `tests/` were empty. Zero files.** Everything below was greenfield.
+
+**There was no CI, and the design says so once, plainly.** `.github/workflows/` contained exactly
 one file, `mirror.yml`, which pushes to the mirror remote. Draft 1 reported this against a design
 that used the present tense; `DESIGN.md:1415-1421` now states that **every "CI runs" sentence in
 that document is a specification of what the pipeline must do, not a report of what it does**, and
@@ -105,8 +147,9 @@ asserts a literal one.** U0's CI assertion is the exit code and the *all fired* 
 that hard-coded 34 would turn the harness growing into a red build, which is the same stale-count
 defect one level up.
 
-**Standing CI up is U0's first act**, before any other work in that unit. From that point "the
-gates keep passing" is a machine constraint rather than a habit. All three must run there: the gate
+**Standing CI up was U0's first act**, before any other work in that unit, and it has happened. From
+that point "the gates keep passing" is a machine constraint rather than a habit. All three run there:
+the gate
 alone is a checker that has only ever passed, which its own docstring names as the failure it
 exists to avoid, and the sweep is what proves it can fail without choosing its own subject.
 
@@ -241,9 +284,11 @@ verified**. No unit is verified by "it compiles".
 
 ### U0 - Repository skeleton, pinned manifest, test selection, CI
 
-**Being implemented now, in parallel, by a separate agent.** U0 is the one unit that does not
-depend on the outstanding review findings: its scheduled assertions were confirmed correct in round
-2 and its resolve has been executed.
+**BUILT AND MERGED** (`b53886e`), with `docs/worklogs/U0-REPORT.md` as its record. Its scheduled
+assertions were confirmed correct in round 2, its resolve has been executed, and round 5 checked
+this section against the shipped tree and found it agreeing. **Three later commits amended what U0
+landed** and are described at the end of this section, because a section that describes only the
+unit's own commit is stale the moment anyone fixes a defect in it.
 
 **If the U0 agent's report contradicts anything in THIS U0 SECTION, the report wins** - a unit that
 has been built beats a unit that has been described, and this section is corrected from the build.
@@ -255,21 +300,43 @@ sentence most likely to be misread by an agent working alone - "below" bounded t
 sensible, "below in this plan" hands one agent precedence over twelve hundred lines, and it had no
 floor at all while every other deviation in this document routes through an ADR.*
 
-**Its first act is standing up CI**, because nothing runs there today (`DESIGN.md:1415-1421`) and
-every gate below is hand-run until it does. Until the workflow exists, no other unit's verification
-means anything durable - it means someone ran something once.
+**Its first act was standing up CI**, because nothing ran there before it (`DESIGN.md:1415-1421`)
+and every gate below was hand-run. **That is now done**: `.github/workflows/ci.yml` exists and every
+gate in this plan is a machine constraint rather than a habit. The reason it was first is the reason
+it stays first for anyone rebuilding this order - until the workflow exists, no unit's verification
+means anything durable, it means someone ran something once.
 
 **Builds.** `pyproject.toml` with the verbatim three-pin block and `prerelease = "explicit"`
 (`DESIGN.md:1358-1367`); `uv.lock` committed; `[tool.pytest.ini_options]` with
 `addopts` carrying `--strict-markers`, the declared `markers` list including the
 credential-dependent marker, `asyncio_mode = "auto"`, and coverage `branch = true`
-(`DESIGN.md:1190-1191`); **the 80% overall coverage floor**, which is the only one expressible as a
-single `fail_under` - **ADR-0010's per-module floors (85% tools, 90% client, 95% `utils/`, 95 line /
-90 branch on critical paths) land with the units that create those modules**, and CI's coverage step
-stays off until U1 because `src/` holds only `__init__.py` at U0; `.github/workflows/ci.yml`.
+(`DESIGN.md:1190-1191`); **the 80% overall coverage floor**; `.github/workflows/ci.yml`. CI's
+coverage step stays off until U1 because `src/` holds only `__init__.py` at U0.
+
+**The per-module coverage floors are enforced in REVIEW, not in configuration, and no unit writes a
+coverage key.** `fail_under = 80` is the only mechanically enforced number. **ADR-0010's per-module
+floors (85% `tools/`, 90% the client, 95% `utils/`, 95 line / 90 branch on critical paths) are a
+reviewer's checklist item**, because `COMPLIANCE-SPEC.md:292-295` already ruled on the mechanism and
+this plan is not entitled to re-open it: *"`fail_under = 80` is the only threshold that is
+mechanically enforceable in one number; **[REC]** enforce the per-module targets in review (§5
+checklist) rather than inventing a bespoke coverage plugin. Adding per-module gates is possible via
+`coverage`'s `[tool.coverage.paths]` only awkwardly - not worth the machinery."* So: **no unit adds a
+coverage key to `pyproject.toml`**; each unit's reviewer checks that unit's module against ADR-0010's
+row, and **each unit reports its measured coverage in its worklog** so the check has a number to read.
+
+*Draft 6 said the floors "land with the units that create those modules", which named no owner and
+no mechanism, and `pyproject.toml`'s own comment says the same thing in the same words. Neither is a
+build instruction: the only home configured today is `pyproject.toml`, a file §4 closes over
+`{U0, U11, U1, U13}` while U5 ∥ U6 and U8 ∥ U12 run concurrently - so an agent acting on the old
+sentence would have written into an unowned shared file, and an agent not acting on it would have
+dropped the obligation. **`pyproject.toml`'s comment is U0's file and is left for a U0 follow-up to
+correct**; this plan does not edit it, and the two now disagree until it does.*
 
 CI runs, at minimum: `uv sync --frozen`; lint; format; types; the default suite;
-`--collect-only` against the credentialed suite; `python3 docs/reviews/check-coupling.py
+**the collection-guard meta-test** (`backend/testing.md:138-141`, `devops/quality-gates.md:76-81`
+API-03, `COMPLIANCE-SPEC.md:297-305` §2.4 - see the paragraph below, it is BUILT);
+`--collect-only` against the credentialed suite; the **`network`-marked arms as their own step**;
+`python3 docs/reviews/check-coupling.py
 docs/DESIGN.md`; `check-coupling-controls.py`; `check-coupling-sweep.py`; `pip-audit` behind
 `scripts/check_advisories.py` (U11); CodeQL; TruffleHog with full history depth; SBOM in both
 formats from the **frozen** resolve; `pip-licenses` **deny-list on the standard's flag-list, with the allow-list conversion owed to an
@@ -333,6 +400,27 @@ at all, and all three fail if their defence is removed:
   tightened that into something else. Verified today: the six above are empty, and the list is
   derived from the file rather than remembered.
 
+**Plus the collection guard, which is not a §8 case and is a corpus-level MUST that the design never
+names. BUILT at `35de193`, as `tests/test_collection_guard.py`.** `backend/testing.md:138-141`
+requires it and `devops/quality-gates.md:76-81` (API-03) makes its *absence* a CI failure in its own
+right; `COMPLIANCE-SPEC.md:297-305` §2.4 had recorded the same obligation for this repository and it
+had reached neither the design, this plan, nor the tree (tracked as **B58**). It landed in the
+**thorough** variant, not the minimal one: the minimal form asserts only that `pytest --collect-only`
+exits 0, which it does perfectly happily while a file sits outside `testpaths` and is never collected
+- the exact defect API-03 names. The guard lives inside `tests/`, the single configured root, so its
+own disappearance fails collection.
+
+**Why this one mattered more here than as a checkbox, stated because the next fifteen units each add
+test files.** This suite's entire strategy is selection-based - `-m "not credentialed and not
+network"` in `addopts`, a `tests/credentialed/` subtree collected but never run, and a zero-skip
+rule. That is precisely the configuration in which a file landing outside `testpaths`, or one marker
+typo, produces **a green over fewer tests than anyone believes**. It is `--strict-markers`'s sibling
+defence, and the plan called `--strict-markers` *"not housekeeping"* for the same reason.
+
+**It is not a design finding and does not need an ADR.** `DESIGN.md` is silent on the guard rather
+than contradicting it, and the plan is not the design. If a frozen design that enumerates every CI
+gate should have named this one, that is a separate ADR about the design's completeness.
+
 Plus, all three now running in CI rather than by hand. **What CI asserts is the exit code and the
 harness's own *all fired* property, never a literal count** - the controls harness has reported 21,
 32 and 34 to three readers in one day, so a hard-coded number turns the harness growing into a red
@@ -365,8 +453,24 @@ whose only justification is a comment is one refactor from deletion, **that remo
 §8 #11's test beside its positive arm.**
 
 **Toolchain confirmed at the same time**, so U0 does not discover it late: uv **0.11.3**, Python
-**3.12.3** against the design's `>=3.12` floor (`DESIGN.md:1353`), git 2.43.0, gh 2.45.0. **Neither
-`pyproject.toml` nor `uv.lock` exists in the repo** - correct, and U0 creates both.
+**3.12.3** against the design's `>=3.12` floor (`DESIGN.md:1353`), git 2.43.0, gh 2.45.0. Both
+`pyproject.toml` and `uv.lock` were created here and are committed.
+
+**What has been amended in U0's files SINCE U0's own commit, because this section is otherwise a
+description of a tree that no longer exists.** All of it is in `pyproject.toml`, `ci.yml` and
+`tests/`, all of which U0 owns, and none of it reopens the unit:
+
+| Commit | What changed in U0's files | Why |
+|---|---|---|
+| `db5c21e` (U15) | three steps added to `ci.yml`'s `test` job; one line of `scripts/check-u0-test-controls.sh` repaired | U15's own gates, and a control U15 broke. **This is why U15 is now on the `ci.yml` editor list in §4** |
+| `35de193` (B58) | `tests/test_collection_guard.py` added | the guard above |
+| `2d2e1a3` | `pyproject.toml`: ruff `line-length` **88, not 100**; five further `[STD]` rule families selected - `W`, `N`, `D`, `DTZ`, `T20`, `ANN` - with `convention = "google"`; **`pip-licenses>=5` added to the dev group** | `COMPLIANCE-SPEC.md:513` lists `line-length = 100` as **do-not-copy item 16** and it had been inherited from `fast-mcp-jira` and never argued; the five families are `[STD]` and were unenforced; the licence gate had been running via `uv run --with pip-licenses`, resolving **unpinned outside `uv.lock`**, so the tool auditing the frozen resolve was itself unfrozen |
+| `ff0bbdf` | `ci.yml`: a **weekly `cron: '0 0 * * 0'` sweep** and a `links` job; plus `.github/workflows/pr-title.yml`, `CONTRIBUTING.md` and `.github/pull_request_template.md` | five `COMPLIANCE-SPEC-PASS.md` findings. **`CONTRIBUTING.md` changes U13's obligation** - see that unit |
+
+**Two consequences later units must not discover by conflict.** The **88-column limit is live and
+lints every file from U1 onward** - draft 6 was written against a 100-column tree, and at U8 the
+change becomes a whole-tree diff rather than a one-file one. And **`pip-licenses` is now a declared
+dev dependency**, so the licence gate runs under `uv run --frozen` like everything else.
 
 ---
 
@@ -918,14 +1022,31 @@ reachability - is **human judgement written down, not a tool output**. The scrip
 
 ### U15 - The two commit-time gates
 
+**BUILT AND MERGED** (`db5c21e`), with `docs/worklogs/U15-REPORT.md` as its record: both gates block
+real commits in a throwaway clone with the hooks installed, 36 assertions, 15 mutation controls and 5
+amputation trees, all fired. The same precedence rule U0 carries applies here and is bounded the same
+way: **where this section and the build disagree, the build wins, and never past `docs/DESIGN.md`.**
+One HIGH from that report is **not fixed and is carried below** rather than left in a worklog.
+
 **Builds.** The two gates of `DESIGN.md:1576-1586`, both of which the design says exceed the
 standard deliberately: **secret scanning pre-commit**, not only in CI, because on a public remote a
 pushed secret is compromised the instant it lands; and the **committed-file-type gate** -
 allowlist-first, extension denylist, magic-number sniffing, NUL-byte backstop, fail-closed, with
 overrides only via an allowlist entry in the same commit so the exception is reviewable in the diff.
 
-**Depends on.** U0 only. **Parallel with U11 throughout**, and it touches no file any other unit
-writes.
+**Depends on.** U0 only. **Parallel with U11 throughout.** It owns `.pre-commit-config.yaml`,
+`.secrets.baseline`, `scripts/check-committed-file-types.py`, `.file-type-allowlist`,
+`tests/test_file_type_gate.py` and its two harnesses outright.
+
+**It is NOT true that it touches no file any other unit writes, and draft 6 said so on the strength
+of the design mandating only commit-time gates.** A pre-commit hook is bypassable with `--no-verify`
+and is not installed at all on a fresh clone, so the server-side arm is worth having - and U15 built
+it. **Three steps landed in `.github/workflows/ci.yml`** (*"Committed file types, whole tree"*,
+running the gate with `--all`; *"U15 gate controls, all fired"*; *"Secret scan hook runs clean"*),
+which makes U15 a writer of the file §4 gives to U0 with a closed later-editor list. **That is U15's
+own block under §4's shared-file rule, and U15 is on the editor list there.** It is collision 7's
+shape one unit later, which is the fix-one-miss-the-sibling failure this plan names about itself
+three times - and this time the sibling landed before the rule did.
 
 **Why it is a unit and not a bullet in U0.** Draft 5 listed both gates inside U0's CI paragraph.
 **U0 declined them and asked for a ruling, correctly**: they are not a CI step, they are
@@ -951,6 +1072,29 @@ list.
   a *file* of the wrong type and does nothing about confidential prose pasted into Markdown, which
   is the incident that actually occurred. Review and `JOBVITE-API.md` §0.2 cover that, and no test
   here may be written as though the gate closed it.
+
+**CARRIED, NOT CLOSED, and it is the most important sentence in this unit: `pre-commit` is not a
+declared dependency, so on a fresh clone both gates silently do not exist.** `U15-REPORT.md` D7:
+`backend/tech-stack.md:157` and `:172` both carry `"pre-commit>=4.0.0"` in the dev group; this
+project's dev group does not, and `pre-commit` appears nowhere in `uv.lock`. Every `pre-commit
+install` and `pre-commit run` behind this unit's evidence used a binary that exists only on one
+machine. **The refusals are real and that evidence stands; "the gates are installed for the team" is
+false.** On a fresh clone `pre-commit install` is `command not found`, no hook is written to
+`.git/hooks`, and every commit proceeds ungated with no error anywhere - **the whole control failing
+open, one level above the gate's own fail-closed behaviour, because a gate cannot fail closed if it
+was never installed.** It is also why U15's CI step reads `uv tool run pre-commit@4.6.2` rather than
+`uv run --frozen pre-commit`, which resolves outside the frozen lock and quietly contradicts this
+project's `uv sync --frozen` discipline.
+
+**It is U0's to close, not U15's, and that is a scheduling fact rather than a preference:**
+`pyproject.toml` and `uv.lock` are U0's files, and U0's
+`test_uv_lock_check_passes_without_amending_the_lockfile` asserts on exactly the object a dependency
+addition mutates. **Until a U0 follow-up adds `pre-commit>=4.0.0`, runs `uv lock` and switches the CI
+step to `uv run --frozen pre-commit`, C8-I1's Critical mitigation is not in force for the team** and
+the `--all` CI step is the only arm actually running. **No unit below may read U15 as "the
+commit-time gates are in place".** A false negative on this one was already measured once:
+`uv run --frozen --offline pre-commit --version` exits 0 because `uv run` falls through to `PATH`,
+which reads as a green and is not one.
 
 **This unit exists because a decision that lived only in a message is not a decision.** The ruling
 was made when U0 asked and was never written down; the plan still listed the gates under a unit that
@@ -1001,6 +1145,27 @@ read-only-key requirement in the deployment section; and a **credential-free Qui
 exercised by CI on every merge** - install, start the server, list tools. `readme-standard.md:83`
 forbids a Quickstart step requiring credentials, so anything needing a Jobvite key belongs in
 Configuration and Usage.
+
+**The Contributing section must LINK to `CONTRIBUTING.md`, and "the heading exists" does not
+discharge it.** `readme-standard.md:56` reads *"12. **Contributing** - link to `CONTRIBUTING.md` or
+equivalent. Repos without that file must inline the contribution rules under this heading."*
+`CONTRIBUTING.md` now exists (`ff0bbdf`), so **this repository is on the link arm, not the inline
+arm** - which is the cheaper obligation, and it is the reason draft 6 could not have scheduled it.
+But U13 as written schedules only that the fourteen headings match exactly, and **an empty
+`## Contributing` heading passes that assertion while discharging nothing**
+(`COMPLIANCE-SPEC-PASS.md` F-6 names precisely this). The heading carries a working relative link to
+`CONTRIBUTING.md`, and U13's heading test is not the assertion that covers it.
+
+**U13 also owns the changelog obligation, which no unit owned.** `COMPLIANCE-SPEC.md:352-358` and
+`changelog-standard.md` require Keep a Changelog 1.1.0, `## [Unreleased]` at top, the six fixed
+subsections, `BREAKING:` plus a migration note on a major bump, a CVE on a Security entry where one
+exists, and publication dates with backdating forbidden - clauses no human reliably remembers.
+`CHANGELOG.md` satisfies the first two today and **nothing checks any of it**. U13 is the
+documentation unit and takes it: it merges the accumulated `changelog.d` fragments (§4), and asserts
+`## [Unreleased]` is present and that every release heading parses as `## [X.Y.Z] - YYYY-MM-DD`.
+**A ruling is owed and is not U13's to make**: the current `[Unreleased]` block is largely design and
+research activity, which is arguably the internal-only class `changelog-standard.md:94` forbids
+outright.
 
 **Depends on.** U1-U12.
 
@@ -1062,7 +1227,7 @@ not a problem-object shape. The 422 row in the registry is not dead - it serves 
 ## 3. Dependency order at a glance
 
 ```
-U0  skeleton / pins / markers / CI
+U0  skeleton / pins / markers / CI                                [BUILT b53886e]
  ├── U1  boot: config, transport, TLS refusal, shutdown
  ├── U2  errors.py + request_id_var
  │    └── U3  audit.py + redaction (secrets)
@@ -1075,10 +1240,15 @@ U0  skeleton / pins / markers / CI
  │                   └── U12 get_job_feed                        (needs U5 AND U6)
  │                        └── U14 argument-layer sweep           (needs U5, U8 AND U12; owns no file)
  ├── U11 scripts/check_advisories.py                             (independent throughout)
- └── U15 the two commit-time gates                                (independent throughout)
+ └── U15 the two commit-time gates              [BUILT db5c21e]  (parallel throughout, but it
+                                                                  WRITES ci.yml - see §4)
 
      U13 README                                                  (needs U0-U12)
 ```
+
+**`(independent throughout)` was wrong about U15 and is corrected here rather than only in §4**,
+because §3 is the diagram an orchestrator reads when assigning a lane and §4 is the table it reads
+when a conflict has already happened. U15 is schedule-independent and **not** file-independent.
 
 ---
 
@@ -1103,8 +1273,9 @@ are ones nobody thought of as code.**
 
 | Shared file | Rule |
 |---|---|
-| `.github/workflows/ci.yml` | **U0 owns the file.** It landed three steps commented out and addressed by name. **U1, U11 and U13 each enable exactly the step naming their unit and touch nothing else** - U11 the advisory audit, U1 the coverage floors and the capability-drift diff, U13 the Quickstart. U5 additionally tightens the credentialed-collect step (L3 below). The blocks are non-adjacent by construction, so the edits are disjoint line ranges |
-| `pyproject.toml` | **U0 owns the file.** U11 edits rows inside the advisory-ignore table U0 landed empty; **U1 adds `[project.scripts]`**, which U0 deliberately omitted because it names a function U1 writes; U13 adds `readme`. Same rule: touch your own key, nothing else |
+| `.github/workflows/ci.yml` | **U0 owns the file.** It landed three steps commented out and addressed by name. **U1, U11, U13 and U15 each own exactly the block naming their unit and touch nothing else** - U11 the advisory audit, U1 the coverage floors and the capability-drift diff, U13 the Quickstart, **U15 its three commit-time-gate steps (landed at `db5c21e`)**. U5 additionally tightens the credentialed-collect step (L3 below). The blocks are non-adjacent by construction, so the edits are disjoint line ranges |
+| `pyproject.toml` | **U0 owns the file.** U11 edits rows inside the advisory-ignore table U0 landed empty; **U1 adds `[project.scripts]`**, which U0 deliberately omitted because it names a function U1 writes; U13 adds `readme`. Same rule: touch your own key, nothing else. **No unit adds a coverage key** - see U0 and `COMPLIANCE-SPEC.md:292-295` |
+| `tests/conftest.py` | **U0 owns the file and it stays small.** It holds repo paths and the fixtures-directory accessor, and nothing else. **A unit that needs fixtures creates `tests/fixtures/<subject>.py` and registers it with one entry in `conftest.py`'s `pytest_plugins` list** - `tests/fixtures/transport.py` (U4), `tests/fixtures/tools.py` (U5), `tests/fixtures/http.py` (U9). One file per unit, write sets disjoint by construction, and the `pytest_plugins` entry is a row in a container, which is the same mechanism as the advisory-ignore table. **No unit adds a fixture body to `conftest.py`** |
 
 **Enabling a commented step is a write.** Draft 5 called U1 and U11 *"genuinely disjoint"* in this
 wave; they are not, and neither is U13. The mechanism is the one this section already invented for
@@ -1115,8 +1286,57 @@ three. **The row is taken over the sequencing**, because the edits are non-overl
 by construction rather than by care - but it is stated either way, because otherwise the first two
 agents to land find out by conflict.
 
-**Genuinely disjoint.** The one shared file is `pyproject.toml`: U0 writes it, U11 appends one
-table. Have U0 land the empty table so U11 only edits rows inside it, or U11 waits for U0's commit.
+**Why `conftest.py` gets a rule at all, and why it gets THIS rule rather than the other candidate.**
+Draft 6 named the hazard and stopped there - *"`tests/conftest.py` is the same shape waiting: U0 owns
+it, every later unit adds fixtures to it, and no row here says so yet"* - which is a correct
+diagnosis and not a rule. **An orchestrator reading that sentence acts on it; an agent handed U8
+alone does not.** It reads §4, finds no `conftest.py` row, and writes. That asymmetry is the same one
+this plan names for U0's precedence sentence. And the timing is the worst available: by the Wave C
+table below, U5 and U6→U7 start at U4-landing, U9 at U5, and U8 and U12 together - **four to five
+units overlapping in time, every one of which adds fixtures**, into a file that already holds
+module-level shared state (`REPO_ROOT`, `FIXTURES_DIR`, `PYPROJECT`, `UV_LOCK`, `ENV_EXAMPLE`,
+`GITIGNORE` and two session fixtures), not just fixture bodies.
+
+**The alternative was conftest-per-directory** - `tests/client/conftest.py`, `tests/tools/conftest.py`
+- which needs no shared line at all and is therefore the tidier-looking answer. **It is rejected on a
+measurement, not on taste: a conftest fixture is visible only below its own directory, so it cannot
+be shared between two units' directories.** Probed on this project's own interpreter, pytest 9.1.1:
+
+```
+tests/tools/conftest.py defines mock_transport
+  tests/tools/test_t.py::test_here    PASSED
+  tests/client/test_c.py::test_there  ERROR - fixture 'mock_transport' not found
+```
+
+That is fatal here specifically, because the fixtures that collide are the **shared** ones: U5 and U8
+both need a `MockTransport` factory, and U4's recorded-fixture accessor is read by U4, U5, U6 and
+U12. Under per-directory conftests every such fixture is either duplicated per directory - two copies
+of a factory that must agree, which is the drift `conftest.py` exists to prevent - or hoisted back
+into the root `conftest.py`, which **is** the collision, reached by a longer route.
+
+**The plugin form was probed too, rather than assumed, because the obvious objection to it is real
+elsewhere.** `pytest_plugins` is refused in non-rootdir conftests in some pytest lineages, and
+`tests/conftest.py` is not the rootdir here (`pyproject.toml` at the repo root is). Measured on
+pytest **9.1.1** with `tests/fixtures/transport.py` registered from `tests/conftest.py`: **passes,
+and emits nothing under `-W error`.** If a future pytest bump makes that an error, the fallback is
+`-p tests.fixtures.<name>` in `addopts`, which moves the shared line into `pyproject.toml` - a file
+this section already governs by the same mechanism. **Neither fallback is per-directory conftests.**
+
+**Two properties of the built test configuration that a unit adding test files must know, because
+neither is discoverable from this section's tables.** First, **there are TWO selection markers, not
+one**: U0 landed `network` beside `credentialed`, and CI runs the network arm as its own step. **A
+unit that adds a network-touching arm without the marker puts a live resolve in the default offline
+suite**, where it fails for the wrong reason or passes by accident depending on the runner - and
+`--strict-markers` means a marker that is not in `pyproject.toml`'s `markers` list fails collection
+outright, which is the intended behaviour and not a defect to work around. Second, **the collection
+guard is live**: a `test_*.py` created anywhere outside `testpaths` now turns the suite red rather
+than being silently uncollected.
+
+**Genuinely disjoint, restated for what the table now says.** In Wave A itself the only files two
+units touch are the three in the shared-file table, and each is governed by a container-and-rows
+rule rather than by sequencing. **Draft 6 said "the one shared file is `pyproject.toml`" in the same
+section whose table already listed two, and now lists three** - a sentence that survived the finding
+that falsified it, which is why it is rewritten here rather than corrected in a footnote.
 
 ### Wave B - after U2
 
@@ -1153,12 +1373,14 @@ U5, U8 and U12 having written their input models - into `tools/*.py`, which thos
 **U14 therefore still owns no file exclusively and still runs last.** It is a dependency that keeps
 it out of Wave C now, not a missing boundary.
 
-**Eight collisions to plan around, all real.** The count has now been understated three times -
-four in draft 3, five in draft 4, six in draft 5 - and every correction found the next one, so treat
-this number as the current floor rather than as a ceiling. **Collisions 7 and 8 were both invisible
-from the plan and visible only from the build**, which is the pattern worth carrying: the ownership
-model is drawn on source modules, and the surfaces that actually collide are the ones nobody
-classified as code:
+**Nine collisions to plan around, all real, and NINE IS A FLOOR.** The count has now been understated
+four times - four in draft 3, five in draft 4, six in draft 5, eight in draft 6 - and **every single
+correction found the next one**, which is the only fact about this number worth carrying. Treat it as
+the current floor and never as a ceiling: the honest reading of that record is not "we have finally
+found them all", it is "the next reader will find the tenth". **Collisions 7, 8 and 9 were all
+invisible from the plan and visible only from the build or from a reviewer reading a document the
+plan had declared unread**, which is the pattern: the ownership model is drawn on source modules, and
+the surfaces that actually collide are the ones nobody classified as code:
 
 1. **U6 and U7 both live in `services/jobvite_client.py`.** §3's module layout fixes that file, so
    they **cannot** be parallelised. One owner, U6 then U7. Splitting the client into two modules to
@@ -1203,15 +1425,31 @@ classified as code:
    *"one per tool; no input model lives here"* - makes the per-file split legal without an ADR, so
    the rule is **one file per tool and never a shared module**. Draft 5 gave the whole directory to
    U8 exclusively while U12 needed to write in it concurrently.
-7. **`.github/workflows/ci.yml` and `pyproject.toml` are written by four units between them and
-   appeared in no ownership table.** U0 owns both; U1, U11, U13 and U5 each edit only the block or
-   key naming their unit. See the Wave A shared-file table above. **Enabling a commented CI step is
-   a write**, and draft 5 called two units that must both do it *"genuinely disjoint"*.
+7. **`.github/workflows/ci.yml` and `pyproject.toml` are written by FIVE units between them and
+   appeared in no ownership table.** U0 owns both; U1, U11, U13, U5 and **U15** each edit only the
+   block or key naming their unit. See the Wave A shared-file table above. **Enabling a commented CI
+   step is a write**, and draft 5 called two units that must both do it *"genuinely disjoint"*.
+
+   **U15 is the fifth, and it is the one the plan got wrong twice.** Draft 6 wrote that U15
+   *"touches no file any other unit writes"* while U15 was in flight; U15 then landed three steps in
+   `ci.yml`. Round 5 caught it as a *possible* future write, from a `--all` mode documented in a
+   script's usage block with no CI step behind it; by the time the finding was applied it was three
+   committed steps. **Both readings were of the same file at different hours, which is why this
+   collision is worth stating as a class rather than as five names**: a unit that builds a gate will
+   want a server-side arm for it, and the server-side arm is always this file.
 8. **U14's input-model checks share `tools/*.py` with the three units that write them.**
    `DESIGN.md:289-291` puts input models beside their tools, so U14's subject lives in files U5, U8
    and U12 own. It is **sequenced last rather than parallelised**. See
    [Q5](#q5---answered-and-landed-input-models-live-beside-their-tools), and note that **no unit
    plans a shared `utils/constraints.py`** until ADR-0012 exists.
+9. **`tests/conftest.py` is one file that every test-bearing unit must write, in the widest wave.**
+   U0 owns it and it already carries module-level shared state, not just fixtures. U4 needs an
+   accessor per recorded fixture; U5 and U8 both need a `MockTransport` factory; U9 needs a
+   client-with-token factory - and four to five of those units overlap in time. **The rule is the
+   `tests/fixtures/<subject>.py` plugin row in the Wave A shared-file table**, chosen over
+   conftest-per-directory on a measurement recorded there. Draft 6 named this hazard in prose and
+   wrote no rule, which is the one failure mode §4 opens by naming: **a diagnosis binds an
+   orchestrator and does not bind an agent working alone.**
 
 **Read this from the earliest-start column rather than from this sentence: Wave C is two lanes at
 U4-landing - U5 and U6→U7 - stays two at U5-landing as U5 hands off to U9, and widens to FOUR when
@@ -1249,13 +1487,30 @@ and not of U0.** Two of the eight collisions above - `models/` and the CI-plus-m
 ownership model is drawn on source modules, and the surfaces that actually collide are the ones
 nobody classified as code.** U0's deferrals are all future writes back into U0's own files, and a
 table of "who owns which module" cannot express *"U11 later edits a file U0 owns"* - which is why
-the shared-file table above exists as a second kind of row. **`tests/conftest.py` is the same shape
-waiting**: U0 owns it, every later unit adds fixtures to it, and no row here says so yet.
+the shared-file table above exists as a second kind of row. **`tests/conftest.py` was the same shape
+waiting and now has its row** (collision 9): U0 owns it, every later unit needs fixtures in it, and
+the rule is the plugin-file mechanism rather than a coordination convention. Draft 6 stopped at the
+sentence before this one, which is why it took an outside reader to convert a named hazard into a
+rule.
 
-**A rule that costs nothing and prevents the failure that actually happens here:** no agent runs
-`git stash`, and no agent switches branches on a tree another agent is working. If two units must
-overlap in time on the same file, they get separate worktrees pinned to a SHA, not turns in one
-checkout.
+**Two rules that cost nothing and prevent the failures that actually happen here.**
+
+**No agent runs `git stash`**, and no agent switches branches on a tree another agent is working. If
+two units must overlap in time on the same file, they get separate worktrees pinned to a SHA, not
+turns in one checkout.
+
+**Every unit that changes user-visible behaviour leaves a `changelog.d/<unit>-<slug>.md` fragment and
+never edits `CHANGELOG.md`.** `changelog.d/README.md` is a committed convention with its own ruling
+on what earns one, and the word "changelog" did not appear anywhere in draft 6 - fifteen units
+shipping user-visible behaviour, none told to leave a record. **The mechanism already prevents the
+collision, which is why this is a rule about a missing record and not about lost work.** Per that
+file's own ruling: **CI changes, test-only changes, refactors, lint fixes and review documents get no
+fragment** (`changelog-standard.md:94`, *"internal-only changes ... MUST NOT appear"* - two entries
+have already been removed from `CHANGELOG.md` for breaching it). The line that is genuinely not
+obvious on this repository, and that produced that breach: **a document published here IS
+user-visible** and earns a fragment, while **the machinery that produces those documents is not**.
+U13 merges the accumulated fragments and owns the `CHANGELOG.md` conformance clauses; when it is
+ambiguous, leave it out.
 
 ---
 
@@ -1380,9 +1635,28 @@ Stated plainly, because an unstated omission reads as coverage.
   all eleven ADRs, `docs/adr/README.md`, `CREDENTIAL-CHECKLIST.md`, and the fixtures. Of
   `FASTMCP-SPIKE-4.md` (2,354 lines) I read §§1.3, 3.2, 3.3, 10, 10.1, 12, 13.1-13.3, 20.3-20.8 and
   the closing *"What I could NOT verify"*. Of `JOBVITE-CONTRACT.md` I read §§2, 4 and the section
-  index; of `JOBVITE-API.md`, §6.1 and the probe map. I did **not** read `COMPLIANCE-SPEC.md`,
-  `STANDARDS.md`, `LICENSING-SURVEY.md`, `DECISIONS.md`, `data-inventory.md`, or any of the 17
-  documents in `docs/reviews/` beyond the three gate scripts' docstrings.
+  index; of `JOBVITE-API.md`, §6.1 and the probe map. I did **not** read
+  `STANDARDS.md`, `LICENSING-SURVEY.md`, `DECISIONS.md`, `data-inventory.md`, or any of the
+  documents in `docs/reviews/` beyond the three gate scripts' docstrings and the plan's own review
+  rounds.
+- **`COMPLIANCE-SPEC.md` HAS now been read in full, and it should never have been on the list above
+  in the first place.** Drafts 1-6 grouped it with five background documents as one undifferentiated
+  residue, and that framing is what hid it: **it is a 661-line specification of this exact
+  repository's obligations** - a CI job table, pinned action versions *"(copy exactly)"*, the licence
+  allow-list *"(verbatim)"*, `pyproject.toml` blocks *"ready to paste"*, the per-module coverage
+  ruling, the test-discovery guard, the README's required sections in exact order, a do-not-copy
+  list, a reviewer checklist. **It is the same subject matter as U0, U11, U13 and half of §4, written
+  before all of them and consulted by none of them.** Round 5 named it and the pass ran:
+  `docs/reviews/COMPLIANCE-SPEC-PASS.md`, 78 obligations, **41 MET, 7 MISSING, 2 CONTRADICTED, 5 MET
+  BY ACCIDENT, 6 SCHEDULED**. It was not a green.
+- **Why five review rounds missed it, kept because the mechanism generalises past this document.**
+  Every round compared the plan to `DESIGN.md`, because the design is authority and this plan says so
+  in its second paragraph. But `DESIGN.md` is itself downstream, and it was written by readers who had
+  not opened `COMPLIANCE-SPEC.md` either. **A review that only ever compares two documents to each
+  other can confirm consistency and can never find a shared omission** - which is this plan's own
+  *"a unit reporting no defect has more probably not looked than found none"*, applied one level up.
+  Round 4's best findings came from the built unit and round 5's from the unread upstream document:
+  **both are places outside the plan-versus-design axis, and four rounds of reading never left it.**
 - **No effort, duration or sequencing-in-time estimate.** The order is a dependency order.
 - **No CI runner, Python matrix or workflow YAML is drafted.** U0 names what CI must run, not how.
   Note the spike ran only 3.11.15 and 3.12.3; the design sets `>=3.12`, so 3.13+ is unexercised.
@@ -1397,7 +1671,7 @@ Stated plainly, because an unstated omission reads as coverage.
 - **No breaker-library survey was run**, and `circuitbreaker ^2` has not been tested against the
   call-path constraint. U7 names the one experiment; nobody has run it.
 - **The threat ids named in §2 are not a coverage map and must not be read as one.** The rows named
-  by no unit are **C1-R1, C2-R1, C4-E1, C7-I1 and C8-I1** - stated as a list, with no total, per
+  by no unit are **C1-R1, C2-R1, C4-E1, C7-I1, C7-I2 and C8-I1** - stated as a list, with no total, per
   `DESIGN.md:1797`'s own rule that a count in prose beside the thing it counts is a second source of
   truth nothing keeps in step. Most are covered in substance by a §8 case some unit does schedule:
   C8-I1 by #3 in U0, C4-E1 by #22's accept-carrying-false arm in U10, C7-I1 by #5 in U3. The two
@@ -1407,6 +1681,24 @@ Stated plainly, because an unstated omission reads as coverage.
   their owners four lines later** - a count carried through its own correction, contradicting itself
   inside one paragraph. **What is scheduled against every case is the §8 list, not the threat
   table**, and the plan's coverage claim is only ever the former.
+
+  **`C7-I2` is added by draft 7 and appeared NOWHERE in draft 6's 1,543 lines** - not on this list,
+  not in a unit, not once. That is worse than the ids that are here: the frozen design puts it on the
+  *"Mitigate before production release"* list at `DESIGN.md:1830-1831` beside C3-I1, C6-D1 and C8-R1,
+  and the plan carries the other three by name and with care - C3-I1 and C6-D1 in U1, U6 and Q1;
+  C8-R1 in Q3, which explicitly declines to specify a mitigation and says so. **C7-I2 was dropped
+  rather than declined**, so a reader got three tracked rows and no signal a fourth existed, from a
+  sentence claiming to enumerate. It does not block implementation - the *"must mitigate before
+  implementation proceeds"* table at `DESIGN.md:1795` is genuinely empty and that is verified - but
+  the enumeration claimed a completeness it did not have.
+
+  **Its disposition is Q3's, and this plan declines to specify it for the same reason.** `:1749`
+  rates it Medium/`residual` and its action is *"State where the log goes, who can read it, and how
+  long it is kept"*; `:1868` accepts it *"only until C7-I2's action is taken"*, adding that if the
+  destination is a developer's local disk this is minor and if it is shipped anywhere it is not, and
+  **nothing currently says which**. That is a deployment decision, not a code change: it belongs in
+  **U13's deployment section beside the read-only-key requirement**, and specifying an unspecified
+  mitigation is not a plan's job. Changing the design's answer would be an ADR.
 
 **What was verified rather than asserted, and re-run at HEAD for draft 3.** All three gates: the
 coupling gate exits 0, the controls harness exits 0 with every control firing and a clean post-run
@@ -1421,6 +1713,18 @@ variables behind U0's #3 assertion were read off the committed file.
 
 Draft 1 parked the gates here as unverified; they were cheap, and this list is for what cannot be
 settled, not for what was not attempted.
+
+**Re-run for draft 7, at `ff0bbdf`, because the tree moved seven commits under an unapplied review
+and every number above was measured before that.** `check-coupling.py` exit 0, 60 STRIDE rows, 17
+Critical/High, 23 naming a §8 case; `check-coupling-controls.py` exit 0, **34/34 fired**, post-run
+re-check still green; `check-coupling-sweep.py` exit 0, **0 escapes are holes**;
+`scripts/check-u0-test-controls.sh` **11/11**; `scripts/check-u15-gate-controls.sh` **15/15** with a
+clean post-run re-check; `uv run --frozen pytest -q` → **56 passed, 2 deselected, 0 skipped** (round
+5 read 17 passed at `299cf8b`, so the suite has more than tripled and the deselected count held). The
+`pytest_plugins` mechanism §4 now mandates was probed on pytest 9.1.1 rather than assumed, and so was
+the per-directory alternative it rejects. **Each `DESIGN.md` line cited by anything draft 7 touched
+was re-derived by `grep -n` on the quoted fragment against `git show 135c3ac:docs/DESIGN.md`, never
+off the working tree**, and `C7-I2`'s three anchors were matched by row id at line start.
 
 ---
 
