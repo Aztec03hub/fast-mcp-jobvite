@@ -45,10 +45,16 @@ callers hit most often the one path with no record. That is the opposite of what
 
 **What is genuinely lost by deviating.** The clause exists so a reader can reconstruct one request
 from one line, and so log volume is predictable. Three producers means correlating three records,
-and the instrument for that is `request_id` - which is why B40's missing `request_id_var` ContextVar
-(C5-R1, High, on the must-mitigate list) matters more here than its size suggests. **Until that
-lands, this deviation costs more than it should**, because the three records it produces are
-correlated by a field the design has not yet specified a mechanism for propagating.
+and the instrument for that is `request_id`. **That instrument now exists**: DESIGN.md §5.3
+specifies `request_id_var`, a per-Task ContextVar in `utils/correlation.py`, set where the id is
+minted and reset in a `finally`, and C5-R1 has left the must-mitigate table (B39, B40 closed).
+
+An earlier version of this paragraph said the mechanism was *missing* and that "until that lands,
+this deviation costs more than it should". It landed in the same revision that closed the blockers,
+which left this ADR contradicting the §13 summary of itself. **The cost that remains is the
+deviation itself** - three records where the clause asks for one - and not a missing correlation
+key. What a reader loses is having to join three records rather than read one; what they keep is
+that all three carry the same id.
 
 **Not a licence to add a fourth.** Three is the set: two framework middlewares whose defaults were
 each justified in §7.7, and one audit event the standards separately mandate. Any further producer

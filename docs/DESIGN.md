@@ -243,6 +243,7 @@ src/fast_mcp_jobvite/
   tools/candidates.py         search_candidates, get_candidate, create_candidate
   tools/jobs.py               search_jobs, get_job_feed
   models/                     allow-listed output models, one per tool
+  utils/correlation.py        request_id_var, the per-invocation correlation ContextVar (§5.3)
   utils/redaction.py          log redaction; untrusted-content fencing
   utils/normalise.py          casing, dates, empty-string/null unification
 ```
@@ -309,7 +310,7 @@ Ordered timeout, then retry, then circuit breaker.
   when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
   path is written defensively and is unexercised.
 
-**`resilience.md:74-76` has no referent on this transport, and saying so is the honest form of
+**`backend/resilience.md:74-76` has no referent on this transport, and saying so is the honest form of
 compliance with it.** The clause reads *"Timeouts MUST be **shorter than the inbound request's own
 deadline** so a slow dependency surfaces as a fast, typed error rather than a hung request
 worker."* **MCP gives us no inbound deadline to be shorter than.** There is no HTTP request worker
@@ -465,7 +466,7 @@ own. Both were wrong:
 | Candidate or job id not found | `/problems/resource-not-found` | 404 |
 | Duplicate candidate on create | `/problems/conflict` | 409 |
 | Caller's token lacks the scope | `/problems/forbidden` | 403 |
-| Anything unmapped | `about:blank` per `:211` | - |
+| Anything unmapped | `about:blank` per `:212` | - |
 
 Jobvite's own status and message are **not discarded** - they go in `detail` and in the audit
 event, where they help whoever is debugging, rather than in `status`, where they mislead whoever is
@@ -539,7 +540,7 @@ log-forging vector - and echoed.
 **`request_id_var` carries it to code that never sees the invocation (B40).** The retry and
 circuit-breaker hooks are called *by the resilience library*, not by our call site, so there is no
 parameter to thread the id through and no argument we control at the point the log line is written.
-`utils/correlation.py` holds a single `ContextVar[str | None]` named `request_id_var`. `audit.py`
+`utils/correlation.py` holds a single `ContextVar[str | None]` named `request_id_var`. **That name is not our choice: `ai/tool-calling.md:173-175` mandates the canonical triple verbatim** - header `X-Request-ID`, log field `request_id`, ContextVar `request_id_var` - so this discharges the clause rather than merely resembling it. `audit.py`
 sets it in the same statement that mints the id, before the first outbound attempt, and resets it in
 a `finally` so an id cannot leak into the next invocation on a reused worker task.
 
@@ -552,7 +553,7 @@ below asserts under concurrency rather than on a single call.
 **Retries and breaker transitions are logged, each carrying `request_id` (B39).**
 `backend/resilience.md:224-226` requires both. Every retry attempt logs the attempt number, the
 elapsed delay and the exception type; every breaker transition logs the direction
-(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. Neither
+(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that, and no library is selected yet (B47), so this is a constraint on that choice rather than an observation about one. Neither
 line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
 exactly where an unredacted URL would otherwise reach a log.
 
@@ -583,7 +584,7 @@ answer.
 An ADR read as "identity in the audit log is unsatisfiable" would close a gap it never considered,
 in a document about to be frozen.
 
-**The audit stream holds candidate PII by construction**, because the approval request describes the
+**Candidate PII reaches the audit *path* by construction - the arguments to redact are the candidate's own fields - and **what is emitted carries none of it in the clear****, because the approval request describes the
 candidate about to be written. `approval_state` therefore falls inside §4.1's single redaction point
 rather than beside it, and the audit stream carries the same handling class as the log stream.
 
@@ -1268,8 +1269,14 @@ The policy, in the order it must be applied:
    and no "accept and continue" for a reachable advisory in credential-handling code.
 3. **If not reachable: a time-boxed, single-advisory ignore**, recorded in
    `pyproject.toml` with the advisory id, the date, the reason it is unreachable, and **an expiry
-   date no more than 30 days out**. CI fails on an expired entry, so the ignore cannot outlive its
-   justification by drifting.
+   date no more than 30 days out**. **`scripts/check_advisories.py` is the owner, and it is a
+   required CI step:** it reads that table, emits the `--ignore-vuln` flags `pip-audit` actually
+   takes - the tool has no expiry concept and no `pyproject.toml` ignore section of its own - and
+   exits non-zero on any expired entry, so the ignore cannot outlive its justification by drifting.
+   **The table is the single source for both the flags and the expiry.** Hand-maintaining the CLI
+   flags beside the table would be the two-lists defect §2.1 and §10.1 design around elsewhere, and
+   an earlier revision of this step said only *"CI fails on an expired entry"* - passive, naming no
+   owner, which is the construction that hides a missing mechanism.
 4. **Never a blanket ignore, and never a raised threshold.** Both convert a signal into silence for
    every future advisory, not just this one.
 
@@ -1574,33 +1581,47 @@ and then silently omitted it, so the rule did not describe the table it introduc
 |---|---|---|---|
 | *(none)* | Both rows are closed by this revision: C5-R1 in §5.3, C5-E1 in §7.2 | - | B39, B40, B21 |
 
-**Two, and the arithmetic is written out rather than carried forward, because it was carried
-forward wrongly twice.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and
-C1-I1, and dropping `ResponseCaching` removed the cache-disclosure row from the model entirely
-rather than mitigating it, which took it to five. **C1-R1 and C4-R1 came off**: both were listed
-here as freeze blockers while §5.3 already stated the remedy performed, so two of the five stated
-blockers were work already done. That left three. **C8-I1 now comes off too**, because `.gitignore`
-is committed and covers the credential patterns, `.env.example` is committed with empty values, and
-the row is mitigated with a §8 case. That leaves **two**. **C9-T1 was added to the model after the
-count was last taken and does not join the list**, because its pins and frozen resolve are
-specified in §10 and covered by a §8 case; the unexecuted part, the capability-drift diff, is a
-residual risk rather than an implementation blocker.
+**This table is the count. No sentence in this section states a total.**
 
-**The second miscount is why this paragraph now names its own failure mode twice.** The edit that
-mitigated C8-I1 removed its row from the table above and left this sentence reading *"Three"*, so a
-paragraph written specifically to stop a stale count from being carried forward carried one
-forward itself. **The count is a property of the table; whoever changes the table changes it here
-in the same edit, or the paragraph is worse than no paragraph** - it lends the authority of shown
-arithmetic to a number nobody rechecked.
+That rule exists because the total was stated in prose three times and was wrong all three times -
+at *"Seven"*, then *"Three"* after C8-I1 came off, then *"Two"* after revision 5 emptied the table
+entirely. Each correction was itself carried forward wrongly, and the third survived a review round
+whose freeze condition is *"the must-mitigate table is empty"*: a reader checking that condition in
+the section the rule points them at would have read **"Two"** above an empty table. A count in prose
+beside the table it counts is a second source of truth that nothing keeps in step, and shown
+arithmetic makes it worse, because it lends the authority of a calculation to a number nobody
+rechecked.
+
+**Removal ledger.** Whoever changes the table above adds a row here in the same edit.
+
+| Came off | Rows | Why |
+|---|---|---|
+| TLS refusal specified (§7.1) | C1-S1, C1-T1, C1-I1 | An off-loopback bind without TLS now refuses to start |
+| `ResponseCaching` dropped (§7.7) | the cache-disclosure row | Removed from the model entirely rather than mitigated |
+| Already-performed remedies recognised | C1-R1, C4-R1 | Both were listed as blockers while §5.3 already stated the remedy |
+| `.gitignore` and `.env.example` committed | C8-I1 | Mitigated with a §8 case (B90, B91) |
+| Revision 5 (this one) | C5-R1, C5-E1 | §5.3's `request_id_var` and retry/breaker logging; §7.2's read-only-key requirement |
+
+**The original total is not reconstructible from this document and is deliberately not asserted
+here.** The prose it came from did not reconcile - it named four removals from *"seven"* and
+concluded *"five"* - so restating any number would propagate a figure whose derivation is lost. The
+ledger starts where the record supports it.
+
+**C9-T1 was added to the model after the last count and never joined the list**, because its pins
+and frozen resolve are specified in §10 and covered by a §8 case; the unexecuted part, the
+capability-drift diff, is a residual risk rather than an implementation blocker.
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
 undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
-**C3-T1 (B25) and C3-D1 (B30) have left this
-list**: §2.1 now specifies the control-character and encoding rejection and the four structural
-limits, each with a §8 case. **C9-D1 (B72), C5-R1 (B39, B40) and C5-E1 (B21) have now left it
-too**, which empties the must-mitigate table above: §10 carries the advisory-triage policy, §5.3
-the `request_id_var` mechanism and the retry and breaker logging, and §7.2 the read-only-key
-requirement. **C5-E1 left it on weaker terms than the other two and the difference matters:** its
+**C3-T1 (B25), C3-D1 (B30) and C9-D1 (B72) have left this
+list**: §2.1 specifies the control-character and encoding rejection and the four structural limits,
+and §10 carries the advisory-triage policy, each with a §8 case.
+
+**Separately, and on the other list**, C5-R1 (B39, B40) and C5-E1 (B21) have left the must-mitigate
+table above, which is what empties it: §5.3 supplies the `request_id_var` mechanism and the retry
+and breaker logging, and §7.2 the read-only-key requirement. Those two are **High**, and were never
+on this Medium list; an earlier revision named all three departures in one sentence, which read as a
+single group and asserted a relationship that does not exist. **C5-E1 left it on weaker terms than the other two and the difference matters:** its
 remedy is an instruction to an operator that this server cannot verify and that Jobvite may not
 even be able to satisfy, so what closed is our obligation to state and test the requirement, not
 the underlying exposure.
@@ -1626,6 +1647,7 @@ is derived from the table rather than maintained beside it; the script checks th
 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is an operator assertion the server cannot verify (C8-E2) | Medium | The server cannot see what terminates TLS in front of it. The alternative, trusting `X-Forwarded-Proto`, is spoofable by anyone who can reach the port and would be a worse control. An unverifiable assertion that fails loudly when absent beats a verifiable-looking one that lies |
 | A configuration reload is a quota amnesty and repeated reloads bypass rate limiting (C2-D1) | Low | Requires operator access, already inside the trust boundary. Framework limitation: only `limiters.clear()` applies new values |
 | The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I2) | Medium | Accepted only until C7-I2's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
+| The Jobvite credential is write-capable where writes are disabled (C5-E1) | High | **No server-side remedy exists.** No Jobvite endpoint reports a key's own permissions, so the server cannot verify the key it was given, and establishing it by attempting a write is the destructive probe §1.1 forbids. §7.2 requires a read-only key where writes are disabled, but that is an instruction to an operator: what it discharges is our obligation to state and test the requirement, not the exposure. **It is also unknown whether Jobvite issues read-only keys at all** - the permission model is undocumented in what we hold and `CREDENTIAL-CHECKLIST.md` carries it as a question for the day a key is first requested. If the answer is no, this exposure is undiminished by anything in this design. Rated at its inherent High rather than reduced, because no control here lowers it |
 | We run third-party code in the same process as the Jobvite credential, on a deliberately beta stack (C9-I1) | Medium | Unmitigable in general by anyone who takes a dependency. `pip-audit`, the licence gate and the frozen resolve narrow the window; they do not close it. The rating rests on a Low likelihood judgement that a beta framework and a transitive prerelease make contestable, which is recorded rather than settled |
 | The capability-drift diff is designed and has never been executed (C9-T1) | Medium | It is modelled on the `ResponseLimiting` regression and nobody has replayed that bump against it, so its ability to catch the thing it exists to catch is reasoning rather than a result. §10 carries the `UNVERIFIED:` marker at the point of use. The pins and the frozen resolve, which are executable and tested, carry C9-T1's mitigation on their own |
 | `problem+json` is honoured nowhere on the default stdio transport (§5.2) | Low | ADR-0003. A media type carries no security property here; the seven RFC 9457 members are present in the payload regardless |
