@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:46 PM CDT.
+Last updated: 2026-08-28 02:59 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -750,15 +750,21 @@ deliberately admitted."
 `allowed_hosts`/`allowed_origins` set whenever the bind address is not loopback.
 
 **Both are named here because an earlier revision said "unless told otherwise" and named nothing
-that does the telling.** That is the same defect as B15, found the same way - by someone trying to
+that does the telling.** That is the same SHAPE as B15 - a setting specified in prose with no name - though B15 itself is the result-size obligation and does not cover these. Found the same way, by someone trying to
 build against it and discovering the unit could not be started, let alone bound off-loopback to
 exercise the TLS refusal §8 tests.
 
 **Off-loopback requires TLS, and the server refuses to start without it.** A non-loopback bind
 carries a bearer token and candidate PII over the wire; `allowed_hosts` and `allowed_origins`
 address a different threat entirely and do nothing about plaintext. So binding a non-loopback
-address without either TLS terminated in front (declared via `JOBVITE_TLS_TERMINATED_BY_PROXY=true`)
-or certificates configured here is a startup failure, not a warning.
+address without `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is a startup failure, not a warning.
+
+**This server terminates no TLS of its own.** There is no certificate configuration and none is
+planned: a terminating proxy in front is the only off-loopback shape this design supports, which is
+what `.env.example` offers and the only thing the refusal can actually check. An earlier revision of
+this paragraph offered *"or certificates configured here"* as a second arm and named nothing that
+configures one - **B15's defect for a third time, four lines below the paragraph added to fix it**,
+because that edit swept the sentence it was changing rather than the section.
 
 `JOBVITE_TLS_TERMINATED_BY_PROXY` is deliberately an **operator assertion the server cannot
 verify**, rather than a check of `X-Forwarded-Proto`. Trusting that header would look more rigorous
@@ -894,9 +900,17 @@ candidate search must not be forced to invent a `companyId` it has no use for:
 | `search_jobs` | `JOBVITE_API_KEY`, `JOBVITE_API_SECRET` |
 | `get_job_feed` | `JOBVITE_FEED_KEY`, `JOBVITE_FEED_SECRET`, `JOBVITE_COMPANY_ID` |
 | `create_candidate` | the v2 pair, plus `JOBVITE_ENABLE_WRITES=true` |
+| *the `http` transport* | `JOBVITE_HTTP_TOKENS`, and `JOBVITE_TLS_TERMINATED_BY_PROXY=true` when the bind address is not loopback |
+
+**The last row is keyed on the transport rather than on a tool**, which is why it is set apart. Every
+other row answers "this tool is enabled, so these must be set"; the http row answers "this transport
+is selected". §7.2 leans on this table for its claim that an unset `JOBVITE_HTTP_TOKENS` is a
+startup failure, and until the row existed that cross-reference pointed at a table with no place to
+put it - a tool-keyed table cannot express a transport-conditional requirement, and the sentence
+resolved to nothing.
 
 `server.json` declares every variable for registry consumers; pydantic-settings enforces only the
-subset the enabled tools need.
+subset the enabled tools and the selected transport need.
 
 ### 7.4 Lifespan and shutdown
 
@@ -1255,7 +1269,7 @@ Required cases, each failing if its defence is removed:
   handler leaking the resource the lifespan opened, asserted by observing the teardown side effect
   rather than the exit code, since a process that dies uncleanly can still exit 0. **This case
   exists because §7.4 stated the requirement and nothing could fail if it were dropped**: it was
-  not a §8 bullet. **Being one is not by itself enough, and this document twice claimed otherwise before the claim was measured.** The gate resolves §11 rows to §8 cases and not the reverse, so deleting this case leaves it at exit 0 - verified, against a control where deleting a case a row DOES name is caught. GATE-2 now requires every case to name its owner, which stops a case's justification being quietly stripped; **it does not make deletion visible.** Only a §11 row naming a case does that, and no threat row models a resource leak on shutdown - so this case's protection is that §7.4, §12 item 5 and this bullet all point at each other, and that is weaker than a row and is recorded as such. Three
+  not a §8 bullet. **Being one is not by itself enough, and this document twice claimed otherwise before the claim was measured.** The gate resolves §11 rows to §8 cases and not the reverse, so deleting this case leaves it at exit 0 - verified, against a control where deleting a case a row DOES name is caught. GATE-2 requires every case to cite a B-number or a section, which catches a case stripped to a bare unattributed line. **It does not check that the citation names an OWNER**, and this bullet is self-immunising: its own references to §8 and §11 - the retraction prose explaining the gate's limits - satisfy the check, so deleting §7.4 and §12 item 5 from here would still pass. Measured, not reasoned. **And it does not make deletion visible.** This is the third time this passage has overstated what protects it; the protection is that §7.4, §12 item 5 and this bullet reference each other, which is weaker than a §11 row and is now stated as weak rather than as a gate. Only a §11 row naming a case does that, and no threat row models a resource leak on shutdown - so this case's protection is that §7.4, §12 item 5 and this bullet all point at each other, and that is weaker than a row and is recorded as such. Three
   of this document's stated verification gaps close only on it (the upstream defect at
   `#4927`, the `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5 records);
 - untrusted-content fencing, including content that tries to close its own fence;
@@ -1474,8 +1488,14 @@ it**, so the obligation is discharged by specification rather than by fabricatio
   forbids. Removing the hand-kept list is the fix; restating it correctly would only reset the
   clock.
 
-  **The two variables that had no name now have one, because leaving them unnamed made
-  `.env.example` incomplete by construction and blocked `config.py` (B15).**
+  **Five variables had no name, and all five have one now** - `JOBVITE_MAX_RESULTS` and
+  `JOBVITE_OUTBOUND_RATE_LIMIT` below, and `JOBVITE_MCP_HOST`, `JOBVITE_MCP_PORT` and
+  `JOBVITE_HTTP_TOKENS` in §7.1 and §7.2. Leaving any of them unnamed made `.env.example` incomplete
+  by construction and blocked the units that read them (B15). **The first two were found by a
+  conformance sweep and the last three by someone trying to start the server**, which is why the
+  thing that closes this is a sweep over the whole variable set rather than over the sentence being
+  edited. An earlier version of this bullet said *"the two variables"* and went stale on the very
+  next change - in the bullet whose subject is that a hand-kept list goes stale on the first change.
 
   - **`JOBVITE_MAX_RESULTS`**, default **50** - §7.7's in-tool result cap. 50 is not arbitrary: it
     is the number §4.5 and §11's C3-I1 already use in the caller-facing string `showing 50 of
@@ -1651,7 +1671,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C3-S1 | No credible threat at this layer. Identity is established at C1 | - | - | - | The argument layer sees an already-authenticated caller | no credible threat |
 | C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | **Mitigated in §2.1:** strings are validated as UTF-8 and rejected before dispatch if they carry C0/C1 control characters other than tab, newline and carriage return, or Unicode bidi overrides. `max_length` and the output allow-list do not reach this - a NUL-bearing name is a well-formed short string, and the allow-list is an output filter | §8: a control character or bidi override in a string argument rejected before dispatch |
 | C3-R1 | No credible threat beyond C1-R1. Arguments are recorded redacted by `audit.py` (§5.3) | - | - | - | Covered by C1-R1 | no credible threat |
-| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
+| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15) | unmitigated (B15) |
 | C3-D1 | A deeply nested or very large argument payload consumes parse time and memory (B30) | M | M | Medium | **Mitigated in §2.1:** the four limits from `input-validation.md:220-226` - nesting depth 5, list items 1,000, dict keys 100, body 1 MiB - enforced before dispatch. §4.5's page caps are outbound transport limits and bound nothing a caller sends | §8: an argument payload exceeding a structural limit rejected |
 | C3-E1 | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is stated in §5.1 and the failure-closed case is required in §8, which is what closed B12. Mitigated | §8: an argument-schema violation failing closed |
 
@@ -1694,7 +1714,7 @@ asserted that placement in the same edit that failed to make it.
 | C6-R1 | No credible threat. This component produces no auditable decision | - | - | - | It transforms a response that C5 already fetched and C1/C4 already authorised | no credible threat |
 | C6-I1 | Special-category EEO fields (`gender`, `race`, `veteranStatus`) flow to the model | H | H | **Critical** | Not present in any output model, so they never leave the server (§6.2, ADR-0008). Mitigated | §8: EEO fields never appearing in any tool result |
 | C6-I2 | A newly added Jobvite field leaks to the model without review | M | M | Medium | Path-keyed allow-list fails closed: an unlisted field is dropped until someone adds it deliberately (§2.1). Mitigated | not required (Medium) |
-| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
+| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15) | unmitigated (B15) |
 | C6-E1 | No credible threat. This component grants no capability | - | - | - | It produces data, never a capability; the tool set is fixed at registration (§7.3) | no credible threat |
 
 **C7. Audit and logging** (`audit.py`, `utils/redaction.py`, `loguru`)
