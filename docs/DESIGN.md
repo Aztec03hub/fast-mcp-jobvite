@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 01:35 PM CDT.
+Last updated: 2026-08-28 02:01 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -220,6 +220,31 @@ connection, so an in-process token store is per-connection there.
 
 Also: `send_email` defaults to `false`, and the tool is never retried (§4.3). Neither gate
 establishes that a human was involved - see §7.5 on what we may honestly claim.
+
+**The other replay path, and the ceiling on what we can do about it (B108).**
+`backend/resilience.md:146-151` permits a write to be retried only when an **idempotency key** lets
+the downstream dedupe the replay. We take the other branch of that clause: the server never
+auto-retries `create_candidate`, by construction (§4.3). What that does not reach is a **caller**
+re-issuing the write - a model retrying after a timeout, or a human approving twice - which is
+C4-D2. **We evaluated the remedy the clause names and cannot build it.** Nothing in the research
+corpus establishes that Jobvite accepts a dedupe key on candidate creation: `POST /api/v2/candidate`'s
+documented body carries no such field, no idempotency header appears in any source we hold, and the
+nearest thing Jobvite exposes - `importDuplicates` on the Engage Contact Import API - is a policy
+toggle on a different endpoint of a different product, not a client-supplied key, and cannot tell a
+replay from a genuine second submission. Jobvite publishes no API documentation and offers no
+sandbox, so this cannot be settled before a credential exists (§12, item 1). **We therefore state
+the ceiling rather than claim a control**, on the same footing as the read-only-key requirement in
+§7.2: the residual duplicate is accepted, it is C4-D2, and it is carried in Residual Risks.
+
+**Two things this disposal deliberately does not claim.** It does not claim the `409` prevents the
+duplicate - if Jobvite really conflicts on a repeat, the downstream dedupes and C4-D2's *"detection,
+not prevention"* would be an understatement, but that behaviour is `[INFERRED]` everywhere it
+appears and checklist row 10 is what settles it. And it does not claim nothing could be built: a
+server-side seen-set is possible independent of Jobvite - §4.5 already uses that pattern for
+pagination - and it was considered and not taken, because it needs durable state with a TTL and a
+defined restart behaviour to guard a Medium whose remedy would then itself be unverified. **This
+disposal expires** the day a credential or Jobvite documentation shows a dedupe key exists on this
+endpoint, at which point the clause becomes a live obligation on the client.
 
 Annotations: `destructiveHint: true`, `idempotentHint: false`, `readOnlyHint: false`. The other
 four are `readOnlyHint: true`. **Annotations are advisory only** - verified: one non-test
@@ -1599,7 +1624,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C4-R1 | The approval decision is not among the audited fields, so there is no record that a gated write was authorised. `agent-guardrails.md:122` requires it (B17) | H | M | **High** | **Mitigated in §5.3:** the audit event includes `approval_state` and the mechanism that produced it. `agent-guardrails.md:79` separately requires recording *who* approved, which is unsatisfiable here and is scoped out by ADR-0009 for the approver only | §8: the audit event is emitted and carries its mandated fields |
 | C4-I1 | **The approval request describes the candidate about to be written, so the audit stream holds candidate PII by construction** - the exposure the cut token would have carried moved here rather than disappearing (§5.3) | M | M | Medium | `approval_state` falls inside §4.1's single redaction point rather than beside it, and the audit stream carries the same handling class as the log stream Mitigated. | §8: candidate PII never reaching a log or audit record |
 | C4-D1 | An abandoned approval hangs the call. A client-side timeout does not bound it because the handler runs in the client's process (§7.5) | M | M | Medium | No server-side bound is possible. Disclosed to integrators. Carried to Residual Risks | residual |
-| C4-D2 | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/conflict` with the duplicate named in `detail`. **Detection, not prevention**, and the `409` shape is inferred rather than observed. Carried to Residual Risks | residual |
+| C4-D2 | An authorised write is made twice - a model retrying after a timeout, or a human approving twice - creating a duplicate candidate and a second email to a live person | M | M | Medium | Never retried (§4.3); a `409` is surfaced as `/problems/conflict` with the duplicate named in `detail`. **The clause naming a remedy for this path (B108) is disposed of in §2.2: the remedy is an idempotency key, and nothing establishes that Jobvite accepts one, so the ceiling is stated rather than a control claimed. Detection, not prevention**, and the `409` shape is inferred rather than observed. Carried to Residual Risks | residual |
 | C4-E1 | An accepted elicitation carrying `approve: false` treated as approval | M | H | **High** | The guard checks action **and** value: `action == "accept" and content.get("approve") is True`, with a deny arm and an accept-carrying-false arm in the required tests (§7.5, §8). Mitigated | §8: accept-carrying-false refuses |
 | C4-E2 | Era misdetection downgrades or bypasses the control - `protocol_version` absent, or a future era value nobody has seen | L | H | Medium | The discriminator is measured rather than inferred (§7.5), which removed the inert-`hasattr` failure. **An unidentifiable era now refuses the write and logs the observed value**; with the token cut there is no weaker path to fall through to, so the failure mode is refusal rather than silent downgrade. Mitigated | §8: approval on BOTH eras |
 
@@ -1756,7 +1781,7 @@ is derived from the table rather than maintained beside it; the script checks th
 | A host may auto-respond to elicitation with no human present, so an approval attests to a host response and not to a person (C4-S1) | High | Not mitigable by a tool provider. The MCP specification places human-in-the-loop on the host. §7.5 states the honest claim and never asserts human approval. The one control that operates without host cooperation is the deploy-time flag; the confirmation token an earlier revision named beside it was cut (§7.6) and is not defence in depth for anything |
 | Fencing reduces but cannot eliminate indirect prompt injection from candidate free text (C6-S1) | Medium | Fencing plus delimiter stripping plus an allow-listed output model is the strongest available server-side control. The remaining exposure is the calling model's susceptibility, which is the host's boundary. Red-team cases are merge-gating (§6.1, §8) |
 | An abandoned approval hangs the call with no server-side bound (C4-D1) | Medium | The elicitation handler runs in the client's process, so no server-side timeout reaches it. The write is safe on every refusal path including abandonment, with `rows=0` confirmed. Disclosed to integrators |
-| An authorised write can be made twice, creating a duplicate candidate and a second email to a live person (C4-D2) | Medium | Detection, not prevention: the write is never retried (§4.3) and a `409` surfaces as `/problems/conflict` with the duplicate named in `detail`. The `409` shape is inferred rather than observed, so even the detection rests on a hypothesis until a credential exists |
+| An authorised write can be made twice, creating a duplicate candidate and a second email to a live person (C4-D2) | Medium | Detection, not prevention: the write is never retried (§4.3) and a `409` surfaces as `/problems/conflict` with the duplicate named in `detail`. The `409` shape is inferred rather than observed, so even the detection rests on a hypothesis until a credential exists **The remedy the standard names was evaluated and is unavailable to us**: `backend/resilience.md:146-151` permits a retried write only behind an idempotency key, and nothing establishes that Jobvite accepts one on this endpoint. §2.2 records that ceiling and the condition that expires it (B108). |
 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` is an operator assertion the server cannot verify (C8-E2) | Medium | The server cannot see what terminates TLS in front of it. The alternative, trusting `X-Forwarded-Proto`, is spoofable by anyone who can reach the port and would be a worse control. An unverifiable assertion that fails loudly when absent beats a verifiable-looking one that lies |
 | A configuration reload is a quota amnesty and repeated reloads bypass rate limiting (C2-D1) | Low | Requires operator access, already inside the trust boundary. Framework limitation: only `limiters.clear()` applies new values |
 | The log stream carries redacted arguments and full tracebacks with no specified retention or access control (C7-I2) | Medium | Accepted only until C7-I2's action is taken. If the log destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and nothing currently says which |
@@ -1871,4 +1896,16 @@ dismissal in the standards analysis is re-tested at freeze. `architecture/cachin
 as "optional here; if a cache is added it becomes live", a cache was then added, and nothing
 re-evaluated it - the condition tripped silently and it took a second sweep to notice. **A
 conditional dismissal is a dated claim about the design, not a permanent verdict.**
-`devops/docker.md` and `backend/idempotency.md` are the two most likely to have gone live.
+**Both named candidates have now been tested, and the results differ.**
+`backend/idempotency.md` **did go live** - its dismissal rested in part on a circular leg, and it is
+reopened as B108 and disposed of in §2.2. It is the **second** conditional dismissal to trip
+unnoticed, after `architecture/caching.md`. `devops/docker.md` **was re-tested and its dismissal
+stands**: there is no Dockerfile, no compose file and no image build in CI, and §10 ships a PyPI
+package - the container references in §7.4 concern one an operator might run us in, not an image we
+publish. **Tested-and-standing is a different object from untested, and this sentence previously
+recorded neither.**
+
+**The re-test is a numbered step of this procedure, not a reviewer's discretion.** Round 5 asked
+round 6 to re-test these two by name and round 6 did not, which is how a procedure that has now
+failed twice has never once caught its own quarry. Whoever performs the freeze runs the re-test and
+records the outcome for each conditional dismissal, standing or tripped.

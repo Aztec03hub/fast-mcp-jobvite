@@ -89,6 +89,11 @@ decisions and research that the implementation will be built against.
 
 ### Security
 
+- The caller-replay path on `create_candidate` now carries a stated ceiling instead of an unexamined
+  acceptance. The standard permits a retried write only behind an idempotency key; nothing
+  establishes that Jobvite accepts one, so the ceiling is recorded with the condition that expires
+  it rather than a control being claimed. (2026-08-28 02:01 PM CDT)
+
 - `request_id` now reaches the caller on every result, not only on errors, in the result's `_meta`
   under a namespaced key. Executed rather than assumed: an undeclared top-level key in structured
   content is rejected by the same unconditional output-schema validation that broke
