@@ -74,7 +74,7 @@ jobs:
     name: Design coupling gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v5
         with:
@@ -136,7 +136,7 @@ jobs:
     name: Lint, types, tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -327,7 +327,7 @@ jobs:
     steps:
       # TruffleHog needs FULL history: a secret removed in a later commit is still
       # compromised, and a shallow clone cannot see it (DESIGN.md:1439-1440).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -408,7 +408,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: github/codeql-action/init@v3
         with:
@@ -455,7 +455,7 @@ jobs:
     name: Link check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Relative links resolve
         uses: lycheeverse/lychee-action@v2

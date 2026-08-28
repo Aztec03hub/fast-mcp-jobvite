@@ -34,6 +34,7 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | **Proposed** |
 | [0014](0014-c8-i1-empty-values-is-wrong.md) | C8-I1 says `.env.example` has empty values; seven of fifteen carry one | **Proposed** |
 | [0015](0015-licence-gate-is-a-deny-list.md) | The licence gate is a deny-list; four packages sit on neither list | Accepted |
+| [0016](0016-setup-uv-v5-not-the-standards-v4.md) | `astral-sh/setup-uv@v5`, where the standard pins `@v4` | Accepted |
 
 ## Acknowledged non-conformances without an ADR
 
