@@ -355,19 +355,35 @@ jobs:
           uv tool run pre-commit@4.6.2 run --all-files --show-diff-on-failure || {
             echo "::error::a commit-time gate failed on the tree"; exit 1; }
 
-      # DEFERRED TO U11. pip-audit has no severity threshold: one advisory anywhere
+      # LANDED BY U11. pip-audit has no severity threshold: one advisory anywhere
       # in the transitive tree turns a required check red, and we pinned a beta
       # stack deliberately, so we expect this and owe it a sanctioned response
       # (DESIGN.md:1448-1478). scripts/check_advisories.py is that response - it
       # reads the [tool.fast-mcp-jobvite.advisory-ignores] table (landed empty in
       # pyproject.toml), emits pip-audit's --ignore-vuln flags from it, and exits
-      # non-zero on any expired entry. U11 builds it and enables this step.
+      # non-zero on any expired entry.
       # DO NOT replace this with a bare `pip-audit || true`, and never a blanket
       # ignore or a raised threshold: both convert a signal into silence for every
       # future advisory, not just this one.
       #
-      # - name: Advisory audit
-      #   run: uv run --frozen python scripts/check_advisories.py
+      # WHAT THIS STEP DOES AND DOES NOT COVER, stated because the obvious
+      # reading is wrong and a gate trusted for the wrong thing is worse than
+      # none. This step runs THE EXPIRY HALF ONLY. It enforces that every
+      # recorded ignore is well-formed and unexpired, and it prints the
+      # --ignore-vuln flags on stdout.
+      #
+      # **NOTHING CONSUMES THOSE FLAGS, BECAUSE pip-audit IS NOT RUN ANYWHERE IN
+      # THIS WORKFLOW.** Verified, not assumed: `grep -n pip-audit` over
+      # .github/ returns only comments. DESIGN.md:1438 requires CI to run
+      # pip-audit and no step does. U11's scope is the script and this block
+      # (IMPLEMENTATION-PLAN.md:1365), and standing the pip-audit step up needs
+      # a dependency-slot decision U11 may not take: pip-audit is not in the
+      # frozen lock, and resolving it with `uv run --with` would repeat exactly
+      # the defect ADR-0015 records for pip-licenses - a gate auditing the
+      # frozen resolve that is itself unfrozen. Tracked separately; do not read
+      # a green here as "the dependency tree has been audited".
+      - name: Advisory audit
+        run: uv run --frozen python scripts/check_advisories.py
 
       # DEFERRED TO U1. `fastmcp inspect` takes a server spec and server.py is U1's
       # file (`fastmcp inspect --help` confirms SERVER-SPEC is required). When it
