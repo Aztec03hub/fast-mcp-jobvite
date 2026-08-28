@@ -3,9 +3,10 @@
 Status: **DRAFT 9, and the LAST draft of this review cycle** - see
 [§10](#10-the-review-cycle-is-closed-at-round-7-and-what-replaces-it) for why it closes here and what
 replaces it. Revised against `PLAN-REVIEW-R7.md` (0C / 1H / 1M / 5L); rounds 1-6 are answered in
-drafts 3-8. **At `ff9461a`, U0, U15 and U2 are built and merged, and U1 and U11 are in flight** -
-a volatile line, so derive it rather than trust it: `git log --oneline b53886e..HEAD` names the
-merged units. Round 7's High is the **eleventh** collision, and it binds **U5**, not U1.
+drafts 3-8. **Which units are built is a volatile line, so derive it rather than trust it**:
+`git log --oneline b53886e..HEAD` names them, and at `1e67f9c` it names **U0, U15 and U2** and no
+others. Round 7's High was the **eleventh** collision; it bound **U5**, not U1, and it is
+**closed in code at `1e67f9c`**.
 
 **Every measurement this plan rests a decision on is a runnable probe, not a paragraph.**
 `docs/reviews/check-plan-measurements.py` re-runs all four - each two-armed, treatment and control -
@@ -22,13 +23,17 @@ is written that way.
 
 **What draft 9 changed.** Round 7 returned **0C / 1H / 1M / 5L** and draft 9 applies all seven.
 
-- **The HIGH is the eleventh collision and it is collision 10's twin.** The collection guard runs
-  collection **through the marker selector**, so a test file whose tests are ALL `credentialed` or
-  all `network` reads as an orphan and reds the suite - and **U5 is scheduled to create exactly that
-  file.** The guard's own comment claims the opposite and was never tested, because
-  `tests/credentialed/` holds only a README. §4 had told units the trigger was a file *"outside
-  `testpaths`"*; `tests/credentialed/` is **inside** it. **This is a defect in shipped code, not a
-  gap in the plan** - `tests/` is U0's, and the fix is a U0 follow-up.
+- **The HIGH was the eleventh collision, collision 10's twin, and it is CLOSED IN CODE at
+  `1e67f9c`.** The collection guard ran collection **through the marker selector**, so a test file
+  whose tests were ALL `credentialed` or all `network` read as an orphan and turned the suite red -
+  and **U5 is scheduled to create exactly that file.** The guard's own docstring claimed the
+  opposite and had never been tested, because `tests/credentialed/` held only a README. §4 had told
+  units the trigger was a file *"outside `testpaths`"*; `tests/credentialed/` is **inside** it.
+  **This was a defect in shipped code, not a gap in the plan** - `tests/` is U0's, and it was fixed
+  as a U0 follow-up: the selector is gone, the docstring is rewritten in place, a regression test
+  manufactures the file shape rather than waiting for U5, and **probe M4 has flipped from `OPEN` to
+  `PASS`.** U5 now lands its arm into a guard that no longer traps it; what remains binding on U5 is
+  the rule in §4's shared-file table that the guard must not be narrowed to buy a green.
 - **The MEDIUM was a control that was not wired, and it is now wired.**
   `docs/reviews/check-obligations.py` landed with no CI step, no hook, and no ownership row, while
   its anchors sit in the files U1, U5, U11, U13 and U15 all edit. **This repository had built the
@@ -835,23 +840,22 @@ second-riskiest unit early (see [§6](#6-the-riskiest-unit)). Job fields take an
   arm must tighten it - **"the first unit adding an arm" is not the name of a unit, and this is that
   unit.** Per the shared-file rule in §4, this is U5's one edit to `ci.yml` and it touches nothing
   else.
-- **COLLISION 11 BINDS THIS UNIT, AND IT WILL RED THE SUITE FOR A REASON THE FAILURE MESSAGE
-  MISDIAGNOSES.** The credentialed arm above is **the first test file in this repository whose tests
-  are all marker-excluded**, and `tests/test_collection_guard.py` runs collection through the
-  `-m "not credentialed and not network"` selector (`:82`), so that file is discovered, not
-  collected, and reported as an orphan. **The failure says *"test files exist but are not reachable
-  from `testpaths`"*, which is false** - `tests/credentialed/` is inside `testpaths`
-  (`pyproject.toml:69`) and the file is exactly where `tests/credentialed/README.md` tells U5 to put
-  it. **The fix is in the same commit as the arm: drop the `-m` from `_collected_test_files()`, add
-  a control that plants a wholly-`credentialed` file and asserts the guard passes, and correct the
-  comment at `:147-148` that claims this case is already handled.** `--collect-only` executes
-  nothing, so collecting the deselected arms costs nothing. **Do NOT add `credentialed` to
-  `_SKIP_DIRS` (`:40-48`) and do NOT put the arm in a file that also holds an unmarked test** -
-  both green the guard by hiding from it the one subtree `DESIGN.md:1200-1205` exists to protect.
-  Reproduced both arms as probe **M4** in `docs/reviews/check-plan-measurements.py`, which reports
-  it **`[OPEN]` by design and flips to `[PASS]` when U5 lands the fix**. Run
-  `python3 docs/reviews/check-plan-measurements.py` before starting and after finishing; M4 turning
-  green is this unit's evidence that it discharged the collision.
+- **COLLISION 11 WAS THIS UNIT'S TRAP, AND IT WAS DISARMED BEFORE U5 WAS DISPATCHED - read this
+  anyway, because the rule it leaves behind still binds.** The credentialed arm above is **the first
+  test file in this repository whose tests are all marker-excluded**. Until `1e67f9c`,
+  `tests/test_collection_guard.py` ran collection through the `-m "not credentialed and not
+  network"` selector, so that file was discovered, not collected, and reported as an orphan under
+  the message *"test files exist but are not reachable from `testpaths`"* - **a false diagnosis of a
+  correctly-placed file**, since `tests/credentialed/` is inside `testpaths` (`pyproject.toml:69`)
+  and the arm is exactly where `tests/credentialed/README.md` tells U5 to put it. `1e67f9c` dropped
+  the selector, rewrote the docstring that asserted the opposite, and added a regression test that
+  **manufactures** a wholly-credentialed file rather than waiting for this unit. **Probe M4 in
+  `docs/reviews/check-plan-measurements.py` now PASSES**, and `check-plan-measurements.py` runs in
+  CI. **What U5 must still not do:** add `credentialed` to `_SKIP_DIRS`, or put the arm in a file
+  that also holds an unmarked test. Both green the guard by hiding from it the one subtree
+  `DESIGN.md:1200-1205` exists to protect, and `1e67f9c`'s third arm - a genuine orphan outside
+  `testpaths` still fails after the fix - is the assertion that says so. **If U5 changes this guard
+  at all, it owes that arm.**
 - §8 **#16, error arm** - the `error_auth_200_body401.json` call in the bullet above returns a
   problem object whose **own `request_id` member** matches the audit event's id, asserted on the
   wire. The error half travels in the problem object rather than in `_meta`
@@ -1514,10 +1518,14 @@ unit that adds a network-touching arm without the marker puts a live resolve in 
 suite**, where it fails for the wrong reason or passes by accident depending on the runner - and
 `--strict-markers` means a marker that is not in `pyproject.toml`'s `markers` list fails collection
 outright, which is the intended behaviour and not a defect to work around. Second, **the collection
-guard is live, and it reds the suite on TWO things, not one**: a `test_*.py` created anywhere outside
-`testpaths`, **and - today, as a defect - any file inside `testpaths` whose tests are ALL
-`credentialed` or all `network`** (collision 11). *Drafts 7 and 8 stated only the first, which is
-the case a unit will not hit, and omitted the second, which is the case U5 hits by design.*
+guard is live, and what it checks is REACHABILITY, not selection**: a `test_*.py` created anywhere
+outside `testpaths` turns the suite red rather than being silently uncollected, **and a file inside
+`testpaths` whose tests are all `credentialed` or all `network` is fine** - it is reachable, merely
+deselected. *That second half was not true until `1e67f9c`. Until then the guard passed its own
+marker selector to its `--collect-only` call, so it asked "is this SELECTED?" and reported the answer
+as "not reachable from `testpaths`" - collision 11, and the case U5 hits by design. Drafts 7 and 8
+stated only the first half, which is the case a unit will not hit.* **The rule that outlives the
+fix: never narrow this guard to buy a green** - see its row in the shared-file table.
 
 **Genuinely disjoint, restated for what the table now says.** In Wave A itself **the only files two
 units touch are the ones in the shared-file table above - every row of it, and no others** - and each
@@ -1690,28 +1698,34 @@ the surfaces that actually collide are the ones nobody classified as code:
     partitioning is not available at all. **It bites U1, which is the next unit to be dispatched**,
     and it survived six review rounds because the test's name describes two pins while its body
     asserts the whole list.
-11. **The collection guard reds the suite on the first wholly-credentialed test file, and U5 is
-    scheduled to create one.** `tests/test_collection_guard.py` compares files found on disk against
-    files pytest reports as collected - but `_collected_test_files()` runs collection **through the
+11. **The collection guard red the suite on the first wholly-credentialed test file, and U5 is
+    scheduled to create one. CLOSED IN CODE at `1e67f9c`** - kept here because the species is the
+    point and because the rule it leaves behind still binds U5. `tests/test_collection_guard.py`
+    compared files found on disk against
+    files pytest reported as collected - but `_collected_test_files()` ran collection **through the
     marker selector**, `-m "not credentialed and not network"`. **A file whose tests are ALL
-    `credentialed`, or all `network`, is discovered and not collected, reads as an orphan, and fails
-    the guard.** The plan schedules exactly that file: U5 *"adds the FIRST credentialed arm"*, and
-    each tool unit adds its own. **The guard's own comment asserts the opposite** - that the
-    credentialed subtree *"appears in `--collect-only` output"* - and it is false; it was never
-    tested, because `tests/credentialed/` holds only `README.md` and the two `network` tests sit in
-    `test_manifest.py` beside unmarked ones, so that file is collected anyway.
+    `credentialed`, or all `network`, was discovered and not collected, read as an orphan, and
+    failed the guard.** The plan schedules exactly that file: U5 *"adds the FIRST credentialed
+    arm"*, and each tool unit adds its own. **The guard's own docstring asserted the opposite** -
+    that the credentialed subtree *"appears in `--collect-only` output"* - and it was false; it had
+    never been tested, because `tests/credentialed/` held only `README.md` and the two `network`
+    tests sit in `test_manifest.py` beside unmarked ones, so that file is collected anyway.
 
-    **Reproduced both arms** (`docs/reviews/check-plan-measurements.py`, probe M4): planting one
-    wholly-`credentialed` and one wholly-`network` file fails the guard naming both; the same tree
-    without them passes 3/3. **§4's only warning about the guard says the trigger is a file "outside
-    `testpaths`" - and `tests/credentialed/` is INSIDE `testpaths`**, so a unit reading this plan is
-    told the opposite of what will happen to it.
+    **Reproduced both arms before it was fixed** (`docs/reviews/check-plan-measurements.py`, probe
+    M4): planting a wholly-`credentialed` file failed the guard naming it; the same tree without it
+    passed. **§4's only warning about the guard had said the trigger is a file "outside
+    `testpaths`" - and `tests/credentialed/` is INSIDE `testpaths`**, so a unit reading the plan was
+    told the opposite of what would happen to it.
 
     **This is collision 10's species, not collision 1-9's**: a name describing something narrower
-    than the body, on a surface nobody classified as code. **It is also a real defect in shipped
-    code rather than a gap in this plan** - `tests/` is U0's, so the fix belongs to a U0 follow-up
-    and not to whichever unit trips it first. **U5 must not "fix" it by moving its credentialed arm
-    into a file with an unmarked test in it**, which greens the guard by hiding the case from it.
+    than the body, on a surface nobody classified as code. **It was a real defect in shipped code
+    rather than a gap in this plan** - `tests/` is U0's - and it was closed as a U0 follow-up at
+    `1e67f9c` rather than left for whichever unit tripped it first. **M4 now PASSES.** *The fix
+    carried a third measured arm that is the part worth copying: a genuine orphan outside
+    `testpaths` still fails after the change, so the guard was not made blind in the course of
+    making it green.* **What still binds U5: do not narrow this guard.** Adding a directory to
+    `_SKIP_DIRS`, or putting a marker-excluded arm in a file that also holds an unmarked test, both
+    green it by hiding the subtree from it.
 
 **Read this from the earliest-start column rather than from this sentence: Wave C is two lanes at
 U4-landing - U5 and U6→U7 - stays two at U5-landing as U5 hands off to U9, and widens to FOUR when
@@ -2014,32 +2028,25 @@ variables behind U0's #3 assertion were read off the committed file.
 Draft 1 parked the gates here as unverified; they were cheap, and this list is for what cannot be
 settled, not for what was not attempted.
 
-**Re-run for draft 9, at `ff9461a`, because the tree keeps moving and a measurement is worth only the
+**Re-run for draft 9, at `1e67f9c`, because the tree keeps moving and a measurement is worth only the
 SHA it was taken at.** `check-coupling.py` exit 0, 60 STRIDE rows, 17 Critical/High, 23 naming a §8
 case; `check-coupling-controls.py` exit 0, **34/34 fired**, post-run re-check still green;
-`check-coupling-sweep.py` exit 0, **0 escapes are holes**; `check-obligations.py` exit 0, 28
-mappings, 21 anchors verified, 7 recorded absent; `check-obligations.py --controls` exit 0, **9/9
-fired**, clean post-run re-check; `check-plan-measurements.py` exit 0, **M1/M2/M3 PASS, M4 OPEN**;
-`scripts/check-u15-gate-controls.sh` **15/15** with a clean post-run re-check;
-`uv run --frozen pytest -q` → **93 passed, 2 deselected, 0 skipped**.
+`check-coupling-sweep.py` exit 0, **0 escapes are holes**; `check-obligations.py` **28 mappings, 21
+anchors verified, 7 recorded absent** - red on exactly the two anchors this draft's own rewrite
+moved, reported below rather than repointed; `check-obligations.py --controls` exit 0, **9/9
+fired**, clean post-run re-check; `check-plan-measurements.py` exit 0, **all four PASS**;
+`scripts/check-u0-test-controls.sh` **11/11**; `scripts/check-u15-gate-controls.sh` **15/15** with a
+clean post-run re-check; `uv run --frozen pytest -q` → **94 passed, 2 deselected, 0 skipped**.
 
-**`scripts/check-u0-test-controls.sh` DOES NOT RUN AT THIS SHA, and that is a live CI failure this
-draft found by running it.** It exits 1 with *"ABORT: the unmutated copy is already red"* before any
-control fires - so the honest reading is **0/11, not the 11/11 rounds 6 and 7 both recorded**, and
-both were right when they measured. **Root cause, diagnosed rather than predicted:** the harness
-stages a copy of the tree from a hard-coded `COPY=(...)` list at
-`scripts/check-u0-test-controls.sh:47`, and that list has **no `.github`**. `9ca76fe` added
-`tests/test_workflow_pins.py`, whose `test_the_walk_found_workflows_and_pins` is a *positive control
-on its own instrument* - it fails when the walk finds no workflow files, which is exactly what it
-finds in a staged tree with no `.github/`. **The positive control worked**: it detected a vacuous
-walk and said so. **This is a file list that names one thing selecting for what it does not name -
-the same lesson as `mirror.yml`, the amendment-table command, and the shared-file table, in a fourth
-place** - and it is one entry's fix, `.github` appended to `COPY`. **It is `scripts/`, which is
-U0's, so it is a U0 follow-up and this plan does not make the edit**; `ci.yml:296` runs this harness
-and gates on its exit code, so the `test` job is red until it lands.
+*This draft ran the U0 controls harness at `ff9461a` and found it **aborting before a single control
+fired** - "the unmutated copy is already red" - so the honest reading there was **0/11, not the
+11/11 rounds 6 and 7 both correctly recorded** at a SHA before `9ca76fe`. `d48c112` has since fixed
+it, and the amendment table above carries the diagnosis. The point that survives the fix: **`ci.yml`
+gates on that harness, so it was a red build nobody had looked at, and it was found by running the
+script rather than by reading anything.***
 
 **The suite's trajectory is the number worth carrying, not any single reading:** round 5 measured 17
-at `299cf8b`, draft 7 measured 56 at `ff0bbdf`, draft 8 measured 90 at `b7fd35d`, and this is 93 -
+at `299cf8b`, draft 7 measured 56 at `ff0bbdf`, draft 8 measured 90 at `b7fd35d`, and this is 94 -
 **the deselected count held at 2 and skips held at 0 throughout**, which is the property the
 zero-skip rule actually asserts. *Draft 7 pinned this block to `ff0bbdf` and said the tree had moved
 "seven" commits; it had moved five, and by the time anyone read the sentence it was six. The count is
@@ -2048,12 +2055,14 @@ dropped here in favour of the SHA, which is checkable.*
 **The four measurements this plan rests decisions on are no longer described here; they are RUN.**
 `python3 docs/reviews/check-plan-measurements.py` re-executes all four, each with a treatment arm
 that must fail and a control arm that must pass, and exits non-zero when a claim stops reproducing.
-At `ff9461a`: **M1 PASS** (`pytest_plugins` loads in a non-rootdir conftest under `-W error`, with
+At `1e67f9c`: **M1 PASS** (`pytest_plugins` loads in a non-rootdir conftest under `-W error`, with
 the unregistered control failing as required), **M2 PASS** (a per-directory conftest fixture is
 invisible to a sibling directory, and visible in its own - so §4's rejection holds), **M3 PASS**
-(adding a dependency breaks `test_manifest.py`'s set-equality; unmutated satisfies it), **M4 OPEN**
-- collision 11, correctly red, and it flips to PASS when the guard drops `-m`, which is **U5's
-discharge receipt** (see U5). Rounds 6 and 7 each re-ran some of these by hand and reproduced them;
+(adding a dependency breaks `test_manifest.py`'s set-equality; unmutated satisfies it), **M4 PASS**
+- *it was the harness's single `KNOWN_OPEN` entry, documenting collision 11 rather than tolerating
+it, and `1e67f9c` closed the defect, so the open set is now empty.* **An entry in `KNOWN_OPEN` means
+"known broken", never "expected to fail forever": a probe that stays open is a comment with a test
+harness attached.** Rounds 6 and 7 each re-ran some of these by hand and reproduced them;
 **the script is what makes that survive a reviewer who does not think of it, and since `ff9461a` it
 runs in `ci.yml`'s `design-gates` job, so it survives a reviewer who is never dispatched at all.** Round 6 also probed a case §4 does not require: registration works
 **without** `tests/fixtures/__init__.py`, so the mechanism is more permissive than §4 claims. **Each `DESIGN.md` line cited by anything draft 7 or 8 touched was
@@ -2234,9 +2243,11 @@ actually cost this project time were found by **attempting to build**:
 - **Wiring `check-obligations.py` at `ff9461a` turned it red immediately** - five anchors moved,
   three of them into `ci.yml` itself. No review round had found that, and no review round could:
   it did not exist until the wiring existed.
-- **This draft found `scripts/check-u0-test-controls.sh` aborting at HEAD** (§8) - by running it.
-  Rounds 6 and 7 both recorded `11/11` and both were right when they measured; `9ca76fe` broke it
-  afterwards, and reading could not have caught that either.
+- **`scripts/check-u0-test-controls.sh` was aborting at `ff9461a`, and this draft found it by
+  running it** (§8, and the amendment table's `9ca76fe` and `d48c112` rows). Rounds 6 and 7 both
+  recorded `11/11` and both were right when they measured; `9ca76fe` broke it afterwards. `ci.yml`
+  gates on that harness, so it was **a red build nobody had looked at** - and no amount of reading
+  the plan would have surfaced it.
 
 **Another round would find a twelfth collision of the same species, and would not have found any of
 the items in that list.** The plan's job now is to be executable.
@@ -2247,8 +2258,9 @@ Two scripts, both wired into `ci.yml`'s `design-gates` job at `ff9461a`, so what
 whoever remembered now depends on a failing build:
 
 - **`docs/reviews/check-plan-measurements.py`** re-runs the four measurements this plan rests
-  decisions on, each two-armed. A claim that stops reproducing exits non-zero and prints
-  `STALE`; `M4` is `OPEN` by design because it *is* collision 11.
+  decisions on, each two-armed. A claim that stops reproducing exits non-zero and prints `STALE`.
+  Its `KNOWN_OPEN` set is **empty** since `1e67f9c`, and an entry there means *known broken*, never
+  *expected to fail forever*.
 - **`docs/reviews/check-obligations.py`** (and its `--controls` arm) verifies that every mapping in
   `docs/OBLIGATIONS.md` still resolves **to its subject**, not merely to a line that exists, and
   names the line a drifted subject moved to.
@@ -2266,10 +2278,11 @@ whoever remembered now depends on a failing build:
 4. **Nothing here runs the workflow jobs.** `links`, CodeQL, TruffleHog, the SBOM emitters and
    `pr-title.yml` are declared-unrun in §8 and remain so, and branch protection is out of tree
    entirely.
-5. **A gate wired into CI can still be red at HEAD without anyone noticing**, which is not
-   hypothetical: `ci.yml:296` runs `scripts/check-u0-test-controls.sh` and gates on it, and that
-   harness aborts at `ff9461a`. **Wiring a control makes it enforceable; it does not make anyone
-   read the run.**
+5. **A gate wired into CI can still be red without anyone noticing**, which is not hypothetical:
+   `ci.yml` runs `scripts/check-u0-test-controls.sh` and gates on it, and that harness aborted from
+   `9ca76fe` until `d48c112` - **`git rev-list --count 9ca76fe..d48c112` is five**, and one of those
+   five is the commit that wired two *other* controls into the same job. **Wiring a control makes it
+   enforceable; it does not make anyone read the run.**
 
 ### 10.4 The standing rule for every unit brief
 
