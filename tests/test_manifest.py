@@ -44,12 +44,32 @@ def test_mcp_is_pinned_with_a_double_equals() -> None:
     assert mcp == ["mcp==2.1.1"], f"expected an == pin on mcp, dependencies are {deps}"
 
 
-def test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version() -> None:
-    """The three-pin block of DESIGN.md:1358-1362, checked as a set not as prose."""
+def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
+    """A CLOSED set over the whole runtime dependency list, not a claim about two pins.
+
+    **This test was renamed, and the rename is the point.** It used to be called
+    `test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version` - a name describing
+    two pins, on a body that closes the ENTIRE list. That gap is collision 10: an
+    auditor asking "will my change break a test?" reads names, so a unit adding a
+    scheduled runtime dependency saw nothing relevant here and would have been
+    surprised by a red build reading as a manifest-integrity breach. Six review rounds
+    read the name and missed the body.
+
+    The closed set is a real property and is kept: a dependency arriving without anyone
+    deciding to add it should fail here. Adding one is meant to cost a deliberate edit.
+
+    **Widen this set by APPENDING. Never relax it to a subset check**, and never remove
+    or reorder the three pins - they are DESIGN.md:1358-1362, and
+    `test_removing_fastmcp_slim_breaks_the_resolve` below is the control that proves
+    the second of them load-bearing.
+    """
     assert set(_dependencies()) == {
         "fastmcp==4.0.0b4",
         "fastmcp-slim==4.0.0b4",
         "mcp==2.1.1",
+        # U3's, added under the serialised dependency slot. DESIGN.md:296-297 forbids a
+        # custom logging module and names loguru as what covers that need.
+        "loguru==0.7.3",
     }
 
 

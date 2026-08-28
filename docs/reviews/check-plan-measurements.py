@@ -124,22 +124,38 @@ def m3_manifest_asserts_a_closed_dependency_set() -> tuple[bool, str]:
     going quiet would mean the collision had been resolved and the plan should say so.
     """
     src = (REPO_ROOT / "pyproject.toml").read_text()
-    expected = {"fastmcp==4.0.0b4", "fastmcp-slim==4.0.0b4", "mcp==2.1.1"}
+    manifest_test = (REPO_ROOT / "tests" / "test_manifest.py").read_text()
 
+    # DERIVED, never hardcoded. An earlier version of this probe pinned the expected set
+    # to the three original pins and went STALE the first time a unit legitimately added
+    # one - reporting a real, approved change as a failed measurement. That is the
+    # two-lists defect this repository names elsewhere, built into the instrument that
+    # checks for it. Four more dependencies are scheduled, so it would have gone stale
+    # four more times.
     unmutated = set(tomllib.loads(src)["project"]["dependencies"])
+    sentinel = '"zzz-probe-not-a-real-package==0.0.0"'
     mutated = set(
-        tomllib.loads(src.replace('  "mcp==2.1.1",', '  "mcp==2.1.1",\n  "loguru>=0.7",'))[
+        tomllib.loads(src.replace("dependencies = [", f"dependencies = [\n  {sentinel},", 1))[
             "project"
         ]["dependencies"]
     )
 
+    if not unmutated:
+        return False, "no runtime dependencies parsed at all - the probe read nothing"
     if mutated == unmutated:
         return False, "mutation was a no-op - the probe never changed anything"
-    if unmutated != expected:
-        return False, f"manifest no longer holds exactly the three pins: {unmutated}"
-    if mutated == expected:
-        return False, "adding a dependency did NOT break set-equality - collision 10 gone"
-    return True, "adding a dependency breaks it; unmutated satisfies it"
+    # The PROPERTY, not the membership: the test compares the whole list with `==`, so
+    # any addition breaks it. Checking the comparison itself is what survives a
+    # legitimate dependency being added.
+    if "set(_dependencies()) ==" not in manifest_test:
+        return False, (
+            "tests/test_manifest.py no longer closes the dependency set with `==`; "
+            "collision 10's rule has been relaxed rather than appended to"
+        )
+    return True, (
+        f"the manifest closes the set with `==` over {len(unmutated)} dependencies, "
+        "so any addition breaks it"
+    )
 
 
 def m4_collection_guard_survives_a_wholly_credentialed_file() -> tuple[bool, str]:
