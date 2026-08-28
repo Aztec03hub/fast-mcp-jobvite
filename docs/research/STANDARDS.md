@@ -788,10 +788,11 @@ Dismissed with a reason each, per the brief's preference for explicit dismissal.
 | `devops/git-workflow.md` | required | Read in full: its scope is maintaining **the standards repository itself** (`:75` — `git add Standards/`, `:89-98` version-tagging that repo). It does not define a general project git workflow. See §4/G1. |
 | `ai/bedrock-integration.md`, `ai/model-selection.md`, `ai/provider-integration.md`, `ai/langchain.md`, `ai/rag-vector-stores.md`, `ai/voice-multimodal.md`, `ai/prompt-management.md`, `ai/cost-token-controls.md`, `ai/llm-observability.md` | required | This server never calls a foundation model. It has no prompts, no embeddings, no token spend, no LLM traces. |
 | `ai/evaluation-testing.md` | required | Partially reached: B23 and `ai/prompt-injection.md:138` route red-team cases into "the eval suite" defined there. Not read in full — see "What I could NOT verify". |
-| `architecture/gdpr-data-rights.md` | required | Read in full. Its obligations attach to systems that **store** personal data — *"Every table containing personal data MUST declare its DSAR/RTBF policy"* (`:50`), erasure dispositions, a `gdpr_erasures` table. This server is stateless and stores nothing; Jobvite is the controller's system of record. **The DSAR/RTBF machinery does not bind.** The residue that does bind is the no-PII-in-logs rule, captured as B88 — because a log file is the one place this stateless server could accidentally become a personal-data store. |
+| `architecture/gdpr-data-rights.md` | required | Read in full. Its obligations attach to systems that **store** personal data — *"Every table containing personal data MUST declare its DSAR/RTBF policy"* (`:50`), erasure dispositions, a `gdpr_erasures` table. This server is stateless and stores nothing; Jobvite is the controller's system of record. **The DSAR/RTBF machinery does not bind.** **Two residues bind and neither is waived.** `:119-129`, records of processing under Article 30, is field-level and names downstream processors — routing candidate PII to a model is exactly that — and `docs/data-inventory.md` discharges it (DESIGN.md:731-733). ADR-0008 makes the scope argument for the DSAR/RTBF machinery and explicitly does not extend to this one. The second is the no-PII-in-logs rule, captured as B88, because a log file is the one place this stateless server could accidentally become a personal-data store. **An earlier version of this row named only the second, which waived a binding obligation by omission while the design was already meeting it.** |
 | `architecture/api-versioning.md` | recommended | Not `required`, and no versioned REST surface. |
 | `architecture/caching.md` | required | Redis response caching for a DB-backed API. Optional here; if a cache is added it becomes live. |
-| `architecture/data-flow.md`, `architecture/threat-modeling.md` | required | Not read in full; both are process/design-artifact standards rather than code obligations. Flagged in "What I could NOT verify". |
+| `architecture/threat-modeling.md` | required | **Dismissal OVERTURNED.** Its frontmatter is `applicable_to: all`, `priority: required`: it binds, and it is discharged by DESIGN §11's STRIDE grid and threshold disposition (B110). The original rationale — *"not read in full; a process standard rather than a code obligation"* — was false, and was a dismissal derived from not having read the file. Listed here so it is not re-derived. |
+| `architecture/data-flow.md` | required | `applicable_to: [system-design]`. Read for scope: it governs a data-flow artifact, and the flows it would document are recorded in §11's trust boundaries and `docs/data-inventory.md`. **The verdict stands and the original rationale did not support it** — the two files were dismissed together on one sentence that was true of neither, and this one happened to be right. |
 | `azure/*`, `snowflake/*` | required (opt-in domains) | Explicitly opt-in and not in force, per the brief and `MUST-READ-DOCS.md:251-253`. Not cited. |
 | `documentation/{prd,brd,discovery,specification,onboarding,glossary}-*.md` | required / recommended | Deliverable templates for client engagements, not repo obligations. |
 
@@ -1067,10 +1068,15 @@ Sources: `devops/ci-cd.md:81, 85, 125, 157, 173, 246, 306, 501, 525, 552, 571, 7
    "the eval suite" that this file defines. The *specific structure* that suite must
    have is therefore uncited in this report.
 
-4. **`architecture/threat-modeling.md`, `architecture/data-flow.md`,
-   `backend/testing-patterns.md`, `devops/quality-gates.md` §DoR/DoD (`:140-215`) —
+4. **`backend/testing-patterns.md` and `devops/quality-gates.md` §DoR/DoD (`:140-215`) —
    skimmed via grep only, not read in full.** I cited nothing from them that I did not
    read directly.
+   **`architecture/threat-modeling.md` and `architecture/data-flow.md` have since been read
+   and are struck from this list.** threat-modeling.md was not merely unread - it was
+   *dismissed* while unread, and it binds (`applicable_to: all`, `priority: required`).
+   §11 exists because of it. **That is the failure mode this list is supposed to prevent:
+   an admission of not-having-read sat here while a dismissal derived from it stood in the
+   register**, and the two were never reconciled.
 
 5. **`architecture/security.md` was read by section, not cover to cover.** I read
    Input Validation (`:185-270`), Rate Limiting (`:394-404`), Secrets (`:407-474`),
