@@ -556,7 +556,8 @@ description of a tree that no longer exists.** All of it is in `pyproject.toml`,
 | `9ca76fe` | `.github/workflows/mirror.yml`: `checkout@v4` → `@v6`; **`tests/test_workflow_pins.py` added** | closes C-1 at **6 of 6**. Draft 8 reported this as an open residue; it landed while round 7 was running. **It also took the U0 controls harness down - see below** |
 | `ff9461a` | `.github/workflows/ci.yml`: three steps added to `design-gates`; `docs/OBLIGATIONS.md`: eight anchors repointed | wires `check-obligations.py`, its `--controls` arm and `check-plan-measurements.py`. **Wiring it moved five of the anchors it checks, three of them into `ci.yml` itself**, and the checker named each new line rather than requiring an investigation |
 | `d48c112` | `scripts/check-u0-test-controls.sh`: `.github` added to the staged subset | restores the U0 controls harness, which had been aborting since `9ca76fe` - see below |
-| `1e67f9c` | `tests/test_collection_guard.py` and `docs/reviews/check-plan-measurements.py` | **closes collision 11**: the guard was selecting rather than checking reachability. M4 flips from `OPEN` to `PASS` |
+| `3a49795` | `docs/OBLIGATIONS.md`: B78 and B81 repointed; this plan | lands draft 9 on `main` and repoints the two anchors the draft's own rewrite moved - **the same-commit rule in the row above, applied** |
+| `1e67f9c` | `tests/test_collection_guard.py`, `docs/reviews/check-plan-measurements.py`, `docs/OBLIGATIONS.md` (B58 `139` → `163`) | **closes collision 11**: the guard was selecting rather than checking reachability. M4 flips from `OPEN` to `PASS`, and `KNOWN_OPEN` is now empty |
 
 **A gate was DOWN at `4e5a1b2` and draft 9 fixed it, because U1 is in flight and verifying against a
 harness that aborts.** `tests/test_workflow_pins.py` walks `.github/workflows/` and carries a

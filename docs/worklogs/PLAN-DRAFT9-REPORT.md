@@ -7,7 +7,11 @@ Worktree: `/tmp/plan-draft9-work`, created with `git worktree add` at the pinned
 checked out, never edited, and never had a branch moved in it.** The only write to it was none; the
 only reads were `git -C <shared> log/status/diff`.
 **One file changed: `docs/plans/IMPLEMENTATION-PLAN.md`.** Plus this report.
-Commit: **`258ba37`**.
+Branch head **`8181dfe`**, two plan commits (`14d400a` then `8181dfe`) plus this report, rebased onto
+`origin/main` at **`1e67f9c`**. Plan is **2,334 lines**.
+
+**Read "The tree moved under me" below before the finding-by-finding section** - four commits landed
+on `main` while I worked, two of them closing things this report was written to raise.
 
 ---
 
@@ -38,6 +42,37 @@ a second agent re-applying an applied round - the failure `40959c8`'s message de
 **Consequence for the work:** draft 9's body already existed. My job became (a) finish the parts of
 round 7 that were missing, (b) rewrite everything `ff9461a` had made false, (c) write the exit
 section, (d) fix the numbers. Not a fresh application.
+
+---
+
+## The tree moved under me, and two of my findings landed before my branch did
+
+I pinned `ff9461a` as instructed and measured everything there. `origin/main` is now `1e67f9c`, four
+commits ahead, and **two of those commits close things this report was written to raise**:
+
+| Commit | What it did | Effect on this work |
+|---|---|---|
+| `d48c112` | `.github` added to `check-u0-test-controls.sh`'s staged subset | **My recommendation #1, already done.** Found independently. |
+| `69cefce` | `CONTRIBUTING.md` documents the whole gate | no interaction |
+| `3a49795` | *"Land plan draft 9, and this time I read its status line"* - lands the plan on `main` and repoints B78/B81 | **conflicts with my branch**; resolved by merging, not by overwriting |
+| `1e67f9c` | **Closes collision 11**: the guard was selecting, not checking reachability | **Round 7's High is fixed in code.** M4 flips `OPEN` -> `PASS`. |
+
+**`1e67f9c` invalidated seven passages I had just written**, all describing collision 11 as an open
+defect: the header bullet, §4's *"reds on TWO things"* paragraph, collision 11's list item, U5's new
+bullet, the shared-file row, the §8 measurement block and §10.3. **All seven rewritten in place** in
+`8181dfe`, and what survives in each is the **rule** rather than the defect - *do not narrow this
+guard to buy a green* still binds U5, and `1e67f9c`'s third measured arm (a genuine orphan outside
+`testpaths` still fails after the fix) is the assertion that says the guard did not go blind while
+being made green. That arm is the part of `1e67f9c` I would most want other units to copy.
+
+**On the rebase conflicts.** Both were in passages `main` and I had edited **for the same reasons**,
+hours apart. I kept `main`'s version where it was better - its `docs/OBLIGATIONS.md` shared-file row
+makes the *position-versus-content* point more sharply than mine did, and its *"a gate was DOWN"*
+paragraph is the same finding as my §8 one, written first. My amendment-table work is folded in
+**beside** it rather than over it. Nothing of `main`'s was discarded.
+
+**This is itself evidence for §10.** Between being briefed and reporting, the tree closed round 7's
+High, fixed a red gate, and landed the plan - **none of it from a review round.**
 
 ---
 
@@ -73,14 +108,19 @@ said nothing about the guard. Draft 9 now carries **both**:
    container-and-rows form R7 proposed, naming U5 as the unit that lands the first such file and
    requiring the `-m` drop plus a planted-file control **in the same commit as the arm**.
 2. A **new bullet in U5's own "Verified by" list**, which is where a U5 agent will actually be
-   reading. It states the failure message is a *false diagnosis*, names the two cheap greens that
-   must not be taken (`_SKIP_DIRS`, or hiding the arm in a file with an unmarked test), and makes
-   **M4 flipping OPEN -> PASS U5's discharge receipt**. I verified that flip is real before
-   promising it: `check-plan-measurements.py:20-23` and `KNOWN_OPEN` at `:195` say M4 passes once
-   the guard drops `-m`.
+   reading - it names the two cheap greens that must not be taken (`_SKIP_DIRS`, or hiding the arm
+   in a file with an unmarked test).
+
+**Then `1e67f9c` closed the defect in code while I was writing**, so both passages were rewritten:
+the trap is disarmed, U5's arm now lands into a guard that will not misdiagnose it, and **what still
+binds U5 is the rule, not the bug** - do not narrow this guard, and if you change it, carry
+`1e67f9c`'s third arm (a genuine orphan outside `testpaths` must still fail). **M4 is `PASS` and
+`KNOWN_OPEN` is empty**; the plan now says an entry there means *known broken*, never *expected to
+fail forever*.
 
 **Rejected from R7's fix:** the part directing edits to `tests/credentialed/README.md`. Not my file
-(brief: my only file is the plan). It is in the recommendations below.
+(brief: my only file is the plan). It is in the recommendations below - **still open**, and now the
+only unclosed piece of H1.
 
 ### M1 - the unwired obligation checker - **ADOPTED-MODIFIED (inverted, because the tree moved)**
 
@@ -183,15 +223,22 @@ findings. Every row re-read in the committed object at `258ba37`, not from memor
 | 21 | Measurement block re-pinned and re-run | brief | **yes, `ff9461a`** |
 | 22 | "all eleven closed-set assertions" number deleted | brief | **yes** |
 | 23 | "Two of the ten collisions above" number deleted | own sweep | **yes** |
-| 24 | Suite trajectory carries 93, not 90 | own re-run | **yes** |
+| 24 | Suite trajectory carries the re-measured figure | own re-run | **yes, 94 at `1e67f9c`** |
+| 25 | Collision 11 described as CLOSED, in all seven places | `1e67f9c` | **yes, `8181dfe`** |
+| 26 | The rule that outlives the fix still binds U5 | own judgement | **yes, 3 places** |
+| 27 | U0 harness: `9ca76fe` break and `d48c112` fix both in the amendment table | own finding + `d48c112` | **yes** |
+| 28 | `main`'s concurrent edits merged, not overwritten | rebase | **yes, both conflicts** |
 
-Bold rows are what this draft added or changed; the rest were verified as surviving.
+Bold rows are what this draft added or changed; the rest were verified as surviving. **Rows 1-24
+were re-checked against the finished text a second time after the rebase**, because the rebase is
+exactly the event that reverts sentence-sized findings, and rows 9, 22 and 23 (the three deleted
+numbers) are the ones a merge would most easily have restored. All three are still deleted.
 
 ---
 
 ## Two things I found by running, that no reading would have caught
 
-### 1. `scripts/check-u0-test-controls.sh` is RED at `ff9461a`, and CI gates on it
+### 1. `scripts/check-u0-test-controls.sh` was RED at `ff9461a`, and CI gates on it - **since fixed at `d48c112`, found independently**
 
 ```
 $ bash scripts/check-u0-test-controls.sh
@@ -213,9 +260,12 @@ precisely what it finds in a staged tree with no `.github/`. **The positive cont
 detected a vacuous walk and said so. This is the fourth appearance on this repository of *a file
 list that names one thing selecting for what it does not name*.
 
-**`ci.yml:296` runs this harness and gates on its exit code**, so the `test` job is red at HEAD.
-Fix is one entry: append `.github` to `COPY`. **`scripts/` is U0's, not mine** - recorded in §8 and
-recommended below, not fixed.
+**`ci.yml` runs this harness and gates on its exit code, so the `test` job was red.** `d48c112` has
+since appended `.github` to `COPY` and it is `11/11` again. **The part worth keeping after the fix:
+`git rev-list --count 9ca76fe..d48c112` is five - and one of those five is `ff9461a`, the commit
+that wired two OTHER controls into the same job.** So the lesson is sharper than *wire your
+controls*: **wiring a control makes it enforceable and does nothing to make anyone read the run.**
+That is now §10.3's fifth bullet on what the gates do not cover.
 
 ### 2. R7's own "eleven closed-set assertions" is a count behind its own list
 
@@ -245,10 +295,12 @@ replaced by the §4 standing check, which does not depend on any sweep having be
 
 **The rewrite moved both, exactly as the brief predicted. New line numbers:**
 
-| B | Subject | Old | **New** |
+| B | Subject | Old (as `main` has it after `3a49795`) | **New, at `8181dfe`** |
 |---|---|---|---|
-| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1229` | **`:1268`** |
-| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1274` | **`:1313`** |
+| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1302`** |
+| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1347`** |
+
+*(Measured after the rebase, so these are against `main`'s current values, not the pre-rebase ones.)*
 
 Not repointed - `docs/OBLIGATIONS.md` is not my file. The checker names both new lines itself, so
 this costs one edit each.
@@ -278,18 +330,17 @@ I would not act on this without your call, so it is a recommendation, not a chan
 
 I have not created board tasks for these; say the word and I will, or fold them into existing ones.
 
-1. **`scripts/check-u0-test-controls.sh:47` - append `.github` to `COPY`.** One entry. **CI is red
-   at HEAD without it** (`ci.yml:296`). U0 follow-up. **Highest priority item in this report**, and
-   the only one that is currently breaking a build.
-2. **`tests/test_collection_guard.py`** - drop `-m` from `_collected_test_files()` (`:82`), add the
-   planted-wholly-credentialed-file control, and correct the false comment at `:147-148`. The plan
-   now assigns this to U5's arm commit; if you would rather it land as a U0 follow-up before U5 is
-   dispatched, that is strictly safer and the plan's U5 bullet still reads correctly (M4 would
-   already be PASS when U5 starts).
-3. **`tests/credentialed/README.md:12-19`** - add the guard as a fourth bullet to *"the contract for
-   a unit adding an arm here"*. R7 asked for this; it is not my file.
-4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1268` and B81 to `:1313`.
-5. **Consider the anchor-stability change above.**
+1. ~~`scripts/check-u0-test-controls.sh` - append `.github` to `COPY`~~ **DONE at `d48c112`**, found
+   independently. `11/11` again, verified.
+2. ~~`tests/test_collection_guard.py` - drop the `-m` selector~~ **DONE at `1e67f9c`**. M4 `PASS`,
+   verified.
+3. **`tests/credentialed/README.md:12-19` - still open, and now the only unclosed piece of H1.** Add
+   the guard to *"the contract for a unit adding an arm here"*, in the form the rule now takes: the
+   guard checks **reachability, not selection**, so a wholly-marker-excluded arm here is fine - and
+   **do not narrow the guard to green something**, because that is what makes the credentialed
+   subtree rot unwatched. R7 asked for this and it is not my file.
+4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1302` and B81 to `:1347` when this branch merges.
+5. **Consider the anchor-stability change above.** Not urgent; the gate is working.
 
 ---
 
@@ -299,9 +350,12 @@ I have not created board tasks for these; say the word and I will, or fold them 
 git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite merge --no-ff plan/draft9
 ```
 
-Branch **`plan/draft9`** at **`258ba37`**, **rebased onto `origin/main`** before reporting.
-**No `--ff-only` is promised** - `main` moves under me and two implementation agents are on it.
-**I did not merge and did not push.**
+Branch **`plan/draft9`** at **`8181dfe`**, **rebased onto `origin/main` at `1e67f9c`**, three
+commits: the draft, this report, and the reconciliation with the four commits that landed while I
+worked. **No `--ff-only` is promised** - `main` demonstrably moves under me, four times during this
+task alone. **I did not merge and did not push.** If `main` has moved again, rebase rather than
+merge-commit; the two files this branch touches are `docs/plans/IMPLEMENTATION-PLAN.md` and
+`docs/worklogs/PLAN-DRAFT9-REPORT.md` and nothing else.
 
 Worktree `/tmp/plan-draft9-work` **removed** after reporting; the branch remains.
 
@@ -312,18 +366,21 @@ Worktree `/tmp/plan-draft9-work` **removed** after reporting; the branch remains
 For what I could not settle, not for what I did not try.
 
 1. **Whether dropping `-m` from `_collected_test_files()` has a cost at import time.** R7 left this
-   open and I did not close it: collection **imports** the module, and a credentialed arm doing real
-   work at module scope would then run during collection. `tests/credentialed/README.md:16-17`
-   forbids module-scope credential reads, but that is a convention with no gate. **I did not build
-   the probe**, because the fix is `tests/`, which is not my file, and a probe for a fix I am not
-   allowed to make would have been theatre. It is the one open question on H1's remedy.
-2. **Whether `ci.yml`'s `design-gates` job actually passes on a runner.** I read the six steps at
-   source and ran all six scripts locally. **I ran no workflow.** The same limit rounds 6 and 7
-   declared, and `ci.yml:16-19` still says several jobs have never run.
-3. **Whether the `test` job is red on GitHub right now.** Locally `check-u0-test-controls.sh` exits
-   1 and `ci.yml:296` gates on it, so it should be. **I could not check the run**: the `github` MCP
-   server failed to connect this session (*"Authorization header is badly formatted"*) - the same
-   failure round 7 recorded. Unasserted in the other direction.
+   open, `1e67f9c` made the change, and **it is still open**: collection **imports** the module, so
+   a credentialed arm doing real work at module scope would now run during collection.
+   `tests/credentialed/README.md:16-17` forbids module-scope credential reads, but that is a
+   convention with **no gate**, and `1e67f9c`'s regression test manufactures a *trivial* file, which
+   would not exercise it. **This is the one thing I would put in front of U5**, and the cheapest
+   form is a control whose planted file does something observable at import.
+2. **Whether `ci.yml`'s `design-gates` job actually passes on a runner.** I read its steps at source
+   and ran all of them locally. **I ran no workflow.** The same limit rounds 6 and 7 declared, and
+   `ci.yml` still records that several jobs have never run.
+3. **Whether the `test` job was ever observed red on GitHub during the five commits
+   `check-u0-test-controls.sh` was aborting.** Locally it exited 1 and CI gates on it, so it should
+   have been. **I could not check the runs**: the `github` MCP server failed to connect this session
+   (*"Authorization header is badly formatted"*) - the same failure round 7 recorded. Unasserted in
+   both directions, and it matters because *"a red build nobody looked at"* is §10.3's fifth bullet
+   and I am inferring the "nobody looked" half from the five-commit gap, not observing it.
 4. **The collision counts for drafts 3, 4 and 5** (four, five, six). Those drafts were never
    committed to this repository - `git log -- docs/plans/IMPLEMENTATION-PLAN.md` shows drafts 1, 2,
    6, 7, 8, 9 only - so the three earliest numbers in the series **cannot be re-derived**. §10.1
@@ -339,7 +396,10 @@ For what I could not settle, not for what I did not try.
 
 ---
 
-*`impl-plan-draft9`, 2026-08-28. Worktree pinned at `ff9461a`, branch `plan/draft9`, one file
-changed plus this report. `docs/DESIGN.md` read only from the frozen object `135c3ac` and not
-edited. The shared checkout was never written to and never had a branch moved in it. Nothing was
-pushed and nothing was merged.*
+*`impl-plan-draft9`, 2026-08-28. Worktree pinned at `ff9461a`, then rebased onto `origin/main` at
+`1e67f9c`; branch `plan/draft9` at `8181dfe`. One plan file changed plus this report - no `tests/`,
+no `scripts/`, no `ci.yml`, no ADR, no `docs/OBLIGATIONS.md`. `docs/DESIGN.md` read only from the
+frozen object `135c3ac` and not edited. **The shared checkout was never written to and never had a
+branch moved in it.** Nothing was pushed and nothing was merged. Worktree removed.*
+
+*No round 8 was dispatched and none is requested.*
