@@ -1,6 +1,6 @@
 # fast-mcp-jobvite - Design
 
-Status: **DRAFT, revision 4. NOT FROZEN.**
+Status: **DRAFT, revision 5. NOT FROZEN.**
 
 Review history, which is a record rather than a status anyone must keep in sync:
 
@@ -15,11 +15,20 @@ Review history, which is a record rather than a status anyone must keep in sync:
 | `SPIKE-CLAIM-AUDIT.md` | 55 claims: 39 supported, 8 overstated, 3 unsupported, 2 not found, 4 stale |
 
 **The freeze rule, stated as a rule rather than as an accomplished fact:** this document freezes
-when a review round returns 0C/0H/0M against it, and **after that** only a numbered ADR in
-`docs/adr/` may change it. An earlier revision stated the second half in the present tense while
-four rounds were still finding defects, which read as though the freeze had happened.
+when a review round returns 0C/0H/0M against it **and** §11's must-mitigate table is empty, and
+**after that** only a numbered ADR in `docs/adr/` may change it.
 
-Last updated: 2026-08-27 05:10 PM CDT.
+**The second condition is not redundant, and omitting it was a defect a review caught.** 0C/0H/0M
+is a statement about the *review*; the must-mitigate table is a statement about the *design*. They
+came apart in practice: rounds returned few findings while the table still held High rows whose
+remedies were edits to this very document, and `threat-modeling.md:86` requires inherent Critical
+and High mitigated **before implementation proceeds**. Freezing in that state would have frozen a
+document instructing against its own next step, and put its own stated remedies behind the ADR
+process that exists to protect a *settled* design. An earlier revision also stated the second half
+in the present tense while four rounds were still finding defects, which read as though the freeze
+had already happened.
+
+Last updated: 2026-08-28 12:54 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -31,8 +40,12 @@ claim is exactly the kind of self-certification that has already been wrong once
   `FASTMCP-SPIKE-4.md` against `fastmcp==4.0.0b4`, or on a clause quoted at its `file:line`.
 - **Every claim about Jobvite's error transport is recorded.** Byte-exact captures.
 - **No claim about a Jobvite success response is verified**, because none has ever been observed.
-- **One mechanism designed here has never been executed**: the capability-drift diff (§10), which
-  is marked at its point of use and carried in §11's Residual Risks. The runtime `start`-base probe
+- **Two mechanisms designed here have never been executed**: the capability-drift diff (§10),
+  marked at its point of use and carried in §11's Residual Risks, and the **circuit breaker**
+  (§4.3), which sits beside a *measured* retry finding and has no supporting execution of its own.
+  The test for this list is not "is it built" - almost nothing here is - but "does it sit among
+  executed results and borrow their credibility". §12 states the same pair on that criterion; an
+  earlier revision of this line said *one* and disagreed with it. The runtime `start`-base probe
   an earlier revision named beside it **does not exist** - it was cut (§4.5) in favour of
   base-agnostic paging, whose one load-bearing property, that `start=0` is accepted and returns
   records, is observed in the one genuine `200` (`JOBVITE-API.md:399`).
@@ -523,6 +536,31 @@ problem object's `request_id` and inside its `instance` URN. Where the HTTP tran
 inbound `X-Request-ID`, it is validated as a UUIDv4 before use - unvalidated inbound ids are a
 log-forging vector - and echoed.
 
+**`request_id_var` carries it to code that never sees the invocation (B40).** The retry and
+circuit-breaker hooks are called *by the resilience library*, not by our call site, so there is no
+parameter to thread the id through and no argument we control at the point the log line is written.
+`utils/correlation.py` holds a single `ContextVar[str | None]` named `request_id_var`. `audit.py`
+sets it in the same statement that mints the id, before the first outbound attempt, and resets it in
+a `finally` so an id cannot leak into the next invocation on a reused worker task.
+
+A ContextVar rather than a module global, because `asyncio` runs invocations concurrently on one
+thread and a module global would interleave: two candidates fetched in parallel would each log the
+other's id about half the time, and the corruption is silent - every line still carries a
+well-formed UUID. That is the failure this mechanism exists to prevent, and it is why the §8 case
+below asserts under concurrency rather than on a single call.
+
+**Retries and breaker transitions are logged, each carrying `request_id` (B39).**
+`backend/resilience.md:224-226` requires both. Every retry attempt logs the attempt number, the
+elapsed delay and the exception type; every breaker transition logs the direction
+(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. Neither
+line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
+exactly where an unredacted URL would otherwise reach a log.
+
+**What this does not do:** on stdio the id correlates lines *within* one invocation and nothing
+more, because there is no inbound id and no caller identity to join against (§4.4). It is a
+within-invocation correlation key, not a distributed trace id, and a reader who assumes otherwise
+will over-trust it.
+
 **The audit event includes `approval_state`.** `agent-guardrails.md:121-123` names it explicitly,
 and `create_candidate` is gated two ways and emails a live human - without it, the only record
 that a gated write was authorised would not exist. `:79` also requires recording **who** approved,
@@ -668,6 +706,31 @@ documents it or every support conversation starts in the wrong place.
 trust boundary is the operating system's, not this server's. That is the correct model for a local
 subprocess, and it is stated rather than left implicit. It also means `create_candidate` on stdio
 rests on the deploy-time flag plus approval, not on scopes.
+
+**The outbound Jobvite credential is a separate question from inbound scopes, and it is the one the
+narrowest-credential rule actually asks about (B21).** Everything above governs what a *caller* may
+ask this server to do. None of it constrains what *this server* may do to Jobvite: the API key in
+`JOBVITE_API_KEY` carries whatever rights Jobvite issued it, so a deployment running with
+`JOBVITE_ENABLE_WRITES=false` still holds a credential that can create candidates. Our two write
+gates stop *this server* from using that power; they do nothing about anyone who reads the
+environment of the process.
+
+**Operator requirement: where writes are disabled, the Jobvite key must be a read-only key.** This
+is stated in the README's deployment section and in `docs/CREDENTIAL-CHECKLIST.md`, and it is
+**an instruction to a human, not a control this server can enforce**, for two reasons that should
+not be blurred together:
+
+- The server cannot verify it. There is no Jobvite endpoint that reports a key's own permissions, so
+  a read-only key and a write-capable key are indistinguishable to us until a write is attempted -
+  and attempting one to find out is exactly the destructive probe §1.1 forbids.
+- **Whether Jobvite issues read-only keys at all is unknown to us.** Keys come from a human at
+  Customer Success and the permission model is undocumented in what we hold. `CREDENTIAL-CHECKLIST.md`
+  carries this as a question to ask when the first key is requested. **If the answer is no, this
+  requirement is unsatisfiable and the residual risk stands** - which is the honest outcome to
+  record, and better than a checklist row that quietly goes unticked.
+
+The threat-model row is therefore mitigated **as an operator instruction with a stated ceiling**,
+not as an enforceable control. A reader who takes it as enforced would over-credit the deployment.
 
 ### 7.3 Configuration
 
@@ -1032,6 +1095,21 @@ Required cases, each failing if its defence is removed:
   against a file marked with a name absent from `markers` and requiring a non-zero exit. Its
   positive control is the declared marker still selecting its tests. **This case exists because
   §7.3 cites it**, and for one revision it cited a control §8 did not contain;
+- **every retry and breaker-transition log line carries the invocation's own `request_id`, asserted
+  under concurrency** - two invocations driven in parallel, each forced to retry, and each line
+  matched to the invocation that produced it (B39, B40, §5.3). A single-call version of this test
+  passes against a module global, which is the bug `request_id_var` exists to prevent, so the
+  concurrent arm is the case and the single call is not sufficient. The same case asserts no URL
+  appears in a retry line, since the `jobFeed` URL is itself a secret;
+- **the read-only-key requirement is present in the README deployment section and in
+  `CREDENTIAL-CHECKLIST.md`**, asserted against the committed files (B21, §7.2). This tests that the
+  instruction exists and is discoverable, which is **all that is testable** - the server cannot
+  verify a key's permissions, and the row it covers is mitigated as an operator instruction rather
+  than as a control. A test asserting anything stronger would misrepresent what the design achieves;
+- **an expired advisory-ignore entry fails the audit gate** - an entry past its recorded expiry
+  date is rejected rather than honoured, with a positive control showing an unexpired entry is
+  honoured (B72, §10). This is the case that stops a time-boxed ignore becoming a permanent one,
+  which is the only failure mode of the triage policy that arrives silently;
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
@@ -1170,6 +1248,34 @@ in both formats, and a `pip-licenses` allow-list gate. `fastmcp inspect` output 
 review rather than at runtime. **UNVERIFIED:** that this actually catches the drift it is meant to
 catch is reasoning, not an executed result - the `ResponseLimiting` regression is the case it is
 modelled on, and nobody has replayed that bump against this check.
+
+**Advisory triage, because `pip-audit` fails on any advisory and we chose a beta stack (B72).**
+`pip-audit` has no severity threshold: one advisory anywhere in the transitive tree turns a required
+check red and blocks every merge, including merges that fix it. On a normal stack that is rare
+enough to handle ad hoc. **We pinned `fastmcp==4.0.0b4`, a transitive prerelease, and `mcp==2.1.1`
+deliberately, so we should expect this and owe it a sanctioned response** - because the unsanctioned
+one is a blanket ignore, which is precisely the silent suppression the clause forbids, and which
+nobody removes once added.
+
+The policy, in the order it must be applied:
+
+1. **Determine reachability first.** Does our code reach the vulnerable path? An advisory in a
+   transitive package we never call is a different object from one in our request path, and the
+   distinction must be recorded, not assumed. The SBOM identifies the dependent; reachability is a
+   human judgement written down, not a tool output.
+2. **If reachable: fix or stop.** Bump, patch, or remove the dependency. If none is possible, the
+   affected tool is disabled via `JOBVITE_TOOLS` and the README says so. There is no third option
+   and no "accept and continue" for a reachable advisory in credential-handling code.
+3. **If not reachable: a time-boxed, single-advisory ignore**, recorded in
+   `pyproject.toml` with the advisory id, the date, the reason it is unreachable, and **an expiry
+   date no more than 30 days out**. CI fails on an expired entry, so the ignore cannot outlive its
+   justification by drifting.
+4. **Never a blanket ignore, and never a raised threshold.** Both convert a signal into silence for
+   every future advisory, not just this one.
+
+**What this policy costs, stated rather than hidden:** step 1 is human judgement on every advisory,
+and this project has one maintainer. The 30-day expiry is what stops that judgement being made once
+and inherited forever, and it is the part most likely to be felt as friction and quietly lengthened.
 
 ### 10.1 Documentation deliverables
 
@@ -1398,10 +1504,10 @@ asserted that placement in the same edit that failed to make it.
 |---|---|---|---|---|---|---|
 | C5-S1 | A rejected credential returns `HTTP 200` with a `{"status":{"code":401}}` body and is read as success, reporting zero candidates for an unauthenticated caller (§4.2) | H | H | **Critical** | The invariant: successful only if the body carries no `status.code >= 400` **and** the HTTP status is below 400, both, every call. Mitigated | §8: the 200-with-401-body trap |
 | C5-T1 | Response substituted or modified in transit to Jobvite | L | H | Medium | HTTPS with `httpx2` default verification, never disabled (§7.1). Mitigated | not required (Medium) |
-| C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Unmitigated.** Log each retry and breaker transition with the correlation field. Depends on B40's `request_id_var` ContextVar, also missing | unmitigated (B39, B40) |
+| C5-R1 | Retries and circuit-breaker transitions are not logged, so upstream behaviour cannot be reconstructed. `backend/resilience.md:224-226` requires both, each carrying the `request_id` correlation field (B39) | H | M | **High** | **Mitigated in §5.3.** `request_id_var`, a ContextVar set where the id is minted and reset in a `finally`, carries it to the retry and breaker hooks, which the resilience library calls with no argument we control. Every retry and transition is logged with it, and without the URL, since the v1 feed URL is itself a secret | §8: every retry and breaker-transition log line carries the invocation's own `request_id`, asserted under concurrency |
 | C5-I1 | The `/v1/jobFeed` URL structurally carries `sc=` as a query parameter and could reach a log line or an exception message | M | H | **High** | Classified sensitive, never logged whole, `sc=` redacted at one enforcement point (§4.1). Mitigated | §8: a secret never reaching a log record, including the `jobFeed` URL |
 | C5-D1 | Retry amplification against an already-degraded Jobvite | M | M | Medium | Retry budget bounded by a configured server-side outbound ceiling, jitter, one breaker per dependency, 4xx excluded from tripping it (§4.3). The ceiling is ours because MCP supplies no inbound deadline to derive one from, which §4.3 now states rather than implying otherwise. Mitigated | not required (Medium) |
-| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Unmitigated.** Document that a read-only Jobvite key is required where writes are disabled. Whether Jobvite offers one is unknown, which makes this an operator instruction rather than an enforceable control | unmitigated (B21) |
+| C5-E1 | The Jobvite credential is write-capable in a deployment where `JOBVITE_ENABLE_WRITES=false`, so the narrowest-credential rule is not met (B21) | M | H | **High** | **Mitigated in §7.2 as an operator instruction with a stated ceiling, not as an enforceable control.** Where writes are disabled a read-only key is required, stated in the README and the credential checklist. The server cannot verify a key's rights - no Jobvite endpoint reports them - and whether Jobvite issues read-only keys at all is unknown, so if the answer is no the residual stands and is recorded rather than ticked | §8: the read-only-key requirement is present in the README deployment section and in `CREDENTIAL-CHECKLIST.md` |
 
 **C6. Output pipeline** (`models/`, `utils/normalise.py`, fencing)
 
@@ -1447,7 +1553,7 @@ asserted that placement in the same edit that failed to make it.
 | C9-T1 | **A transitive dependency changes behaviour with no change to our code or to the code that breaks.** This is a realised threat here, not a hypothetical: an `mcp` major bump removed the behaviour a merged upstream fix depended on, and broke a middleware whose own source never changed (§10, §7.7) | H | M | **High** | `mcp` pinned explicitly, not only `fastmcp`; `uv.lock` committed and CI runs `uv sync --frozen` (§10). Mitigated by the pins and the frozen resolve. The third leg, `fastmcp inspect` output diffed between builds so capability drift appears in review, is **designed and unexecuted** (§10, which carries the `UNVERIFIED:` marker) and is carried to Residual Risks | §8: the manifest pins `mcp` and the frozen resolve has no lock drift |
 | C9-R1 | A shipped artifact cannot be traced to the resolve that produced it | M | M | Medium | SBOM generated from the frozen resolve rather than a fresh one, in both CycloneDX and SPDX (§10) Mitigated. | not required (Medium) |
 | C9-I1 | A dependency exfiltrates credentials or candidate data at runtime | L | H | Medium | `pip-audit` on every PR; licence allow-list gate; no dependency added without review. **Residual and unmitigable in general** - we run third-party code in the same process as the credentials. Carried to Residual Risks | residual |
-| C9-D1 | A required CI gate goes red on a transitive advisory with no sanctioned response, blocking all merges | H | L | Medium | **Open (B72).** `pip-audit` has no severity threshold and fails on any advisory. We chose a beta stack deliberately and owe it an advisory-triage policy; the unsanctioned workaround is a blanket ignore, which is the silent suppression the clause forbids | unmitigated (B72) |
+| C9-D1 | A required CI gate goes red on a transitive advisory with no sanctioned response, blocking all merges | H | L | Medium | **Mitigated in §10.** A four-step triage policy: establish reachability first; if reachable, fix or disable the tool; if not, a single-advisory ignore carrying the id, the reason and an expiry no more than 30 days out; never a blanket ignore or a raised threshold. CI fails on an expired entry so the ignore cannot outlive its justification | §8: an expired advisory-ignore entry fails the audit gate |
 | C9-E1 | A build-time dependency executes arbitrary code during install | L | H | Medium | `uv` with a frozen lock and hash verification; no `setup.py` execution in our own build (hatchling) Mitigated. | not required (Medium) |
 
 ### Threshold disposition
@@ -1466,8 +1572,7 @@ and then silently omitted it, so the rule did not describe the table it introduc
 
 | Row | Threat | Action | Ref |
 |---|---|---|---|
-| C5-R1 | Retries and breaker transitions unlogged | Log both with the correlation field; needs `request_id_var` | B39, B40 |
-| C5-E1 | Jobvite credential not scoped to the enabled tool set | Document that a read-only key is required where writes are disabled | B21 |
+| *(none)* | Both rows are closed by this revision: C5-R1 in §5.3, C5-E1 in §7.2 | - | B39, B40, B21 |
 
 **Two, and the arithmetic is written out rather than carried forward, because it was carried
 forward wrongly twice.** Seven at first writing. The TLS refusal in §7.1 cleared C1-S1, C1-T1 and
@@ -1490,16 +1595,23 @@ arithmetic to a number nobody rechecked.
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
 undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
-**C9-D1 the missing advisory-triage policy (B72)**. **C3-T1 (B25) and C3-D1 (B30) have left this
+**C3-T1 (B25) and C3-D1 (B30) have left this
 list**: §2.1 now specifies the control-character and encoding rejection and the four structural
-limits, each with a §8 case.
+limits, each with a §8 case. **C9-D1 (B72), C5-R1 (B39, B40) and C5-E1 (B21) have now left it
+too**, which empties the must-mitigate table above: §10 carries the advisory-triage policy, §5.3
+the `request_id_var` mechanism and the retry and breaker logging, and §7.2 the read-only-key
+requirement. **C5-E1 left it on weaker terms than the other two and the difference matters:** its
+remedy is an instruction to an operator that this server cannot verify and that Jobvite may not
+even be able to satisfy, so what closed is our obligation to state and test the requirement, not
+the underlying exposure.
 
 **Already mitigated at Critical or High**, listed so the mitigations are recognised as load-bearing
 and not quietly removed later: C5-S1 the 200-with-401 trap, C6-S1 indirect prompt injection, C6-I1
 EEO exclusion, C7-I1 PII in logs, C4-E1 accept-carrying-false, C5-I1 the jobFeed URL, C1-S1, C1-T1
 and C1-I1 the TLS requirement, C2-R1 the audit event existing at all, C1-R1 caller attribution,
-C4-R1 the approval decision, C9-T1 the pinned and frozen resolve, and C8-I1 the credential and
-`.env` exposure the repository has already suffered once. **Each names its §8 case in
+C4-R1 the approval decision, C9-T1 the pinned and frozen resolve, C8-I1 the credential and
+`.env` exposure the repository has already suffered once, C5-R1 the correlated retry and
+breaker logging, and C5-E1 the read-only-key requirement. **Each names its §8 case in
 the `Test` column above, and `check-coupling.py` fails if any of them stops doing so.** This list
 is derived from the table rather than maintained beside it; the script checks that it matches.
 
@@ -1559,7 +1671,26 @@ revision listed it here while two other sections answered it.
 
 ---
 
-## 13. ADRs required at freeze
+## 13. ADRs
+
+**An ADR here does two different jobs, and conflating them was a real defect in this document.**
+
+1. **Recording a deviation from a `priority: required` standard.** This is the job all eleven ADRs
+   below do, and it has **nothing to do with the freeze**. A deviation must be recorded the moment
+   it is decided - `httpx2` instead of the mandated `httpx` is a deviation whether or not anything
+   is frozen, and waiting for a freeze would just mean an unrecorded deviation in the meantime.
+   That is why eleven ADRs exist against a document that is not frozen, which reads as a
+   contradiction only because of the second job.
+2. **Being the sole instrument that may change a frozen `DESIGN.md`.** This is a change-control
+   policy local to this project, and it starts applying only at the freeze.
+
+**These are separate and must stay distinguishable**, because after the freeze the question "is
+ADR-0012 a standards deviation, a design change, or both?" has to have an answer - the freeze rule's
+teeth depend on it. **Every ADR from 0012 onward carries a `Type:` field**, `Deviation`,
+`Design change`, or `Both`. The eleven below are all `Deviation`, recorded before any freeze, and
+`docs/adr/README.md` states the same split so a reader arriving there is not misled by its title.
+
+The eleven required at freeze:
 
 - **ADR-0001** - target `fastmcp 4.0.0b4` and the sessionless spec rather than the stable line.
 - **ADR-0002** - in-process rate limiting instead of the mandated Redis token bucket. **Scope
@@ -1591,8 +1722,9 @@ revision listed it here while two other sections answered it.
   one structured log entry per request"*. `StructuredLoggingMiddleware` runs with
   `include_payloads=False` and so emits no arguments, while B17 mandates **redacted** ones, which
   forces `audit.py` as a third producer. **Scope includes** the cost: three records correlated by
-  `request_id`, on a design that has not yet specified the `request_id_var` mechanism to propagate
-  it (B40, C5-R1).
+  `request_id`, which §5.3 now propagates through `request_id_var` (B40 closed in this revision).
+  The correlation the deviation depends on therefore exists; what remains is the deviation itself,
+  three records where the clause asks for one.
 
 **Freeze procedure, and one step exists because it already failed once:** every **conditional**
 dismissal in the standards analysis is re-tested at freeze. `architecture/caching.md` was dismissed

@@ -1,11 +1,21 @@
 # Architecture Decision Records
 
-Each ADR records a decision that deviates from a `priority: required` standard, or that a reviewer
-would otherwise be right to file as a defect. **After the design freeze, an ADR is the only
-instrument that may change `docs/DESIGN.md`.**
+An ADR here does **two different jobs**, and they must stay distinguishable:
 
-Format: Status, Context, Decision, Consequences. Every ADR cites the clause it deviates from at its
-`file:line`, and says what evidence the decision rests on.
+1. **`Deviation`** - records a decision that departs from a `priority: required` standard, or that a
+   reviewer would otherwise be right to file as a defect. **This is independent of the freeze.** A
+   deviation is recorded when it is decided; that is why eleven ADRs exist against a design that is
+   not yet frozen, which is correct rather than contradictory.
+2. **`Design change`** - after the freeze, an ADR is the only instrument that may change
+   `docs/DESIGN.md`. This job begins at the freeze and not before.
+
+**Every ADR from 0012 onward carries a `Type:` field** - `Deviation`, `Design change`, or `Both` -
+because after the freeze "is this a deviation or a design change?" must have an answer, and the
+freeze rule's teeth depend on telling them apart. **All eleven below are `Deviation`**, recorded
+before any freeze. `DESIGN.md` §13 states the same split.
+
+Format: Status, Type, Context, Decision, Consequences. Every ADR cites the clause it deviates from
+at its `file:line`, and says what evidence the decision rests on.
 
 | ADR | Decision | Status |
 |---|---|---|

@@ -111,9 +111,13 @@ CONTROLS = [
      "names §8 case 'an off-loopback bind without TLS refuses to start', "
      "which does not appear in §8"),
 
-    ("5  C5-E1 deleted from the must-mitigate table",
-     lambda t: drop_from_must_table(t, "C5-E1"),
-     "C5-E1 is an unmitigated"),
+    # Re-anchored 2026-08-27. This arm deleted a row from the must-mitigate table; that table is
+    # now empty, because C5-R1 and C5-E1 were both closed, so the mutation became a no-op. The
+    # control reported itself VACUOUS rather than passing - the property worth keeping - and is
+    # re-pointed at the live inverse: a mitigated High silently dropped from the roster.
+    ("5  C5-E1 dropped from the mitigated roster",
+     lambda t: roster(t, lambda r: re.sub(r"C5-E1[^,.]*", "", r)),
+     "roster omits C5-E1, a mitigated Critical/High row"),
 
     ("6  must-mitigate table renames C5-R1 to C5-R9",
      lambda t: in_closing(t, lambda c: c.replace("C5-R1", "C5-R9")),
@@ -128,9 +132,12 @@ CONTROLS = [
      lambda t: roster(t, lambda r: re.sub(r"C9-T1[^,]*, ", "", r)),
      "roster omits C9-T1, a mitigated Critical/High row"),
 
-    ("8  C5-R1 added to the mitigated roster",
-     lambda t: roster(t, lambda r: r.replace("C7-I1 PII in logs", "C7-I1 PII in logs, C5-R1")),
-     "roster claims C5-R1 is a mitigated Critical/High row; it is not"),
+    # Re-anchored 2026-08-27: C5-R1 became genuinely mitigated, so claiming it in the roster
+    # stopped being a lie and this arm stopped testing anything. C4-S1 is residual and NOT
+    # mitigable server-side, so it is the durable subject - a row that cannot become mitigated.
+    ("8  C4-S1, a residual row, claimed in the mitigated roster",
+     lambda t: roster(t, lambda r: r.replace("C7-I1 PII in logs", "C7-I1 PII in logs, C4-S1")),
+     "roster claims C4-S1 is a mitigated Critical/High row; it is not"),
 
     # --- new: the severity band the widening added ---
     ("9  NEW BAND: §8 case deleted under the Medium row C3-T1, §11 unchanged",

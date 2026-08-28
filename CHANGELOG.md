@@ -54,6 +54,17 @@ decisions and research that the implementation will be built against.
 
 ### Changed
 
+- ADRs separated from the freeze. The two jobs the instrument was doing - recording a deviation
+  from a required standard, and being the only thing that may change a frozen design - were stated
+  in consecutive sentences of the same README and had no way to be told apart. Deviations are
+  recorded when decided and are independent of the freeze, which is why eleven exist against an
+  unfrozen design; from ADR-0012 each carries a `Type:` field. (2026-08-28 12:54 PM CDT)
+- The freeze rule now requires §11's must-mitigate table to be empty as well as a 0C/0H/0M round.
+  The two came apart in practice: rounds returned few findings while the table still held High rows
+  whose remedies were edits to this document, and freezing then would have put a document's own
+  stated remedies behind the process that exists to protect a settled design.
+  (2026-08-28 12:54 PM CDT)
+
 - Human-in-the-loop approval reworked after execution refuted the design. MRTR works on the
   sessionless era and raises on the handshake era; `ctx.elicit()` does the reverse. The two are
   exactly complementary, a default stdio install lands on the handshake era, and the previous
@@ -77,6 +88,16 @@ decisions and research that the implementation will be built against.
   `2026-07-28` MCP specification, as deliberate early adopters. (2026-08-27 01:58 PM CDT)
 
 ### Security
+
+- The three freeze blockers closed, emptying §11's must-mitigate table. Retries and breaker
+  transitions are now logged with the invocation's correlation id, carried by a `ContextVar` to
+  hooks the resilience library calls with no argument we control; a module global would interleave
+  concurrent invocations silently, each line still carrying a well-formed id, so the test asserts
+  under concurrency. Where writes are disabled the Jobvite key must be read-only - recorded as an
+  operator instruction with a stated ceiling, since the server cannot verify a key's rights and
+  whether Jobvite issues read-only keys at all is unknown. And `pip-audit`, which fails on any
+  advisory on a deliberately beta stack, has a four-step triage policy whose ignores carry a 30-day
+  expiry that CI enforces. (2026-08-28 12:54 PM CDT)
 
 - Off-loopback binds require TLS or a declared terminating proxy, and the server refuses to start
   otherwise. The flag is an operator assertion rather than a check of `X-Forwarded-Proto`, which
