@@ -1,14 +1,18 @@
 # Documentation index
 
-Forty-four documents, 1.8 MB. This page exists so a reader knows which of them are **current**,
-which are **historical record**, and which three they should actually read.
+This directory holds more documents than anyone will read. This page exists so a reader knows which
+are **current**, which are **historical record**, and which three they should actually read.
+
+*(An earlier version of this line opened with a document count and a byte total. Both were true when
+written and neither survived the afternoon - in the index whose closing section is about documents
+that no longer match their own stated state. Counted nothing here on purpose.)*
 
 ## Read these three
 
 | Document | What it is |
 |---|---|
-| [`DESIGN.md`](DESIGN.md) | **The authority.** Tool surface, module layout, Jobvite client, error contract, testing strategy, threat model. Everything else either supports it or records how it got that way. |
-| [`plans/IMPLEMENTATION-PLAN.md`](plans/IMPLEMENTATION-PLAN.md) | Ordered work units turning the design into a server, each with its verification. Start here to build. |
+| [`DESIGN.md`](DESIGN.md) | **The authority, and FROZEN at revision 6.** Tool surface, module layout, Jobvite client, error contract, testing strategy, threat model. **Only a numbered ADR may change it** - a finding against it is no longer an edit request. Its status block names three risks the freeze carries rather than resolves; read those before trusting it. Everything else either supports it or records how it got that way. |
+| [`plans/IMPLEMENTATION-PLAN.md`](plans/IMPLEMENTATION-PLAN.md) | Ordered work units turning the design into a server, each with its verification. **Start here to build.** Still under review; U0 is being implemented against it. Where a built unit contradicts its section here, **the build wins** and this document is corrected from it. |
 | [`CREDENTIAL-CHECKLIST.md`](CREDENTIAL-CHECKLIST.md) | What to observe the day a Jobvite credential first exists. **Rows 1-4 block** any claim that the success path is verified; row 0 must be asked *before* a key is issued. |
 
 ## Current, and consulted rather than read through
@@ -28,7 +32,9 @@ which are **historical record**, and which three they should actually read.
 been applied. They are kept because a review's *reasoning* outlives its verdict, and because
 deleting them would destroy the only account of why several decisions look the way they do.
 
-- `reviews/DESIGN-R1.md` … `DESIGN-R7-CONFIRM.md` - seven adversarial rounds.
+- `reviews/DESIGN-R1.md` … `DESIGN-R7-CONFIRM.md` - seven adversarial rounds on the design.
+- `reviews/DESIGN-FREEZE-REVIEW.md` - the last one, which the freeze rests on.
+- `reviews/PLAN-REVIEW-R1.md`, `-R2.md`, … - rounds on the **implementation plan**, a separate document from the design and reviewed separately. Two of round 1's findings were design defects rather than plan defects, which is why the plan's rounds are worth reading next to the design's rather than after them.
 - `reviews/DESIGN-DELTA-REVIEW.md` - the 118 lines added after round 7, reviewed separately.
 - `reviews/F10-RULING.md`, `reviews/FREEZE-DISMISSAL-RETEST.md` - single-question rulings.
 - `reviews/CONFORMANCE-*.md`, `reviews/CITATION-*.md` - the obligation corpus and its audits.
