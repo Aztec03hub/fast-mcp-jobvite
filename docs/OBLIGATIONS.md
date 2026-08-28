@@ -76,16 +76,16 @@ the map exists to make visible.
 | B75 | CONTRADICTED | `.github/workflows/ci.yml:297` | `# - name: Advisory audit` | `documentation/agentic-coding-standard.md:173` | Three commented-out step blocks, deliberate and reasoned, with no ADR. Needs a decision, not a deletion |
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
 | B77 | SUPERSEDED | `docs/DESIGN.md:1484` | `not written yet, deliberately` | `documentation/readme-standard.md:43` | Deferred with a recorded reason; scheduled as U13 |
-| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1140` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
+| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1188` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
 | B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
-| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1185` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
+| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1233` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
 | B82 | MET | `.github/workflows/ci.yml:460` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | SUPERSEDED | `pyproject.toml:6` | `license = "Apache-2.0"` | `documentation/readme-standard.md:57` | Substance settled; only the README section is deferred with B77 |
 | B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |
 | B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md:24` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
 | B100 | MET | `.github/pull_request_template.md:3` | `Completed PR template` | `devops/quality-gates.md:50` | Untracked when seeded. Closing this does NOT close B101 |
-| B101 | ABSENT | - | - | `devops/development-workflow.md:248` | The template's checklist is the author's self-check, not the reviewer checklist |
+| B101 | MET | `docs/CODE-REVIEW-CHECKLIST.md:3` | `Reviewers must verify` | `devops/development-workflow.md:248` | The PR template's checklist is the AUTHOR's self-check (B100); this is the reviewer's. Kept out of the template deliberately. The rows of the standard with no subject here are listed with reasons rather than dropped |
 | B102 | MET | `CONTRIBUTING.md:64` | `Squash merge` | `devops/development-workflow.md:192` | Untracked when seeded. Enforcement is branch protection, which is out of tree |
 | B103 | SUPERSEDED | `docs/DESIGN.md:1484` | `not written yet, deliberately` | `documentation/readme-standard.md:32-35` | Same disposition as B77 |
 | B104 | MET | `CONTRIBUTING.md:3` | `readme-standard.md:56` | `documentation/readme-standard.md:56` | Untracked when seeded |

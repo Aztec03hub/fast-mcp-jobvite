@@ -63,6 +63,18 @@ Refs: EC-###
 - At least **1 approval** (`development-workflow.md:73`), all CI green, no unresolved threads.
 - **Squash merge** (`development-workflow.md:82 (B102; enforcement is branch protection, out of tree: B98)`). Delete the branch after merge.
 
+## Reviewing someone else's pull request
+
+**The reviewer checklist is `docs/CODE-REVIEW-CHECKLIST.md`** (`development-workflow.md:248`,
+B101), and it is a different obligation from the template above: the template's `## Checklist` is
+the *author's* self-check, which is not a review of anything.
+
+- **Every finding ships with a suggested fix**, at every severity including nits. A finding without
+  a remedy costs the author the whole diagnosis a second time.
+- **A row you cannot verify is not a row you tick.** Say so in the review instead.
+- The checklist names the rows of the standard that have **no subject in this repository** and why,
+  rather than dropping them - so a missing row means "considered", never "overlooked".
+
 ## The gates, and how to run them before you push
 
 CI runs these; run them locally first, because CI is slower than you are.

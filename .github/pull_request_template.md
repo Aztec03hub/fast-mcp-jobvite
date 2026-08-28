@@ -1,6 +1,6 @@
 <!--
 F-7. Body copied VERBATIM from devops/development-workflow.md:201-241, which
-mandates it. quality-gates.md:50 (B100 - and this does NOT close B101, the reviewer checklist) gates PR creation on "Completed PR template",
+mandates it. quality-gates.md:50 (B100) gates PR creation on "Completed PR template",
 so the artifact itself is the obligation. COMPLIANCE-SPEC.md:320 marks the
 CONTENT [STD] REQUIRED and the PATH [REC] - .github/pull_request_template.md is
 the GitHub convention, not a standards requirement.
@@ -12,6 +12,12 @@ and both already carry "if applicable". Tick them N/A.
 
 Only the "Related Issues" section is extended, for the `Refs:` trailer that
 ruling C3 requires on every commit.
+
+The checklist below is the AUTHOR's self-check (development-workflow.md:201-241).
+The REVIEWER's checklist is a different obligation - :248, tracked as B101 - and
+it lives in docs/CODE-REVIEW-CHECKLIST.md, deliberately NOT in this file: fifty
+reviewer rows in the PR template put them in front of the one person whose
+ticking them proves nothing.
 -->
 
 ## Summary
