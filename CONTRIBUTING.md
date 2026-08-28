@@ -80,12 +80,36 @@ the *author's* self-check, which is not a review of anything.
 CI runs these; run them locally first, because CI is slower than you are.
 
 ```bash
+# The `test` job
+uv sync --frozen                       # install from the lock, never resolve
+uv lock --check                        # the lock still agrees with pyproject.toml
 uv run --frozen ruff check .           # lint
 uv run --frozen ruff format --check .  # format
 uv run --frozen mypy                   # types
-uv run --frozen pytest                 # the default offline suite
-uv lock --check                        # the lock still agrees with pyproject.toml
+uv run --frozen pytest                 # the default offline suite, zero skips
+bash scripts/check-u0-test-controls.sh # U0's controls, all must fire
+bash scripts/check-u15-gate-controls.sh
+python3 scripts/check-committed-file-types.py --all
+
+# The `design-gates` job
+python3 docs/reviews/check-coupling.py docs/DESIGN.md
+python3 docs/reviews/check-coupling-controls.py
+python3 docs/reviews/check-coupling-sweep.py
+python3 docs/reviews/check-obligations.py
+python3 docs/reviews/check-obligations.py --controls
+python3 docs/reviews/check-plan-measurements.py
 ```
+
+**`mypy` is the type gate, not `pyright`.** `pyright` may be on your PATH; it is not declared in
+`pyproject.toml`, is not what CI runs, and `backend/python.md:370` names mypy. Running it proves
+nothing about whether this repository is green, and `uv run --frozen pyright` would resolve a tool
+outside the frozen lock - the defect ADR-0015 records for `pip-licenses`.
+
+**This list was five commands until 2026-08-28 and CI ran fifteen.** A contributor who ran the
+documented five got a clean result and a red build, which is exactly what happened: a new test that
+walked `.github/workflows/` broke `check-u0-test-controls.sh`, whose COPY list omitted `.github`,
+and the author did not run it because it was not on this list. **If you add a step to `ci.yml`, add
+it here in the same commit.**
 
 Three things about the test suite that will otherwise surprise you:
 
