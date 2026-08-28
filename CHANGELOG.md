@@ -14,6 +14,17 @@ decisions and research that the implementation will be built against.
 
 ### Added
 
+- A disposal of the no-ambient-authority requirement, which two binding standards state and which
+  no B-number, sweep verdict or ADR had ever covered. `get_candidate` resolves a record from a
+  model-supplied id; that is not ambient authority here because one API key and one company id per
+  deployment leave no caller-scoped record set to discriminate on. Stated as a property of our
+  deployment model rather than of Jobvite, whose permission model we have never seen, and carrying
+  an expiry: per-user or multi-tenant scoping makes the clause live again. (2026-08-28 02:09 PM CDT)
+- `docs/CREDENTIAL-CHECKLIST.md` row 0, asked of a human before a key is issued rather than
+  observed against the API afterwards: does Jobvite issue a read-only key at all, and request one
+  for every deployment running with writes disabled. If the answer is no, the exposure is
+  undiminished and that is recorded rather than left as an unticked box. (2026-08-28 02:09 PM CDT)
+
 - Threat model as `DESIGN.md` §11, required by `architecture/threat-modeling.md`, which four of
   its six triggers reach. Ten assets, seven trust boundaries, sixty STRIDE rows across nine
   components, and residual risks, every rated row checked against the standard's own matrix.
@@ -130,6 +141,18 @@ decisions and research that the implementation will be built against.
   (2026-08-27 02:45 PM CDT)
 
 ### Fixed
+
+- Threat-model bookkeeping in the design, three defects of one family. A prose count stated the
+  size of a table three times and was wrong all three times, most recently reading "Two" over an
+  emptied table in the section a reader consults to check the freeze condition; it is replaced by a
+  removal ledger, and no sentence in that section states a total for it. A rule forbidding totals
+  was itself false, since the section states totals elsewhere. And an exclusivity claim about the
+  one residual row rested on a single unrepeated adjective. (2026-08-28 02:09 PM CDT)
+- The read-only-key requirement was said to be stated "in the README's deployment section", present
+  tense, in a repository that has no README and whose design deliberately withholds one until an
+  implementation exists. The requirement is stated today in the credential checklist; the README
+  arm is gated on the file's presence rather than skipped, because a skip is a green that tested
+  nothing. (2026-08-28 02:09 PM CDT)
 
 - Two upstream FastMCP defects found by our runtime spikes and reported to the project:
   [#4926](https://github.com/PrefectHQ/fastmcp/issues/4926), a regression where
