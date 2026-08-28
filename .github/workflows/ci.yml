@@ -317,8 +317,13 @@ jobs:
 
       # NEVER EXECUTED. Full history is the point; --only-verified keeps it from
       # drowning the gate in unverifiable candidates.
+      # Pinned to a release tag, NOT @main. The standards corpus fixed this exact
+      # defect in itself - devops/log.md:31, "fix(F-078): pin Trivy and TruffleHog
+      # actions to release tags" - and ci-cd.md:552 carries the sanctioned pin. An
+      # action on a branch tip is arbitrary third-party code re-fetched every run,
+      # in the step whose whole job is finding secrets.
       - name: Secret scan
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.88.0
         with:
           extra_args: --only-verified
 
