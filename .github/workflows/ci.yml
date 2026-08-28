@@ -114,6 +114,78 @@ jobs:
           printf '%s\n' "$out" | grep -q 'post-run re-check of the real DESIGN.md: exit=0' || {
             echo "::error::the harness did not leave DESIGN.md green"; exit 1; }
 
+      # The obligations map, wired. It was built to stop obligations decaying and
+      # then run only by hand for two days, which makes it exactly the thing it
+      # exists to prevent: a control nothing enforces. Round 7 found it unwired.
+      # This is the SECOND time on this repository - the file-type gate's `--all`
+      # mode had no CI step either, one artifact earlier - so the lesson is not
+      # "remember to wire it" but "a control that is not wired is not a control".
+      #
+      # Its anchors point into pyproject.toml, ci.yml, .env.example and
+      # CONTRIBUTING.md, which U1, U5, U11, U13 and U15 all edit. It decays the
+      # moment those units land, which is precisely why a hand-run green was
+      # never a gate.
+      - name: Obligation anchors still resolve to their subjects
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-obligations.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::an obligation anchor no longer contains its subject"; exit 1
+          fi
+          # Selector control: the script treats parsing zero rows as a failure,
+          # but assert the population is non-empty here too rather than trusting
+          # a green whose sample size nothing states.
+          printf '%s\n' "$out" | grep -qE 'Mappings: [1-9][0-9]*' || {
+            echo "::error::the checker parsed no mappings; its green means nothing"; exit 1; }
+
+      # And its own controls arm, because the checker is itself a measuring
+      # instrument and nothing else measures it. Round 7 recorded that it had run
+      # only the default arm - a gate whose controls nobody runs is the same
+      # class of green as a gate nobody wired.
+      - name: Obligation checker controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-obligations.py --controls 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::the obligations controls harness exited $rc"; exit 1
+          fi
+          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
+          if [ -z "$line" ]; then
+            echo "::error::no 'N/M controls fired.' line; the harness proved nothing"; exit 1
+          fi
+          fired=${line%%/*}
+          rest=${line#*/}; total=${rest%% *}
+          echo "parsed: $fired fired of $total held"
+          if [ "$total" -eq 0 ] || [ "$fired" -ne "$total" ]; then
+            echo "::error::$fired of $total controls fired; every control must fire"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'post-run re-check of the real OBLIGATIONS.md: exit=0' || {
+            echo "::error::the harness did not leave OBLIGATIONS.md green"; exit 1; }
+
+      # The plan's own measurements, re-run rather than re-read. Four decisions
+      # in IMPLEMENTATION-PLAN.md rest on probes run once by hand and written up
+      # in prose, and prose about a measurement decays into a CLAIM about one -
+      # the next reader inherits the conclusion without the evidence. Rounds 6
+      # and 7 each re-ran some by hand and reproduced them, which is the right
+      # instinct and the wrong mechanism: it does not scale past the reviewer who
+      # happened to think of it.
+      #
+      # Every probe is two-armed. M4 is expected OPEN - it is collision 11, and
+      # U5 is scheduled to create exactly the file it describes - so the script
+      # exits 0 with M4 listed rather than failing on a known-open item.
+      - name: Plan measurements still reproduce
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-plan-measurements.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::a measurement the plan rests a decision on no longer holds"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -qE 'Re-running [1-9][0-9]* plan measurements' || {
+            echo "::error::the harness ran no probes; its green means nothing"; exit 1; }
+
       # Likewise: the property is "0 escapes are holes", not a count of rows.
       - name: Coupling mutation sweep, no holes
         run: |
