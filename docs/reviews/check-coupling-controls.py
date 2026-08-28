@@ -278,6 +278,33 @@ CONTROLS = [
     ("21 GATE-1 GATING IS PER-FILE: a nonexistent file borrows another arm's gate",
      lambda t: t.replace("`CREDENTIAL-CHECKLIST.md`", "`NO-SUCH-FILE.md`"),
      "'NO-SUCH-FILE.md' is not in the repository"),
+
+    # --- GATE-2: every §8 case names its owner.
+    #
+    # The resolution check runs ONE direction, §11 row -> §8 case, so a case no row names is an
+    # orphan and deleting it is invisible. Seven of 25 cases were orphans. Most legitimately serve a
+    # conformance OBLIGATION rather than a threat row, and requiring a row for those would invent
+    # threats to satisfy a checker - so the bar is "a row names it, or it cites who requires it".
+    #
+    # This does NOT make deletion visible, and the design says so. It stops a case's justification
+    # being stripped while the case stays put, which is the failure that leaves a test nobody can
+    # explain and the next reader deletes.
+    ("22 GATE-2: a case's owner citation stripped, leaving a bare unattributed test",
+     lambda t: t.replace(
+         "- **a 4xx not tripping the circuit breaker** - §4.3 states it and "
+         "`backend/resilience.md:166-168` (B37) requires it: a bad candidate id is the caller's "
+         "error, not an outage, and a breaker that counts it takes the server down on a caller's "
+         "typo;",
+         "- a 4xx not tripping the circuit breaker;"),
+     "has no owner"),
+
+    # 23 is the SELECTOR's control, same reasoning as 19: if the §8 parse yields nothing this check
+    # examines nothing and passes.
+    ("23 GATE-2 SELECTOR: §8's required-case list emptied",
+     lambda t: t[:t.index("Required cases")]
+               + "Required cases, each failing if its defence is removed:\n\n"
+               + t[t.index("Transport substitution"):],
+     "examining nothing"),
 ]
 
 

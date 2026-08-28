@@ -1,8 +1,23 @@
 # fast-mcp-jobvite - Implementation Plan
 
-Status: **DRAFT 1.** Not reviewed. Written against `docs/DESIGN.md` revision 5 (last updated
-2026-08-28 02:01 PM CDT), which has no open Critical, High or Medium findings and an empty
-must-mitigate table (`DESIGN.md:1714`).
+Status: **DRAFT 2.** Not reviewed. Written against `docs/DESIGN.md` at commit **`9d65cc0`** (last
+updated 2026-08-28 02:21 PM CDT), which has no open Critical, High or Medium findings and an empty
+must-mitigate table (`DESIGN.md:1740`).
+
+**What draft 2 changed.** `9d65cc0` answered three of draft 1's four questions, and every line
+number in this document was re-resolved against it rather than carried forward. Q1 named the two
+missing configuration settings, unblocking U1. Q2 made the §7.4 shutdown requirement a §8 case,
+taking the list from 24 to **25** - re-derived mechanically below, not incremented. Q4 sanctioned
+the inline-breaker fallback, unblocking U7's library choice. Q3 stands unanswered by design, which
+is the correct outcome and not a gap. One residual on Q2 is measured and recorded at
+[Q2](#q2---answered-with-one-measured-residual).
+
+**Every `DESIGN.md:<line>` citation here resolves against the `9d65cc0` git object**, checked
+mechanically rather than against the working tree, because the tree was being edited by a
+concurrent delta review while this draft was written. All 84 distinct cites land on non-blank
+content at that commit. **Sixteen of them - every cite at or after `:1377` - already differ in the
+uncommitted tree**, shifted by an insert in §10's CI paragraph. Whoever lands that work should
+expect the §10, §10.1 and §11 cites below to need a repoint; the §2-§8 cites are unaffected.
 
 **The design is authority.** Nothing here changes it. Where I believe the design is wrong or
 incomplete, it is recorded in [§9 Questions for the design](#9-questions-for-the-design) and
@@ -18,33 +33,44 @@ It contains no code. It does not estimate effort or duration.
 
 **`src/` and `tests/` are empty. Zero files.** Everything below is greenfield.
 
-**There is no CI.** `.github/workflows/` contains exactly one file, `mirror.yml`, which pushes to
-the mirror remote. **The brief I was given states that the gate scripts in `docs/reviews/` already
-run in CI. They do not - no workflow invokes them.** `DESIGN.md:1362` says *"CI runs `python3
-docs/reviews/check-coupling.py docs/DESIGN.md"*, which is a statement of what CI must do, not a
-record of what it does. I ran the gate by hand against the current document:
+**There is no CI, and the design now says so once, plainly.** `.github/workflows/` contains exactly
+one file, `mirror.yml`, which pushes to the mirror remote. Draft 1 reported this against a design
+that used the present tense; `DESIGN.md:1369-1375` now states that **every "CI runs" sentence in
+that document is a specification of what the pipeline must do, not a report of what it does**, and
+that standing the pipeline up is the first unit of implementation. `:1377` reads *"CI **must** run"*
+accordingly.
+
+I ran all three gates by hand against `9d65cc0`:
 
 ```
-docs/DESIGN.md: 60 STRIDE rows, 17 Critical/High (16 mitigated by the roster's reckoning, 1 not);
-all 60 rows checked for disposition, 23 naming a §8 case.
-PASS: ...
-exit=0
+check-coupling.py     exit 0   60 STRIDE rows, 17 Critical/High, 23 naming a §8 case
+check-coupling-controls.py     32/32 controls fired; post-run re-check exit=0
+check-coupling-sweep.py        0 escapes are holes; all 23 rows lose their green when
+                               their §8 reference is removed
 ```
 
-So the gate passes today and has never been enforced by a machine. **Standing it up is part of
-U0**, and from U0 onward "the gate keeps passing" is a real constraint rather than an aspiration.
-The two harnesses beside it - `check-coupling-controls.py` (21 hand-written mutations) and
-`check-coupling-sweep.py` (the subject-free sweep that found 19 escapes the controls missed) -
-are what prove the gate can fail, and both must run in CI too, or the gate is a checker that has
-only ever passed, which its own docstring names as the failure it exists to avoid.
+**The controls harness holds 32 mutations, not the 21 its own docstring still describes** - it grew
+after that docstring was written. The plan cites the number I measured by running it, not the one
+the file narrates.
+
+**Standing CI up is U0's first act**, before any other work in that unit. From that point "the
+gates keep passing" is a machine constraint rather than a habit. All three must run there: the gate
+alone is a checker that has only ever passed, which its own docstring names as the failure it
+exists to avoid, and the sweep is what proves it can fail without choosing its own subject.
 
 ---
 
 ## 1. The count that governs the test plan
 
-§8's required-cases list holds **24 bullets** (`DESIGN.md:1174` through `:1253`), not "about 25".
-I enumerated them mechanically rather than by eye. Several are multi-arm and are **not satisfiable
-by a single arm**, which the list says in its own text:
+§8's required-cases list holds **25 bullets**, spanning `DESIGN.md:1174` through `:1260`. I
+re-derived this mechanically against `9d65cc0` - extracting every top-level bullet between the
+*"Required cases"* header and the *"Transport substitution uses"* paragraph - rather than
+incrementing draft 1's 24, because a hand-carried count is the defect this project has spent the
+day repairing. The new member is **#18**, the SIGTERM teardown case Q2 added; everything below it
+shifted by one.
+
+Several cases are multi-arm and are **not satisfiable by a single arm**, which the list says in its
+own text:
 
 | # | §8 line | Case | Arms it explicitly requires |
 |---|---|---|---|
@@ -65,22 +91,26 @@ by a single arm**, which the list says in its own text:
 | 15 | `:1227` | an expired advisory-ignore entry fails the audit gate | **+ positive control**: an unexpired entry is honoured |
 | 16 | `:1231` | `request_id` present on every result, success and error | **four arms**: successful read, successful write, audit-failure warning branch, error. Each **on the wire result**, not on `ToolResult` |
 | 17 | `:1238` | trace context recorded when supplied, absent when not | **two arms, both required** |
-| 18 | `:1243` | untrusted-content fencing, including content closing its own fence | - |
-| 19 | `:1244` | unknown non-string field dropped, not stringified | - |
-| 20 | `:1245` | `create_candidate` not retrying on timeout | - |
-| 21 | `:1246` | approval: deny, accept-carrying-false, no-handler, second leg consumes `input_responses` | **four arms** |
-| 22 | `:1248` | a 4xx not tripping the circuit breaker | - |
-| 23 | `:1249` | the `eId`/`EId` casing asymmetry pinned | - |
-| 24 | `:1250` | approval on **both eras** | asserts **row count unchanged**, not error shape |
+| 18 | `:1243` | **lifespan teardown runs on SIGTERM, on both transports** | asserts **the teardown side effect**, not the exit code - a process that dies uncleanly can still exit 0 |
+| 19 | `:1250` | untrusted-content fencing, including content closing its own fence | - |
+| 20 | `:1251` | unknown non-string field dropped, not stringified | - |
+| 21 | `:1252` | `create_candidate` not retrying on timeout | - |
+| 22 | `:1253` | approval: deny, accept-carrying-false, no-handler, second leg consumes `input_responses` | **four arms** |
+| 23 | `:1255` | a 4xx not tripping the circuit breaker | - |
+| 24 | `:1256` | the `eId`/`EId` casing asymmetry pinned | - |
+| 25 | `:1257` | approval on **both eras** | asserts **row count unchanged**, not error shape |
 
-Plus the blanket rule at `DESIGN.md:1266-1267`: **every refusal-path test is paired with a positive
-control showing the happy path still succeeds.** That applies to #1, #7, #8, #9, #10, #12, #15, #20,
-#21, #22 and #24, not only where the bullet says so.
+Plus the blanket rule at `DESIGN.md:1273-1274`: **every refusal-path test is paired with a positive
+control showing the happy path still succeeds.** That applies to #1, #7, #8, #9, #10, #12, #15,
+#21, #22, #23 and #25, not only where the bullet says so.
 
-**One required test lives outside this list.** `DESIGN.md:947-950` states the SIGTERM/exit test as
-*"a requirement rather than a suggestion"*, on both transports, asserting both the teardown marker
-and that the process exited. It is not a §8 bullet and no §11 row names it, so `check-coupling.py`
-cannot see it. It is scheduled in **U1** regardless, and the coupling gap is [Q2](#q2).
+**Case #18 replaces draft 1's out-of-band note, and the assertion changed shape.** Draft 1 flagged
+the §7.4 shutdown requirement as a required test living outside §8. It is now bullet #18. But it
+does not assert what draft 1 scheduled: §7.4's prose asks for the teardown marker **and** that the
+process exited, while `:1243-1249` asserts **the teardown side effect and deliberately not the exit
+code**, because a process that dies uncleanly can still exit 0. **U1 follows the case, not the older
+prose and not draft 1.** One residual on the machine-gate half of Q2 is measured at
+[Q2](#q2---answered-with-one-measured-residual).
 
 ### Fixture tiers
 
@@ -100,7 +130,7 @@ cannot see it. It is scheduled in **U1** regardless, and the coupling gap is [Q2
   `jobfeed_success.json`, `jobfeed_empty.json`, `candidate_list_injection.json`. **Hypotheses in
   JSON.**
 
-**The sentence at `DESIGN.md:1168-1169` goes in the test module's own docstring, verbatim in
+**The sentence at `DESIGN.md:1168-1170` goes in the test module's own docstring, verbatim in
 substance:** a suite passing only against synthetic fixtures proves the client is self-consistent,
 not that it speaks Jobvite.
 
@@ -127,6 +157,10 @@ verified**. No unit is verified by "it compiles".
 
 ### U0 - Repository skeleton, pinned manifest, test selection, CI
 
+**Its first act is standing up CI**, because nothing runs there today (`DESIGN.md:1369-1375`) and
+every gate below is hand-run until it does. Until the workflow exists, no other unit's verification
+means anything durable - it means someone ran something once.
+
 **Builds.** `pyproject.toml` with the verbatim three-pin block and `prerelease = "explicit"`
 (`DESIGN.md:1312-1321`); `uv.lock` committed; `[tool.pytest.ini_options]` with
 `addopts` carrying `--strict-markers`, the declared `markers` list including the
@@ -140,7 +174,7 @@ docs/DESIGN.md`; `check-coupling-controls.py`; `check-coupling-sweep.py`; `pip-a
 `scripts/check_advisories.py` (U11); CodeQL; TruffleHog with full history depth; SBOM in both
 formats from the **frozen** resolve; `pip-licenses` allow-list; `fastmcp inspect` emitted and
 diffed between builds. Pre-commit: secret scanning and the committed-file-type gate
-(`DESIGN.md:1495-1505`).
+(`DESIGN.md:1521-1531`).
 
 **Depends on.** Nothing.
 
@@ -154,10 +188,13 @@ at all, and all three fail if their defence is removed:
 - #3: assert against the committed `.gitignore` (currently covers `.env`, `.env.*`, `*.key`,
   `*.pem`, `secrets/`) and that every value in `.env.example` is empty.
 
-Plus: the coupling gate exits 0, the controls harness reports all 21 controls firing, and the sweep
-reports only the designed Medium/Low exemptions.
+Plus, all three now running in CI rather than by hand: the coupling gate exits 0, the controls
+harness reports **32/32** controls firing, and the sweep reports **0 escapes are holes**. Those are
+the numbers I measured against `9d65cc0`, not the 21 the controls file's own docstring still
+narrates - it grew after that docstring was written, which is itself a small instance of the
+stale-count defect this repository keeps correcting.
 
-**Note.** `DESIGN.md:1306-1310` records that the three-pin block was resolved on its own and holds
+**Note.** `DESIGN.md:1312-1316` records that the three-pin block was resolved on its own and holds
 `pydantic` at a stable 2.13.4. Reproduce that resolve; if it does not reproduce, that is a finding
 about the ecosystem, not a licence to unpin.
 
@@ -181,10 +218,13 @@ import lifespan` with `|` composition); the off-loopback TLS refusal of `:752-75
 - §8 **#10**: off-loopback bind, no certificates, `JOBVITE_TLS_TERMINATED_BY_PROXY` undeclared -
   the process **exits naming the reason**. Positive control: loopback bind starts; off-loopback
   with the assertion declared starts. Three High rows (C1-S1, C1-T1, C1-I1) rest on this refusal.
-- **The §7.4 shutdown test, both halves on both transports** (`DESIGN.md:947-950`): a teardown
-  marker was written **and** the process exited within the grace period, with the interpreter PID
-  resolved via `/proc/<pid>/cmdline` rather than a wrapper. **Only the stdio arm catches the exit
-  failure**; the HTTP arm passes on teardown alone.
+- §8 **#18**, on **both transports** (`DESIGN.md:1243-1249`): lifespan teardown runs on SIGTERM,
+  asserted by **observing the teardown side effect** - the resource the lifespan opened is released
+  - and **not** by the exit code, since a process that dies uncleanly can still exit 0. Where the
+  test does resolve a PID (the stdio arm, whose distinctive failure is that the process survives
+  teardown entirely, `DESIGN.md:913-915`), resolve the interpreter via `/proc/<pid>/cmdline` rather
+  than a wrapper. **Only the stdio arm exercises the `os._exit(0)` half**; the HTTP arm passes on
+  teardown alone, which is precisely why a single-transport test would have shipped this bug.
 - Config fail-fast: per-tool required-variable matrix asserted row by row, including the negative -
   a deployment enabling only `search_candidates` must **not** be forced to supply
   `JOBVITE_COMPANY_ID`.
@@ -196,12 +236,24 @@ handler-plus-`os._exit` snippet **has never been run end to end on HTTP**, and *
 simulated**. The test above is what closes both, and until it runs green the plan carries them as
 open. §12 item 5 additionally records that shutdown depends on a uvicorn implementation detail.
 
-**Blocked on a design decision.** See [Q1](#q1): §7.7's result cap and §4.4's outbound rate limit
-are specified as configuration and **have no name and no default** (B15, `DESIGN.md:1448-1452`).
-`config.py` cannot enumerate the settings without them, and `.env.example` is specified as the
-single enumeration everything else is checked against. U1 can ship without them only if the two
-settings are deferred to the units that consume them (U6/U7), and `.env.example` then knowingly
-remains incomplete, which the design already says it is.
+**Unblocked by `9d65cc0` - draft 1 had this unit stalled.** `DESIGN.md:1463-1478` now names both
+settings, and both are in `.env.example`, so `config.py` can enumerate the full set:
+
+| Variable | Default | What the plan may say about it |
+|---|---|---|
+| `JOBVITE_MAX_RESULTS` | **50** | Not arbitrary. 50 is the figure already in the caller-facing string `showing 50 of 1,240` used by §4.5 and C3-I1, so any other value would make two parts of the document disagree about a number a caller reads |
+| `JOBVITE_OUTBOUND_RATE_LIMIT` | **6** per minute | **A conservative guess, not a vendor figure.** Jobvite documents no numeric limit at all - its only stated envelope is prose. **Checklist row 9 is what replaces this with an observation** |
+
+**Neither default is verified, and the plan does not describe them as such.** `DESIGN.md:1478-1479`
+says it directly: what B15 closed is the *blocking* half - the names exist and the template is
+complete - and **whether either default is right remains open and only a live tenant can settle
+it.** U6 and U7 restate this at the point they consume the values.
+
+**And the threat-model rows did not move.** C3-I1 (`DESIGN.md:1640`) and C6-D1 (`:1683`) still read
+`unmitigated (B15)`, and both are still on the mitigate-before-production-release list (`:1775`).
+Naming a variable is not mitigating the row. An implementer who reads `.env.example`, finds a
+default, and treats C3-I1 as closed would be making exactly the substitution this design keeps
+catching - so the plan carries both rows as open into production-release readiness.
 
 ---
 
@@ -245,7 +297,7 @@ from `ctx.request_context.meta`, and implements the three-branch audit-write-fai
 
 **Verified by.**
 
-- §8 **#4** (positive) and **#5** (absence), **as a pair** - `DESIGN.md:1183-1185` requires them
+- §8 **#4** (positive) and **#5** (absence), **as a pair** - `DESIGN.md:1183-1186` requires them
   paired so neither can be satisfied by silence. #5 asserts against the event #4 proves exists.
 - §8 **#2**: a secret never reaches a log record, **including the whole `jobFeed` URL**; `sc=`
   redacted at the one enforcement point.
@@ -329,7 +381,7 @@ second-riskiest unit early (see [§6](#6-the-riskiest-unit)). Job fields take an
   `/problems/external-service-error` **502** with `is_error=True`.
 - §8 **#16**, read arm: `request_id` present **on the wire result**, under the namespaced key,
   matched against the audit event's own id, **and** the structured content still validates against
-  the output model. `DESIGN.md:1236-1237` is explicit that asserting on the `ToolResult` object
+  the output model. `DESIGN.md:1236-1238` is explicit that asserting on the `ToolResult` object
   would pass while the wire carried nothing.
 - The result cap fires and reports `showing N of total` rather than truncating.
 - Every field on the job model has a fencing decision; deleting a decision fails the suite.
@@ -362,9 +414,16 @@ configured separately with `JOBVITE_PAGINATION_START_BASE` as an override, and
 - The structural assertion that `start=0` is accepted and returns records
   (`JOBVITE-API.md:399`).
 
+**The result cap is now named:** `JOBVITE_MAX_RESULTS`, default **50** (`DESIGN.md:1466-1469`), and
+it is the configured half of `min(transport_cap, configured_result_cap)`. 50 was chosen to agree
+with the `showing 50 of 1,240` string a caller already reads, which makes it internally consistent
+and **not** a measurement of anything.
+
 **Inherited ceiling.** Whether `start` is 0- or 1-based is unresolved as a fact about Jobvite
 (§12 item 2), and whether 500 is a real server limit is unobserved. Checklist rows 2 and 3 settle
-both. The plan ships the design's base-agnostic scan and does **not** treat either as established.
+both. **C3-I1 and C6-D1 remain `unmitigated (B15)`** in the threat model even now the variable has
+a name (`DESIGN.md:1640`, `:1683`), because what closed was the naming, not the exposure. The plan
+ships the design's base-agnostic scan and does **not** treat any of these as established.
 
 ---
 
@@ -384,7 +443,7 @@ distinguished by `detail` plus a `retry_after` hint; a `429` retried then mapped
 **Verified by.**
 
 - §8 **#13**, the concurrent arm: **two invocations driven in parallel**, each forced to retry, each
-  log line matched to the invocation that produced it. `DESIGN.md:1216-1217` states that a
+  log line matched to the invocation that produced it. `DESIGN.md:1216-1218` states that a
   single-call version passes against a module global, which is the bug `request_id_var` exists to
   prevent - **so the concurrent arm is the case and a single call does not satisfy it.** The same
   case asserts **no URL** appears in a retry line.
@@ -395,23 +454,31 @@ distinguished by `detail` plus a `retry_after` hint; a `429` retried then mapped
   control, not by inspecting configuration - the spike measured one call producing **four rows**
   (`DESIGN.md:326`), so the assertion is the row count.
 - The total outbound budget bounds a slow upstream into a typed 503 rather than an unbounded wait.
+- The self-throttle honours `JOBVITE_OUTBOUND_RATE_LIMIT`, default **6 requests per minute**
+  (`DESIGN.md:1470-1477`). **Say what it is at the point it is used: a conservative guess, not a
+  vendor figure.** Jobvite documents no numeric limit at all, only the prose envelope *call it on an
+  as-needed basis, and anything more frequent than once a day must be filtered*. **Checklist row 9
+  is what replaces the guess with an observation**, and row 9 carries its own safety condition -
+  run it last, stop at the first `429`, never confirm a limit by exceeding it repeatedly. The README
+  states the vendor envelope, because a user syncing hourly is outside what Jobvite documents.
 
-**The library constraint that shapes this unit.** `DESIGN.md:581` requires the breaker to
-**evaluate transitions on the call path, not from a background timer**: a ContextVar is per-Task,
-so a half-open expiry fired by a timer task has no `request_id_var` set, would log `None`, and
-**would fail §8 #13**. Several Python breaker libraries do exactly that, and **no library is
-selected yet (B47)**. Selecting one is in scope here; the selection criterion is that constraint,
-and it is a rejection test, not a preference.
+**The library constraint that shapes this unit, and the fallback the design now sanctions.**
+`DESIGN.md:581` requires the breaker to **evaluate transitions on the call path, not from a
+background timer**: a ContextVar is per-Task, so a half-open expiry fired by a timer task has no
+`request_id_var` set, would log `None`, and **would fail §8 #13**. Several Python breaker libraries
+do exactly that, and **no library is selected yet (B47)**.
 
-**Recommendation, where the design leaves a real choice.** Evaluate candidate libraries against the
-timer constraint first, and if none passes, **write the breaker inline in
-`services/jobvite_client.py`** rather than adopt one and patch around its timer. A breaker is a
-counter, a threshold, a timestamp and three states; the design already fixes all four. That keeps
-the dependency count at the three pinned packages plus `tenacity`, `loguru`, `defusedxml` and
-`pydantic-settings`, and avoids a dependency whose behaviour we would have to constrain in exactly
-the way `DESIGN.md:1126-1129` warns about - *on this framework a middleware's default is not a safe
-starting point*, generalised. **This is a recommendation, not a decision the plan may make alone**
-if it implies a dependency addition needing review.
+**`9d65cc0` answered draft 1's Q4, so this is no longer the plan's recommendation - it is the
+design's decision.** `:581` now reads: *"If no library satisfies it, an inline breaker in
+`services/jobvite_client.py` is the sanctioned fallback"* - a counter, a state and a timestamp
+checked on entry - because *"adopting a library and then constraining its scheduler is the worse
+trade, because the constraint would live in our code while the behaviour lived in theirs"*, and it
+is stated there so the answer is not decided by whoever happens to implement it.
+
+So the procedure here is fixed: **survey candidate libraries against the timer constraint, which is
+a rejection test rather than a preference; if none passes, write it inline.** No dependency-addition
+review is needed for the inline path, which is the point of the answer. If a library *does* pass,
+adopting it is still a dependency addition and follows the normal route.
 
 **Inherited limit.** The circuit breaker is one of the two mechanisms `DESIGN.md:44-47` names as
 **never executed** and sitting among measured results, borrowing their credibility. It is
@@ -531,7 +598,7 @@ evaluated and **cannot be built** because nothing establishes Jobvite accepts on
 
 ### U11 - `scripts/check_advisories.py`
 
-**Builds.** The file `DESIGN.md:1401-1408` names as **the advisory-expiry owner** and which does not
+**Builds.** The file `DESIGN.md:1416-1422` names as **the advisory-expiry owner** and which does not
 exist. It reads the ignore table from `pyproject.toml`, **emits the `--ignore-vuln` flags
 `pip-audit` actually takes** - the tool has no expiry concept and no `pyproject.toml` ignore section
 of its own - and **exits non-zero on any expired entry**. The table is the single source for both
@@ -546,7 +613,7 @@ control showing an unexpired entry is **honoured** and its flag emitted. Additio
 with no expiry is rejected; an expiry more than 30 days out is rejected; a blanket ignore is
 rejected.
 
-**The policy this enforces is four ordered steps** (`DESIGN.md:1390-1410`) and step 1 -
+**The policy this enforces is four ordered steps** (`DESIGN.md:1405-1424`) and step 1 -
 reachability - is **human judgement written down, not a tool output**. The script owns steps 3 and
 4 only.
 
@@ -573,12 +640,12 @@ per-resource base configured.
 
 ### U13 - README and the documentation obligations
 
-**Builds.** The README, which `DESIGN.md:1416-1423` **deliberately withholds until now** because a
+**Builds.** The README, which `DESIGN.md:1434-1441` **deliberately withholds until now** because a
 README describing an unbuilt system is a false claim in the present tense. All fourteen sections
 with **headings matching exactly**; the Configuration table **checked against `.env.example`**
 rather than hand-maintained; an `mcp-name:` string **added before the first PyPI upload, not after**;
 the `com.evolvconsulting.fast-mcp-jobvite/requestId` key documented, since a caller cannot guess it
-and an id a caller cannot reach discharges nothing; the **six behaviours** of `:1458-1474`; the
+and an id a caller cannot reach discharges nothing; the **six behaviours** of `:1484-1500`; the
 read-only-key requirement in the deployment section; and a **credential-free Quickstart in full,
 exercised by CI on every merge** - install, start the server, list tools. `readme-standard.md:83`
 forbids a Quickstart step requiring credentials, so anything needing a Jobvite key belongs in
@@ -586,7 +653,7 @@ Configuration and Usage.
 
 **Depends on.** U1-U12.
 
-**Verified by.** §8 **#14**'s README arm goes **live** here - `DESIGN.md:1221-1223` requires it
+**Verified by.** §8 **#14**'s README arm goes **live** here - `DESIGN.md:1221-1224` requires it
 **gated on the file's presence rather than skipped**, because a skip is a green that tested nothing.
 Heading text asserted exactly; the Configuration table asserted equal to `.env.example`'s
 enumeration; CI runs the Quickstart commands.
@@ -726,7 +793,7 @@ inverts what I would otherwise do:
 5. **The credentialed suite is written as the units land, and never run.** Each tool unit adds its
    credentialed arm behind the declared marker. CI **collects** it (`--collect-only`) so an import
    error or renamed fixture surfaces immediately rather than on the day a key finally arrives
-   (`DESIGN.md:1156-1159`). Without this the excluded suite rots invisibly for the whole project.
+   (`DESIGN.md:1156-1160`). Without this the excluded suite rots invisibly for the whole project.
 
 Two things the constraint does **not** let us decide, which the plan therefore leaves open: the
 `start` base (checklist row 2) and whether 500 is a real page cap (row 3). Both ship as configured
@@ -747,9 +814,12 @@ compound in one unit:
    candidates.** `DESIGN.md:581` requires transitions to be evaluated **on the call path, not from a
    background timer**, because a ContextVar is per-Task and a timer-fired half-open expiry would log
    `request_id=None`. Several Python breaker libraries do exactly that. So the library choice is
-   made *by a test that does not exist yet*, against libraries nobody has surveyed.
+   made *by a test that does not exist yet*, against libraries nobody has surveyed. **`9d65cc0`
+   removed the worst branch of this** by sanctioning an inline breaker where nothing passes, so the
+   unit can no longer stall on the question - but the survey is still unrun and the mechanism is
+   still unexecuted, which is what keeps it first on this list.
 3. **A High that just came off the must-mitigate table depends on it.** C5-R1 left the table in
-   revision 5 (`DESIGN.md:1735`) on the strength of `request_id_var` plus retry and breaker
+   revision 5 (`DESIGN.md:1761`) on the strength of `request_id_var` plus retry and breaker
    logging. If the breaker cannot carry `request_id`, that row reopens - and it reopens *after* the
    design was declared settled.
 4. **Its required test is the hardest one in §8.** #13 demands two invocations in parallel, each
@@ -764,8 +834,8 @@ line matches its own task. It needs no Jobvite client, no tools, no server. It a
 questions cheaply: does a ContextVar survive the call path each candidate library uses, and does
 the test fail when the mechanism is swapped for a module global (the positive control that makes
 the test non-vacuous). **Run the library survey against that harness, not against the finished
-client.** If nothing passes, the inline-breaker recommendation in U7 is taken with evidence rather
-than as a preference.
+client.** If nothing passes, the design's sanctioned inline breaker (`DESIGN.md:581`) is taken with
+evidence behind it rather than by default - which is exactly what that answer exists to prevent.
 
 **Runner-up: the generated fencing paths** (`DESIGN.md:181-184`). Also unexecuted, also carrying
 Criticals (C6-S1, C6-I1), and it has a subtle failure mode - it must generate camelCase Jobvite
@@ -782,7 +852,7 @@ believe an implementer would otherwise guess:
 
 | Choice | Recommendation | Reasoning |
 |---|---|---|
-| Circuit-breaker library vs inline | **Inline in `services/jobvite_client.py`, if the survey finds no library evaluating transitions on the call path** | The constraint at `DESIGN.md:581` is a rejection test most libraries fail. A breaker is four pieces of state the design already specifies. Adding a dependency and then constraining its scheduler is more code and more risk than the thing it replaces. Decide **with** the U7 harness, not before it |
+| ~~Circuit-breaker library vs inline~~ | **Settled by the design in `9d65cc0`, no longer a plan recommendation** | `DESIGN.md:581` sanctions the inline breaker as the fallback where no library evaluates transitions on the call path. Run the survey against the U7 harness; take the inline path if nothing passes. Listed here struck through rather than deleted, because a reader of draft 1 will look for it |
 | How a model field carries its Jobvite path, for fencing-path generation | **A per-field alias or `json_schema_extra` entry naming the camelCase Jobvite path**, since aliases are needed for the casing normalisation anyway | `DESIGN.md:181-184` requires generation, not a second hand-kept list. Reusing the alias the model already needs means one source, which is the whole point of the clause |
 | Logging library | **`loguru`**, named in §3's module layout | Already fixed by the design; recorded here so nobody re-opens it |
 | Retry library | **`tenacity`**, named at `DESIGN.md:320` | Same |
@@ -815,70 +885,94 @@ Stated plainly, because an unstated omission reads as coverage.
 - **No plan for the twelve v2 resources we ship no tools for.** Checklist row 7 names that as the
   highest-yield expansion and it is out of scope.
 - **I did not verify that `uv lock` reproduces the 72-package resolve** recorded at
-  `DESIGN.md:1306-1310`. That is U0's first act, not this plan's.
-- **I did not re-run `check-coupling-controls.py` or `check-coupling-sweep.py`.** I ran
-  `check-coupling.py` only, which exits 0.
+  `DESIGN.md:1312-1316`. That is U0's, not this plan's.
+- **No breaker-library survey was run.** U7 names the rejection test; nobody has applied it to a
+  candidate list, so "several libraries fire transitions from a timer" is the design's claim carried
+  forward, not one I checked.
+
+**What draft 2 did verify, having been listed here as unverified in draft 1.** All three gates were
+run against `9d65cc0`: `check-coupling.py` exits 0, `check-coupling-controls.py` reports **32/32**
+controls firing with a clean post-run re-check, and `check-coupling-sweep.py` reports **0 escapes
+are holes**. I also ran the two-arm mutation behind [Q2](#q2---answered-with-one-measured-residual)
+rather than asserting it. Draft 1 parked these as unverified; they were cheap, and the unverified
+list is for what cannot be settled, not for what was not attempted.
 
 ---
 
 ## 9. Questions for the design
 
-Each of these needs a numbered ADR or a design edit. **None is worked around in the plan above**;
-each is named at the unit it blocks.
+Draft 1 raised four. **`9d65cc0` answered three**, and the answers are folded into the units above
+rather than restated as open items. This section now records each disposition, plus **one measured
+residual on Q2** that the answer did not reach.
 
-### Q1
+Nothing here is worked around in the plan. The design is one procedural step from freeze; after
+that, each of these needs a numbered ADR carrying a `Type:` field.
 
-**B15's two configuration settings have no name and no default, and `config.py` cannot be written
-without them.** `DESIGN.md:1448-1452` states it directly: §7.7's result cap and §4.4's outbound
-rate-limit setting *"are both specified as configuration and neither has a name or a default"*,
-and records their absence from `.env.example` as an open item. But `DESIGN.md:1431-1437` also makes
-`.env.example` **the single enumeration** the README's Configuration table is checked against, and
-§7.3 requires fail-fast validation of what each enabled tool needs. So U1 must either invent two
-variable names - which is a design decision the plan may not make - or ship an enumeration the
-design already calls incomplete.
+### Q1 - answered, U1 unblocked
 
-Both settings are also on the **mitigate-before-production-release** list as C3-I1 and C6-D1
-(`DESIGN.md:1749-1750`), where the Test column reads `unmitigated (B15)`. **The plan proceeds with
-the settings deferred to U6/U7 and `.env.example` knowingly incomplete**, which is the design's own
-current position - but a name and a default are needed before U13 can assert the table matches, and
-before production release either way.
+`JOBVITE_MAX_RESULTS` default **50** and `JOBVITE_OUTBOUND_RATE_LIMIT` default **6/min**, both in
+`.env.example` (`DESIGN.md:1463-1478`). U1 enumerates the full configuration set; U6 and U7 consume
+the values and each says at the point of use that **6/min is a conservative guess and not a vendor
+figure**, per `:1470-1477`.
 
-### Q2
+**Two things the plan carries forward rather than treating as closed.** `DESIGN.md:1478-1479` says
+what closed is B15's *blocking* half and that whether either default is right *"no amount of
+specification settles and only a live tenant can"*. And **C3-I1 and C6-D1 still read `unmitigated
+(B15)`** (`:1640`, `:1683`) and remain on the mitigate-before-production-release list (`:1775`).
+Naming a variable did not mitigate those rows, and this plan does not let an implementer read a
+default in `.env.example` and conclude otherwise.
 
-**The §7.4 shutdown test is a stated requirement that no gate can see.** `DESIGN.md:944` calls it
-*"a requirement rather than a suggestion"* and `:947-950` specifies both halves on both transports.
-It is **not** in §8's enumerated required-cases list and **no §11 row names it**, so
-`check-coupling.py` - whose whole purpose is coupling §11's mitigations to §8's cases - cannot fail
-if it is dropped. Three of the design's own stated verification gaps (the composed snippet never run
-end to end on HTTP, PID 1 never simulated, and §12 item 5's uvicorn dependency) close **only** on
-this test.
+### Q2 - answered, with one measured residual
 
-The plan schedules it in U1 regardless. The question is whether the design intends §8's list to be
-the complete set of required cases - in which case this one is missing from it - or whether required
-tests may live outside the list, in which case the gate's coverage claim is narrower than it reads.
+**Answered.** The §7.4 shutdown requirement is now §8 case **#18** (`DESIGN.md:1243-1249`), so it is
+required by the list this plan and any reviewer work from. It asserts the **teardown side effect**
+rather than the exit code, which is a better assertion than the one draft 1 scheduled - a process
+that dies uncleanly can still exit 0. U1 follows the case.
 
-### Q3
+**The residual, measured rather than asserted.** The dispatch note said the change gives the
+coupling gate purchase on it. **It does not, and I checked rather than trusting either of us.** Two
+arms against temp copies of `9d65cc0`'s `DESIGN.md`:
 
-**C8-R1, startup configuration logging, is `unmitigated` and its remedy interacts with ADR-0011.**
-`DESIGN.md:1678` says the remedy is to *"log the enabled tool set, the write flag and the TLS
-posture once at startup"* and records it as **"Not currently specified"**. It is on the
-mitigate-before-production-release list. ADR-0011 closes with *"Not a licence to add a fourth"*
-producer - which is about **per-invocation** producers, and a once-at-startup line is plainly not
-one, but the ADR's sentence is unqualified.
+| Arm | Mutation | `check-coupling.py` |
+|---|---|---|
+| Subject | delete case #18, the new SIGTERM bullet | **exit 0 - the gate did not notice** |
+| Positive control | delete case #1, the 200-with-401 trap, which C5-S1 names | **non-zero - the gate caught it** |
 
-U1 is where a startup log line would naturally land. The plan does **not** add one, because doing
-so would be specifying an unspecified mitigation and arguably touching an ADR's scope. A one-line
-design statement, or an ADR-0011 amendment saying startup lines are out of its scope, unblocks it.
+Both mutations were confirmed non-identical to the source, so neither arm is vacuous. **The gate
+runs one direction only: §11 row → §8 case.** A case no row names is an orphan, and deleting an
+orphan is invisible to it.
 
-### Q4
+**This is not a defect `9d65cc0` introduced.** Case #18 joined an existing class. Extracting the 25
+bullets and the 18 distinct `§8:` references in §11 mechanically, **seven cases are orphans**: #12
+(undeclared marker fails collection), #16 (`request_id` on every result), #17 (trace context), #18
+(SIGTERM teardown), #21 (`create_candidate` not retrying), #23 (4xx not tripping the breaker) and
+#24 (the `eId`/`EId` casing pin). Six of the seven predate this commit. The sweep's own closing line
+agrees from the other side: *"every one of the **23 rows** that names a §8 case loses its green when
+that reference is removed"* - 23 rows, 18 distinct cases, 25 cases in the list.
 
-**B47's breaker-library selection is deferred to implementation, but the constraint that governs it
-can reopen a closed High.** `DESIGN.md:581` frames the call-path-transition rule as *"a constraint
-on that choice rather than an observation about one"*, which correctly leaves selection to
-implementation. What is not stated is the fallback: if **no** library satisfies the constraint, is
-an inline breaker acceptable, given §3's module layout names no home for one and a new dependency
-would need review? U7 recommends inline. Confirming that in the design - or naming a library -
-would mean the answer is not made by whoever happens to be holding U7.
+**Suggested fix, offered as a hypothesis and not an instruction, and it is a gate change rather
+than a design change:** add a check that every §8 required case is either named by at least one §11
+row or carries an explicit exemption marker. It would report seven orphans on its first run, which
+is information rather than an objection - it is the same shape as the sweep finding 19 escapes the
+21 hand-picked controls could not, because it does not choose its own subject. Alternatively a §11
+row could name #18 specifically, but that fixes one case and leaves the class, and adding a threat
+row is a design change I may not propose.
+
+**Nothing in the plan depends on this being fixed.** Case #18 is scheduled in U1 either way.
+
+### Q3 - stands, and that is the correct outcome
+
+C8-R1, startup configuration logging, remains `unmitigated` (`DESIGN.md:1704`) and on the
+mitigate-before-production-release list. The plan adds no startup log line, because specifying an
+unspecified mitigation is not a plan's job and the ADR-0011 interaction is unresolved. Carried, not
+worked around.
+
+### Q4 - answered, U7 unblocked
+
+`DESIGN.md:581` now sanctions an inline breaker in `services/jobvite_client.py` where no library
+evaluates transitions on the call path. U7 states the survey-then-inline procedure and the §7
+recommendation row is struck through, since it is the design's decision rather than the plan's.
+The throwaway concurrent-correlation harness is retained as U7's risk-retirement step.
 
 ---
 

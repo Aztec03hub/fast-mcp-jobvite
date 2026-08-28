@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:29 PM CDT.
+Last updated: 2026-08-28 02:32 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -1244,16 +1244,16 @@ Required cases, each failing if its defence is removed:
   handler leaking the resource the lifespan opened, asserted by observing the teardown side effect
   rather than the exit code, since a process that dies uncleanly can still exit 0. **This case
   exists because §7.4 stated the requirement and nothing could fail if it were dropped**: it was
-  not a §8 bullet and no §11 row named it, so the coupling gate had no purchase on it, while three
+  not a §8 bullet. **Being one is not by itself enough, and this document twice claimed otherwise before the claim was measured.** The gate resolves §11 rows to §8 cases and not the reverse, so deleting this case leaves it at exit 0 - verified, against a control where deleting a case a row DOES name is caught. GATE-2 now requires every case to name its owner, which stops a case's justification being quietly stripped; **it does not make deletion visible.** Only a §11 row naming a case does that, and no threat row models a resource leak on shutdown - so this case's protection is that §7.4, §12 item 5 and this bullet all point at each other, and that is weaker than a row and is recorded as such. Three
   of this document's stated verification gaps close only on it (the upstream defect at
   `#4927`, the `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5 records);
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
-- `create_candidate` not retrying on timeout;
+- **`create_candidate` not retrying on timeout** - §2.2 and §4.3 both rest on the write being excluded from retry by construction, and B19 and B108's disposal are discharged by it. Without this case, the one property that makes the caller-replay ceiling honest is untested;
 - approval: deny refuses, accept-carrying-false refuses, no-handler fails closed, and the second
   leg actually consumes `ctx.input_responses`;
-- a 4xx not tripping the circuit breaker;
-- the `eId`/`EId` casing asymmetry pinned, so a later refactor cannot tidy it into a bug;
+- **a 4xx not tripping the circuit breaker** - §4.3 states it and `backend/resilience.md:166-168` (B37) requires it: a bad candidate id is the caller's error, not an outage, and a breaker that counts it takes the server down on a caller's typo;
+- **the `eId`/`EId` casing asymmetry pinned**, so a later refactor cannot tidy it into a bug - §4.2 records the asymmetry as Jobvite's, not ours, and it is the kind of wart a well-meaning normalisation removes;
 - **approval on BOTH eras**, because the no-handler arm surfaces differently on each: sessionless
   raises `MCPError`, handshake returns `is_error=True` with a masked message. A test asserting
   `pytest.raises(MCPError)` passes on one era and fails on the other. **The test asserts the
@@ -1640,7 +1640,7 @@ hazard it carried are both out of the model rather than mitigated within it.*
 | C3-S1 | No credible threat at this layer. Identity is established at C1 | - | - | - | The argument layer sees an already-authenticated caller | no credible threat |
 | C3-T1 | Control characters or alternate encodings in a string argument pass unexamined into a Jobvite query (B25) | M | M | Medium | **Mitigated in §2.1:** strings are validated as UTF-8 and rejected before dispatch if they carry C0/C1 control characters other than tab, newline and carriage return, or Unicode bidi overrides. `max_length` and the output allow-list do not reach this - a NUL-bearing name is a well-formed short string, and the allow-list is an output filter | §8: a control character or bidi override in a string argument rejected before dispatch |
 | C3-R1 | No credible threat beyond C1-R1. Arguments are recorded redacted by `audit.py` (§5.3) | - | - | - | Covered by C1-R1 | no credible threat |
-| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). ****The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
+| C3-I1 | An over-broad search argument returns more candidate records than the caller needs | M | M | Medium | Result cap enforced in-tool, reported as `showing 50 of 1,240` (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
 | C3-D1 | A deeply nested or very large argument payload consumes parse time and memory (B30) | M | M | Medium | **Mitigated in §2.1:** the four limits from `input-validation.md:220-226` - nesting depth 5, list items 1,000, dict keys 100, body 1 MiB - enforced before dispatch. §4.5's page caps are outbound transport limits and bound nothing a caller sends | §8: an argument payload exceeding a structural limit rejected |
 | C3-E1 | A schema violation reaches the tool body | L | H | Medium | `strict=True`, extra keys forbidden, validation before dispatch (§2.1). The rejection path's error shape is stated in §5.1 and the failure-closed case is required in §8, which is what closed B12. Mitigated | §8: an argument-schema violation failing closed |
 
@@ -1683,7 +1683,7 @@ asserted that placement in the same edit that failed to make it.
 | C6-R1 | No credible threat. This component produces no auditable decision | - | - | - | It transforms a response that C5 already fetched and C1/C4 already authorised | no credible threat |
 | C6-I1 | Special-category EEO fields (`gender`, `race`, `veteranStatus`) flow to the model | H | H | **Critical** | Not present in any output model, so they never leave the server (§6.2, ADR-0008). Mitigated | §8: EEO fields never appearing in any tool result |
 | C6-I2 | A newly added Jobvite field leaks to the model without review | M | M | Medium | Path-keyed allow-list fails closed: an unlisted field is dropped until someone adds it deliberately (§2.1). Mitigated | not required (Medium) |
-| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). ****The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
+| C6-D1 | An unbounded Jobvite page returned to the model as a context and cost blowout | M | M | Medium | Result size bounded inside each tool, cap is configuration (§7.7). **The default is now named and shipped** - `JOBVITE_MAX_RESULTS=50` in `.env.example` (§12) - and what remains open is whether 50 is the right value, which only a live tenant settles (B15)** | unmitigated (B15) |
 | C6-E1 | No credible threat. This component grants no capability | - | - | - | It produces data, never a capability; the tool set is fixed at registration (§7.3) | no credible threat |
 
 **C7. Audit and logging** (`audit.py`, `utils/redaction.py`, `loguru`)

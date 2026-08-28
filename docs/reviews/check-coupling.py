@@ -302,6 +302,41 @@ def main(path: pathlib.Path) -> int:
                 f"the case does not declare that arm gated on the file's presence"
             )
 
+    # 2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2).
+    #
+    #     The resolution check above runs ONE DIRECTION: §11 row -> §8 case. A case that no row
+    #     names is an orphan, and deleting it is invisible. Measured: removing the SIGTERM case
+    #     leaves the gate at exit 0, while removing a case a row names is caught. So a §8 case was
+    #     not, on its own, a thing this gate could protect - and this document asserted otherwise
+    #     until the claim was tested.
+    #
+    #     §8 answers to two masters, which is why "named by a §11 row" is the wrong bar on its own:
+    #     some cases exist because a THREAT row needs a test, others because a conformance
+    #     OBLIGATION does (B42's request_id echo, the marker-collection guarantee §7.3 rests on).
+    #     Requiring a threat row for the second kind would invent threats to satisfy a checker.
+    #
+    #     So a case is accounted for if a §11 row names it, OR it cites who requires it - a
+    #     B-number or a section. A bare one-line case citing nothing has no stated owner, and
+    #     nothing anywhere records why it must exist or what breaks if it goes.
+    named_cases = {
+        re.sub(r"\s+", " ", m.group(1).strip())
+        for m in re.finditer(r"§8: ([^|]+)\|", text)
+    }
+    s8_bullets = [b.strip() for b in re.split(r"\n- ", s8_required)[1:]]
+    if not s8_bullets:
+        failures.append("§8's required-case list parsed as empty - the check that every case has "
+                        "an owner is examining nothing")
+    for bullet in s8_bullets:
+        flat = re.sub(r"\s+", " ", bullet)
+        if any(n in flat or flat.startswith(n[:60]) for n in named_cases):
+            continue
+        if re.search(r"\bB\d{1,3}\b|§\d", flat):
+            continue
+        failures.append(
+            "§8 case has no owner - no §11 row names it and it cites no B-number or section "
+            f"saying who requires it: {flat[:90]!r}"
+        )
+
     # 2b. RATINGS ARE COMPUTED, NOT CHOSEN (FIX-10 / H2). §11 convention 3 asserts "Machine-checked:
     #     every rated row agrees with [the matrix]". Until this loop existed, no machine checked it -
     #     the claim was hand-checked at R3, R4 and R5 while the docstring below disclaimed the check
