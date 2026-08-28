@@ -14,6 +14,12 @@ decisions and research that the implementation will be built against.
 
 ### Added
 
+- `JOBVITE_MCP_HOST`, `JOBVITE_MCP_PORT` and the secret-class `JOBVITE_HTTP_TOKENS`. §7.1 said the
+  server binds loopback "unless told otherwise" and named nothing that does the telling, and §7.2
+  said the token verifier is "built from environment" without naming the variable. Found by trying
+  to build against it: the HTTP unit could not be started, let alone bound off-loopback to exercise
+  the TLS-refusal tests. (2026-08-28 02:46 PM CDT)
+
 - `JOBVITE_MAX_RESULTS` (default 50) and `JOBVITE_OUTBOUND_RATE_LIMIT` (default 6/min), the two
   settings that were specified without names and left `.env.example` incomplete by construction.
   The rate limit is recorded as a conservative guess rather than a vendor figure, because Jobvite

@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:32 PM CDT.
+Last updated: 2026-08-28 02:46 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -578,7 +578,7 @@ below asserts under concurrency rather than on a single call.
 **Retries and breaker transitions are logged, each carrying `request_id` (B39).**
 `backend/resilience.md:224-226` requires both. Every retry attempt logs the attempt number, the
 elapsed delay and the exception type; every breaker transition logs the direction
-(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that, and no library is selected yet (B47), so this is a constraint on that choice rather than an observation about one. **If no library satisfies it, an inline breaker in `services/jobvite_client.py` is the sanctioned fallback** - a counter, a state and a timestamp checked on entry. Adopting a library and then constraining its scheduler is the worse trade, because the constraint would live in our code while the behaviour lived in theirs. Stated here so the answer is not decided by whoever happens to implement it. Neither
+(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that. **B47 does name one - `circuitbreaker ^2` is a blessed library and B37 says to use it - and an earlier revision of this paragraph said no library was selected, which mischaracterised the obligation and turned a one-library test into an open-ended survey.** What is actually open is whether `circuitbreaker ^2` evaluates half-open expiry on the call path or from a timer, which is one experiment against the blessed candidate. So this is a constraint on that choice rather than an observation about one. **If no library satisfies it, an inline breaker in `services/jobvite_client.py` is the sanctioned fallback** - a counter, a state and a timestamp checked on entry. Adopting a library and then constraining its scheduler is the worse trade, because the constraint would live in our code while the behaviour lived in theirs. Stated here so the answer is not decided by whoever happens to implement it. Neither
 line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
 exactly where an unredacted URL would otherwise reach a log.
 
@@ -745,9 +745,14 @@ deliberately admitted."
 
 ### 7.1 Transport
 
-**stdio by default**, HTTP opt-in via `JOBVITE_MCP_TRANSPORT=http`. HTTP binds `127.0.0.1` unless
-told otherwise, with `allowed_hosts`/`allowed_origins` set whenever the bind address is not
-loopback.
+**stdio by default**, HTTP opt-in via `JOBVITE_MCP_TRANSPORT=http`. HTTP binds
+**`JOBVITE_MCP_HOST`, default `127.0.0.1`**, on **`JOBVITE_MCP_PORT`, default `8000`**, with
+`allowed_hosts`/`allowed_origins` set whenever the bind address is not loopback.
+
+**Both are named here because an earlier revision said "unless told otherwise" and named nothing
+that does the telling.** That is the same defect as B15, found the same way - by someone trying to
+build against it and discovering the unit could not be started, let alone bound off-loopback to
+exercise the TLS refusal §8 tests.
 
 **Off-loopback requires TLS, and the server refuses to start without it.** A non-loopback bind
 carries a bearer token and candidate PII over the wire; `allowed_hosts` and `allowed_origins`
@@ -771,8 +776,14 @@ verified on one server, one port. Two deployment consequences:
 
 ### 7.2 Authentication and scopes
 
-HTTP auth uses `StaticTokenVerifier` built from environment at startup. **Scopes follow the three
-data classes of §4.1**: candidate PII, public job data, and the job feed. That axis survives
+HTTP auth uses `StaticTokenVerifier` built at startup from **`JOBVITE_HTTP_TOKENS`**, a JSON object
+mapping each bearer token to the scopes it holds - `{"<token>": ["candidates:read", "jobs:read",
+"feed:read"]}`. It is **secret-class**: unset by default, absent from `.env.example`'s filled values
+like every other credential, and redacted wherever configuration is echoed. Unset with
+`JOBVITE_MCP_TRANSPORT=http` is a startup failure, not an open server - the same fail-fast posture
+§7.3 applies to every required variable.
+
+**Scopes follow the three data classes of §4.1**: candidate PII, public job data, and the job feed. That axis survives
 regardless of the tool set; the earlier axis - "a read-only token never sees the write tool" -
 collapsed whenever the write was out of scope.
 
