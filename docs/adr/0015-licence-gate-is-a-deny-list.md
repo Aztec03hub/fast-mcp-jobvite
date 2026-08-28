@@ -10,7 +10,7 @@
 ## Context
 
 `devops/quality-gates.md:288-292` gives an allow-list of five SPDX identifiers — `MIT`,
-`Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC` — and `:307` says anything on neither the
+`Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC` — and `:306` says anything on neither the
 allow-list nor the flag-list is *"Custom / unknown — Always flag for review"*.
 
 **The allow-list cannot be applied as written, and the reason is spelling rather than policy.**
@@ -40,7 +40,7 @@ strong copyleft and non-OSI terms — and passes otherwise.
 The gate is green today and its negative arm was verified: `--fail-on=MIT` exits 1, so the pass is
 not vacuous. There is **no strong copyleft anywhere in the tree.**
 
-## Four packages sit on neither list, and `:307` says to flag them
+## Four packages sit on neither list, and `:306` says to flag them
 
 | Package | Licence | Ships at runtime? | Assessment |
 |---|---|---|---|
@@ -50,7 +50,7 @@ not vacuous. There is **no strong copyleft anywhere in the tree.**
 | `pathspec` | `MPL-2.0` | **No** | Weak copyleft, file-level. **Dev and build only** — confirmed absent from `uv export --no-dev`, so it is not in anything we distribute. |
 
 **None is a problem, and the point of this ADR is that saying so is a decision rather than an
-observation.** `:307` requires them flagged; this is the flag, and the review is recorded rather
+observation.** `:306` requires them flagged; this is the flag, and the review is recorded rather
 than skipped. The three runtime licences are each *more* permissive than the allow-list's own
 entries. The one weak-copyleft package is not shipped, and MPL-2.0's obligations are file-level and
 attach to distribution of the covered files.
