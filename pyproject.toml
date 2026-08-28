@@ -1,0 +1,143 @@
+[project]
+name = "fast-mcp-jobvite"
+version = "0.1.0"
+description = "An MCP server for the Jobvite ATS."
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "evolv Consulting" }]
+
+# Verbatim from DESIGN.md:1358-1367. Every line is load-bearing and the comments are
+# part of the specification: the fastmcp-slim line is NOT redundant. Removing only that
+# line makes the resolve fail outright ("there is no version of
+# fastmcp-slim[client]==4.0.0b4 ... --prerelease=allow"), which is control-tested by
+# tests/test_manifest.py::test_removing_fastmcp_slim_breaks_the_resolve.
+dependencies = [
+  "fastmcp==4.0.0b4",
+  "fastmcp-slim==4.0.0b4",   # transitive prerelease; must be named or resolution fails
+  "mcp==2.1.1",              # the transitive SDK that broke a middleware with no code change
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fast_mcp_jobvite"]
+
+[tool.uv]
+prerelease = "explicit"
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=5",
+  "ruff>=0.6",
+  "mypy>=1.11",
+]
+
+# ---------------------------------------------------------------------------
+# Advisory-ignore table. Owned by U11 (scripts/check_advisories.py), landed empty
+# here so U11 only ever edits rows inside it - IMPLEMENTATION-PLAN.md:920-922.
+#
+# DESIGN.md:1462-1472: an entry is legal ONLY for an advisory our code cannot
+# reach, and only with an id, a date, a written unreachability reason, and an
+# expiry no more than 30 days out. Never a blanket ignore, never a raised
+# threshold. check_advisories.py reads this table, emits pip-audit's
+# --ignore-vuln flags from it, and exits non-zero on any expired entry.
+# ---------------------------------------------------------------------------
+[tool.fast-mcp-jobvite.advisory-ignores]
+entries = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# --strict-markers is not housekeeping here (DESIGN.md:1193-1198). This project's
+# whole test strategy is "exclude the credentialed arm deliberately"; without it a
+# typo in the exclusion marker's name selects nothing and the run goes green having
+# tested less than it claimed.
+#
+# `-m "not credentialed and not network"` is the SELECTION that gives CI zero skips
+# (DESIGN.md:1185-1188): a skip counts as a failure, so the excluded arms are
+# deselected, never marked skipif. `-m` is last-wins, so a CI step passing its own
+# -m overrides this.
+addopts = [
+  "-v",
+  "--strict-markers",
+  "--tb=short",
+  "-ra",
+  "-m", "not credentialed and not network",
+]
+
+markers = [
+  "credentialed: needs a real Jobvite credential. NEVER run in CI - deselected by the addopts above and collected with --collect-only so it cannot rot (DESIGN.md:1200-1205)",
+  "network: needs outbound network. Deselected from the default offline suite; CI runs it as its own step",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: marks tests as integration tests",
+  "unit: marks tests as unit tests",
+]
+
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
+
+# ---------------------------------------------------------------------------
+# Coverage. Floors are ADR-0010's, against backend/testing.md:82's branch = true.
+#   80% overall floor, 85% tool modules, 90% the Jobvite client,
+#   95% utils/ (the standard's own Utilities target, kept not remapped),
+#   95% line / 90% branch on critical paths.
+# Only the overall floor is expressible as a single fail_under; the per-module
+# floors are enforced by the units that create those modules.
+#
+# NOT wired into addopts, and the CI coverage step is commented out with a U1
+# reference, for the same reason the plan gives for the pip-audit step
+# (IMPLEMENTATION-PLAN.md:206-211): src/fast_mcp_jobvite holds only __init__.py
+# today, so a coverage run here reports either "No data collected" (red from the
+# first run) or a vacuous 100% over an empty package. U1 lands the first real
+# module and turns the step on.
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["src/fast_mcp_jobvite"]
+branch = true
+omit = [
+  "*/tests/*",
+  "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# docs/reviews/*.py are the design-coupling gate harnesses. They are owned by the
+# review process, predate this manifest, and CI runs them by exit code rather than
+# by style. Reformatting them under a lint config written after them would rewrite
+# a gate nobody asked to change.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S603", "S607"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+exclude = ["^docs/"]

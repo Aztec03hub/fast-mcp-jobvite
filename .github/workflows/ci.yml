@@ -1,0 +1,344 @@
+name: CI
+
+# U0. Before this file existed, every gate in DESIGN.md was hand-run and every
+# "CI runs X" sentence in the design was a specification rather than a report
+# (DESIGN.md:1415-1421). This workflow is what turns those sentences true.
+#
+# WHAT HAS AND HAS NOT BEEN EXECUTED, stated here because the alternative is a
+# workflow that reads as tested and is not:
+#
+#   EXECUTED locally on 2026-08-28 (uv 0.11.3, Python 3.12.3), exact commands and
+#   real output in docs/worklogs/U0-REPORT.md:
+#     uv sync --frozen / uv lock --check / ruff check / ruff format --check / mypy
+#     pytest (default, network and --collect-only arms) / the three coupling gates
+#     scripts/check-u0-test-controls.sh / pip-licenses / cyclonedx-py
+#
+#   NEVER EXECUTED - GitHub-hosted actions that cannot run on a developer machine:
+#     codeql / trufflehog / sbom (anchore). They are written to the standards'
+#     pinned versions and their first real run is their first evidence.
+#
+#   DEFERRED with an owning unit, NOT silently omitted:
+#     pip-audit + scripts/check_advisories.py -> U11 (the script does not exist;
+#       landing the call now makes CI red from its first run, which trains
+#       everyone to ignore the thing this workflow exists to make authoritative -
+#       IMPLEMENTATION-PLAN.md:206-211)
+#     coverage floors -> U1 (src/fast_mcp_jobvite holds only __init__.py, so a
+#       coverage run reports "No data collected" or a vacuous 100%)
+#     fastmcp inspect capability-drift diff -> U1 (`fastmcp inspect` takes a
+#       server spec; server.py is U1's file). Note DESIGN.md:1443-1446: standing
+#       this up in CI does NOT execute it. A diff that has never seen a real
+#       capability change has only ever compared a build to itself.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.11.3"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The design gates. These run first and they do not need the Python project to
+  # install: they check DESIGN.md against itself. They are also the ones that
+  # have been hand-run all day, which is the reason this workflow exists.
+  # ---------------------------------------------------------------------------
+  design-gates:
+    name: Design coupling gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Coupling gate
+        run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
+
+      # ASSERT THE EXIT CODE AND THE "ALL FIRED" PROPERTY, NEVER A LITERAL COUNT.
+      # This harness has reported 21, 32 and 34 to three readers in one day
+      # (IMPLEMENTATION-PLAN.md:243-248). A hard-coded number turns the harness
+      # GROWING into a red build, which is the opposite of what it is for. So the
+      # check is that the numerator equals the denominator, whatever they are.
+      - name: Coupling controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-coupling-controls.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::the controls harness exited $rc"; exit 1
+          fi
+          # "<n>/<m> controls fired." - required: n == m, and m > 0.
+          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
+          if [ -z "$line" ]; then
+            echo "::error::the harness did not report an 'N/M controls fired.' line at all"; exit 1
+          fi
+          fired=${line%%/*}
+          rest=${line#*/}; total=${rest%% *}
+          echo "parsed: $fired fired of $total held"
+          if [ "$total" -eq 0 ]; then
+            echo "::error::the harness holds zero controls; a green from it means nothing"; exit 1
+          fi
+          if [ "$fired" -ne "$total" ]; then
+            echo "::error::$fired of $total controls fired; every control must fire"; exit 1
+          fi
+          # DESIGN.md's own requirement: a clean post-run re-check of the real file.
+          printf '%s\n' "$out" | grep -q 'post-run re-check of the real DESIGN.md: exit=0' || {
+            echo "::error::the harness did not leave DESIGN.md green"; exit 1; }
+
+      # Likewise: the property is "0 escapes are holes", not a count of rows.
+      - name: Coupling mutation sweep, no holes
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-coupling-sweep.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::the sweep exited $rc - it found holes in the gate"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -q '0 escapes are holes' || {
+            echo "::error::the sweep exited 0 without reporting '0 escapes are holes'"; exit 1; }
+          printf '%s\n' "$out" | grep -q 'ABORT' && {
+            echo "::error::the sweep aborted; it swept nothing"; exit 1; }
+          exit 0
+
+  # ---------------------------------------------------------------------------
+  # The Python project.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # The lockfile is the cure, not the hand-written pins (DESIGN.md:1375-1379).
+      # --frozen installs exactly uv.lock and fails rather than resolving.
+      - name: Install from the frozen lock
+        run: uv sync --frozen
+
+      # A separate assertion from --frozen: this one says the lock still AGREES
+      # with pyproject.toml, so a dependency edited without relocking is caught
+      # here rather than at the next resolve. DESIGN.md §8 case #11.
+      - name: No lock drift
+        run: uv lock --check
+
+      - name: Lint
+        run: uv run --frozen ruff check .
+
+      - name: Format
+        run: uv run --frozen ruff format --check .
+
+      - name: Types
+        run: uv run --frozen mypy
+
+      # ZERO SKIPS (DESIGN.md:1185-1188). A skip counts as a failure, so the
+      # credentialed and network arms are excluded by SELECTION - the `-m` in
+      # addopts - and never by skipif. The grep is the enforcement: pytest itself
+      # exits 0 on a run full of skips, so the exit code alone cannot see this.
+      - name: Default suite, zero skips
+        run: |
+          set -uo pipefail
+          out=$(uv run --frozen pytest 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || exit "$rc"
+          if printf '%s\n' "$out" | grep -qE '[0-9]+ skipped'; then
+            echo "::error::the suite skipped tests. A skip is a green that tested nothing."
+            exit 1
+          fi
+          # And the run must have actually selected something.
+          printf '%s\n' "$out" | grep -qE '[1-9][0-9]* passed' || {
+            echo "::error::no tests passed; the selection matched nothing"; exit 1; }
+
+      # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
+      # resolve - performs a real resolve, so it is deselected from the offline
+      # default suite and run here with its positive control.
+      - name: Network-dependent arms
+        run: uv run --frozen pytest -m network
+
+      # The credentialed suite is never run and never skipped, but it MUST be
+      # collected: a suite that is excluded and never collected rots silently, and
+      # an import error in it is invisible until the day someone has a credential
+      # (DESIGN.md:1200-1205).
+      #
+      # LIMIT, stated rather than hidden: tests/credentialed/ is empty today, so
+      # exit 5 ("no tests collected") is accepted alongside 0. That means this step
+      # cannot presently tell "the suite is empty" from "the suite is healthy". The
+      # first unit to add an arm here must require exit 0 and a non-zero count -
+      # see tests/credentialed/README.md.
+      - name: Collect the credentialed suite
+        run: |
+          set -uo pipefail
+          out=$(uv run --frozen pytest -m credentialed --collect-only -q 2>&1); rc=$?
+          echo "$out"
+          case "$rc" in
+            0) ;;
+            5) echo "::notice::the credentialed suite is still empty (U0)";;
+            *) echo "::error::collection error in the credentialed suite"; exit 1;;
+          esac
+
+      # U0's tests assert properties about the manifest, the marker config and the
+      # committed tree. Every one of them would pass against an absent file or a
+      # search that matched nothing, so each is mutation-tested: the harness breaks
+      # one thing at a time in a COPY of the tree and requires the named test to go
+      # red. Same "all fired, never a literal count" rule as the design controls.
+      - name: U0 test controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(scripts/check-u0-test-controls.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::a U0 test control did not fire"; exit 1; }
+          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
+          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
+          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
+          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
+          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+
+      # DEFERRED TO U11. pip-audit has no severity threshold: one advisory anywhere
+      # in the transitive tree turns a required check red, and we pinned a beta
+      # stack deliberately, so we expect this and owe it a sanctioned response
+      # (DESIGN.md:1448-1478). scripts/check_advisories.py is that response - it
+      # reads the [tool.fast-mcp-jobvite.advisory-ignores] table (landed empty in
+      # pyproject.toml), emits pip-audit's --ignore-vuln flags from it, and exits
+      # non-zero on any expired entry. U11 builds it and enables this step.
+      # DO NOT replace this with a bare `pip-audit || true`, and never a blanket
+      # ignore or a raised threshold: both convert a signal into silence for every
+      # future advisory, not just this one.
+      #
+      # - name: Advisory audit
+      #   run: uv run --frozen python scripts/check_advisories.py
+
+      # DEFERRED TO U1. `fastmcp inspect` takes a server spec and server.py is U1's
+      # file (`fastmcp inspect --help` confirms SERVER-SPEC is required). When it
+      # lands: emit the report, diff it against the previous build's, and surface
+      # capability drift arriving through a dependency bump in review rather than
+      # at runtime. DESIGN.md:1443-1446 carries UNVERIFIED on it and U0 does not
+      # remove that marker: standing a diff up in CI does not execute it.
+      #
+      # - name: Capability drift diff
+      #   run: uv run --frozen fastmcp inspect src/fast_mcp_jobvite/server.py -f mcp -o inspect.json
+
+      # DEFERRED TO U1. Only __init__.py exists, so this reports "No data
+      # collected" or a vacuous 100%. Floors are ADR-0010's, configured in
+      # pyproject.toml already.
+      #
+      # - name: Coverage
+      #   run: uv run --frozen pytest --cov --cov-report=term-missing
+
+  # ---------------------------------------------------------------------------
+  # Supply chain. NONE of the actions in this job have ever been executed - see
+  # the header. The pip-licenses step HAS been run locally.
+  # ---------------------------------------------------------------------------
+  supply-chain:
+    name: Supply chain
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # TruffleHog needs FULL history: a secret removed in a later commit is still
+      # compromised, and a shallow clone cannot see it (DESIGN.md:1439-1440).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install from the frozen lock
+        run: uv sync --frozen
+
+      # LICENCE GATE - a DENY-list on the standard's flag-list, not an allow-list,
+      # and the reason is measured rather than assumed. quality-gates.md:288-292
+      # allow-lists five SPDX ids; pip-licenses reports FIFTEEN distinct spellings
+      # over this tree for six actual licences ("MIT" and "MIT License" both
+      # appear), so `--allow-only` on the standard's five ids is red on its first
+      # run against a tree containing nothing objectionable.
+      #
+      # OPEN, and it needs a ruling rather than a default: four packages carry
+      # licences on NEITHER the allow-list nor the flag-list, which
+      # quality-gates.md:307 makes "Custom / unknown - always flag for review":
+      #   cffi 2.1.1              MIT-0        RUNTIME
+      #   email-validator 2.3.0   Unlicense    RUNTIME
+      #   typing_extensions       PSF-2.0      RUNTIME
+      #   pathspec 1.1.1          MPL-2.0      dev/build only, NOT shipped
+      # All four are permissive or weak-copyleft-not-shipped, and no strong
+      # copyleft is present in either tree. Extending the allow-list is an ADR,
+      # not a CI edit. See docs/worklogs/U0-REPORT.md.
+      - name: Licence gate
+        run: |
+          uv run --frozen --with pip-licenses pip-licenses \
+            --format=markdown \
+            --fail-on="GPL;GPL v2;GPL v3;GNU General Public License;GNU General Public License v2 (GPLv2);GNU General Public License v3 (GPLv3);AGPL;GNU Affero General Public License v3;LGPL;GNU Lesser General Public License;SSPL;BUSL;Business Source License"
+
+      # NEVER EXECUTED. Tool and pin are fixed by quality-gates.md:269-271:
+      # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
+      # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
+      # produced from an unfrozen resolve documents a build nobody shipped
+      # (DESIGN.md:1380-1384).
+      - name: SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .venv
+          format: cyclonedx-json
+          artifact-name: sbom.cdx.json
+
+      - name: SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .venv
+          format: spdx-json
+          artifact-name: sbom.spdx.json
+
+      # NEVER EXECUTED. Full history is the point; --only-verified keeps it from
+      # drowning the gate in unverifiable candidates.
+      - name: Secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  # ---------------------------------------------------------------------------
+  # NEVER EXECUTED. github/codeql-action/*@v3 per the standards' pinned set.
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:python
