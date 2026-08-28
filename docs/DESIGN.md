@@ -760,6 +760,38 @@ trust boundary is the operating system's, not this server's. That is the correct
 subprocess, and it is stated rather than left implicit. It also means `create_candidate` on stdio
 rests on the deploy-time flag plus approval, not on scopes.
 
+**No ambient authority, and why a model-supplied id is not an instance of it here (B107).**
+`ai/agent-guardrails.md:54-56` requires that a tool never act on behalf of an arbitrary user, and
+`ai/tool-calling.md:108-111` requires tools to re-validate authorization off the request principal,
+**never off a value the model supplied**. Both clauses were uncited by every instrument this project
+has until an audit went looking for them, so this paragraph exists to dispose of them in the open
+rather than to leave a reader inferring it.
+
+**The demand is substantially met on the HTTP transport.** `require_scopes` enforces off the bearer
+token's scopes - the request principal - and a scope the caller does not hold removes the tool from
+`tools/list` entirely. No model-supplied value participates in that decision.
+
+**What is not implemented is row-level scoping, and the reason is the deployment model rather than
+an oversight.** `get_candidate(candidate_id)` does resolve a record from a value the model supplied,
+with no per-record authorization check. That is not ambient authority **because there is no
+caller-scoped record set to enforce**: a deployment holds one Jobvite API key and one `companyId`,
+so every caller who can reach the server is already authorised for exactly the same records. A
+row-level check would have nothing to discriminate on, and adding one would assert a boundary that
+does not exist.
+
+**Stated as a property of our deployment model, not of Jobvite.** One key and one company id per
+deployment is how we configure it (§7.3). It is **not** a claim about Jobvite's permission model,
+which we have never seen - the same limit §7.2 records for read-only keys, and over-reading a vendor
+property is a mistake this document has already had to correct twice.
+
+**The ceiling, which is the part that expires.** **If Jobvite ever exposes per-user or multi-tenant
+scoping, or a deployment is ever configured with more than one company id, this disposal is void and
+both clauses become live obligations** - `get_candidate` would then need an authorization check
+against the request principal before returning a record. Without that trigger written down, this
+paragraph rots silently on the day the assumption changes, which is precisely how the conditional
+dismissal of `backend/idempotency.md` went unnoticed (§13's freeze procedure).
+
+
 **The outbound Jobvite credential is a separate question from inbound scopes, and it is the one the
 narrowest-credential rule actually asks about (B21).** Everything above governs what a *caller* may
 ask this server to do. None of it constrains what *this server* may do to Jobvite: the API key in

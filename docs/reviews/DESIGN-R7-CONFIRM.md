@@ -30,6 +30,12 @@ round, and the L and N findings do not gate anything. But the rule as written is
 defect sits in the evidence chain of an inherent-High row inside text about to become
 ADR-only-changeable, and I am not going to call it a Low to clear a gate.
 
+**Update after the pass closed: M-1 is applied and green (`f5c63e7`), and a second Medium arrived.**
+`M-2` below rules on the "No ambient authority" clause referred to me after this report was first
+written. It is a required clause in two binding standards, disposed nowhere in the corpus, and it
+keeps the verdict at **DO NOT FREEZE** until one paragraph lands in §7.2. Running tally:
+**0C / 0H / 2M (one applied, one open) / 5L / 2N.**
+
 ### Status of these findings at the time of writing
 
 While this report was being written the team lead applied **L-1 through L-5, N-1 and N-2** to the
@@ -223,6 +229,75 @@ Critical/High row's mitigation status.** That is what makes it a Medium and the 
 >   that the instruction exists and is discoverable, which is **all that is testable** - ...
 
 If that fix is applied, my verdict is **FREEZE**, with no further round needed.
+
+### M-2 - "No ambient authority" is required by two binding standards and disposed nowhere
+
+`ai/agent-guardrails.md:54-56`, `ai/tool-calling.md:108-111`; `DESIGN.md:747-761`; `ADR-0005:22`.
+
+Referred to me after this report was first written. Verified independently, from the standards and
+the repository, not from the referral.
+
+**The clauses exist verbatim.** `agent-guardrails.md:54-56` - *"**No ambient authority.** A tool must
+not act on behalf of an arbitrary user. Pass the caller's identity/tenant explicitly and enforce
+authorization inside the tool"*. `tool-calling.md:108-111` - *"Tools **re-validate authorization
+independently** of the model: enforce the authenticated caller's tenant / row-level access inside the
+tool, off the request principal, never off a value the model supplied."*
+
+**They are cited nowhere.** Two independent search forms, plus a positive control, because an absence
+is only a claim about where I looked:
+- Line-range search for `guardrails.md:5[4-6]` and `tool-calling.md:10[89]|11[01]` across the repo:
+  hits only in `docs/reviews/CITATION-RANGE-AUDIT.md`, the report that raised this.
+- Phrase search for *ambient authority*, *row-level*, *request principal*, *re-validate
+  authorization*: same, only that report.
+- **Positive control:** `guardrails.md:79` resolves in 5 files under `docs/`, so the instrument does
+  find guardrails citations when they are there.
+- `docs/research/STANDARDS.md:211` cites `:50-53` and `:157` cites `:57-58` - **the bullets
+  immediately either side of `:54-56`**. The corpus stepped over it.
+
+**No ADR reaches it.** `ADR-0005:22` grants "Obligations **B9-B26** apply in full" - a B-number grant,
+and this clause carries no B-number. ADR-0009 is scoped to the approver, which §5.3:622 states
+explicitly ("for the approver specifically, and not for the caller").
+
+**What the design actually does, which is better than the gap suggests and still not written down.**
+On HTTP, `require_scopes` enforces authorization off the **bearer token's** scopes (§7.2:749-756) -
+that is the request principal, never a model-supplied value, so the second clause's central demand is
+substantially met at data-class granularity. What is absent is row-level scoping, and the reason it
+is absent is that there is one Jobvite tenant per deployment and no per-caller record set to scope
+against. **I grepped for that fact and it is not in the document**: `tenant` appears at `:90`, `:396`
+and `:1035`, none of them establishing single-tenancy or the absence of a per-caller record model.
+Meanwhile §7.2:758-761 states "**stdio is unauthenticated by design**" without connecting it, so a
+reader auditing this clause finds a section that appears to *concede* ambient authority rather than
+dispose of it, and `get_candidate` resolving a record off a model-supplied `candidateId` (§2:115) is
+the literal shape `:110-111` forbids.
+
+**Why Medium, by the same test I applied to M-1.** A required clause from a binding standard, with no
+citation, no B-number and no ADR, whose justification exists in the author's head and nowhere in the
+text, inside a document about to become ADR-only-changeable. A reader cannot tell whether it was
+considered and disposed or simply missed - and the evidence is that it was missed, by every
+instrument, for the life of the document. That is a conformance defect, not a wording nit. It is
+**not** a security defect: I found no exposure that the current design leaves open.
+
+**Suggested fix (mine, verify before adopting) - one paragraph and one B-number. I am deliberately
+bounding this so it does not grow.**
+
+1. **A §7.2 paragraph**, after the stdio paragraph, disposing the clause: that `require_scopes`
+   enforces off the token principal and never off a model-supplied value; that `get_candidate`
+   resolves off a model-supplied id **and why that is not ambient authority here** - one Jobvite
+   credential per deployment, no per-caller record set, so there is no caller-scoped access to
+   enforce; and the ceiling - **if Jobvite ever exposes per-user or multi-tenant scoping, this clause
+   becomes a live obligation and this disposal expires.** Without that trigger sentence the disposal
+   rots silently the day the assumption changes.
+2. **One B-number (B107)** citing **both** ranges, so the next conformance sweep sees it.
+3. **No new §11 row**, and I want to be explicit that I considered one and rejected it. C1-E1 already
+   carries "a token provisioned with the wrong scope set reaches candidate PII it should not" at
+   Medium, which is the real adjacent exposure. Adding a row would assert a threat whose disposal is
+   that it does not exist here.
+4. **No code change.**
+
+One caution on the wording: state the single-tenant fact as a property of **the deployment model**
+(one API key, one `companyId`, per deployment), not as a Jobvite guarantee. We have never seen
+Jobvite's permission model - §7.2:785-788 says so about read-only keys - and asserting it as a vendor
+property would be the same over-read this document has corrected twice.
 
 ### L-1 - The "not reconstructible" sentence invites the next editor to reconstruct it
 
