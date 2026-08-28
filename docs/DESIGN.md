@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 02:01 PM CDT.
+Last updated: 2026-08-28 02:21 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -578,7 +578,7 @@ below asserts under concurrency rather than on a single call.
 **Retries and breaker transitions are logged, each carrying `request_id` (B39).**
 `backend/resilience.md:224-226` requires both. Every retry attempt logs the attempt number, the
 elapsed delay and the exception type; every breaker transition logs the direction
-(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that, and no library is selected yet (B47), so this is a constraint on that choice rather than an observation about one. Neither
+(`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that, and no library is selected yet (B47), so this is a constraint on that choice rather than an observation about one. **If no library satisfies it, an inline breaker in `services/jobvite_client.py` is the sanctioned fallback** - a counter, a state and a timestamp checked on entry. Adopting a library and then constraining its scheduler is the worse trade, because the constraint would live in our code while the behaviour lived in theirs. Stated here so the answer is not decided by whoever happens to implement it. Neither
 line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
 exactly where an unredacted URL would otherwise reach a log.
 
@@ -1240,6 +1240,13 @@ Required cases, each failing if its defence is removed:
   field that is always absent and a field that is always synthesised each pass a single-arm test,
   and the second is the failure that matters, because a minted id in a field named for the host's
   trace looks like a join and is not one (`ai/tool-calling.md:176-177`, §5.3);
+- **lifespan teardown runs on SIGTERM, on both transports** - the process exits without the
+  handler leaking the resource the lifespan opened, asserted by observing the teardown side effect
+  rather than the exit code, since a process that dies uncleanly can still exit 0. **This case
+  exists because §7.4 stated the requirement and nothing could fail if it were dropped**: it was
+  not a §8 bullet and no §11 row named it, so the coupling gate had no purchase on it, while three
+  of this document's stated verification gaps close only on it (the upstream defect at
+  `#4927`, the `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5 records);
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
@@ -1359,7 +1366,15 @@ with limited activity in the critical path, and a silent hazard we would have in
 hazard rather than guarding it, so the module-confinement rule and its AST test in §8 are dropped
 as unnecessary.
 
-CI runs `python3 docs/reviews/check-coupling.py docs/DESIGN.md`, which enforces §11's internal
+**No CI pipeline exists yet, and every "CI runs" sentence in this document is a specification of
+what the pipeline must do, not a report of what it does.** `.github/workflows/` currently holds one
+file, `mirror.yml`, which pushes to the mirror remote and nothing else. This is stated once, here,
+because the present tense elsewhere would otherwise read as a claim about a pipeline that has never
+run - the same false-tense defect §7.2 already had to correct about the README, and it survived
+seven review rounds and a machine gate in this section. **Standing the pipeline up is the first unit
+of implementation, and until it exists these gates are run by hand.**
+
+CI must run `python3 docs/reviews/check-coupling.py docs/DESIGN.md`, which enforces §11's internal
 properties against §8 - row ids, STRIDE category coverage, ratings computed from likelihood and
 impact, disposition legality, and the closing tables - together with a positive-control harness and
 a subject-free mutation sweep (`check-coupling-sweep.py`) that both prove the checks can fail.
@@ -1445,11 +1460,22 @@ it**, so the obligation is discharged by specification rather than by fabricatio
   forbids. Removing the hand-kept list is the fix; restating it correctly would only reset the
   clock.
 
-  **Two variables the component will read are not yet named, and neither list is complete until
-  they are.** §7.7's result cap and §4.4's outbound rate-limit setting are both specified as
-  configuration and neither has a name or a default. That is B15, it is on the
-  mitigate-before-production-release list in §11, and it is recorded here so their absence from
-  `.env.example` reads as an open item rather than as a complete file.
+  **The two variables that had no name now have one, because leaving them unnamed made
+  `.env.example` incomplete by construction and blocked `config.py` (B15).**
+
+  - **`JOBVITE_MAX_RESULTS`**, default **50** - §7.7's in-tool result cap. 50 is not arbitrary: it
+    is the number §4.5 and §11's C3-I1 already use in the caller-facing string `showing 50 of
+    1,240`, and picking anything else would have made two parts of this document disagree about a
+    figure a caller reads.
+  - **`JOBVITE_OUTBOUND_RATE_LIMIT`**, requests per minute, default **6** - §4.4's self-throttle.
+    Jobvite documents no numeric limit at all; its only stated envelope is prose, *call it on an
+    as-needed basis, and anything more frequent than once a day must be filtered*. **6/min is
+    therefore a conservative guess and not a vendor figure**, chosen to keep an interactive session
+    usable while sitting far under any plausible limit, and it is recorded as a guess so nobody
+    later cites it as documented. Checklist row 9 is what replaces it with an observation.
+
+  Both are now in `.env.example`, which closes B15's blocking half. What remains open is whether
+  either default is *right*, which no amount of specification settles and only a live tenant can.
 - **An `mcp-name:` string, added before the first PyPI upload and not after.** PyPI ownership
   verification for the MCP registry reads it out of the README, which becomes the package
   description, so retrofitting it costs a version bump. Cheap now, annoying later, and free if we
