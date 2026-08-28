@@ -89,6 +89,16 @@ decisions and research that the implementation will be built against.
 
 ### Security
 
+- `request_id` now reaches the caller on every result, not only on errors, in the result's `_meta`
+  under a namespaced key. Executed rather than assumed: an undeclared top-level key in structured
+  content is rejected by the same unconditional output-schema validation that broke
+  `ResponseLimitingMiddleware`, while `_meta` is never inspected by the validator and survives a
+  serialise round trip. (2026-08-28 01:35 PM CDT)
+- The audit event records the inbound W3C trace context beside `request_id`, discharging
+  `ai/tool-calling.md:176-177`. Recorded when present, omitted when absent, never synthesised - a
+  locally-minted id in a field named for the host's trace joins nothing while looking like it does.
+  (2026-08-28 01:35 PM CDT)
+
 - The three freeze blockers closed, emptying §11's must-mitigate table. Retries and breaker
   transitions are now logged with the invocation's correlation id, carried by a `ContextVar` to
   hooks the resilience library calls with no argument we control; a module global would interleave

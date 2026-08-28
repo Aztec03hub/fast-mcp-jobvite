@@ -55,6 +55,75 @@ nobody discharged. That is a finding about the review process, and I state it as
   expensive. A sixth reviewer declining it for the sixth time would be a pattern; I am declining the
   remaining 80% on evidence, and recording that the 20% I checked found zero overstatement.
 
+---
+
+## Post-round verification, and one retraction I am recording against myself
+
+Round 6 shipped M-2 and M-3 with explicit "verify before adopting" caveats. Both were then verified
+by execution against the real pinned artifacts. **One caveat saved the round from a false claim and
+the other saved it from a broken fix.** The findings above are the corrected versions; this section
+records what changed, because a silent correction would leave the document looking like it was right
+the first time.
+
+**Artifacts used.** `mcp` 2.0.0 and `mcp_types` 2.0.0 installed at
+`claude_projects/evolv/.venv`; `mcp` **2.1.1** (the pinned version) and `fastmcp` /
+`fastmcp-slim` **4.0.0b4** downloaded and unpacked from PyPI. Note in passing that this corroborates
+§10's packaging claim: the `fastmcp` 4.0.0b4 wheel contains **only** a `dist-info` directory, and
+`fastmcp-slim` carries the entire implementation - which is exactly why §10 says naming it is
+mandatory or resolution fails.
+
+### RETRACTED: M-3's premise. MCP *does* carry trace context.
+
+My original fix asserted *"MCP carries no trace context to a server on either transport - there is no
+header, no context field, and no negotiated extension that conveys one."* **All three clauses are
+false.**
+
+My first search was a grep over `mcp_types` for trace/span terms. It returned zero, and the positive
+controls fired (`elicit` 169, `_meta` 224, `sampling` 133), so the instrument worked. **The instrument
+worked and the selector was wrong.** Trace context is not a schema *type* - it rides as ordinary keys
+in the open `_meta` map (`RequestParamsMeta` is `TypedDict, extra_items=Any`, documented as *"An open
+map: arbitrary keys round-trip"*), so it is invisible to a search of the type definitions and lives in
+the SDK's shared layer instead. A clean zero that explained itself was the bug.
+
+What the wider search found:
+
+| Fact | Evidence |
+|---|---|
+| W3C trace context rides in request `_meta` per **SEP-414** | `mcp/shared/jsonrpc_dispatcher.py:389-390`, comment cites SEP-414 |
+| `mcp` **2.1.1** injects it on every outgoing request | same file, inside a `SpanKind.CLIENT` span named `MCP send <method>` |
+| `opentelemetry-api>=1.28.0` is a **hard dependency** of `mcp` | `Requires-Dist` in the 2.1.1 wheel METADATA |
+| FastMCP 4.0.0b4 **extracts it server-side already** | `fastmcp/server/telemetry.py:95` calls `extract_trace_context(req_ctx.meta)` |
+| The extractor is a **public** API, not private | `fastmcp/telemetry.py:308`, listed in `__all__` |
+| A tool reaches the raw value at `ctx.request_context.meta` | `extract_trace_context` docstring names that accessor |
+
+So M-3 is the brief's outcome **(b): a mechanism exists and is reachable**, and the finding is an
+implementation obligation rather than an ADR. **Do not write ADR-0012 for this.**
+
+**The lesson, recorded because it is the reusable part.** I reached "unsatisfiable" from an absence in
+our research corpus plus one grep of the wrong package. An impossibility claim needs a higher bar than
+a defect claim, and the bar it needed was one search of the SDK rather than of the schema. The caveat
+I attached is the only reason this did not become a frozen sentence scoping out a live obligation.
+
+### CONFIRMED: M-2's caveat was right. The obvious fix would have been rejected.
+
+Four arms, executed against `mcp_types` 2.0.0 and the real `jsonschema` validator, using a schema of
+the shape §2.1 specifies (`additionalProperties: false`):
+
+| Arm | Result |
+|---|---|
+| 1. Undeclared `request_id` as a top-level key in `structured_content` | **REJECTED** - `Additional properties are not allowed ('request_id' was unexpected)` |
+| 2. `request_id` **declared** as an output-model field | accepted |
+| 3. `request_id` in result **`_meta`**, structured content untouched | accepted, and `result.meta` carries it |
+| 4. `_meta` through a serialise/deserialise round trip | preserved intact |
+
+`ClientSession.validate_tool_result` (`mcp/client/session.py:1096-1110`) validates
+`result.structured_content` against the cached output schema and **never inspects `_meta`**. So
+`_meta` is the home, arm 1 is the fix that would have shipped a broken result shape, and the lead's
+instinct - that this is the same stack behaviour that broke `ResponseLimitingMiddleware` - was
+correct.
+
+---
+
 ### The spike-claim audit, since the design's credibility rests on it
 
 | DESIGN claim | Spike source | Verdict |
@@ -261,24 +330,76 @@ distinct B-numbers. **B42 is not one of them.** It is not in §11, not in §12's
 Residual Risks, not deferred with a reason. It is invisible inside the document about to be frozen,
 and after the freeze only a numbered ADR can add it.
 
-**Suggested fix (MY SUGGESTION - verify before adopting).** One sentence in §5.1, one §8 case:
+**Where the id belongs, settled by execution rather than by preference.** My first draft said "in its
+structured content" with a caveat that this might not survive output-schema validation. **The caveat
+was correct and the draft wording was wrong**; see "Post-round verification" above for the four
+executed arms. Summary:
 
-- §5.1, after the problem-object field list: *"**`request_id` is on every result, not only on
-  failures.** `request-middleware.md:144` requires the correlation id echoed on every response,
-  success and error. Every tool result carries `request_id` in its structured content, so a caller
-  holding a successful result can cite the invocation its audit record was written under. This
-  matters most on the post-write audit-failure branch (§5.3), where the warning the caller receives
-  names a record that does not exist and the id is the only handle on the invocation that produced
-  it."*
-- §8, a required case: *"**every tool result carries `request_id`, success and error** - asserted on
-  a successful read, a successful write, and the post-write audit-failure warning branch, matched
-  against the id in the invocation's audit event (B42, §5.1, §5.3)."*
+- **An undeclared top-level `request_id` in `structured_content` is REJECTED.** §2.1's output models
+  are `strict=True` with extra keys forbidden, which emits `additionalProperties: false`, and
+  `mcp` 2.x's `ClientSession.validate_tool_result` validates structured content against that schema
+  unconditionally. Executed: `Additional properties are not allowed ('request_id' was unexpected)`.
+  This is the same stack behaviour that broke `ResponseLimitingMiddleware` (§7.7, ADR-0004).
+- **Result `_meta` is the correct home.** `validate_tool_result` inspects `structured_content` only
+  and never touches `_meta`, so the id cannot be rejected by an output schema. Executed: a
+  `CallToolResult` carrying the id in `_meta` validates clean and round-trips through
+  serialisation intact.
+
+**Suggested fix (MY SUGGESTION - verify before adopting).**
+
+- §5.1, after the problem-object field list: *"**`request_id` is echoed on every result, not only on
+  failures**, per `request-middleware.md:144`. It is carried in the result's `_meta` under
+  `com.evolvconsulting.fast-mcp-jobvite/requestId`, **not in structured content**: §2.1's output
+  models forbid extra keys, so an undeclared key there is rejected by the client's output-schema
+  validation - the same unconditional validation that broke `ResponseLimitingMiddleware` (ADR-0004).
+  `_meta` is the protocol's own channel for exactly this class of field; the spec uses it for
+  `io.modelcontextprotocol/serverInfo`, which is likewise server-stamped and for display, logging and
+  debugging only. Our key is namespaced because `io.modelcontextprotocol/*` is reserved. The problem
+  object keeps its own `request_id` member as well, because RFC 9457 membership is what
+  `error-contract.md` specifies; the two carry the same value and the `_meta` copy is the one present
+  on every result."*
+- §8, a required case: *"**every tool result carries `request_id` in its `_meta`, success and
+  error** - asserted on a successful read, a successful write, the post-write audit-failure warning
+  branch, and an error result, each matched against the id in that invocation's audit event, with an
+  arm asserting the value is absent from `structured_content` so the schema stays clean (B42, §5.1,
+  §5.3)."*
 - Then C1-R1's mitigation cell can honestly say attribution reaches the caller and not only the log.
 
-**Verify before adopting:** I have not checked whether FastMCP's `ToolResult` structured content
-imposes a shape that makes an extra top-level key awkward under `strict=True` output models (§2.1).
-If it does, the id may need to live in result metadata instead, and the fix is a different one line.
-That is exactly the kind of thing a remedy prescribed from a document gets wrong.
+**What a caller does to read it**, since an id a caller cannot reach discharges nothing:
+`CallToolResult.meta` is a normal field on the result, so a raw SDK caller reads
+`result.meta["com.evolvconsulting.fast-mcp-jobvite/requestId"]`. FastMCP's own client preserves it -
+`ToolResult.from_mcp_result` copies `meta` through (`fastmcp/tools/base.py:159-167`) - so a FastMCP
+caller reads `result.meta[...]` too. Server-side we set it with
+`ToolResult(..., meta={...})`; `ToolResult.meta` is a first-class constructor parameter in
+fastmcp-slim 4.0.0b4 (`fastmcp/tools/base.py:103-119`), documented as *"Runtime metadata about the
+tool execution"*. **This is reachable on both transports and needs no client cooperation beyond
+reading a field.** The README should document the key name, since a caller cannot guess it.
+
+**The outbound passthrough is confirmed, and it carries two consequences the implementer needs.**
+`ToolResult.to_mcp_result()` (`fastmcp/tools/base.py:171`) sets `_meta=self.meta` verbatim at
+`:186`, so the value reaches the wire unmodified. But:
+
+1. **Setting `meta` changes which return shape the tool takes.** `:181` reads
+   `if self.meta is not None or self.is_error:` - only then is a full `CallToolResult` constructed;
+   otherwise `:190` returns the lighter `(content, structured_content)` tuple. Stamping `request_id`
+   on every result therefore puts every result on the `CallToolResult` path. That is benign, and it
+   is worth knowing it is the same lever `ResponseLimitingMiddleware` was leaning on when it assumed
+   a non-`None` `meta` would bypass output-schema validation (§7.7, ADR-0004). **It does not bypass
+   validation** - that bypass is what `mcp` 2.x removed - it only selects the richer result type.
+2. **A gotcha that fails silently, which is this design's own hunting ground.**
+   `to_mcp_result()` short-circuits at `:176-177`: `if self._raw_mcp_result is not None: return
+   self._raw_mcp_result`. A `ToolResult` built by `from_mcp_result()` carries that raw result, so
+   **setting `.meta` on such an object is silently discarded** - no error, no warning, and the id
+   simply never appears. Our tools construct their results rather than wrapping an upstream
+   `CallToolResult`, so this should not bite; but it is exactly the shape §8 exists to pin, which is
+   why the required case should assert the id **on the wire result**, not on the `ToolResult` object
+   the tool returned. Asserting the latter would pass while the former was empty.
+
+**Verify before adopting:** I proved the rejection and the `_meta` survival against `mcp_types` 2.0.0
+and the real `jsonschema` validator, and read `ToolResult`, `to_mcp_result` and
+`validate_tool_result` in the pinned versions. I did **not** stand up a live server and observe the
+id arriving at a client end-to-end, so the composed path - tool returns, middleware chain runs,
+client reads `result.meta` - is assembled from verified parts rather than executed as a whole.
 
 ### M-3. §5.3 cites `ai/tool-calling.md:171-173`, and the obligation it does not discharge is at `:176-177`, just past the end of the cited range.
 
@@ -303,29 +424,63 @@ Two things make this more than a range typo:
    `:176-177`. So no B-number tracks it, no sweep verdict covers it, and no ADR scopes it out. It is
    invisible in every instrument the project has.
 
-**I believe the obligation is genuinely unsatisfiable here**, which is why the fix is cheap: an MCP
-server is not in the model's trace. The host holds the turn, MCP carries no trace context to the
-server, and the design already knows the shape of this argument - §5.3 says `request_id` *"is a
-within-invocation correlation key, not a distributed trace id"*. **It stops one sentence short of
-saying that the trace id the clause asks for is the host's and cannot reach us.**
+**THE OBLIGATION IS SATISFIABLE, AND THE MECHANISM ALREADY EXISTS IN OUR PINNED STACK.** My first
+draft of this finding asserted the opposite - that MCP carries no trace context and the clause should
+be scoped out by ADR. **That assertion was false and I retract it.** It was reasoning from an absence
+in our research corpus, which is a fact about what we searched and not about the spec. See
+"Post-round verification" above for the executed evidence. The corrected finding follows.
 
-**Suggested fix (MY SUGGESTION - verify before adopting).** Add to §5.3, immediately after the
-"What this does not do" paragraph:
+**What the pinned stack actually does** (all executed against the real artifacts, not documentation):
 
-> **The clause's second half is unsatisfiable on this transport and is recorded rather than passed
-> over.** `ai/tool-calling.md:176-177` also requires attaching *"the LLM trace/span id so a tool call
-> ties back to its turn"*. That id belongs to the host's turn, and MCP carries no trace context to a
-> server on either transport - there is no header, no context field, and no negotiated extension that
-> conveys one. We therefore cannot attach it, and we do not synthesise a substitute, because a
-> locally-minted id in a field named for the host's trace would be worse than an absent one: it would
-> join nothing while looking like it did. This is the same shape as ADR-0009's approver identity, and
-> it is scoped the same way.
+- **MCP 2026-07-28 carries W3C trace context in request `_meta`, per SEP-414.** `mcp==2.1.1` -
+  the exact pinned version - injects `traceparent`/`tracestate` into every outgoing request's `_meta`
+  at `mcp/shared/jsonrpc_dispatcher.py:390`, inside a `SpanKind.CLIENT` span on the request-send path.
+- **`opentelemetry-api>=1.28.0` is a hard dependency of `mcp` 2.1.1.** It is already in our tree, so
+  this costs no new dependency and does not touch §10's three-pin block.
+- **FastMCP 4.0.0b4 already extracts it server-side.** `fastmcp/server/telemetry.py:95` calls
+  `extract_trace_context(req_ctx.meta)`, and `fastmcp.telemetry.extract_trace_context` is **public**
+  (listed in `__all__`). Its own docstring names the accessor a tool uses:
+  **`ctx.request_context.meta`**.
 
-**And decide whether it needs an ADR.** The project's own precedent says yes - ADR-0009 exists for an
-unsatisfiable half of `agent-guardrails.md:79`, and ADR-0011 for a deviation from
-`request-middleware.md:145`. **This is the same shape and would be ADR-0012**, the first to carry the
-new `Type:` field, which §13 says every ADR from 0012 onward must have. That is a decision for the
-author, not a wording change, which is why this is Medium and not Low.
+So the trace id the clause asks for is reachable from inside a tool, today, on the pinned stack, with
+a public API and no new dependency. **This is an implementation obligation, not an ADR** - which
+makes it a larger fix than the one I first proposed, not a smaller one.
+
+**Suggested fix (MY SUGGESTION - verify before adopting).** Add to §5.3, after the "What this does
+not do" paragraph:
+
+> **The host's trace id is attached when the host supplies one.** `ai/tool-calling.md:176-177`
+> separately requires attaching *"the LLM trace/span id so a tool call ties back to its turn (trace
+> IDs are separate from `request_id`)"*, and unlike ADR-0009's approver identity this one is
+> reachable. MCP carries W3C trace context in request `_meta` per SEP-414; `mcp` injects
+> `traceparent`/`tracestate` on the sending side, and FastMCP extracts it server-side, so a tool
+> reads it at `ctx.request_context.meta`. The audit event therefore records `trace_id` and `span_id`
+> parsed from the inbound `traceparent`, **beside `request_id` and never merged with it** - they
+> answer different questions, and §5.3's own warning that `request_id` is a within-invocation key
+> rather than a distributed trace id is exactly why both are recorded.
+>
+> **Recorded when present, absent otherwise, and never synthesised.** A host that does not propagate
+> trace context sends no `traceparent`, and a locally-minted substitute in a field named for the
+> host's trace would join nothing while looking like it did. The audit event omits the fields rather
+> than inventing them. **Which hosts actually propagate is unverified** - the same limitation §7.5
+> records for the host survey - so this is written to the wire contract, not to any measured client.
+
+Plus a §8 case: *"the audit event carries `trace_id` and `span_id` when the request `_meta` supplies a
+`traceparent`, and omits them when it does not - both arms, since a field that is always absent and a
+field that is always synthesised both pass a single-arm test."*
+
+**Why this stays Medium rather than rising.** It is one required-standard obligation, undischarged
+and invisible in every instrument the project has (no B-number, no sweep verdict, no ADR). The fix is
+a paragraph, a parse, two audit fields and a two-arm test. But it is now clearly implementation and
+not a scoping decision, so **it must not be written as ADR-0012.**
+
+**Verify before adopting:** I confirmed the injection call site, the extraction call site and the
+public API by reading the pinned wheels. I did **not** run a live client-server pair to observe a
+`traceparent` arriving in `ctx.request_context.meta`, and FastMCP's `telemetry_mode()` can be `off`,
+in which case `extract_trace_context` returns the ambient context unchanged. The raw value is still
+readable from `ctx.request_context.meta` regardless of telemetry mode, which is why the fix above
+reads the meta rather than depending on FastMCP's span plumbing - but that specific path is reasoned,
+not executed.
 
 **One incidental catch from the same clause, worth an editor's eye:** the ContextVar name
 `request_id_var` that §5.3 introduces as its own design choice is in fact **mandated verbatim by
@@ -637,6 +792,14 @@ and that assertion must be verified before it goes into a document about to be f
 out MCP does carry one, M-3 stops being a "record it as unsatisfiable" fix and becomes a real
 implementation obligation - a larger fix, not a smaller one.
 
+> **[SUPERSEDED - this paragraph is the round's reasoning as it stood, and its confidence was
+> misplaced.]** MCP *does* carry trace context: SEP-414, W3C `traceparent`/`tracestate` in request
+> `_meta`, injected by `mcp` 2.1.1 and already extracted by FastMCP 4.0.0b4. M-3 became exactly the
+> larger fix this paragraph anticipated. The doubt was right and the confidence was wrong. See
+> "Post-round verification" near the top for the executed evidence and the full retraction. Kept
+> rather than deleted, because the caveat is the only reason a false claim did not reach a frozen
+> document, and that is the part worth being able to point at.
+
 **Against the whole round: five rounds have run and no code exists. Is a sixth round the
 highest-value activity?**
 
@@ -655,6 +818,9 @@ I accept the rebuttals. Two adjustments to how the findings should be read:
    carries no trace context to a server on either transport" needs checking against the `2026-07-28`
    spec before it becomes a frozen sentence. This is the project's own standing lesson: an
    impossibility claim needs a higher bar than a defect claim.
+   **[Resolved after the round: the premise was FALSE. The check was run, MCP carries W3C trace
+   context per SEP-414, and M-3 is now an implementation obligation rather than an ADR. The finding
+   above has been rewritten; see "Post-round verification".]**
 
 2. **H-1's ledger fix needs the original seven reconstructed**, and I could not do it from the
    document. If the record does not support it, the ledger should start where the record does and say
@@ -670,8 +836,8 @@ Everything else stands as written.
 |---|---|---|---|
 | H-1 | **High** | §11's count paragraph says "Two" over an empty must-mitigate table (3rd recurrence), and its written-out arithmetic drops four rows while subtracting two | One paragraph rewrite; needs the original seven reconstructed |
 | M-1 | **Medium** | C5-E1 left the must-mitigate table and is absent from Residual Risks, though §7.2 says "the residual risk stands" | One table row + one cross-reference |
-| M-2 | **Medium** | B42: no `request_id` on success results; absent from `DESIGN.md` entirely; undercuts C1-R1 (High) | Two sentences + one §8 case; verify the result shape first |
-| M-3 | **Medium** | `ai/tool-calling.md:176-177`'s LLM trace/span id obligation falls outside §5.3's cited range and is discharged nowhere | One paragraph + probably ADR-0012; verify the MCP premise |
+| M-2 | **Medium** | B42: no `request_id` on success results; absent from `DESIGN.md` entirely; undercuts C1-R1 (High) | Two sentences + one §8 case. **Verified:** it goes in result `_meta` - structured content rejects it |
+| M-3 | **Medium** | `ai/tool-calling.md:176-177`'s LLM trace/span id obligation falls outside §5.3's cited range and is discharged nowhere | **Verified: an implementation obligation, NOT an ADR.** MCP carries W3C trace context per SEP-414 and FastMCP already extracts it. Parse + two audit fields + a two-arm §8 case |
 | L-1 | Low | `utils/correlation.py` specified in §5.3, missing from §3's module layout | One line |
 | L-2 | Low | §5.3's "audit stream holds candidate PII by construction" contradicts §8's "never reaching a log or audit record" | In-place rewrite of one sentence |
 | L-3 | Low | `DESIGN.md:468` cites `:211` for `about:blank`; the rule is `:212` | One character |

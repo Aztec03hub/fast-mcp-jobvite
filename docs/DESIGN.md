@@ -28,7 +28,7 @@ process that exists to protect a *settled* design. An earlier revision also stat
 in the present tense while four rounds were still finding defects, which read as though the freeze
 had already happened.
 
-Last updated: 2026-08-28 12:54 PM CDT.
+Last updated: 2026-08-28 01:35 PM CDT.
 
 Evidence: `docs/research/JOBVITE-API.md`, `JOBVITE-CONTRACT.md`, `FASTMCP.md`,
 `FASTMCP-SPIKE-4.md`, `STANDARDS.md`, `COMPLIANCE-SPEC.md`. Decisions: `docs/DECISIONS.md`.
@@ -556,6 +556,49 @@ elapsed delay and the exception type; every breaker transition logs the directio
 (`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that, and no library is selected yet (B47), so this is a constraint on that choice rather than an observation about one. Neither
 line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
 exactly where an unredacted URL would otherwise reach a log.
+
+**`request_id` reaches the caller on every result, in `_meta` (B42).** `request-middleware.md:144`
+requires the id echoed on **every response, success and error**. The error half is the problem
+object's own `request_id` member, which `error-contract.md` specifies and which stays. The success
+half goes in the result's `_meta`, under the namespaced key
+`com.evolvconsulting.fast-mcp-jobvite/requestId` - `io.modelcontextprotocol/*` is reserved, and the
+spec's own `SERVER_INFO_META_KEY` is the precedent: server-stamped, and documented as display and
+debugging only, never behaviour or security, which is exactly this value's class.
+
+**Not a field on the output models, and the reason is executed rather than reasoned.** §2.1's models
+set `additionalProperties: false`, and `ClientSession.validate_tool_result` validates
+`structured_content` against the cached output schema unconditionally - the same unconditional
+validation that broke `ResponseLimitingMiddleware` (§7.7). An undeclared top-level `request_id` in
+structured content is **rejected**: *"Additional properties are not allowed ('request_id' was
+unexpected)"*. Declaring it on every model would work, and is rejected for a different reason: it
+would put transport plumbing inside the model-facing payload, drag it through §6.1's fencing paths
+and §7.7's size budget, and make it part of five tools' data contracts. `_meta` is the protocol's
+own channel for this, and the validator never inspects it.
+
+**A caller reads it as a normal field on the result** - `result.meta["com.evolvconsulting.fast-mcp-jobvite/requestId"]`
+on the raw SDK, and the same through FastMCP, which copies `meta` through. **The README must
+document the key**, because a caller cannot guess it, and an id a caller cannot reach discharges
+nothing. One consequence to know: `ToolResult.to_mcp_result()` branches on
+`if self.meta is not None or self.is_error`, so setting `meta` makes every result return as a full
+`CallToolResult` rather than the bare content/tuple form. That is a shape change, not a behaviour
+change, and it is stated here because it is invisible at the call site.
+
+**The audit event also records the inbound trace context, beside `request_id` and never merged with
+it.** `ai/tool-calling.md:176-177` requires the LLM trace/span id so a tool call ties back to its
+turn, and says explicitly that trace ids are separate from `request_id`. **This is reachable on the
+pinned stack today**: `mcp` injects W3C trace context into every outgoing request's `_meta` per
+SEP-414 (`mcp/shared/jsonrpc_dispatcher.py:390`, whose own comment notes `_meta` stays on the wire
+even with a no-op tracer), `opentelemetry-api` is a hard dependency of `mcp 2.1.1` so nothing new is
+added to §10's pins, and FastMCP already extracts it server-side
+(`fastmcp/server/telemetry.py:95`) through a public helper (`fastmcp/telemetry.py:263`, exported at
+`:308`). We read `ctx.request_context.meta` directly rather than depending on FastMCP's span
+plumbing, because `telemetry_mode()` may be `"off"`, in which case the extractor returns the ambient
+context unchanged while the wire `_meta` still carries the header.
+
+`trace_id` and `span_id` are **recorded when present, omitted when absent, and never synthesised**:
+a locally-minted id in a field named for the host's trace joins nothing while looking like it does.
+**Whether a given host injects at all is unverified** - the same limitation §7.5 records for the
+host survey - so this is written to the wire contract, not to a measured client.
 
 **What this does not do:** on stdio the id correlates lines *within* one invocation and nothing
 more, because there is no inbound id and no caller identity to join against (§4.4). It is a
@@ -1111,6 +1154,16 @@ Required cases, each failing if its defence is removed:
   date is rejected rather than honoured, with a positive control showing an unexpired entry is
   honoured (B72, §10). This is the case that stops a time-boxed ignore becoming a permanent one,
   which is the only failure mode of the triage policy that arrives silently;
+- **`request_id` is present on every result, success and error** - asserted on a successful read,
+  a successful write, the audit-failure warning branch, and an error, each matched against the
+  audit event's own id. The success arms assert it in `_meta` under the namespaced key and assert
+  the structured content still validates against the output model, since an undeclared top-level
+  key is rejected by the validator (B42, §5.3);
+- **trace context is recorded when the caller supplies it and absent when it does not** - two arms,
+  one with a `traceparent` in the request `_meta` and one without. **Both arms are required**: a
+  field that is always absent and a field that is always synthesised each pass a single-arm test,
+  and the second is the failure that matters, because a minted id in a field named for the host's
+  trace looks like a join and is not one (`ai/tool-calling.md:176-177`, §5.3);
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - `create_candidate` not retrying on timeout;
