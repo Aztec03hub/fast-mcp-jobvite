@@ -11,7 +11,7 @@ An ADR here does **two different jobs**, and they must stay distinguishable:
 
 **Every ADR from 0012 onward carries a `Type:` field** - `Deviation`, `Design change`, or `Both` -
 because after the freeze "is this a deviation or a design change?" must have an answer, and the
-freeze rule's teeth depend on telling them apart. **All eleven below are `Deviation`**, recorded
+freeze rule's teeth depend on telling them apart. **ADR-0001 to ADR-0011 are all `Deviation`**, recorded
 before any freeze. `DESIGN.md` §13 states the same split.
 
 Format: Status, Type, Context, Decision, Consequences. Every ADR cites the clause it deviates from
@@ -30,6 +30,7 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0009](0009-approver-identity-unknowable.md) | Approver identity cannot be recorded; caller identity can | Accepted |
 | [0010](0010-coverage-targets-remapped.md) | Coverage targets remapped from the standard's category model | Accepted |
 | [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
+| [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | **Proposed** |
 
 ## Acknowledged non-conformances without an ADR
 
