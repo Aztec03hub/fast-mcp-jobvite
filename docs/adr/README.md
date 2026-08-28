@@ -31,6 +31,7 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0010](0010-coverage-targets-remapped.md) | Coverage targets remapped from the standard's category model | Accepted |
 | [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
 | [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | **Proposed** |
+| [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | **Proposed** |
 
 ## Acknowledged non-conformances without an ADR
 
