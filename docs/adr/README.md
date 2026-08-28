@@ -32,6 +32,7 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
 | [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | **Proposed** |
 | [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | **Proposed** |
+| [0014](0014-c8-i1-empty-values-is-wrong.md) | C8-I1 says `.env.example` has empty values; seven of fifteen carry one | **Proposed** |
 
 ## Acknowledged non-conformances without an ADR
 
