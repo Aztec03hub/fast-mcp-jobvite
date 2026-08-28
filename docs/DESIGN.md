@@ -636,7 +636,7 @@ answer.
 An ADR read as "identity in the audit log is unsatisfiable" would close a gap it never considered,
 in a document about to be frozen.
 
-**Candidate PII reaches the audit *path* by construction - the arguments to redact are the candidate's own fields - and **what is emitted carries none of it in the clear****, because the approval request describes the
+**Candidate PII reaches the audit *path* by construction** - the arguments to redact are the candidate's own fields - **and what is emitted carries none of it in the clear**, because the approval request describes the
 candidate about to be written. `approval_state` therefore falls inside §4.1's single redaction point
 rather than beside it, and the audit stream carries the same handling class as the log stream.
 
@@ -1044,7 +1044,7 @@ removes the scope-crossing risk and the spent-token hazard (§7.6) in one edit. 
 wanted, its key derivation must be established by execution the way §4.4 established the limiter's,
 and a test with two differently-scoped tokens must prove isolation before it ships.
 
-Not used: `ResponseLimiting` (broken - raises on any tool with a return annotation, filed as
+Not used: `ResponseLimiting` (broken - the *client* raises on any tool with an output schema, at `mcp/client/session.py:1144-1145`, after the middleware truncates and drops the structured content it was validating; the middleware itself does not raise, and locating the raise there sends a reader to the wrong source. Filed as
 [#4926](https://github.com/PrefectHQ/fastmcp/issues/4926)), `ErrorHandling` (its default converts
 a caller's input problem into a raised server fault), `Retry` (§4.3), `Ping` (inert on our era).
 
@@ -1636,7 +1636,10 @@ must-mitigate list when it is inherent Critical or High, unmitigated, **and a se
 exists that an action item can name**. A row that is inherent Critical or High, unmitigated, and
 has **no available server-side remedy** cannot be discharged by an action item at all; it is
 accepted with a documented rationale and carried to Residual Risks instead. **C4-S1 is the one such
-row.** The earlier rule read simply "unmitigated, inherent Critical or High", which selects C4-S1
+row.** C5-E1 also sits in Residual Risks with no server-side remedy, and is **not** a counterexample:
+the rule selects on *unmitigated*, and C5-E1 is mitigated - as an operator instruction with a stated
+ceiling (§7.2), which is why its exposure is carried at High rather than reduced. That distinction
+rests on one unrepeated adjective, so it is spelled out here rather than left to the reader. The earlier rule read simply "unmitigated, inherent Critical or High", which selects C4-S1
 and then silently omitted it, so the rule did not describe the table it introduced.
 
 **Must mitigate before implementation proceeds:**
@@ -1645,7 +1648,7 @@ and then silently omitted it, so the rule did not describe the table it introduc
 |---|---|---|---|
 | *(none)* | Both rows are closed by this revision: C5-R1 in §5.3, C5-E1 in §7.2 | - | B39, B40, B21 |
 
-**This table is the count. No sentence in this section states a total.**
+**This table is the count. No sentence in this section states a total for it.**
 
 That rule exists because the total was stated in prose three times and was wrong all three times -
 at *"Seven"*, then *"Three"* after C8-I1 came off, then *"Two"* after revision 5 emptied the table
@@ -1666,20 +1669,26 @@ rechecked.
 | `.gitignore` and `.env.example` committed | C8-I1 | Mitigated with a §8 case (B90, B91) |
 | Revision 5 (this one) | C5-R1, C5-E1 | §5.3's `request_id_var` and retry/breaker logging; §7.2's read-only-key requirement |
 
-**The original total is not reconstructible from this document and is deliberately not asserted
-here.** The prose it came from did not reconcile - it named four removals from *"seven"* and
-concluded *"five"* - so restating any number would propagate a figure whose derivation is lost. The
-ledger starts where the record supports it.
+**The original total is not reconstructible, and no total should be derived from the ledger
+either.** Two records exist and they disagree: the retired prose asserted **seven**, while the
+ledger above names **nine** removed rows over a table that is now empty. Neither can be trusted over
+the other - the prose did not reconcile with itself, naming four removals from *"seven"* and
+concluding *"five"*, and the ledger was assembled after the fact from what the document still
+recorded rather than from a contemporaneous count. **Do not derive a total by summing the ledger.**
+It is a record of what came off, not evidence of what was there.
 
 **C9-T1 was added to the model after the last count and never joined the list**, because its pins
 and frozen resolve are specified in §10 and covered by a §8 case; the unexecuted part, the
 capability-drift diff, is a residual risk rather than an implementation blocker.
 
 **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
-undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
-**C3-T1 (B25), C3-D1 (B30) and C9-D1 (B72) have left this
-list**: §2.1 specifies the control-character and encoding rejection and the four structural limits,
-and §10 carries the advisory-triage policy, each with a §8 case.
+undocumented result cap (B15), C7-I2 log-stream handling, and C8-R1 configuration-change logging.
+
+**Three rows have LEFT that list and are not members of it:** C3-T1 (B25), C3-D1 (B30) and C9-D1
+(B72). §2.1 specifies the control-character and encoding rejection and the four structural limits,
+and §10 carries the advisory-triage policy, each with a §8 case. They are named separately because
+an earlier revision joined them to the list above with *"and"*, so departed rows scanned as members
+and the sentence appeared to name seven where the list holds four.
 
 **Separately, and on the other list**, C5-R1 (B39, B40) and C5-E1 (B21) have left the must-mitigate
 table above, which is what empties it: §5.3 supplies the `request_id_var` mechanism and the retry
@@ -1734,7 +1743,12 @@ is derived from the table rather than maintained beside it; the script checks th
    known dependency rather than left as an assumption, and the shutdown test would catch a
    regression.
 
-Items 1 to 4 are external unknowns about Jobvite or about a host. **Item 5 is not** - it is a
+6. **Whether a given host injects W3C trace context at all.** §5.3 records `trace_id` and
+   `span_id` when the inbound `_meta` carries a `traceparent`. The SDK injects on the send path and
+   FastMCP extracts server-side, but no host was surveyed, so how often the field is populated in
+   practice is unknown - the same limitation §7.5 already records for elicitation support.
+
+Items 1 to 4 and 6 are external unknowns about Jobvite or about a host. **Item 5 is not** - it is a
 dependency on a uvicorn implementation detail, which is a claim about our own stack, recorded here
 because it is the kind of assumption that goes unstated.
 
