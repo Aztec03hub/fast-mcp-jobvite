@@ -78,6 +78,27 @@ is a larger and more error-prone artifact than the gate.
 - **`pip-licenses` is a dev dependency, so the gate is CI-only** and does not run for a consumer
   installing the package.
 
+## A claim in this ADR was false when written
+
+**This ADR asserted `pip-licenses` was a dev dependency, and it was not.** The Consequences section
+says *"`pip-licenses` is a dev dependency, so the gate is CI-only"*. At the time it was written the
+package appeared in no dependency group: the gate ran only through `uv run --with pip-licenses`.
+
+The statement is **true now** — `pip-licenses>=5` was added to the dev group and locked in commit
+`2d2e1a3` — but it became true a day after the ADR claimed it, and only because a separate
+compliance pass measured the tree rather than reading this document.
+
+**The defect the wrong claim concealed is worse than the wrong claim.** `--with` resolves a package
+**unpinned on every run, outside `uv.lock`**. So the tool auditing the frozen resolve was itself
+unfrozen — which is precisely the property `ci.yml` builds two assertions to guarantee for
+everything else in this repository. An ADR whose subject is *what our licence gate actually does*
+described the gate's own dependency incorrectly, and nothing checked it, because an ADR is prose and
+prose is not run.
+
+Recorded here rather than silently corrected, because the correction is small and the lesson is not:
+**a document that describes a mechanism should be checked against the mechanism, and this one was
+not until something else went looking.**
+
 ## How this was found
 
 U0 was told to stand up the licence gate from `quality-gates.md`. It tried, measured the tree, and
