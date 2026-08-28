@@ -212,6 +212,59 @@ jobs:
           [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
           [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
 
+      # ----- U15, the two commit-time gates (DESIGN.md:1576-1586, C8-I1) -----
+      # The pre-commit hooks are the primary control and they run on a
+      # developer machine, which means they can be skipped with --no-verify or
+      # simply not installed. These steps are the backstop that notices.
+
+      - name: Committed file types, whole tree
+        # --all, not the staged set: in CI there is no index to diff, and the
+        # question here is different from the hook's. The hook asks "is this
+        # commit clean"; this asks "is the REPOSITORY clean", which is the only
+        # question that catches a file that got in with --no-verify.
+        run: |
+          set -uo pipefail
+          scripts/check-committed-file-types.py --all || {
+            echo "::error::a tracked file fails the committed-file-type gate"; exit 1; }
+
+      - name: U15 gate controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(scripts/check-u15-gate-controls.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::a U15 gate control did not fire"; exit 1; }
+          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
+          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
+          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
+          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
+          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+
+      - name: Secret scan hook runs clean
+        # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,
+        # because the obvious reading is wrong and a wrong reading here is a
+        # green that tested nothing:
+        #
+        #   $ pre-commit run committed-file-types --all-files --verbose
+        #   committed-file-type gate: 0 file(s) checked, none refused.
+        #
+        # `--all-files` is a pre-commit concept: it passes every file as hook
+        # ARGUMENTS. The file-type gate takes no filename arguments by design -
+        # it reads the INDEX, because that is the only way to require an
+        # allowlist exception to be staged in the same commit. In CI nothing is
+        # staged, so the gate correctly reports zero files and exits 0.
+        #
+        # The "Committed file types, whole tree" step above is what actually
+        # covers it. Do not delete that step on the grounds that this one runs
+        # the same hook: it does not.
+        #
+        # What this step genuinely covers is the secret scan over every file,
+        # and .secrets.baseline staying in step with the tree - a new finding
+        # nobody audited turns this red.
+        run: |
+          set -uo pipefail
+          uv tool run pre-commit@4.6.2 run --all-files --show-diff-on-failure || {
+            echo "::error::a commit-time gate failed on the tree"; exit 1; }
+
       # DEFERRED TO U11. pip-audit has no severity threshold: one advisory anywhere
       # in the transitive tree turns a required check red, and we pinned a beta
       # stack deliberately, so we expect this and owe it a sanctioned response

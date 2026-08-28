@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# U15 amputation harness. A DIFFERENT question from the mutation harness.
+#
+# Mutation asks: "break one rule - does the named test notice?"
+# Amputation asks: "remove the SUBJECT ENTIRELY - does anything still report
+# success?" U0 ran both, and only amputation found its one genuinely vacuous
+# assertion (U0-REPORT section 7). A test that passes when its subject is not
+# there is not a weak test, it is a false instrument.
+#
+# For each tree this prints the pass/fail counts and NAMES every test that
+# still passes, so the report can say which assertions survived and why rather
+# than asserting that none did.
+#
+# This harness does not exit non-zero on survivors - survivors are the OUTPUT.
+# It exits non-zero only if it could not run, or if the intact baseline is red.
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GATE_REL="scripts/check-committed-file-types.py"
+SUITE_REL="tests/test_file_type_gate.py"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+build_tree() {  # $1 = destination
+  mkdir -p "$1/scripts" "$1/tests"
+  cp "$REPO_ROOT/$GATE_REL" "$1/$GATE_REL"
+  cp "$REPO_ROOT/$SUITE_REL" "$1/$SUITE_REL"
+  cp "$REPO_ROOT/tests/__init__.py" "$1/tests/" 2>/dev/null || true
+  cp "$REPO_ROOT/pyproject.toml" "$1/"
+}
+
+report() {  # $1 = label, $2 = tree, $3 = optional PATH override
+  local label="$1" tree="$2" pathenv="${3:-$PATH}"
+  echo "########## $label"
+  ( cd "$tree" && env PATH="$pathenv" python3 -m pytest "$SUITE_REL" \
+      -p no:cacheprovider -q -o addopts="" -rA >"$WORK/out.txt" 2>&1 )
+  tail -1 "$WORK/out.txt"
+  local survivors
+  survivors=$(grep -E '^PASSED ' "$WORK/out.txt" | sed 's/^PASSED //' || true)
+  if [ -z "$survivors" ]; then
+    echo "  survivors: NONE - no assertion passed against this tree"
+  else
+    echo "  survivors (assertions that still reported success):"
+    echo "$survivors" | sed 's/^/    /'
+  fi
+  echo
+}
+
+# --- baseline: the intact tree, so a red here invalidates every row below ----
+build_tree "$WORK/intact"
+echo "########## BASELINE - the intact tree"
+( cd "$WORK/intact" && python3 -m pytest "$SUITE_REL" -p no:cacheprovider -q \
+    -o addopts="" >"$WORK/out.txt" 2>&1 )
+BASE_RC=$?
+tail -1 "$WORK/out.txt"
+if [ "$BASE_RC" -ne 0 ]; then
+  echo "ABORT: the intact tree is red; amputation results would be meaningless."
+  cat "$WORK/out.txt"
+  exit 3
+fi
+echo
+
+# --- A. the gate script is GONE --------------------------------------------
+build_tree "$WORK/A"; rm -f "$WORK/A/$GATE_REL"
+report "A. the gate script does not exist at all" "$WORK/A"
+
+# --- B. the gate script exists and is ZERO BYTES ----------------------------
+# The clean-empty trap: the import succeeds, so anything that does not actually
+# call the gate keeps passing.
+build_tree "$WORK/B"; : > "$WORK/B/$GATE_REL"
+report "B. the gate script exists but is ZERO BYTES" "$WORK/B"
+
+# --- C. the gate imports, but classify() is gone ----------------------------
+build_tree "$WORK/C"
+python3 - "$WORK/C/$GATE_REL" <<'PY'
+import re, sys, pathlib
+p = pathlib.Path(sys.argv[1])
+s = p.read_text()
+s = re.sub(r"\ndef classify\(.*?\n    return None\n", "\n", s, flags=re.S)
+p.write_text(s)
+PY
+report "C. the module imports but classify() has been removed" "$WORK/C"
+
+# --- D. the rule tables are present but EMPTY -------------------------------
+# Amputating the DATA rather than the code. A gate whose tables are empty runs,
+# exits 0 on everything, and looks entirely healthy.
+build_tree "$WORK/D"
+python3 - "$WORK/D/$GATE_REL" <<'PY'
+import sys, pathlib, re
+p = pathlib.Path(sys.argv[1])
+s = p.read_text()
+s = re.sub(r"ALLOWED_EXTENSIONS = frozenset\(\n.*?\n\)", "ALLOWED_EXTENSIONS = frozenset()", s, flags=re.S)
+s = re.sub(r"DENIED_EXTENSIONS = \{\n.*?\n\}", "DENIED_EXTENSIONS = {}", s, flags=re.S)
+s = re.sub(r"MAGIC = \(\n.*?\n\)", "MAGIC = ()", s, flags=re.S)
+p.write_text(s)
+PY
+report "D. the gate runs but every rule table is EMPTY" "$WORK/D"
+
+# --- E. git is unavailable --------------------------------------------------
+# Everything that shells out to git loses its subject; everything that calls
+# classify() in-process does not.
+build_tree "$WORK/E"
+mkdir -p "$WORK/nogit"
+for tool in python3 sh env sed grep cat; do
+  src=$(command -v "$tool") && ln -sf "$src" "$WORK/nogit/$tool"
+done
+report "E. git is not on PATH at all" "$WORK/E" "$WORK/nogit"
+
+echo "########## END. Survivors above are the finding, not a failure."

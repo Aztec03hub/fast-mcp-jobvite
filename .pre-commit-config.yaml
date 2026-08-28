@@ -1,0 +1,87 @@
+# Commit-time gates. DESIGN.md:1576-1586, and the stated mitigation for threat
+# row C8-I1 (DESIGN.md:1760), which is rated CRITICAL.
+#
+# WHY BOTH, and why neither is redundant with CI:
+#   - Secret scanning runs HERE and not only in CI because on a public remote a
+#     pushed secret is compromised the instant it lands. CI finds it after the
+#     fact; this finds it before.
+#   - The committed-file-type gate exists because a CONFIDENTIAL vendor PDF has
+#     no high-entropy token and matches no credential regex. It passes every
+#     secret scanner cleanly. The two gates see different things and neither
+#     substitutes for the other.
+#
+# STATED CEILING, so this is not over-trusted (DESIGN.md:1584-1586): the
+# file-type gate stops a FILE of the wrong type. It does nothing about
+# confidential prose pasted into Markdown, which is the incident we actually
+# had. Review and JOBVITE-API.md section 0.2 cover that, not this file.
+#
+# Install:  pre-commit install
+# Run over everything:  pre-commit run --all-files
+
+# fail_fast is deliberately OFF. An author fixing one refusal should see both
+# gates' findings in one run rather than discovering the second after fixing
+# the first.
+fail_fast: false
+
+repos:
+  - repo: local
+    hooks:
+      - id: committed-file-types
+        name: committed-file-type gate (allowlist-first, magic-number, NUL, fail-closed)
+        entry: python3 scripts/check-committed-file-types.py
+        language: system
+        # pass_filenames MUST stay false. The gate reads the INDEX itself
+        # (git diff --cached), because that is the only way the allowlist
+        # exception can be required to be staged in the same commit. It also
+        # rejects unknown argv, so a filename list would make it exit 2.
+        pass_filenames: false
+        # always_run MUST stay true. Without it pre-commit skips the hook when
+        # no file matches its (empty) filter, and a gate that skips is a gate
+        # that fails open.
+        always_run: true
+
+  # Secret scanning. detect-secrets rather than TruffleHog, deliberately:
+  #   - TruffleHog's pre-commit path needs a system binary that is NOT present
+  #     on this machine and is not installed by `pre-commit install`. A hook
+  #     that cannot run is not a control, and the version pinned in CI
+  #     (ci.yml:326, trufflesecurity/trufflehog@v3.88.0) is a GitHub Action,
+  #     not a hook.
+  #   - detect-secrets is `language: python`, so pre-commit builds it into its
+  #     own isolated venv with no system dependency. It runs on a clean
+  #     checkout, which is the only kind of hook that actually gets adopted.
+  #   - The result is TWO different engines - detect-secrets at commit time,
+  #     TruffleHog over full history in CI - which is better than one engine
+  #     run twice. They have different detector sets and different false
+  #     negatives.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: secret scan (detect-secrets, staged content)
+        # THE BASELINE IS NOT A CONVENIENCE, and it is here against my first
+        # instinct. Run without one, this hook is RED on its first run against
+        # the current clean tree: docs/research/FASTMCP.md:354 and :584 are
+        # vendor-documentation placeholders (`"your-client-secret"` and
+        # `"secret-key"`). That is D3's failure shape from U0-REPORT - a gate
+        # red on a clean tree trains everyone to ignore it - reappearing on the
+        # secret gate.
+        #
+        # Of the three ways out, this is the only reviewable one:
+        #   - excluding docs/research/ is a blanket hole over exactly the
+        #     directory vendor material lands in;
+        #   - inline `pragma: allowlist secret` edits research prose that is
+        #     not this unit's file to satisfy a tool;
+        #   - the baseline records file, line and a HASH of each accepted
+        #     string, so it shows up in the diff, and a changed line re-fires.
+        # That is the same shape DESIGN.md:1582-1583 requires of the file-type
+        # gate's override: an exception a reviewer can see.
+        #
+        # Both entries were audited and carry is_secret=false. Regenerate with
+        #   detect-secrets scan --baseline .secrets.baseline
+        # and audit every ADDED entry before staging it.
+        #
+        # .env is gitignored and must never reach the index; .env.example
+        # carries no credential (DESIGN.md:1222) and is scanned like anything
+        # else rather than excluded, so a real value pasted into it is caught.
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(uv\.lock|docs/research/fixtures/)

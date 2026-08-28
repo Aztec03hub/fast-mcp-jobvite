@@ -39,7 +39,12 @@ TOTAL=0
 
 # The subset of the tree the suite reads. docs/ is required: conftest.py points
 # FIXTURES_DIR into docs/research/fixtures.
-COPY=(pyproject.toml uv.lock .env.example .gitignore src tests docs)
+#
+# scripts/ added by U15: tests/test_file_type_gate.py imports the gate from
+# scripts/check-committed-file-types.py, so without it this harness's copied
+# tree fails at COLLECTION and every control below aborts. This is a one-entry
+# data addition, not a change to U0's harness logic.
+COPY=(pyproject.toml uv.lock .env.example .gitignore src tests docs scripts)
 
 stage () {
   local dest="$1"

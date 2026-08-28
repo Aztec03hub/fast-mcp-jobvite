@@ -20,13 +20,38 @@ build/
 *.sqlite3
 
 # Vendored third-party source documents. Research cites and links sources; it does
-# not redistribute them. A CONFIDENTIAL vendor PDF reached this public repo once
-# already - see docs/adr/ and the section 0 licensing note in the research reports.
-docs/research/*.pdf
-docs/research/*.raml
-docs/research/*.doc
-docs/research/*.docx
-docs/research/*.zip
+# not redistribute them. A CONFIDENTIAL vendor PDF and an unlicensed RAML reached
+# two public remotes on this project already - see docs/adr/ and the section 0
+# licensing note in the research reports.
+#
+# WIDENED FROM docs/research/ TO THE WHOLE REPOSITORY (U15). Measured with
+# `git check-ignore` before the change: `docs/research/test.pdf` was blocked
+# while `test.pdf`, `docs/test.pdf`, `src/test.pdf` and `vendor.raml` were all
+# stageable. The incident's mechanism was a broad `git add` sweeping files
+# nobody intended to stage, which has happened twice here, and THE REPOSITORY
+# ROOT - where such a sweep picks a file up - was exactly where the old
+# path-scoped block did not apply.
+#
+# WHAT THIS COSTS, stated rather than assumed: a legitimate PDF someone later
+# wants in the repository is now blocked too. There is no such file today - no
+# tracked file matches any pattern below, checked with `git ls-files`, so this
+# widening changes the status of nothing currently committed. When one is
+# genuinely wanted the answer is `git add -f` PLUS an entry in
+# `.file-type-allowlist`, because scripts/check-committed-file-types.py
+# denylists these extensions independently and will still refuse it.
+#
+# THIS IS NOT THE CONTROL. `.gitignore` is bypassed by `git add -f` and does
+# nothing about a file that is already tracked. It removes the accident, not
+# the intent. The gate is the control; C8-I1 names both.
+*.pdf
+*.raml
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.zip
 
 # Credential material the standard names explicitly
 *.pem
