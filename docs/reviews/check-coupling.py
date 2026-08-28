@@ -114,6 +114,10 @@ import pathlib
 import re
 import sys
 
+# Repository root, derived from this file's location rather than the caller's cwd, so the
+# artifact-existence check below resolves the same way from anywhere.
+REPO = pathlib.Path(__file__).resolve().parents[2]
+
 ID_RE = re.compile(r"^C(\d+)-([STRIDE])(\d+)$")
 REF_RE = re.compile(r"\bC\d+-[STRIDE]\d*\b")
 CATEGORIES = ["S", "T", "R", "I", "D", "E"]
@@ -209,6 +213,94 @@ def main(path: pathlib.Path) -> int:
         """Return the §8 case named by this Test cell if it is absent from §8, else None."""
         case = test.split("§8:", 1)[1].strip()
         return None if re.sub(r"\s+", " ", case) in haystack else case
+
+    # 2a-bis. A CASE'S SUBJECT MUST EXIST ON DISK (GATE-1).
+    #
+    #     The check above confirms a row names a §8 case PRESENT IN THIS DOCUMENT. It says nothing
+    #     about whether the artifact that case asserts against exists at all. That gap was not
+    #     hypothetical: C5-E1 was marked Mitigated naming a case asserted "against the committed
+    #     files", where one of those files was README.md - which does not exist and which §10.1
+    #     deliberately withholds. Well-formed row, present case, every gate green, evidence
+    #     unproducible. C8-I1 closed on the same shape of evidence with both halves present.
+    #
+    #     Scope, deliberately narrow: only bullets that claim to assert against the repository.
+    #     A case may legitimately name a file it does NOT assert against - a citation, an example -
+    #     and failing those would make this check noise that someone turns off.
+    #
+    #     The gating escape hatch is honoured: a bullet may name a file that does not exist yet
+    #     PROVIDED it says the arm is gated on the file's presence. That is not a loophole, it is
+    #     the difference between "asserts a thing that cannot be true" and "asserts a thing when it
+    #     becomes checkable". A skip is a green that tested nothing; a declared gate is a stated
+    #     condition. What is forbidden is the silent version.
+    ARTIFACT_MARKER = "against the committed files"
+    GATING_MARKERS = ("gated on", "once a", "when a", "when the implementation produces")
+
+    artifact_bullets = [b for b in re.split(r"\n- ", s8_required) if ARTIFACT_MARKER in b]
+
+    #     THE SELECTOR'S OWN CONTROL. Every prose-keyed selector in this gate has gone vacuous at
+    #     least once - FIX-8 was exactly that, a row selector keyed on a keyword that silently
+    #     stopped matching 8 rows. If the marker phrase is reworded this check would examine
+    #     nothing and pass beautifully, which is the failure it exists to prevent. A selection of
+    #     zero is therefore a FAILURE, not a pass.
+    if not artifact_bullets:
+        failures.append(
+            "no §8 case claims to assert " + repr(ARTIFACT_MARKER) + " - either the artifact-"
+            "asserting cases were removed, or the phrase this check selects on was reworded and "
+            "the check is now examining nothing"
+        )
+
+    def _resolve(token: str) -> bool:
+        """Does this repository contain the named file?
+
+        A case names a file the way prose does - `CREDENTIAL-CHECKLIST.md`, not
+        `docs/CREDENTIAL-CHECKLIST.md`. Resolving bare names against the repo root only was the
+        first version of this check, and it reported an existing file as missing: a FALSE FAIL,
+        which is worse than a false pass because it trains a reader to disbelieve the gate.
+        """
+        if "/" in token:
+            return (REPO / token).exists()
+        return any(REPO.rglob(token))
+
+    def _gated_for(bullet: str, token: str) -> bool:
+        """Is THIS token's arm declared gated, or merely some other token's in the same bullet?
+
+        Gating per-bullet was the second defect: one gated arm exempted every path named anywhere
+        in the same bullet, so substituting a nonexistent file for a real one went green. A gate is
+        only an excuse for the file it actually names.
+        """
+        stem = re.split(r"[./]", token)[0].lower().lstrip(".")
+        low = bullet.lower()
+        for marker in GATING_MARKERS:
+            start = 0
+            while (idx := low.find(marker, start)) != -1:
+                # FORWARD window only, and short. A gating clause names its own subject AFTER the
+                # marker - "once a README exists". Looking backwards as well let a token 60
+                # characters upstream borrow a gate meant for a different file: substituting a
+                # nonexistent path for a real one in the same bullet went green. Proximity is not
+                # reference.
+                if stem in low[idx: idx + 50]:
+                    return True
+                start = idx + 1
+        return False
+
+    for bullet in artifact_bullets:
+        for token in sorted(set(re.findall(r"`([^`]+)`", bullet))):
+            # A repository path, not a variable or a header: no spaces, and either a file suffix
+            # or a separator. Bare identifiers like `request_id` are not candidates.
+            # A repository path, not an identifier: no spaces, and it carries a dot or a separator.
+            # An earlier version required a 2-4 character suffix at the end, which silently skipped
+            # `.gitignore` and `.env.example` - the two files in the OTHER artifact-asserting case,
+            # so that whole bullet was examined and nothing in it was ever checked.
+            if " " in token or not re.search(r"[./]", token):
+                continue
+            if _resolve(token):
+                continue
+            if _gated_for(bullet, token):
+                continue
+            failures.append(
+                f"§8 case asserts {ARTIFACT_MARKER} but {token!r} is not in the repository, and "
+                f"the case does not declare that arm gated on the file's presence"
+            )
 
     # 2b. RATINGS ARE COMPUTED, NOT CHOSEN (FIX-10 / H2). §11 convention 3 asserts "Machine-checked:
     #     every rated row agrees with [the matrix]". Until this loop existed, no machine checked it -

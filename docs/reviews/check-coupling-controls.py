@@ -247,6 +247,37 @@ CONTROLS = [
     ("18d MATRIX FAILS LOUD on a half-unrated row: C1-E1's Impact blanked to '-'",
      lambda t: impact_cell(t, "C1-E1", "-"),
      "C1-E1 cannot be evaluated against the matrix"),
+
+    # --- GATE-1: a §8 case's SUBJECT must exist on disk, not merely be named in the document.
+    #
+    # These exist because C5-E1 was marked Mitigated naming a case asserted "against the committed
+    # files", where one of those files was README.md - which does not exist. Well-formed row,
+    # present case, every gate green, evidence unproducible.
+    #
+    # 19 is the SELECTOR's control and it is the one that matters. The check is keyed on a prose
+    # phrase, and every prose-keyed selector in this gate has gone vacuous at least once - FIX-8
+    # was exactly that. Reword the phrase and the check examines nothing and passes beautifully.
+    ("19 GATE-1 SELECTOR: the artifact-assertion phrase reworded, so the check selects nothing",
+     lambda t: t.replace("against the committed files", "against the files in the repo"),
+     "no §8 case claims to assert 'against the committed files'"),
+
+    # 20 proves the assertion fires on a file that is simply absent. It targets .gitignore
+    # specifically: an earlier version of the check required a 2-4 character suffix at the end of
+    # the token, which silently skipped BOTH files in this bullet, so the bullet was selected and
+    # nothing in it was ever examined.
+    ("20 GATE-1 ASSERTION: a §8 case names a repository file that does not exist",
+     lambda t: t.replace("`.gitignore` covers the credential patterns",
+                         "`NO-SUCH-GITIGNORE.md` covers the credential patterns"),
+     "'NO-SUCH-GITIGNORE.md' is not in the repository"),
+
+    # 21 is the one the first two versions of this check FAILED. A bullet may legitimately name a
+    # file that does not exist yet, provided it says that arm is gated on the file's presence.
+    # Gating per-BULLET meant one gated arm excused every path named anywhere near it, so swapping
+    # a real file for a nonexistent one inside that bullet went green. A gate excuses the file it
+    # names, and proximity is not reference.
+    ("21 GATE-1 GATING IS PER-FILE: a nonexistent file borrows another arm's gate",
+     lambda t: t.replace("`CREDENTIAL-CHECKLIST.md`", "`NO-SUCH-FILE.md`"),
+     "'NO-SUCH-FILE.md' is not in the repository"),
 ]
 
 
