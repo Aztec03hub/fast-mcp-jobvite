@@ -15,15 +15,33 @@ invalidates it, that is a report, not a unilateral change of course.
 The obligation is B49b in `docs/OBLIGATIONS.md`. Read the clause it cites, at its source, and quote
 it in your report.
 
+## Where the violations actually are, and a correction that matters
+
+**MEASURED at the 72-char threshold `pyproject.toml:185` names as "the 72-char half is B49b":**
+
+```
+1654 errors:  tests/ 907    src/ 638    scripts/ 109    docs/ ZERO
+```
+
+**W505 is `doc-line-too-long` and it flags DOCSTRINGS IN PYTHON FILES.** An earlier revision of this
+brief said the sweep "touches nearly every documentation file in the tree" and devoted a section to
+repointing `DESIGN.md:N` citations. **That was wrong and is deleted.** Markdown is not linted by
+ruff, `docs/` contributes zero violations, and `DESIGN.md` is not in scope at all - so there is
+nothing there to exempt and no citations to repoint.
+
+**The real consequence of that error was a collision.** The sweep lands in exactly the files a
+concurrent agent was editing, and both were dispatched believing their trees were disjoint. **Check
+`git worktree list` and ask before touching `src/` or `tests/`.**
+
 ## Why the sequencing matters, because it changed on re-measurement
 
-The decision was taken against **367** violations. There are now **1343** - U1, U3 and U4 added
-roughly 325 each. **Ten more units remain.** Deferring the sweep costs roughly 3000 further lines,
-and enabling `W505` is the only thing that stops the growth. That is why this runs BEFORE U5 rather
-than after it, and it is the whole reason your task is ahead of a feature in the queue.
+The decision was taken against **367** violations. **Verify the current count yourself before you
+start and put your own number in the report** - my successive figures have been 367, then 1343, then
+1654, each measured differently, and at least two of them were wrong when written.
 
-**Verify that 1343 yourself before you start** and put your own number in the report. It is my count,
-it is hours old, and a merge has landed since.
+The count grows with every unit and **ten more units remain**, so deferring costs thousands of
+further lines. Enabling `W505` is the only thing that stops the growth. That is why this sits ahead
+of a feature in the queue.
 
 ## What to do
 
@@ -38,27 +56,32 @@ it is hours old, and a merge has landed since.
 
 ## The trap in this specific task
 
-**This touches nearly every documentation file in the tree, and `DESIGN.md:N` citations are counted
-in lines.** 841 such citations exist across 81 files, and a five-line insertion once moved 723 of
-them.
+**A docstring is not a comment, and reflowing one can change behaviour.** Two shapes to handle with
+care rather than with `fmt`:
 
-**`docs/DESIGN.md` is frozen - reflowing it is a design edit and you may not do it.** If `W505` fires
-inside `DESIGN.md`, the answer is an exemption for that file plus a line in your report, **not** an
-edit and **not** an ADR. Say clearly in the report how many violations live there.
+- **A docstring that a test asserts on.** This project has tests that read module docstrings and
+  harnesses whose anchors are docstring text. `str.replace` in a harness silently no-ops when its
+  anchor moves, which turns a control into a green that tests nothing.
+- **The first line.** Ruff's `D415` requires it to end in `.`, `?` or `!`, and `D400`/`D205` govern
+  the blank line after it. A reflow that pushes a word onto the summary line can trip these, and the
+  cheapest fix is to delete words - which is how a reflow quietly becomes a rewrite.
 
-For every other doc you reflow, run `docs/reviews/check-design-citations.py --since <your base sha>`
-afterwards and repoint what moved, **by parsing its output**. Then run
-`docs/reviews/check-cross-references.py` - it validates the `Section n.m` pointers, which reflowing
-can also disturb.
+**Do not solve a violation by deleting the sentence.** The prose in this codebase carries the reason
+a thing exists, and several comments are the only record of a defect that was measured once.
 
 ## Gates specific to you
 
-Beyond the standard set: `check-obligations.py`, `check-design-citations.py`,
-`check-cross-references.py`, and `check-plan-measurements.py` all read documents by line and are the
-ones your change is most likely to break. Run each, by exit code, and quote the output.
+Beyond the standard set, the ones a mass docstring edit is most likely to break:
+
+- **The suite-size floor**, `scripts/check-suite-floor.sh`, wired into `ci.yml`. A reflow must not
+  change the test count, so this is a free check on your sweep - if it goes red, you removed a test.
+- **Every mutation and amputation harness in `scripts/`**, because their anchors are source text.
+  Run all of them, by exit code, and treat a `DID NOT LAND` or `ANCHOR MISSING` line as red even
+  though the harness may still exit 0 on it.
+- `check-obligations.py`, since obligation anchors cite `file:line` in these same files.
 
 ## In the report
 
-The count you measured, the value you set, how many violations were in `DESIGN.md` and what you did
-about them, the exemption list with a defence per entry or the word "empty", every checker's verbatim
-output, and the final passed-count.
+The count you measured and how, the threshold and the pyproject key you set, the exemption list with
+a defence per entry or the word "empty", every harness's verbatim output, and the final
+passed-count - which must not have moved.
