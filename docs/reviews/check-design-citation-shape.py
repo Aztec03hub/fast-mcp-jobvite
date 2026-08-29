@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Flag `DESIGN.md:N` citations whose target CANNOT be their subject.
 
-    python3 docs/reviews/check-design-citation-shape.py [--sha 8a9d63c]
+    python3 docs/reviews/check-design-citation-shape.py [--sha <ref>]
 
 R4 found ten of eighteen sampled citations in U5 landing **one paragraph
 short** of their subject, and recommended a checker over the whole
@@ -21,9 +21,11 @@ that STARTS on a blank line is the exact shape of the off-by-one R4
 measured: the author counted the paragraph break rather than the
 paragraph.
 
-Measured when written, against `c15b138` over `src/ tests/ scripts/`.
-The freeze moved to `8a9d63c` with the ten-ADR batch; the numbers
-below are the measurement of their own day, not re-derived here:
+Measured when written, against the freeze OF THAT DAY, over
+`src/ tests/ scripts/`. The numbers below are that measurement and are
+not re-derived. **The current freeze is the `--sha` default and nowhere
+else in this file** - it has moved three times, and a second copy of it
+in prose went stale on the second move:
 399 occurrences, 206 distinct ranges, 0 out of bounds, 8 entirely blank,
 11 fence-or-separator only. `DESIGN.md:311` is cited for "a URL
 containing a secret is never constructed"; 311 is blank and the sentence
@@ -69,7 +71,7 @@ def design_lines(sha: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sha", default="8a9d63c", help="the frozen DESIGN.md")
+    parser.add_argument("--sha", default="aca9397", help="the frozen DESIGN.md")
     args = parser.parse_args()
 
     lines = design_lines(args.sha)

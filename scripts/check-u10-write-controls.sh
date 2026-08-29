@@ -5,7 +5,7 @@
 # passes against a tree where the behaviour it claims to check is wrong.
 #
 # THE ROWS THAT MATTER MOST ARE M4, M5 AND M6 - the approval conjunction.
-# DESIGN.md:1128-1131 requires `action == "accept" AND approve is True`,
+# DESIGN.md:1148-1151 requires `action == "accept" AND approve is True`,
 # and either half alone admits a refusal as an approval. On this tool
 # that means a write nobody authorised, in a live ATS, possibly emailing
 # a person. Every one of them is broken here and watched to go red.
@@ -145,11 +145,11 @@ PY
 }
 
 # ===========================================================================
-# THE ERA DISCRIMINATOR (DESIGN.md:1175-1178, FASTMCP-SPIKE-4.md:2063-2074)
+# THE ERA DISCRIMINATOR (DESIGN.md:1195-1198, FASTMCP-SPIKE-4.md:2063-2074)
 # ===========================================================================
 
 # The sessionless tuple swallows the handshake era, so a handshake call
-# takes the MRTR path - which DESIGN.md:1139 measured as raising on
+# takes the MRTR path - which DESIGN.md:1159 measured as raising on
 # EVERY arm, approve included.
 mutate "M1  the modern tuple swallows the handshake era" \
   "$APPROVAL" "$SUITE::test_positive_control_a_recognised_era_approves" \
@@ -166,7 +166,7 @@ mutate "M2  the handshake era is no longer recognised" \
   'HANDSHAKE_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2025-11-25",)' \
   'HANDSHAKE_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ()'
 
-# The third case APPROVES instead of refusing. DESIGN.md:1179-1183 says
+# The third case APPROVES instead of refusing. DESIGN.md:1199-1203 says
 # an era that cannot be identified must not degrade quietly, and this is
 # the quiet degradation.
 mutate "M3  an unidentifiable era approves instead of refusing" \
@@ -195,7 +195,7 @@ mutate "M4  the discriminator is ctx.transport, a measured trap" \
 
 # ===========================================================================
 # THE CONJUNCTION. THE ROWS THIS HARNESS EXISTS FOR.
-# DESIGN.md:1128-1131: `action == "accept" AND approve is True`.
+# DESIGN.md:1148-1151: `action == "accept" AND approve is True`.
 # ===========================================================================
 
 # THE VALUE HALF IS DROPPED on the MRTR leg: an acceptance carrying
@@ -274,7 +274,7 @@ mutate "M10 the send_email argument never reaches the body" \
   '            "sendEmail": params.send_email,' \
   '            "sendEmail": False,'
 
-# The approval request stops naming the email. DESIGN.md:1114-1124: an
+# The approval request stops naming the email. DESIGN.md:1134-1144: an
 # approver shown "create candidate Jane Doe" approves a database row and
 # thereby authorises an email nobody mentioned.
 mutate "M11 the approval request no longer discloses the email" \
@@ -313,7 +313,7 @@ mutate "M13 the write response is read with the READ casing only" \
 
 # ===========================================================================
 # C4-D2 - THE 409. DETECTION, NOT PREVENTION, AND EVEN THE DETECTION IS
-# `[INFERRED]` (DESIGN.md:1451-1454).
+# `[INFERRED]` (DESIGN.md:1471-1474).
 # ===========================================================================
 
 mutate "M14 the duplicate status is the wrong number" \
@@ -372,7 +372,7 @@ mutate "M19 a refusal is never audited" \
                         structured_content=problem_from_exception(
                             ApprovalRefusedError('
 
-# DESIGN.md:774-780: a post-write audit failure must be SUCCESS WITH A
+# DESIGN.md:794-800: a post-write audit failure must be SUCCESS WITH A
 # WARNING. Under `BEFORE_SIDE_EFFECT` it raises instead, the caller sees
 # an error, and the model's reasonable answer is to retry - which emails
 # a second live human. This row is the branch existing to prevent that.

@@ -4,9 +4,9 @@
 file whose tests are ALL marker-excluded. CI never runs these and never
 skips them: they are excluded by *selection* - the `credentialed` marker
 deselected by the `-m` in `addopts` - because a skip counts as a failure
-(DESIGN.md:1290-1293).
+(DESIGN.md:1310-1313).
 
-**CI does `--collect-only` against this file** (DESIGN.md:1305-1310). A
+**CI does `--collect-only` against this file** (DESIGN.md:1325-1330). A
 suite that is excluded and never collected rots silently: an import
 error or a renamed fixture here is invisible until the day someone
 finally has a credential. That is why this module must import cleanly
@@ -22,7 +22,7 @@ identically.
 
 **What these cases settle that the offline suite cannot.** The offline
 suite passes against synthetic fixtures, which proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1319-1321). These
+self-consistent, not that it speaks Jobvite (DESIGN.md:1339-1341). These
 are the rows `docs/CREDENTIAL-CHECKLIST.md` converts from synthetic to
 recorded the day a key lands - in particular whether the `requisitions`
 envelope key, the `total` member and the requisition field names are
@@ -175,7 +175,7 @@ async def test_the_result_cap_holds_against_a_real_page(
     The offline arm caps a two-item fixture. This is the arm that
     would catch a tenant whose page is larger than the cap and whose
     `total` therefore exceeds `showing` - the `showing 50 of 1,240`
-    shape DESIGN.md:493-495 uses as its worked example, which no
+    shape DESIGN.md:513-515 uses as its worked example, which no
     synthetic fixture in this repository is big enough to produce.
 
     `showing == 1`, not `showing <= 1` (R4-H3). The `<=` form is

@@ -287,7 +287,7 @@ def _envelope_message(payload: Mapping[str, Any]) -> str:
     """Join Jobvite's own `status.messages` into one line for `detail`.
 
     Jobvite's message is preserved rather than discarded -
-    DESIGN.md:572-574 puts it in `detail` - but it never reaches the
+    DESIGN.md:592-594 puts it in `detail` - but it never reaches the
     problem object's `status`, which comes from the registry
     (`errors.py`).
     """
@@ -418,13 +418,13 @@ def _excerpt(text: str) -> str:
 # ======================================================================
 # U6 - PAGING. Base-agnostic offset scanning around `request` below.
 #
-# THE WHOLE MECHANISM IS ONE CHARACTER (DESIGN.md:474-483): every scan
+# THE WHOLE MECHANISM IS ONE CHARACTER (DESIGN.md:494-503): every scan
 # starts at `start=0`. A 0-based server returns record zero; a 1-based
 # server returns the same first page it would have returned anyway.
 # Starting at 1 is the only choice that can silently lose a record.
 #
 # WHAT IS OBSERVED, and it is narrower than the design's own first
-# sentence. DESIGN.md:470 says `start` is 1-based *per Jobvite's own v1
+# sentence. DESIGN.md:490 says `start` is 1-based *per Jobvite's own v1
 # documentation, which is the only statement from the vendor*. That is
 # a VENDOR CLAIM. The observation is `JOBVITE-API.md:399`: `start=0` is
 # accepted and returns records, in one genuine `200`. That falsifies
@@ -432,7 +432,7 @@ def _excerpt(text: str) -> str:
 # "1-based with clamping" both remain live, and `start=0` is safe under
 # both, which is the point of being base-agnostic.
 #
-# WHY DE-DUPLICATION IS NOT THE SAFETY MECHANISM (DESIGN.md:484-487).
+# WHY DE-DUPLICATION IS NOT THE SAFETY MECHANISM (DESIGN.md:504-507).
 # The seen set defends against OVER-reading only. Under the
 # 1-based-with-clamping hypothesis `start=0` is clamped to 1, so
 # advancing by `count` re-reads one boundary record per page and the
@@ -451,19 +451,19 @@ def _excerpt(text: str) -> str:
 # 0-based server, which is the loss this whole section exists to avoid.
 # ======================================================================
 
-#: The v2 transport page cap (DESIGN.md:453). **Not observed.** No call
+#: The v2 transport page cap (DESIGN.md:473). **Not observed.** No call
 #: in our evidence requested more than 5 records, so whether 500 is a
 #: real server limit is unknown; it is the design's figure, and this
 #: constant is where a measurement would land.
 V2_PAGE_CAP: Final = 500
 
-#: The `/v1/jobFeed` transport page cap (DESIGN.md:453). Unobserved for
+#: The `/v1/jobFeed` transport page cap (DESIGN.md:473). Unobserved for
 #: the same reason as `V2_PAGE_CAP`.
 JOBFEED_PAGE_CAP: Final = 1000
 
 #: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
-#: `min(transport_cap, configured_result_cap)` (DESIGN.md:453-455,
-#: DESIGN.md:1633-1636). 50 agrees with the `showing 50 of 1,240`
+#: `min(transport_cap, configured_result_cap)` (DESIGN.md:473-475,
+#: DESIGN.md:1653-1656). 50 agrees with the `showing 50 of 1,240`
 #: string a caller already reads, which makes it internally consistent
 #: and NOT a measurement of anything.
 DEFAULT_MAX_RESULTS: Final = 50
@@ -484,7 +484,7 @@ DEFAULT_MAX_RESULTS: Final = 50
 #: `scripts/probe-scan-bounds.py` measures both halves of that: equal
 #: records held at the two page sizes, a tenfold difference in requests.
 #:
-#: **It is NOT `total` and does not read `total`** (DESIGN.md:505-506),
+#: **It is NOT `total` and does not read `total`** (DESIGN.md:525-526),
 #: so the clause that "`total` is reported and never trusted as a loop
 #: condition" is intact. It is a constant of ours.
 #:
@@ -500,12 +500,12 @@ DEFAULT_MAX_RESULTS: Final = 50
 #:   The budget does not bound the request count at all, which is the
 #:   ADR's load-bearing point; it cannot be what sizes this.
 #: * **Not "5.5 hours at 6/min".** `JOBVITE_OUTBOUND_RATE_LIMIT`
-#:   (DESIGN.md:1637-1642) is a documented default whose self-throttle
+#:   (DESIGN.md:1657-1662) is a documented default whose self-throttle
 #:   is NOT IMPLEMENTED (task #43 measured its absence). Sizing a
 #:   ceiling against machinery that does not exist is sizing it
 #:   against nothing.
 #:
-#: What it IS sized against is the resource: DESIGN.md:493 records the
+#: What it IS sized against is the resource: DESIGN.md:513 records the
 #: largest real one as `showing 50 of 1,240`, so 100,000 is roughly
 #: eighty times the biggest scan this project has ever named, and no
 #: legitimate scan comes near it. What it COSTS when it does fire is
@@ -517,7 +517,7 @@ DEFAULT_MAX_RESULTS: Final = 50
 #: only shape that can produce it cheaply.
 MAX_SCAN_RECORDS: Final = 100_000
 
-#: Where every scan starts (DESIGN.md:474). Named rather than inlined
+#: Where every scan starts (DESIGN.md:494). Named rather than inlined
 #: so a future edit is a visible one-line diff with this comment
 #: attached, instead of a `0` quietly becoming a `1` inside a call.
 SCAN_START: Final = 0
@@ -526,12 +526,12 @@ SCAN_START: Final = 0
 #: `JOBVITE-API.md:398`: `total` is the size of the whole result set,
 #: not of the page - a call requesting 5 reported a `total` in the
 #: hundreds of thousands. It is REPORTED and never a loop condition
-#: (DESIGN.md:505-506).
+#: (DESIGN.md:525-526).
 TOTAL_KEY: Final = "total"
 
 #: The default per-record identifier. `eId` is an opaque 8-character
 #: id, which is why completeness is a COUNT against `total` and not a
-#: search for a hole (DESIGN.md:488-491).
+#: search for a hole (DESIGN.md:508-511).
 DEFAULT_ID_KEY: Final = "eId"
 
 
@@ -571,7 +571,7 @@ class ScanResult:
         Args:
             items: The de-duplicated records, in arrival order.
             total: The envelope's `total`, reported and never trusted
-                as a loop condition (DESIGN.md:505-506). `None` when
+                as a loop condition (DESIGN.md:525-526). `None` when
                 no page carried one.
             pages: How many requests the scan issued.
             duplicates_dropped: Records the seen set rejected. Under
@@ -586,7 +586,7 @@ class ScanResult:
             capped: The scan stopped because it reached its limit.
             exhaustive: The caller requested no limit.
             incomplete: The completeness check fired. Only ever `True`
-                on an exhaustive scan (DESIGN.md:488-496).
+                on an exhaustive scan (DESIGN.md:508-516).
         """
         self.items = items
         self.total = total
@@ -639,7 +639,7 @@ class ScanResult:
 #: outbound attempts for one tool invocation (DESIGN.md:392-394).
 #:
 #: **60 is a choice, not a measurement**, and it is recorded as one for
-#: the same reason DESIGN.md:1637-1642 records the 6/min rate limit as a
+#: the same reason DESIGN.md:1657-1662 records the 6/min rate limit as a
 #: guess. No Jobvite response-time distribution has ever been observed
 #: on this project, so there is nothing to derive a percentile from. It
 #: is sized to be comfortably longer than one 30-second read timeout
@@ -731,7 +731,7 @@ UNAVAILABLE_BREAKER_DETAIL: Final = (
     "We have stopped calling Jobvite because it has been failing. "
     "This is an open circuit breaker, not an upstream failure in flight."
 )
-#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
+#: This module's own claim to a coverage role from DESIGN.md:1443-1445,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -749,7 +749,7 @@ UNAVAILABLE_RATE_LIMITED_DETAIL: Final = (
 )
 
 #: THE BUDGET'S CARRIER, and it is a `ContextVar` for the same reason
-#: `request_id_var` is (DESIGN.md:648-652): `asyncio` runs invocations
+#: `request_id_var` is (DESIGN.md:668-672): `asyncio` runs invocations
 #: concurrently on one thread, and a module global would let two
 #: invocations share one deadline - the first to start would bound the
 #: second, and the corruption would be silent because every call still
@@ -1096,7 +1096,7 @@ def _report_breaker_state() -> None:
     """Log a breaker transition **if one happened**, on the call path.
 
     **This function IS the reason `circuitbreaker` had to evaluate
-    expiry on the call path** (DESIGN.md:657). It reads
+    expiry on the call path** (DESIGN.md:677). It reads
     `_JOBVITE_BREAKER.state`, which for an expired open window is a
     DERIVED read computed in this frame - so the `open->half_open` line
     is written by the invocation's own task, with its `request_id_var`
@@ -1107,7 +1107,7 @@ def _report_breaker_state() -> None:
 
     The line carries the direction, the triggering counter and
     `request_id`, which is what `backend/resilience.md:224-226` and
-    DESIGN.md:654-656 require. **It carries no URL**, for the same
+    DESIGN.md:674-676 require. **It carries no URL**, for the same
     reason a retry line does not: the v1 `jobFeed` URL is itself a
     secret.
     """
@@ -1174,7 +1174,7 @@ def _log_retry_attempt(state: RetryCallState) -> None:
 
     `backend/resilience.md:224-226`: "log every retry attempt (at
     WARNING) ... each carrying the `request_id` correlation field. Never
-    retry or trip silently." DESIGN.md:654-656 adds the fields: the
+    retry or trip silently." DESIGN.md:674-676 adds the fields: the
     attempt number, the elapsed delay and the exception type.
 
     **THE ABSENT FIELD IS THE LOAD-BEARING ONE.** No URL and no route
@@ -1187,7 +1187,7 @@ def _log_retry_attempt(state: RetryCallState) -> None:
 
     `request_id` is read from `request_id_var` rather than passed,
     because `tenacity` calls this hook, not our call site
-    (DESIGN.md:641-643). It is a per-Task ContextVar, so two invocations
+    (DESIGN.md:661-663). It is a per-Task ContextVar, so two invocations
     retrying concurrently each read their own - which is §8 #13, and
     why that case runs two invocations in parallel rather than one.
 
@@ -1245,7 +1245,7 @@ class JobviteClient:
                 is optional here and the failure for a missing one is
                 raised at the call.
             transport: Substituted in tests with `httpx2.MockTransport`
-                (DESIGN.md:1420-1421, ADR-0007). `None` in production.
+                (DESIGN.md:1440-1441, ADR-0007). `None` in production.
             timeout: Explicit and per-phase (DESIGN.md:358). **No SDK
                 default and no single scalar**: `httpx2`'s own default
                 is a 5-second scalar, which is a resilience decision
@@ -1256,12 +1256,12 @@ class JobviteClient:
                 silent.
             max_results: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
                 `min(transport_cap, configured_result_cap)`
-                (DESIGN.md:453-455). U5 applies the same figure
+                (DESIGN.md:473-475). U5 applies the same figure
                 in-tool in `tools/jobs.py` and owns the
                 `showing N of total` string; this half bounds what
                 leaves the transport, and neither unit owns all of it.
             start_base_overrides: `JOBVITE_PAGINATION_START_BASE`,
-                **per resource and not global** (DESIGN.md:497-499),
+                **per resource and not global** (DESIGN.md:517-519),
                 keyed by the same `path` a scan is given. Absent, every
                 resource starts at `SCAN_START`. This exists for
                 someone who has ESTABLISHED the base against a live
@@ -1402,10 +1402,10 @@ class JobviteClient:
                 ..."*. Jobvite returned nothing; the call was never
                 made. Telling a caller the upstream failed when the
                 deployment is misconfigured is the same inversion
-                DESIGN.md:533-540 corrects for Jobvite's own 401.
+                DESIGN.md:553-560 corrects for Jobvite's own 401.
 
                 `errors.py` has no configuration row and
-                DESIGN.md:541-542 forbids minting a slug, so an
+                DESIGN.md:561-562 forbids minting a slug, so an
                 exception outside the
                 hierarchy is the honest answer: ADR-0017 routes it to
                 `/problems/internal-error` **500** with the class name
@@ -1958,7 +1958,7 @@ class JobviteClient:
     # ------------------------------------------------------
 
     def transport_cap(self, *, jobfeed: bool = False) -> int:
-        """The transport page cap for a route (DESIGN.md:453).
+        """The transport page cap for a route (DESIGN.md:473).
 
         Args:
             jobfeed: Select the `/v1/jobFeed` route's cap.
@@ -1973,7 +1973,7 @@ class JobviteClient:
         """`min(transport_cap, configured_result_cap)`.
 
         **THE TRANSPORT HALF OF ONE BEHAVIOUR SPLIT ACROSS TWO FILES**
-        (DESIGN.md:453-455). U5's `tools/jobs.py` applies
+        (DESIGN.md:473-475). U5's `tools/jobs.py` applies
         `JOBVITE_MAX_RESULTS` to a page and owns the caller-facing
         `showing N of total` string; this is the `min()` that composes
         the two caps, and it is deliberately not a second copy of U5's
@@ -1989,11 +1989,11 @@ class JobviteClient:
         return min(self.transport_cap(jobfeed=jobfeed), self._max_results)
 
     def scan_start(self, path: str) -> int:
-        """The FIRST `start` of a scan of `path` (DESIGN.md:474-483).
+        """The FIRST `start` of a scan of `path` (DESIGN.md:494-503).
 
         `SCAN_START` unless an operator has overridden this resource.
         The override is per resource and not global
-        (DESIGN.md:497-499), and it exists for someone who has
+        (DESIGN.md:517-519), and it exists for someone who has
         established the base against a live tenant. **The vendor's
         1-based claim is not written here as a default**: a declared 1
         never requests record zero, so on a 0-based server it loses
@@ -2017,7 +2017,7 @@ class JobviteClient:
         id_key: str = DEFAULT_ID_KEY,
         limit: int | None = None,
     ) -> ScanResult:
-        """Page a resource, base-agnostically (DESIGN.md:474-506).
+        """Page a resource, base-agnostically (DESIGN.md:494-526).
 
         Args:
             path: The path below the base URL, e.g. `/job`.
@@ -2036,13 +2036,16 @@ class JobviteClient:
             JobviteUpstreamError: From `request`, unchanged.
             JobviteUnavailableError: From `request`, unchanged.
         """
-        # ONE RULE FOR THE PAGE SIZE, and it is DESIGN.md:453-455's
+        # ONE RULE FOR THE PAGE SIZE, and it is DESIGN.md:473-475's
         # `min(transport_cap, configured_result_cap)` with no branch on
         # top of it. An exhaustive scan pages at the same size and just
         # keeps going; a caller's `limit` only ever narrows it further.
         # A separate "exhaustive scans use the raw transport cap" rule
-        # would be a paging policy this design does not state, invented
-        # here, and untestable without a knob invented to test it.
+        # would CONTRADICT the policy §4.5 states; it is not a vacuum
+        # this would fill. ADR-0025's Q1 said the design stated no
+        # policy and was WITHDRAWN for it. Changing this is an ADR
+        # amending §4.5, never a branch invented here - and such a
+        # branch is untestable without a knob invented to test it.
         exhaustive = limit is None
         cap = self.result_cap(jobfeed=jobfeed)
         effective_limit = cap if exhaustive else min(limit or 0, cap)
@@ -2148,7 +2151,7 @@ class JobviteClient:
             # PROGRESS IS MEASURED BEFORE THE PAGE IS CONSUMED, and
             # `unidentified` is counted alongside `seen` because an
             # id-less record IS a record the caller receives - a page of
-            # them is progress, not stalling (DESIGN.md:484-487).
+            # them is progress, not stalling (DESIGN.md:504-507).
             progress_before = len(seen) + unidentified
 
             for item in page:
@@ -2159,7 +2162,7 @@ class JobviteClient:
                     # seen set that swallowed them would DELETE
                     # records - the over-reading defence causing the
                     # under-read it exists to prevent
-                    # (DESIGN.md:484-487).
+                    # (DESIGN.md:504-507).
                     unidentified += 1
                     items.append(item)
                     continue
@@ -2170,7 +2173,7 @@ class JobviteClient:
                 items.append(item)
 
             # THE ONLY TERMINATION THAT READS THE SERVER
-            # (DESIGN.md:505-506). `len(page) < count`, on the RAW page
+            # (DESIGN.md:525-526). `len(page) < count`, on the RAW page
             # and not on the de-duplicated total: a fully duplicate
             # full-length page is not a short page, and stopping on it
             # would end a scan early on the clamping hypothesis.
@@ -2302,20 +2305,20 @@ class JobviteClient:
     ) -> bool:
         """Completeness vs `total`, ARMED ONLY BY AN EXHAUSTIVE SCAN.
 
-        DESIGN.md:488-496. The check has two required halves and the
+        DESIGN.md:508-516. The check has two required halves and the
         second is the one that gets left out:
 
         * it fires when a scan that requested EVERYTHING terminated on
           a short page and returned fewer unique records than `total`;
         * **it must NOT fire on a capped call.** A capped result is a
           mismatch BY DESIGN - `showing 50 of 1,240` is §7.7's own
-          worked example - and DESIGN.md:493 says wiring the check to
+          worked example - and DESIGN.md:513 says wiring the check to
           every call "would fire the alarm on the default path and
           train everyone to ignore it".
 
         Comparing a COUNT is the whole mechanism, because `eId` is
         opaque and you cannot find a hole in a set of opaque ids
-        (DESIGN.md:488-491).
+        (DESIGN.md:508-511).
 
         Args:
             path: The resource, for the log line.
@@ -2336,14 +2339,14 @@ class JobviteClient:
         # AS ONE (R5-M2). `unique != total` fires on both, and this
         # method's own docstring says the check is for a scan that
         # returned **fewer** records than `total` - which is what
-        # DESIGN.md:488-496 describes and all it contemplates.
+        # DESIGN.md:508-516 describes and all it contemplates.
         #
         # The over-count direction is REACHABLE and was reached: a
         # wrong `id_key` sends every record down the `unidentified`
         # branch, kept and never de-duplicated, giving `unique=10`
         # against `total=9`. That was logged as "jobvite scan
         # incomplete" - an OVER-read reported as an under-read, the
-        # same wolf with the wrong name on it. DESIGN.md:493 is
+        # same wolf with the wrong name on it. DESIGN.md:513 is
         # explicit about what crying wolf costs.
         if unique > total:
             logger.warning(

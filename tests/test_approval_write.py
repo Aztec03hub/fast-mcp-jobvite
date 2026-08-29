@@ -6,7 +6,7 @@ THINGS HERE, AND BOTH PREDATE `approval.py`.**
 preference: four refusal arms below all assert *the row count did not
 move*, and every one of them passes perfectly against a
 `create_candidate` that is broken and never writes at all - the
-guard-that-refuses-everything of DESIGN.md:1431-1432.
+guard-that-refuses-everything of DESIGN.md:1451-1452.
 `FASTMCP-SPIKE-4.md:1431` is the spike recording exactly that failure
 against itself: a first run refused all six arms, looked like a perfect
 security result, and was a token-parsing bug.
@@ -22,10 +22,10 @@ asserts that the server requires an approval response from the host and
 refuses to write without one. It never asserts, implies or names a
 human: a host may auto-respond with no person present, which is C4-S1,
 a **High residual** that is **not mitigable server-side**
-(DESIGN.md:1822, ADR-0009).
+(DESIGN.md:1842, ADR-0009).
 
 A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1319-1321). The
+self-consistent, not that it speaks Jobvite (DESIGN.md:1339-1341). The
 `201` body here is
 `docs/research/fixtures/candidate_create_success.json` and it is
 synthetic - `JOBVITE-CONTRACT.md:260` marks the whole write
@@ -84,7 +84,7 @@ def settings(**overrides: Any) -> Settings:
     """Build validated-shaped settings for a write-enabled server.
 
     Both gates are satisfied here on purpose: `JOBVITE_ENABLE_WRITES`
-    **and** the name in `JOBVITE_TOOLS` (DESIGN.md:978). The cases that
+    **and** the name in `JOBVITE_TOOLS` (DESIGN.md:998). The cases that
     withhold one of them do so explicitly.
     """
     base: dict[str, Any] = {
@@ -188,7 +188,7 @@ async def accept_but_refuse(
 
     **The arm people drop.** An accepted elicitation carrying
     `approve: false` is still an acceptance, which is why
-    DESIGN.md:1128-1131 makes the guard a conjunction rather than an
+    DESIGN.md:1148-1151 makes the guard a conjunction rather than an
     action check.
     """
     from fastmcp.client.elicitation import ElicitResult
@@ -218,7 +218,7 @@ def audit_events(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 # ======================================================================
 # 1. THE POSITIVE CONTROL. WRITTEN FIRST, ON BOTH ERAS.
-#    IMPLEMENTATION-PLAN.md §U10, DESIGN.md:1431-1432.
+#    IMPLEMENTATION-PLAN.md §U10, DESIGN.md:1451-1452.
 # ======================================================================
 
 
@@ -469,7 +469,7 @@ async def test_the_traps_agree_on_the_real_context() -> None:
 async def test_an_unidentifiable_era_refuses_and_logs_the_observed_value(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """A version in neither tuple refuses. DESIGN.md:1179-1183.
+    """A version in neither tuple refuses. DESIGN.md:1199-1203.
 
     **There is no fallback to fall through to** now that the
     confirmation token is cut, so an era nobody has measured must not
@@ -566,7 +566,7 @@ async def test_case22_an_acceptance_carrying_approve_false_refuses(mode: str) ->
 
     `action == "accept"` with `approve: false` is still an acceptance.
     An action-only check admits it and writes, which is why
-    DESIGN.md:1128-1131 makes the guard a conjunction.
+    DESIGN.md:1148-1151 makes the guard a conjunction.
     """
     ats = _JobviteRows()
     server = build_server(settings(), client_factory=ats.factory())
@@ -728,7 +728,7 @@ async def test_case25_the_two_eras_refuse_in_DIFFERENT_shapes() -> None:
 # 5. §8 #16 - `request_id` ON THE WIRE, ON THE WRITE'S TWO ARMS.
 #
 #    **ASSERTED ON THE WIRE RESULT, NEVER ON THE `ToolResult` THE TOOL
-#    RETURNED.** DESIGN.md:1388-1391: asserting the object would pass
+#    RETURNED.** DESIGN.md:1408-1411: asserting the object would pass
 #    while the wire carried nothing.
 # ======================================================================
 
@@ -765,7 +765,7 @@ async def test_case16_a_successful_write_carries_request_id_on_the_wire(
 async def test_case16_the_audit_failure_warning_branch_carries_request_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The post-write audit-failure arm. DESIGN.md:774-780.
+    """The post-write audit-failure arm. DESIGN.md:794-800.
 
     **SUCCESS WITH A WARNING, NEVER AN ERROR.** A post-write audit
     failure returned as a problem object would tell the caller the
@@ -889,7 +889,7 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
     """C6-* : the write's arguments ARE candidate PII by construction.
 
     Asserted against the audit event the case above proves exists, not
-    against an empty stream (DESIGN.md:1334-1342).
+    against an empty stream (DESIGN.md:1354-1362).
 
     **R7-L2: this checked ONE of four values, and only `arguments`.** It
     asserted `VALID_ARGS["email"]` absent and said nothing about
@@ -920,7 +920,7 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
 
 
 # ======================================================================
-# 7. THE TWO DEPLOY-TIME GATES (DESIGN.md:976-980). BOTH DIRECTIONS.
+# 7. THE TWO DEPLOY-TIME GATES (DESIGN.md:996-1000). BOTH DIRECTIONS.
 # ======================================================================
 
 
@@ -937,7 +937,7 @@ async def test_the_write_is_not_registered_without_the_writes_flag() -> None:
 async def test_the_write_is_not_registered_when_it_is_not_named() -> None:
     """Flag on, not named: still no write tool.
 
-    DESIGN.md:976-980 states the conjunction in BOTH directions, and a
+    DESIGN.md:996-1000 states the conjunction in BOTH directions, and a
     single-direction test passes against an implementation that dropped
     one of them.
     """
@@ -991,7 +991,7 @@ async def test_the_write_declares_all_three_annotations() -> None:
 
 # ======================================================================
 # 8. THE ELICITATION PAYLOAD NAMES THE CANDIDATE, THE JOB, AND WHETHER
-#    `send_email` IS TRUE (DESIGN.md:1114-1124).
+#    `send_email` IS TRUE (DESIGN.md:1134-1144).
 #
 #    **THIS IS THE ONE PLACE THE STRONGEST GATE CAN BE SATISFIED
 #    HONESTLY AND STILL PRODUCE THE OUTCOME IT EXISTS TO PREVENT.** An
@@ -1119,7 +1119,7 @@ async def test_the_audit_event_records_send_email_as_its_value(
     the whole domain**, so the record could not distinguish a write that
     emailed a live person from one that did not.
 
-    `DESIGN.md:1786` C1-T1 names flipping this field to `true` a
+    `DESIGN.md:1806` C1-T1 names flipping this field to `true` a
     **High** threat and `DESIGN.md:242` makes its `false` default a
     safety property. The audit event is the artefact a compliance reader
     consults after the fact, and it was the one place that question had
@@ -1221,7 +1221,7 @@ def test_an_envelope_carrying_neither_spelling_yields_none_not_an_error() -> Non
 
 # ======================================================================
 # 11. C4-D2 - A `409` IS `/problems/conflict` WITH THE DUPLICATE NAMED
-#     IN `detail`. **DETECTION, NOT PREVENTION** (DESIGN.md:1451-1454).
+#     IN `detail`. **DETECTION, NOT PREVENTION** (DESIGN.md:1471-1474).
 # ======================================================================
 
 
@@ -1280,7 +1280,7 @@ async def test_a_non_409_upstream_failure_is_not_dressed_up_as_a_conflict() -> N
 
 
 # ======================================================================
-# 12. THE WRITE IS NEVER RETRIED (§4.3, DESIGN.md:1410).
+# 12. THE WRITE IS NEVER RETRIED (§4.3, DESIGN.md:1430).
 #     **BY CONSTRUCTION**: `RETRYABLE_METHODS` admits GET and HEAD only,
 #     so no configuration and no tool-name allow-list can turn it back
 #     on. Without this case the caller-replay ceiling (C4-D2, B108) is
@@ -1646,7 +1646,7 @@ async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:
     M6 deletes the action check, and every arm of
     `test_case22_the_second_leg_actually_consumes_ctx_input_responses`
     sends `action="accept"` - so the deletion changed nothing any of
-    them could see. `DESIGN.md:1128-1131` requires BOTH halves and this
+    them could see. `DESIGN.md:1148-1151` requires BOTH halves and this
     is the one nothing exercised.
     """
     from fast_mcp_jobvite.approval import (
@@ -1681,7 +1681,7 @@ async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:
 #    cannot read must refuse. Each is paired with a positive control,
 #    because "refuses an unreadable shape" is satisfied by a function
 #    that refuses everything, and that function approves nothing and is
-#    not the fix (DESIGN.md:1431-1432).
+#    not the fix (DESIGN.md:1451-1452).
 # ======================================================================
 
 

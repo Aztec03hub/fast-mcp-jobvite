@@ -34,12 +34,12 @@ every line of it:
 **What the guard establishes, exactly:** the server requires an approval
 response from the host and refuses to write without one. **Never that a
 human approved.** C4-S1 is a High residual, not mitigable server-side
-(DESIGN.md:1822, ADR-0009).
+(DESIGN.md:1842, ADR-0009).
 
 **This is the candidate PII data class** (DESIGN.md:137), which is the
 step up from `tools/jobs.py`. It is the first tool surface where §6.1's
 fencing fires, where §6.2's EEO exclusion is load-bearing, and where
-DESIGN.md:760-762's "candidate PII reaches the audit *path* by
+DESIGN.md:780-782's "candidate PII reaches the audit *path* by
 construction" is literally true - the argument to `get_candidate` IS a
 candidate identifier.
 
@@ -102,7 +102,7 @@ from ..utils.normalise import epoch_ms_to_date, none_to_blank, read_identifier
 from ..utils.redaction import fence_payload
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
-#: (DESIGN.md:664-667). **The same literal `tools/jobs.py` declares**,
+#: (DESIGN.md:684-687). **The same literal `tools/jobs.py` declares**,
 #: and it is duplicated rather than imported on purpose: importing one
 #: tool module from another to share a protocol constant would couple
 #: two units' registration order for a string. A test pins the two
@@ -128,7 +128,7 @@ CLIENT_ROUTES: Final = (CANDIDATES_PATH,)
 
 #: The fencing decisions for one candidate record, GENERATED from the
 #: output models (DESIGN.md:202-205) and keyed by **path in Jobvite's
-#: own key space**, exactly as DESIGN.md:802's own example
+#: own key space**, exactly as DESIGN.md:822's own example
 #: `candidates[].application.job.title` is.
 #:
 #: The two envelope entries are added explicitly because they are not
@@ -196,10 +196,10 @@ class GetCandidateInput(InboundModel):
 
 
 #: The status Jobvite is `[INFERRED]` to return on a duplicate create
-#: (`JOBVITE-CONTRACT.md:260`, DESIGN.md:1451-1454). Named so the
+#: (`JOBVITE-CONTRACT.md:260`, DESIGN.md:1471-1474). Named so the
 #: mapping to `/problems/conflict` is one comparison against one
 #: constant rather than a magic number beside a status test.
-#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
+#: This module's own claim to a coverage role from DESIGN.md:1443-1445,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -222,7 +222,7 @@ class CreateCandidateInput(InboundModel):
     """Arguments for `create_candidate`.
 
     **THIS MODEL CARRIES CANDIDATE PII BY CONSTRUCTION** - name, email
-    and phone are what it is for (DESIGN.md:1756). Every string is
+    and phone are what it is for (DESIGN.md:1776). Every string is
     `SafeText`, which bounds the length and rejects control characters
     and bidi overrides before dispatch (§2.1, B25).
 
@@ -230,7 +230,7 @@ class CreateCandidateInput(InboundModel):
     point** (DESIGN.md:239): it mails a live human, so the dangerous
     value is never the one reached by omission. It is also an argument
     like any other and is disclosed in the approval request by name
-    (DESIGN.md:1114-1124).
+    (DESIGN.md:1134-1144).
     """
 
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -289,7 +289,7 @@ class CreateCandidateResult(BaseModel):
     built in serialisation mode with `extra="forbid"`, so a key absent
     from the schema is rejected by the client's own validator - and the
     post-write audit-failure branch has to be able to add one
-    (DESIGN.md:774-780). A field that only sometimes exists would make
+    (DESIGN.md:794-800). A field that only sometimes exists would make
     that branch the one shape the schema refuses.
     """
 
@@ -371,7 +371,7 @@ def build_create_result(payload: dict[str, Any]) -> CreateCandidateResult:
 
 
 def conflict_or_original(exc: Exception) -> Exception:
-    """Turn Jobvite's `409` into `/problems/conflict` (DESIGN.md:1451).
+    """Turn Jobvite's `409` into `/problems/conflict` (DESIGN.md:1471).
 
     **Detection, not prevention, and the difference is the point.**
     None of §2.2's gates stops an *authorised* write being made twice;
@@ -497,14 +497,14 @@ def _int_or_none(value: object) -> int | None:
 
 
 def build_result(payload: dict[str, Any], max_results: int) -> CandidateSearchResult:
-    """Apply the in-tool result cap to one page (DESIGN.md:488-496).
+    """Apply the in-tool result cap to one page (DESIGN.md:508-516).
 
     **Reports rather than truncates.** A capped result is a mismatch
     against `total` by design, so the cap is surfaced in `summary` and
     is explicitly not an anomaly to be logged.
 
     **`total` comes from the envelope, never from `len(items)`**
-    (DESIGN.md:505-520, and `JOBVITE-API.md:398` measured it: 5
+    (DESIGN.md:525-540, and `JOBVITE-API.md:398` measured it: 5
     requested, a total in the hundreds of thousands returned). Counting
     the page instead would make `showing N of N` true on every call and
     delete the only signal that a page was capped.
@@ -534,7 +534,7 @@ def register(
     """Register the candidate read tools, each if it is enabled.
 
     **The gate is `settings.enabled_tools` and it is checked per tool**
-    (DESIGN.md:970-987): registration is the deploy-time control, and a
+    (DESIGN.md:990-1007): registration is the deploy-time control, and a
     tool that registers and then refuses is a tool a client can still
     see. The two tools are gated independently because they are two
     tools.
@@ -545,7 +545,7 @@ def register(
             `validate_settings`.
         client_factory: Builds the `JobviteClient` for one invocation.
             Substituted in tests to inject `httpx2.MockTransport`
-            (DESIGN.md:1420-1421).
+            (DESIGN.md:1440-1441).
     """
     wanted = {
         SEARCH_CANDIDATES,
@@ -790,7 +790,7 @@ def register(
                         is_error=True,
                     )
 
-                # NO AUDIT, NO WRITE (DESIGN.md:764-765). This emission
+                # NO AUDIT, NO WRITE (DESIGN.md:784-785). This emission
                 # is BEFORE the POST and its failure raises
                 # `AuditWriteError`, which leaves the ATS untouched.
                 emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
@@ -825,7 +825,7 @@ def register(
                     )
 
                 # SUCCESS WITH A WARNING, NEVER AN ERROR
-                # (DESIGN.md:774-780). A post-write audit failure
+                # (DESIGN.md:794-800). A post-write audit failure
                 # returned as a problem object would tell the caller the
                 # operation failed when it did not, and the caller's
                 # reasonable answer is to retry.

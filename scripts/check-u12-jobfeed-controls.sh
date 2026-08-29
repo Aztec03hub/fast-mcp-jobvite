@@ -151,7 +151,7 @@ mutate "M1  the feed reads the v2 collection key" \
   'JOB_FEED_ENVELOPE_KEY = "requisitions"'
 
 # ===========================================================================
-# THE RESULT CAP - the in-tool half (DESIGN.md:488-496)
+# THE RESULT CAP - the in-tool half (DESIGN.md:508-516)
 # ===========================================================================
 
 mutate "M2  total is counted from the items, not read from the envelope" \
@@ -207,7 +207,7 @@ mutate "M7  the companyId credential never reaches the client" \
   '            max_results=settings.max_results,'
 
 # ===========================================================================
-# THE ROUTE (DESIGN.md:453, contract §9)
+# THE ROUTE (DESIGN.md:473, contract §9)
 # ===========================================================================
 
 # The v1 branch is not selected, so the call goes to the v2 base with v2

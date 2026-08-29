@@ -47,7 +47,7 @@ from .fencing import Fenced, FencingDecision
 JOBS_ENVELOPE_KEY = "requisitions"
 
 #: Jobvite's own key for the page total, read from the envelope rather
-#: than counted from the items (DESIGN.md:488-496: `total` is reported
+#: than counted from the items (DESIGN.md:508-516: `total` is reported
 #: and never trusted as a loop condition).
 TOTAL_ENVELOPE_KEY = "total"
 
@@ -59,7 +59,7 @@ class JobLocation(BaseModel):
 
     Every member is a place name from Jobvite's own taxonomy, not text
     a candidate typed, so none of it is the attacker-authored class
-    DESIGN.md:791-797 defines.
+    DESIGN.md:811-817 defines.
     """
 
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -109,7 +109,7 @@ class Job(BaseModel):
             _NOT_FREE_TEXT,
             "description",
             "recruiter-authored posting body; inside the operator org, so not the "
-            "attacker-authored class of DESIGN.md:791-797",
+            "attacker-authored class of DESIGN.md:811-817",
         ),
     ] = None
     apply_link: Annotated[
@@ -150,7 +150,7 @@ class JobSearchResult(BaseModel):
     """One capped page of jobs, with the cap reported not hidden.
 
     **`request_id` is deliberately NOT a field here**
-    (DESIGN.md:669-677). `additionalProperties: false` is set below and
+    (DESIGN.md:689-697). `additionalProperties: false` is set below and
     `ClientSession.validate_tool_result` validates structured content
     against the cached output schema unconditionally, so an undeclared
     top-level `request_id` is *rejected*. Declaring it would work and
@@ -175,7 +175,7 @@ class JobSearchResult(BaseModel):
 
     #: Jobvite's own reported total for the query, from the envelope.
     #: **Reported, never trusted as a loop condition**
-    #: (DESIGN.md:506-520); U6 owns the scan that would.
+    #: (DESIGN.md:526-540); U6 owns the scan that would.
     total: Annotated[int, Fenced(_NOT_FREE_TEXT, "total", "integer from the envelope")]
 
     @computed_field  # type: ignore[prop-decorator]
@@ -208,8 +208,8 @@ class JobSearchResult(BaseModel):
     ]:
         """The caller-facing `showing N of total` line.
 
-        DESIGN.md:493-495 uses `showing 50 of 1,240` as its own worked
-        example, and DESIGN.md:488-496 is explicit that a capped
+        DESIGN.md:513-515 uses `showing 50 of 1,240` as its own worked
+        example, and DESIGN.md:508-516 is explicit that a capped
         result **reports** rather than truncating silently: a capped
         call is a mismatch against `total` by design, and is not an
         anomaly to be logged.

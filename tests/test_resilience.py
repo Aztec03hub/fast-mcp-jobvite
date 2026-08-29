@@ -8,7 +8,7 @@ credibility. Everything asserted here is executed; what is NOT executed
 is stated in `docs/worklogs/U7-IMPL-REPORT.md` rather than left to be
 inferred from the presence of a file called `test_resilience.py`.
 
-**THE ONE CASE A SINGLE CALL CANNOT SATISFY.** DESIGN.md:1374-1376 says
+**THE ONE CASE A SINGLE CALL CANNOT SATISFY.** DESIGN.md:1394-1396 says
 of §8 #13 that "a single-call version of this test passes against a
 module global, which is the bug `request_id_var` exists to prevent, so
 the concurrent arm is the case and the single call is not sufficient".
@@ -1083,7 +1083,7 @@ async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:
 
 
 async def test_every_breaker_transition_is_logged_with_direction_and_counter() -> None:
-    """DESIGN.md:654-656 and `backend/resilience.md:224-226`.
+    """DESIGN.md:674-676 and `backend/resilience.md:224-226`.
 
     All three directions are driven in one case, because the `open ->
     half_open` line is the one that only exists at all because
@@ -1160,7 +1160,7 @@ async def test_a_breaker_transition_line_carries_no_url() -> None:
 
 
 # ======================================================================
-# §8 #13 - THE CONCURRENT CASE. DESIGN.md:1374-1376: a single call
+# §8 #13 - THE CONCURRENT CASE. DESIGN.md:1394-1396: a single call
 # PASSES against a module global, so a single call is not the case.
 # ======================================================================
 
@@ -1224,7 +1224,7 @@ async def test_two_concurrent_invocations_each_log_their_own_request_id() -> Non
 async def test_no_retry_line_carries_a_url() -> None:
     """The same §8 case's second half, on the route that matters.
 
-    DESIGN.md:658-660: "a retry line is exactly where an unredacted URL
+    DESIGN.md:678-680: "a retry line is exactly where an unredacted URL
     would otherwise reach a log", because the v1 `jobFeed` URL carries
     `sc=` in its query string.
     """
@@ -1264,7 +1264,7 @@ async def test_no_retry_line_carries_a_url() -> None:
 #
 # `scan()` had NO bound of any kind. R5 measured it against a server
 # that ignores `start` and aborted its own probe at 200 requests.
-# `DESIGN.md:505-506` removed `total` as a loop condition and named no
+# `DESIGN.md:525-526` removed `total` as a loop condition and named no
 # replacement, so U6 implemented it faithfully and unbounded at once.
 #
 # **THE OUTBOUND BUDGET DOES NOT FIX IT, and that is measured rather
@@ -1534,7 +1534,7 @@ async def test_neither_bound_fires_on_healthy_paging() -> None:
 async def test_a_fully_duplicate_page_is_still_not_a_short_page() -> None:
     """The interaction U6 warned about, kept true by the new break.
 
-    DESIGN.md:484-487's clamping hypothesis means a boundary record
+    DESIGN.md:504-507's clamping hypothesis means a boundary record
     arrives twice, and U6's comment at the short-page exit says a
     "fully duplicate full-length page is not a short page, and stopping
     on it would end a scan early". The zero-progress break stops on
@@ -1605,7 +1605,7 @@ def test_the_scan_bounds_probe_still_reproduces_its_measurements() -> None:
 def test_the_breaker_rejection_test_still_passes_against_the_pinned_library() -> None:
     """`scripts/probe-breaker-call-path.py`, run rather than cited.
 
-    DESIGN.md:657 requires half-open expiry on the CALL PATH. That was
+    DESIGN.md:677 requires half-open expiry on the CALL PATH. That was
     settled by measurement against `circuitbreaker` 2.1.3, and a
     measurement recorded only in prose decays into a CLAIM about one.
     Running the probe here means a bump that moves expiry onto a

@@ -7,7 +7,7 @@ license = "Apache-2.0"  # B89 SPDX id; README section deferred with B77
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "evolv Consulting" }]
 
-# Verbatim from DESIGN.md:1479-1481 (the pins; the block is :1366-1370). Every line is load-bearing and the comments are
+# Verbatim from DESIGN.md:1499-1501 (the pins; the block is :1366-1370). Every line is load-bearing and the comments are
 # part of the specification: the fastmcp-slim line is NOT redundant. Removing only that
 # line makes the resolve fail outright ("there is no version of
 # fastmcp-slim[client]==4.0.0b4 ... --prerelease=allow"), which is control-tested by
@@ -32,7 +32,7 @@ dependencies = [
   # module that imports a package nobody declared breaks the day the intermediate
   # drops it. It also ships MockTransport in the box, which is what lets the
   # credential-free test strategy add NO third-party mocking library
-  # (DESIGN.md:1420-1421).
+  # (DESIGN.md:1440-1441).
   "httpx2==2.12.0",
   # DESIGN.md:349-352 makes HR-XML a HARDENED FALLBACK rather than a handled
   # case: it appears on /v1/candidate, which we do not call, and if XML ever
@@ -59,7 +59,7 @@ dependencies = [
   # `circuitbreaker` is B37's one-breaker-per-dependency library and
   # STANDARDS.md:374-375 blesses `circuitbreaker ^2`. It is here rather than an
   # inline breaker BECAUSE IT WAS MEASURED, not because it is blessed:
-  # DESIGN.md:657 requires half-open expiry to be evaluated ON THE CALL PATH
+  # DESIGN.md:677 requires half-open expiry to be evaluated ON THE CALL PATH
   # rather than by a background timer, since a ContextVar is per-Task and a
   # timer-fired expiry would log `request_id=None`. `circuitbreaker` 2.1.3
   # computes `state` as a pure property read on entry and imports no threading
@@ -103,7 +103,7 @@ dev = [
   # `uv run --with pip-audit`, which resolves UNPINNED outside uv.lock - the exact
   # defect ADR-0015 records for pip-licenses one entry above.
   "pip-audit>=2.7",
-  # C8-I1 is a CRITICAL row and DESIGN.md:1691-1704's two commit-time gates are its
+  # C8-I1 is a CRITICAL row and DESIGN.md:1711-1724's two commit-time gates are its
   # stated mitigation. `.pre-commit-config.yaml` existed and pre-commit itself was
   # declared NOWHERE, so on a fresh clone `uv sync --frozen` produced an environment
   # in which the hooks could never install: the mitigation was in force only for the
@@ -116,7 +116,7 @@ dev = [
 # Advisory-ignore table. Owned by U11 (scripts/check_advisories.py), landed empty
 # here so U11 only ever edits rows inside it - IMPLEMENTATION-PLAN.md:920-922.
 #
-# DESIGN.md:1574-1584: an entry is legal ONLY for an advisory our code cannot
+# DESIGN.md:1594-1604: an entry is legal ONLY for an advisory our code cannot
 # reach, and only with an id, a date, a written unreachability reason, and an
 # expiry no more than 30 days out. Never a blanket ignore, never a raised
 # threshold. check_advisories.py reads this table, emits pip-audit's
@@ -133,13 +133,13 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-# --strict-markers is not housekeeping here (DESIGN.md:1298-1303). This project's
+# --strict-markers is not housekeeping here (DESIGN.md:1318-1323). This project's
 # whole test strategy is "exclude the credentialed arm deliberately"; without it a
 # typo in the exclusion marker's name selects nothing and the run goes green having
 # tested less than it claimed.
 #
 # `-m "not credentialed and not network"` is the SELECTION that gives CI zero skips
-# (DESIGN.md:1290-1293): a skip counts as a failure, so the excluded arms are
+# (DESIGN.md:1310-1313): a skip counts as a failure, so the excluded arms are
 # deselected, never marked skipif. `-m` is last-wins, so a CI step passing its own
 # -m overrides this.
 addopts = [
@@ -151,7 +151,7 @@ addopts = [
 ]
 
 markers = [
-  "credentialed: needs a real Jobvite credential. NEVER run in CI - deselected by the addopts above and collected with --collect-only so it cannot rot (DESIGN.md:1305-1310)",
+  "credentialed: needs a real Jobvite credential. NEVER run in CI - deselected by the addopts above and collected with --collect-only so it cannot rot (DESIGN.md:1325-1330)",
   "network: needs outbound network. Deselected from the default offline suite; CI runs it as its own step",
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "integration: marks tests as integration tests",

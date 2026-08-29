@@ -3,7 +3,7 @@
 It does not merely select nothing.
 
 This is the `--strict-markers` guarantee the whole exclusion strategy
-rests on (DESIGN.md:1298-1303). Without it, a typo in the exclusion
+rests on (DESIGN.md:1318-1323). Without it, a typo in the exclusion
 marker's name selects nothing and the run goes green having tested less
 than it claimed - the live suite excluded by accident rather than by
 design.
@@ -106,7 +106,7 @@ def test_the_declared_marker_still_selects_its_tests(tmp_path: pathlib.Path) -> 
 def test_the_default_selection_deselects_the_credentialed_arm(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Zero skips (DESIGN.md:1290-1293), asserted on behaviour.
+    """Zero skips (DESIGN.md:1310-1313), asserted on behaviour.
 
     The credentialed test must be DESELECTED, not skipped: pytest must
     report `1 deselected` and zero skips.

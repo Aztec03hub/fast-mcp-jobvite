@@ -13,7 +13,7 @@ from __future__ import annotations
 from .conftest import FIXTURES_DIR
 
 # Enumerated from the committed tree, not remembered.
-# DESIGN.md:1312-1318 puts these in three tiers: recorded (byte-exact
+# DESIGN.md:1332-1338 puts these in three tiers: recorded (byte-exact
 # captures of real Jobvite error transport), structural (the one genuine
 # 200), and synthetic.
 EXPECTED_FIXTURES = {

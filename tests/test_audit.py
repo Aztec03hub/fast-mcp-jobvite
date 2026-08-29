@@ -2,7 +2,7 @@
 
 **Three of the four §8 cases this file carries are ABSENCE claims, and
 each is paired with a positive in the SAME construction** - not merely
-somewhere else in the file. DESIGN.md:1341-1344 states the rule for
+somewhere else in the file. DESIGN.md:1361-1364 states the rule for
 #4/#5 and this file extends it to #2 and #17:
 
 - **#4 is the positive for #5.** The PII absence is asserted against the
@@ -13,7 +13,7 @@ somewhere else in the file. DESIGN.md:1341-1344 states the rule for
   Against a misconfigured logger emitting nothing, the absence alone
   passes and proves nothing. #4 does not supply this pairing - #4 proves
   the *audit event* exists, and #2 is about the loguru stream.
-- **#17 needs both arms** (DESIGN.md:1396-1400): a field always absent
+- **#17 needs both arms** (DESIGN.md:1416-1420): a field always absent
   and a field always synthesised each pass a single-arm test, and the
   second is the failure that matters.
 
@@ -122,7 +122,7 @@ def _emit_one(**kwargs: Any) -> None:
 
 # ----------------------------------------------------------------------
 # §8 #4 - the audit event is emitted and carries its mandated fields.
-# POSITIVE ON PURPOSE (DESIGN.md:1341-1343).
+# POSITIVE ON PURPOSE (DESIGN.md:1361-1363).
 # ----------------------------------------------------------------------
 
 
@@ -140,7 +140,7 @@ def test_case4_the_event_carries_every_mandated_field(
     """Every field the standard names, verbatim.
 
     `ai/tool-calling.md:171-173`: tool name, redacted arguments, result
-    status, latency, correlation id - plus DESIGN.md:1337-1339's
+    status, latency, correlation id - plus DESIGN.md:1357-1359's
     transport and the resolved client id.
     """
     _emit_one(
@@ -175,7 +175,7 @@ def test_case4_the_field_names_are_wire_shaped_snake_case() -> None:
 def test_case4_the_write_records_approval_state_and_its_mechanism(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """DESIGN.md:1339: `approval_state` WITH the mechanism (§5.3).
+    """DESIGN.md:1359: `approval_state` WITH the mechanism (§5.3).
 
     Asserted on the write.
     """
@@ -305,7 +305,7 @@ def test_case2_a_stderr_failure_report_carries_no_credential(
 
 
 # ----------------------------------------------------------------------
-# §8 #17 - trace context, BOTH arms (DESIGN.md:1396-1400).
+# §8 #17 - trace context, BOTH arms (DESIGN.md:1416-1420).
 # ----------------------------------------------------------------------
 
 
@@ -320,7 +320,7 @@ def test_case17_arm1_trace_context_is_recorded_when_the_caller_supplies_it(
     extra = audit_records[0]["extra"]
     # The values come FROM the header. Asserting only "a 32-hex string
     # is present" would pass against a synthesised id, which is the
-    # failure DESIGN.md:1398-1400 says is the one that matters.
+    # failure DESIGN.md:1418-1420 says is the one that matters.
     assert extra["trace_id"] == TRACE_ID
     assert extra["span_id"] == SPAN_ID
 
@@ -368,7 +368,7 @@ def test_case17_a_valid_traceparent_parses_the_positive_control() -> None:
 
 
 # ----------------------------------------------------------------------
-# The stdio attribution marker (DESIGN.md:751-756).
+# The stdio attribution marker (DESIGN.md:771-776).
 # ----------------------------------------------------------------------
 
 
@@ -412,7 +412,7 @@ def test_http_records_the_client_id_and_no_marker(
 
 
 # ----------------------------------------------------------------------
-# The audit-write-failure policy, three arms (DESIGN.md:764-780).
+# The audit-write-failure policy, three arms (DESIGN.md:784-800).
 # ----------------------------------------------------------------------
 
 
@@ -522,14 +522,14 @@ def test_arm3_after_a_successful_write_it_returns_a_warning_not_an_error(
     assert len(warnings) == 1
     assert "audit" in warnings[0].lower()
     # The warning goes to stderr TOO, not only to the caller
-    # (DESIGN.md:770-771).
+    # (DESIGN.md:790-791).
     assert "audit write failed" in capsys.readouterr().err
 
 
 def test_arm3_the_warning_tells_the_caller_not_to_retry(broken_audit: None) -> None:
     """The whole reason this branch exists.
 
-    DESIGN.md:768-770 and DESIGN.md:776-780.
+    DESIGN.md:788-790 and DESIGN.md:796-800.
 
     A retry emails a second live human, so a warning that does not say
     so invites the exact harm the branch was written to prevent.
@@ -542,7 +542,7 @@ def test_arm3_the_warning_tells_the_caller_not_to_retry(broken_audit: None) -> N
 def test_arm3_the_result_is_success_with_a_warnings_array_not_a_problem_object(
     broken_audit: None,
 ) -> None:
-    """The shape, which DESIGN.md:774-780 specifies deliberately.
+    """The shape, which DESIGN.md:794-800 specifies deliberately.
 
     "Success with a warning" is not a shape, so the design states one.
     """
@@ -700,7 +700,7 @@ def test_an_invalid_inbound_request_id_is_replaced_rather_than_used(
 ) -> None:
     """C7-T1: a newline in the inbound id forges a log entry.
 
-    DESIGN.md:1865.
+    DESIGN.md:1885.
     """
     resolved = resolve_request_id(bad)
     assert resolved != bad

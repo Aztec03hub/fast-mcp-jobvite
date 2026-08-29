@@ -302,7 +302,7 @@ amputate "A8  the feed job mapping admits nothing optional" "$TOOLS" \
 
 # ---------------------------------------------------------------------------
 # A9 - THE ENABLE GATE DOES NOT EXIST. The tool registers whatever
-# `JOBVITE_TOOLS` says, which is DESIGN.md:970-987's deploy-time control
+# `JOBVITE_TOOLS` says, which is DESIGN.md:990-1007's deploy-time control
 # deleted.
 # ---------------------------------------------------------------------------
 amputate "A9  registration has no enable gate" "$TOOLS" \

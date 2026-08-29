@@ -197,7 +197,7 @@ mutate "M4  the problem carries a fresh uuid, not the invocation's id" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -208,7 +208,7 @@ mutate "M4  the problem carries a fresh uuid, not the invocation's id" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.

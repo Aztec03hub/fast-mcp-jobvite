@@ -1,4 +1,4 @@
-"""The `FastMCP` instance and its lifespan (DESIGN.md:1009-1099).
+"""The `FastMCP` instance and its lifespan (DESIGN.md:1029-1119).
 
 **`mask_error_details=True` is set explicitly** rather than left to the
 framework default. The default is what a dependency bump changes
@@ -9,7 +9,7 @@ exactly the kind of thing that must be stated in our own source so a
 diff shows it moving.
 
 **The lifespan rule, and it belongs here rather than in a review**
-(DESIGN.md:1092-1099): even when teardown runs, it runs *after*
+(DESIGN.md:1112-1119): even when teardown runs, it runs *after*
 connections are gone. **Nothing that must complete before connections
 close may live in a lifespan teardown.** Today nothing depends on
 teardown - the only resource is a connection pool the OS reclaims -
@@ -25,12 +25,12 @@ lifespan context keeps the one long-lived object on the framework's own
 lifetime.
 
 **Why `extra_lifespan` exists and is not a test hook.**
-DESIGN.md:1399-1405 requires the shutdown case to assert the **teardown
+DESIGN.md:1419-1425 requires the shutdown case to assert the **teardown
 side effect** - the resource the lifespan opened is released - and not
 the exit code, because a process that dies uncleanly can still exit 0.
 U1 opens no resource, so without a composition point the case would have
 to reimplement the shutdown path in the test and assert against its own
-copy. This parameter is the composition point DESIGN.md:1013-1014
+copy. This parameter is the composition point DESIGN.md:1033-1034
 already requires (`|` composition), used by the test today and by U4's
 connection pool and U9's HTTP resources next.
 """
@@ -68,7 +68,7 @@ def make_base_lifespan(settings: Settings) -> Lifespan:
     Startup in order, teardown reversed.
 
     It holds no resource of its own today, and that is deliberate rather
-    than an omission: DESIGN.md:1092-1099 records that the only
+    than an omission: DESIGN.md:1112-1119 records that the only
     long-lived state is a connection pool the OS reclaims, and forbids
     putting anything that must complete before connections close into a
     teardown. U4 adds the pool here; nothing else belongs.
@@ -109,7 +109,7 @@ def build_server(
     """Build the server instance for a validated configuration.
 
     **`settings.enabled_tools` is the allow-list, and each tool module
-    registers itself against it** (DESIGN.md:970-987). U1 owns the
+    registers itself against it** (DESIGN.md:990-1007). U1 owns the
     gate rather than the tools: this function calls each module's
     `register`, and the module returns without registering when its
     name is not enabled. That keeps the deploy-time control
@@ -119,10 +119,10 @@ def build_server(
     Args:
         settings: Settings that have already passed `validate_settings`.
         extra_lifespan: A lifespan composed after the base one with `|`,
-            so teardown runs in strict reverse (DESIGN.md:1013-1014).
+            so teardown runs in strict reverse (DESIGN.md:1033-1034).
         client_factory: Builds the Jobvite client for one invocation.
             Substituted in tests to inject `httpx2.MockTransport`
-            (DESIGN.md:1420-1421). `None` uses the real client.
+            (DESIGN.md:1440-1441). `None` uses the real client.
 
     Returns:
         The configured `FastMCP` instance.
@@ -138,7 +138,7 @@ def build_server(
         # Never left to the framework default - see the module
         # docstring.
         mask_error_details=True,
-        # U9. `None` on stdio, which DESIGN.md:897-901 makes
+        # U9. `None` on stdio, which DESIGN.md:917-921 makes
         # unauthenticated by design; the verifier is built only when
         # the transport is `http`.
         auth=build_token_verifier(settings),
