@@ -93,6 +93,26 @@ def test_an_allowed_character_is_accepted(good: str, why: str) -> None:
     assert _Text(v=good).v == good
 
 
+def test_safetext_admits_a_trailing_newline_and_the_identifier_does_not() -> None:
+    r"""R4-L3: the anchors' rationale said something untrue.
+
+    The `\A`/`\z` comment used to claim `^...$` was rejected because
+    it would admit a string ending in a newline, "the log-forging
+    shape C7-T1 records". The anchor choice is right and that reason
+    was wrong: newline is in the PERMITTED set, so `\A...\z` admits
+    a trailing newline anyway. Asserting it here rather than only
+    rewriting the prose, because a comment nothing checks is how the
+    wrong claim survived in the first place.
+
+    `JobviteIdentifier` is where that protection is actually real -
+    its alphabet has no `\n` - and it is the type the "trailing
+    newline" arm in `test_tools_jobs.py` exercises.
+    """
+    assert _Text(v="ab\n").v == "ab\n"
+    with pytest.raises(ValidationError):
+        _Ident(v="TESTJOB1\n")
+
+
 def test_the_length_ceilings_are_enforced_through_a_model() -> None:
     """`max_length` is a constraint, not a comment."""
     assert _Text(v="x" * MAX_TEXT_LENGTH).v

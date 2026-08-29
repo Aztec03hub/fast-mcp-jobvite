@@ -162,25 +162,50 @@ class JobSearchResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    jobs: list[Job]
+    #: THE FENCING DECISIONS ON THIS MODEL EXIST BECAUSE OF R4-M1.
+    #: `fencing_paths` was only ever called with `Job` named by hand,
+    #: so the model that is actually serialised to the caller carried
+    #: no decisions at all and no test asked it to. It now cannot:
+    #: `test_every_output_model_in_the_package_has_a_registry`
+    #: discovers the models rather than naming them.
+    jobs: Annotated[
+        list[Job],
+        Fenced(_NOT_FREE_TEXT, "requisitions", "container; each element decides"),
+    ]
 
     #: Jobvite's own reported total for the query, from the envelope.
     #: **Reported, never trusted as a loop condition**
     #: (DESIGN.md:487-489); U6 owns the scan that would.
-    total: int
+    total: Annotated[int, Fenced(_NOT_FREE_TEXT, "total", "integer from the envelope")]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def showing(self) -> int:
+    def showing(
+        self,
+    ) -> Annotated[
+        int, Fenced(_NOT_FREE_TEXT, "showing", "integer derived from len(jobs)")
+    ]:
         """How many jobs this result actually carries.
 
         Derived rather than stored, so it cannot disagree with `jobs`.
+
+        The decision lives in the RETURN annotation because a computed
+        field has no `FieldInfo.metadata` (R4-M1).
         """
         return len(self.jobs)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def summary(self) -> str:
+    def summary(
+        self,
+    ) -> Annotated[
+        str,
+        Fenced(
+            _NOT_FREE_TEXT,
+            "summary",
+            "derived by this server from two integers; no Jobvite content",
+        ),
+    ]:
         """The caller-facing `showing N of total` line.
 
         DESIGN.md:474-476 uses `showing 50 of 1,240` as its own worked

@@ -59,16 +59,32 @@ _CONTROL_CHARACTERS: Final = r"\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f"
 #: LRE/RLE/PDF/LRO/RLO, then LRI/RLI/FSI/PDI.
 _BIDI_OVERRIDES: Final = "‪-‮⁦-⁩"
 
-#: The one rule every inbound string is tested against. Matching means
-#: **rejection**, so it is used as a negative lookahead below rather
-#: than as a validator that has to be remembered at each call site.
+#: The one rule every inbound string is tested against, for the PYTHON
+#: engine. Matching means **rejection**. `_NO_FORBIDDEN` below is the
+#: pydantic/Rust spelling of the same rule, negated, so a caller does
+#: not have to remember a validator at each call site.
 FORBIDDEN_CHARACTERS: Final = re.compile(f"[{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]")
 
 #: A pattern admitting only strings that contain no forbidden
-#: character. `\A` and `\z` rather than `^`/`$`: in Python `$` also
-#: matches before a trailing newline, so `^...$` would admit a string
-#: ending in one - and a trailing newline in a field that reaches a
-#: log line is the log-forging shape C7-T1 records.
+#: character.
+#:
+#: **`\A`/`\z` rather than `^`/`$`, and the reason is NOT a trailing
+#: newline** (R4-L3). An earlier version of this comment said `^...$`
+#: would admit a string ending in a newline and called that the
+#: log-forging shape C7-T1 records. The anchor choice is right and
+#: that justification was wrong: **newline is in the PERMITTED set**,
+#: so `\A...\z` admits `"ab\n"` anyway - measured, `trailing NL
+#: ACCEPTED`. The real reasons are that `$` would make the anchor
+#: meaningless against a multi-line value, and that `\z` is the only
+#: spelling the Rust engine has (see below).
+#:
+#: The log-forging protection the old comment claimed is real only for
+#: `JobviteIdentifier`, whose alphabet excludes `\n` - and it is
+#: `JobviteIdentifier` that the "trailing newline" arm in
+#: `tests/test_tools_jobs.py` actually exercises. If a trailing
+#: newline should be refused in log-bound free text, that is a
+#: separate constraint type and a separate decision, not a property of
+#: this anchor.
 #:
 #: **`\z`, not `\Z`, and this was MEASURED rather than transcribed.**
 #: pydantic-core compiles patterns with the Rust `regex` crate, which

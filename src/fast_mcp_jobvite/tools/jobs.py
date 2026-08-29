@@ -282,7 +282,23 @@ def register(
         # against the wire contract instead. A `traceparent` sent by
         # the caller arrives here verbatim, beside the reserved
         # `io.modelcontextprotocol/*` keys.
-        meta = getattr(ctx.request_context, "meta", None)
+        #
+        # NAMED ATTRIBUTE ACCESS, not `getattr(..., "meta", None)`
+        # (R4-L2). The old form turned a future library RENAME into
+        # amputation row A11 - trace context silently dropped from
+        # every audit event, at exit 0, with no error anywhere. Reading
+        # `.meta` by name makes a rename an `AttributeError` at the
+        # call site, which is the louder and therefore correct failure
+        # for a property the audit trail depends on.
+        #
+        # THE `None` BRANCH IS NOT THE SAME GUARD, and R4-L2's
+        # suggested one-liner did not type-check: fastmcp declares
+        # `request_context` as `FastMCPRequestContext | None`, so this
+        # is a DECLARED optional rather than a defensive default. It is
+        # written out explicitly so the two cases stay distinguishable
+        # - a context we were never given is not a renamed attribute.
+        request_context = ctx.request_context
+        meta = request_context.meta if request_context is not None else None
         with audit_scope(
             SEARCH_JOBS,
             transport,

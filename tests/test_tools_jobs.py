@@ -17,16 +17,18 @@ carries is the only Critical on the client.
 from __future__ import annotations
 
 import ast
+import importlib
 import json
 import pathlib
+import pkgutil
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Annotated, Any
 
 import httpx2
 import pytest
 from fastmcp import Client
 from loguru import logger
-from pydantic import SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError, computed_field
 
 from fast_mcp_jobvite.audit import AUDIT_EVENT_NAME, Transport
 from fast_mcp_jobvite.config import READ_TOOLS, SEARCH_JOBS, Settings
@@ -35,6 +37,8 @@ from fast_mcp_jobvite.models.fencing import (
     Fenced,
     FencingDecision,
     MissingFencingDecisionError,
+    _decision_of,
+    _nested_model,
     fencing_paths,
 )
 from fast_mcp_jobvite.models.jobs import (
@@ -48,6 +52,7 @@ from fast_mcp_jobvite.tools.jobs import (
     JOBS_PATH,
     REQUEST_ID_META_KEY,
     SearchJobsInput,
+    _to_job,
     build_result,
 )
 
@@ -502,9 +507,6 @@ def test_deleting_a_fencing_decision_fails() -> None:
     about the mechanism, and a mechanism that only refuses the one
     model we happen to ship is not the mechanism the design asks for.
     """
-    from typing import Annotated
-
-    from pydantic import BaseModel
 
     class Undecided(BaseModel):
         decided: Annotated[str, Fenced(FencingDecision.FENCE, "decided", "why")]
@@ -520,9 +522,6 @@ def test_a_decided_model_still_generates() -> None:
     A guard that refuses everything is not a guard and its refusals
     prove nothing (DESIGN.md:1370-1371).
     """
-    from typing import Annotated
-
-    from pydantic import BaseModel
 
     class Decided(BaseModel):
         decided: Annotated[str, Fenced(FencingDecision.FENCE, "decided", "why")]
@@ -530,6 +529,136 @@ def test_a_decided_model_still_generates() -> None:
     assert fencing_paths(Decided, "root") == {
         "root.decided": Fenced(FencingDecision.FENCE, "decided", "why")
     }
+
+
+def test_to_job_sets_every_field_the_model_declares() -> None:
+    """R4-L1: `_to_job` is a hand-kept list beside `Job`.
+
+    `tools/jobs.py` names all ten `Job` fields by hand, and being
+    explicit is right - `extra="forbid"` would take the whole call
+    down on a new Jobvite field where DESIGN.md:192-195 requires it to
+    be DROPPED. But explicit is not the same as checked: add `salary`
+    to `Job` with a `Fenced` annotation and every fencing test still
+    passes, `_to_job` never sets it, and every result silently omits
+    it.
+
+    **Driven from the model, never from a second literal list.** The
+    `Fenced.jobvite_key` annotations already carry Jobvite's spelling
+    for every field, so the raw object is derivable - which is the
+    same "enumerate the container" move the fencing registry itself
+    makes.
+    """
+    raw: dict[str, Any] = {}
+    for name in Job.model_fields:
+        key = _decision_of(Job, name).jobvite_key
+        nested, _through_list = _nested_model(Job.model_fields[name].annotation)
+        if nested is not None:
+            raw[key] = [
+                {_decision_of(nested, n).jobvite_key: "x" for n in nested.model_fields}
+            ]
+        elif name.endswith("_date"):
+            raw[key] = 1700000000000
+        else:
+            raw[key] = f"value-for-{name}"
+
+    job = _to_job(raw)
+    unset = [
+        name
+        for name in Job.model_fields
+        if getattr(job, name) in (None, "", [])  # noqa: PLR6201 - identity is wrong here
+    ]
+    assert not unset, (
+        f"_to_job never sets {unset}; those fields are silently always-null "
+        "in every result"
+    )
+
+
+def _output_models() -> dict[str, type[BaseModel]]:
+    """Every `BaseModel` DEFINED in `fast_mcp_jobvite.models.*`.
+
+    Discovered by walking the package, never listed: a hand-kept list
+    beside a container is blind to the member nobody added to it, and
+    that is exactly the defect R4-M1 found - `fencing_paths` was only
+    ever called with `Job`, named by hand at three call sites.
+    """
+    import fast_mcp_jobvite.models
+
+    found: dict[str, type[BaseModel]] = {}
+    for info in pkgutil.iter_modules(fast_mcp_jobvite.models.__path__):
+        module = importlib.import_module(f"fast_mcp_jobvite.models.{info.name}")
+        for obj in vars(module).values():
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, BaseModel)
+                and obj.__module__ == module.__name__
+            ):
+                found[f"{info.name}.{obj.__name__}"] = obj
+    return found
+
+
+def test_every_output_model_in_the_package_has_a_registry() -> None:
+    """R4-M1: the registry is closed by construction, not by memory.
+
+    **`JobSearchResult` is the model actually serialised to the
+    caller and it was not in the set.** Every call site named `Job` by
+    hand, so `DESIGN.md:202-205`'s "a test fails when any model field
+    has no fencing decision" was, in fact, "a test fails when any
+    field of the one model somebody remembered to name has none".
+    Measured before the fix: `JobSearchResult.jobs carries 0 fencing
+    decisions`.
+
+    This enumerates the CONTAINER and asserts every member of it
+    passes, so U8's `models/candidate.py` - the model where the answer
+    is FENCE rather than NOT_FREE_TEXT - is covered on the day it
+    lands rather than on the day someone widens a literal.
+    """
+    models = _output_models()
+    assert models, "the models package yielded nothing; the walk is broken"
+    assert "jobs.JobSearchResult" in models, (
+        "the top-level output model is not in the discovered set"
+    )
+    for label, model in models.items():
+        # Raises MissingFencingDecisionError if any field - declared
+        # OR computed - carries no decision.
+        assert fencing_paths(model, model.__name__), f"{label} generated no paths"
+
+
+def test_the_computed_fields_carry_decisions_too() -> None:
+    """R4-M1's second half: `model_computed_fields` was never visited.
+
+    `summary` is a caller-facing string built from data - exactly the
+    kind of value a fencing decision is about - and it could not carry
+    one, because the walker only read `model_fields`. A registry that
+    is complete over what it enumerates and silent about the rest is
+    the shape this project keeps finding.
+    """
+    paths = fencing_paths(JobSearchResult, "result")
+    assert "result.showing" in paths
+    assert "result.summary" in paths
+    assert paths["result.summary"].decision is FencingDecision.NOT_FREE_TEXT
+    # And the declared fields, and the nested Job reached through them.
+    assert "result.requisitions" in paths
+    assert "result.total" in paths
+    assert "result.requisitions[].eId" in paths
+
+
+def test_a_computed_field_with_no_decision_is_refused() -> None:
+    """The teeth for the computed half, built rather than assumed.
+
+    Without this the walker could visit `model_computed_fields` and
+    silently find nothing, which passes.
+    """
+
+    class UndecidedComputed(BaseModel):
+        x: Annotated[int, Fenced(FencingDecision.NOT_FREE_TEXT, "x", "why")]
+
+        @computed_field  # type: ignore[prop-decorator]
+        @property
+        def derived(self) -> int:
+            return self.x
+
+    with pytest.raises(MissingFencingDecisionError, match="derived"):
+        fencing_paths(UndecidedComputed, "root")
 
 
 def test_job_fields_take_an_explicit_not_free_text_decision() -> None:

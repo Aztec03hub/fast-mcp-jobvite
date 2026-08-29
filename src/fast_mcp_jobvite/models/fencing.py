@@ -115,11 +115,61 @@ def _decision_of(model: type[BaseModel], field_name: str) -> Fenced:
         MissingFencingDecisionError: If the field carries no `Fenced`,
             or carries more than one.
     """
-    field = model.model_fields[field_name]
-    found = [item for item in field.metadata if isinstance(item, Fenced)]
+    return _single(model, field_name, list(model.model_fields[field_name].metadata))
+
+
+def _computed_decision_of(model: type[BaseModel], name: str) -> Fenced:
+    """Return a COMPUTED field's `Fenced`, or refuse.
+
+    **Computed fields were invisible to this walker until R4-M1**, and
+    the gap was not cosmetic: `JobSearchResult.summary` is a
+    caller-facing string built from data, which is precisely the kind
+    of value a fencing decision is about, and it could never carry one
+    because nothing looked. A registry that cannot see half a model's
+    output surface is a registry that is complete over what it
+    enumerates and silent about the rest.
+
+    A computed field has no `FieldInfo.metadata`, so the decision
+    lives in its RETURN annotation: `-> Annotated[str, Fenced(...)]`.
+    Measured on this stack: the extra metadata does not reach
+    `model_json_schema(mode="serialization")`.
+
+    Args:
+        model: The output model the computed field belongs to.
+        name: The computed field's attribute name.
+
+    Returns:
+        The single `Fenced` in the return annotation's metadata.
+
+    Raises:
+        MissingFencingDecisionError: If it carries no `Fenced`, or
+            more than one.
+    """
+    annotation = model.model_computed_fields[name].return_type
+    metadata = (
+        list(get_args(annotation)[1:]) if get_origin(annotation) is Annotated else []
+    )
+    return _single(model, name, metadata)
+
+
+def _single(model: type[BaseModel], name: str, metadata: list[Any]) -> Fenced:
+    """Pull exactly one `Fenced` out of a metadata list, or refuse.
+
+    Args:
+        model: The model, for the error message.
+        name: The field name, for the error message.
+        metadata: The annotation metadata to search.
+
+    Returns:
+        The single `Fenced` found.
+
+    Raises:
+        MissingFencingDecisionError: If there is not exactly one.
+    """
+    found = [item for item in metadata if isinstance(item, Fenced)]
     if len(found) != 1:
         msg = (
-            f"{model.__name__}.{field_name} carries {len(found)} fencing "
+            f"{model.__name__}.{name} carries {len(found)} fencing "
             f"decisions; exactly one Fenced annotation is required "
             f"(DESIGN.md:202-205)"
         )
@@ -170,6 +220,12 @@ def fencing_paths(model: type[BaseModel], prefix: str) -> dict[str, Fenced]:
     and a container's decision is what says its own value is not free
     text while its children answer separately.
 
+    **Computed fields are walked too (R4-M1).** They are part of what
+    a caller receives, so leaving them out made the registry complete
+    over `model_fields` and silent about the rest - and the field it
+    was silent about, `JobSearchResult.summary`, is a caller-facing
+    string built from data.
+
     Args:
         model: The output model to walk.
         prefix: The path already accumulated, e.g. `requisitions[]`.
@@ -190,4 +246,7 @@ def fencing_paths(model: type[BaseModel], prefix: str) -> dict[str, Fenced]:
         if nested is not None:
             child_prefix = f"{path}{LIST_MARKER}" if through_list else path
             paths.update(fencing_paths(nested, child_prefix))
+    for name in model.model_computed_fields:
+        decision = _computed_decision_of(model, name)
+        paths[f"{prefix}{PATH_SEPARATOR}{decision.jobvite_key}"] = decision
     return paths

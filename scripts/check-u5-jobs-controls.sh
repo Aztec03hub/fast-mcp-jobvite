@@ -94,7 +94,10 @@ mutate() {
     return
   fi
 
-  local backup="$BACKUP_DIR/$(echo "$file" | tr / _)"
+  # SC2155: declared and assigned separately, so a failing `echo`/`tr`
+  # cannot be masked by `local`'s own exit status (task #38).
+  local backup
+  backup="$BACKUP_DIR/$(echo "$file" | tr / _)"
   cp "$file" "$backup" || { echo "  COULD NOT BACK UP"; return; }
 
   if ! OLD="$old" NEW="$new" FILE="$file" python3 - <<'PY'
@@ -131,7 +134,8 @@ PY
   # stops if not: every later row would run against a tree carrying
   # this row's mutation.
   cp "$backup" "$file"
-  local pristine="$PRISTINE_DIR/$(echo "$file" | tr / _)"
+  local pristine
+  pristine="$PRISTINE_DIR/$(echo "$file" | tr / _)"
   if ! cmp -s "$file" "$pristine"; then
     echo "  RESTORE FAILED - $file still differs from the pristine copy taken"
     echo "  before row 1. STOPPING."
@@ -225,7 +229,7 @@ mutate "M7  a missing fencing decision defaults instead of raising" \
   "$FENCING" "$SUITE::test_deleting_a_fencing_decision_fails" \
   '    if len(found) != 1:' \
   '    if not found:
-        return Fenced(FencingDecision.FENCE, field_name, "defaulted")
+        return Fenced(FencingDecision.FENCE, name, "defaulted")
     if len(found) != 1:'
 
 # The generated path uses OUR attribute name instead of Jobvite's key.

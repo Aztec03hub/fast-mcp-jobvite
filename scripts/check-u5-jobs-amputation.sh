@@ -48,7 +48,20 @@ CONSTRAINTS="src/fast_mcp_jobvite/utils/constraints.py"
 SUITE="tests/test_tools_jobs.py"
 OUT=/tmp/u5-amp.txt
 BACKUP_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR"' EXIT
+PRISTINE_DIR=$(mktemp -d)
+trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+
+# THE PRISTINE COPIES, TAKEN ONCE BEFORE ROW 1 (R4-N1). The restore check
+# below used to be `cp backup file; cmp file backup`, which compares equal
+# BY CONSTRUCTION after the copy: it could detect only a failed `cp`, never
+# the thing its message claims - "the tree still carries this row's
+# amputation". A CORRUPTED BACKUP passes that check and hands every later
+# row an amputated tree. The LANDING check above it was always real; this
+# one was not, and the two read identically in the log.
+for f in "$TOOLS" "$MODELS" "$FENCING" "$CONSTRAINTS"; do
+  cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
+    { echo "COULD NOT TAKE PRISTINE COPY of $f"; exit 3; }
+done
 
 echo "########## BASELINE - the intact tree"
 if ! uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1; then
@@ -62,6 +75,7 @@ echo
 TOTAL_SURVIVORS=0
 APPLIED=0
 ROWS=0
+VACUOUS=0
 
 # ---------------------------------------------------------------------------
 # amputate <label> <file> <old> <new>
@@ -72,7 +86,10 @@ amputate() {
 
   echo "########## $label"
 
-  local backup="$BACKUP_DIR/${ROWS}_$(echo "$file" | tr / _)"
+  # SC2155: declared and assigned separately, so a failing `echo`/`tr`
+  # cannot be masked by `local`'s own exit status (task #38).
+  local backup
+  backup="$BACKUP_DIR/${ROWS}_$(echo "$file" | tr / _)"
   cp "$file" "$backup" || { echo "  COULD NOT BACK UP"; echo; return; }
 
   if ! OLD="$old" NEW="$new" FILE="$file" python3 - <<'PY'
@@ -102,14 +119,34 @@ PY
   APPLIED=$((APPLIED + 1))
 
   uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
+  local rc=$?
 
   cp "$backup" "$file"
-  if ! cmp -s "$file" "$backup"; then
-    echo "  RESTORE FAILED - $file still differs. STOPPING."
+  local pristine
+  pristine="$PRISTINE_DIR/$(echo "$file" | tr / _)"
+  if ! cmp -s "$file" "$pristine"; then
+    echo "  RESTORE FAILED - $file still differs from the pristine copy taken"
+    echo "  before row 1. STOPPING."
     exit 3
   fi
 
   tail -1 "$OUT" | sed 's/^/  /'
+
+  # THE VACUOUS-ROW GATE (R4-M5). This harness reported the vacuous shape
+  # in its header - "no row survived N/N, which is the vacuous shape" -
+  # and gated on something else entirely: APPLIED == ROWS. A row that
+  # deleted a behaviour and killed NOTHING printed its survivors and
+  # passed CI, which is the exact defect the whole harness exists to find,
+  # one layer up.
+  #
+  # The verdict is the RUN'S EXIT CODE, not `grep -c "^FAILED"`: that
+  # grep misses ERROR entirely, and a collection error is a row going red
+  # for a real reason.
+  if [ "$rc" -eq 0 ]; then
+    echo "  *** VACUOUS ROW *** the behaviour was deleted and NOTHING went red."
+    echo "      Every assertion below survived. This row measures nothing."
+    VACUOUS=$((VACUOUS + 1))
+  fi
   local survivors
   survivors=$(grep -E '^PASSED ' "$OUT" | sed 's/^PASSED //' || true)
   if [ -z "$survivors" ]; then
@@ -209,11 +246,11 @@ amputate "A5  fencing_paths returns nothing for every model" "$FENCING" \
 # that exists to catch an UNDECIDED field can die here.
 # ---------------------------------------------------------------------------
 amputate "A6  a field with no fencing decision is silently skipped" "$FENCING" \
-  '    found = [item for item in field.metadata if isinstance(item, Fenced)]
+  '    found = [item for item in metadata if isinstance(item, Fenced)]
     if len(found) != 1:' \
-  '    found = [item for item in field.metadata if isinstance(item, Fenced)]
+  '    found = [item for item in metadata if isinstance(item, Fenced)]
     if not found:
-        return Fenced(FencingDecision.NOT_FREE_TEXT, field_name, "skipped")
+        return Fenced(FencingDecision.NOT_FREE_TEXT, name, "skipped")
     if len(found) != 1:'
 
 # ---------------------------------------------------------------------------
@@ -259,9 +296,9 @@ amputate "A9  inbound identifiers accept any character" "$CONSTRAINTS" \
 amputate "A10 the caller-facing summary string is removed" "$MODELS" \
   '    @computed_field  # type: ignore[prop-decorator]
     @property
-    def summary(self) -> str:' \
+    def summary(' \
   '    @property
-    def summary(self) -> str:'
+    def summary('
 
 # ---------------------------------------------------------------------------
 # A11 - TRACE CONTEXT IS NEVER READ from the live context. U3 could not
@@ -273,8 +310,43 @@ amputate "A10 the caller-facing summary string is removed" "$MODELS" \
 # ---------------------------------------------------------------------------
 amputate "A11 the live request _meta is never read (trace context lost)" \
   "$TOOLS" \
-  '        meta = getattr(ctx.request_context, "meta", None)' \
+  '        request_context = ctx.request_context
+        meta = request_context.meta if request_context is not None else None' \
   '        meta = None'
+
+# ---------------------------------------------------------------------------
+# A12 - THE COMPUTED-FIELD WALK IS GONE (R4-M1). `fencing_paths` goes
+# back to reading `model_fields` only, so `showing` and `summary` - the
+# caller-facing string built from data, which is exactly what a fencing
+# decision is about - can never carry one and nothing notices.
+# ---------------------------------------------------------------------------
+amputate "A12 fencing_paths stops walking computed fields" "$FENCING" \
+  '    for name in model.model_computed_fields:
+        decision = _computed_decision_of(model, name)
+        paths[f"{prefix}{PATH_SEPARATOR}{decision.jobvite_key}"] = decision
+    return paths' \
+  '    return paths'
+
+# ---------------------------------------------------------------------------
+# A13 - THE TOP-LEVEL OUTPUT MODEL LOSES A DECISION (R4-M1). Before this
+# unit's fix, `JobSearchResult` carried NO decisions at all and no test
+# asked it to, because every call site named `Job` by hand. This row is
+# what proves the discovery test is doing the work rather than the three
+# hand-named call sites.
+# ---------------------------------------------------------------------------
+amputate "A13 JobSearchResult.total loses its fencing decision" "$MODELS" \
+  '    total: Annotated[int, Fenced(_NOT_FREE_TEXT, "total", "integer from the envelope")]' \
+  '    total: int'
+
+# ---------------------------------------------------------------------------
+# A14 - `_to_job` STOPS SETTING A FIELD (R4-L1). The field stays on the
+# model, stays fenced, stays in the output schema, and is `None` in every
+# result. Nothing about the model or the registry changes, which is why
+# the fencing tests cannot see this and a completeness case must.
+# ---------------------------------------------------------------------------
+amputate "A14 _to_job silently stops mapping one admitted field" "$TOOLS" \
+  '        sent_date=raw.get("sentDate"),' \
+  '        sent_date=None,'
 
 echo "########## ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
@@ -284,5 +356,21 @@ echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"
 # find its anchor tested nothing and must not be read as a clean result.
 if [ "$APPLIED" -ne "$ROWS" ]; then
   echo "::error::$((ROWS - APPLIED)) row(s) did not apply an anchor - the harness is stale"
+  exit 1
+fi
+
+# R4-M4's other half: `APPLIED -ne ROWS` is satisfied by 0 == 0, so a
+# harness whose rows were all deleted was fully green. Lowering this number
+# is a visible diff that has to be defended.
+ROW_FLOOR=14
+if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
+  echo "::error::the harness holds $ROWS rows, below its floor of $ROW_FLOOR"
+  exit 1
+fi
+
+# R4-M5. Survivors are output; a row that killed NOTHING is not.
+if [ "$VACUOUS" -ne 0 ]; then
+  echo "::error::$VACUOUS VACUOUS ROW(S) - a behaviour was deleted and nothing"
+  echo "         went red. Search the log above for 'VACUOUS ROW'."
   exit 1
 fi
