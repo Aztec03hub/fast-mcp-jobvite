@@ -16,6 +16,13 @@ name: CI
 #   NEVER EXECUTED - GitHub-hosted actions that cannot run on a developer machine:
 #     codeql / trufflehog / sbom (anchore). They are written to the standards'
 #     pinned versions and their first real run is their first evidence.
+#     The `Lint the workflows` step joins them WITH ONE DIFFERENCE worth
+#     recording: the TOOL has been run here, on this tree, at the same
+#     version and the same SHELLCHECK_OPTS, with a positive control - 0
+#     findings, and re-introducing R3-H1's job-level `if:` produces the
+#     expected error and exit 1. What is unexecuted is the STEP: the
+#     `uses: docker://` invocation and its arg passing. That is a smaller
+#     unknown than the three above, and it is still an unknown.
 #
 #   DEFERRED with an owning unit, NOT silently omitted:
 #     scripts/check_advisories.py -> LANDED by U11 (f4f69f9). The step runs and
@@ -84,6 +91,43 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      # WORKFLOW LINTING. Nothing lint this file until now, and the cost of
+      # that was 119 consecutive silent failures: mirror.yml used `secrets`
+      # in a job-level `if:`, a context GitHub does not provide there, so
+      # every run died at expression evaluation with zero jobs. actionlint
+      # names that defect exactly - "context \"secrets\" is not allowed here"
+      # - and would have caught it the day it was written (R3-H1, task #22).
+      #
+      # MEASURED BEFORE WIRING, on this tree: 0 findings, and the positive
+      # control fires - re-introducing the job-level `if:` produces the
+      # message above and exit 1. A gate wired without that control is a
+      # gate nobody has seen work.
+      #
+      # SHELLCHECK_OPTS matches the threshold `bash.md:741,767` specifies
+      # for ITSELF. actionlint runs shellcheck over every `run:` block, and
+      # at the default threshold it reports one SC2015 (info) on the
+      # credentialed-collect step - `[ -n "$n" ] && [ "$n" -ge 3 ] || {...}`,
+      # where both operands are pure predicates so the idiom is correct.
+      # Using the standard's own threshold keeps the two halves of that
+      # standard - scripts and workflows - gated at one severity rather
+      # than two. Task #33 covers what a stricter setting would find.
+      # Downloaded and CHECKSUMMED rather than `uses:`. The action forms all
+      # resolve a tag, and `tests/test_workflow_pins.py` refuses an action
+      # with no `@ref` - it caught `docker://rhysd/actionlint:1.7.7` on the
+      # commit that added this step, which is the pin gate working on its
+      # author. A pinned tarball plus a sha256 is what `bash-standard` used
+      # for shellcheck, so the two tools are acquired the same way.
+      - name: Lint the workflows
+        run: |
+          set -euo pipefail
+          ver=1.7.7
+          sha=023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+          url=https://github.com/rhysd/actionlint/releases/download/v${ver}/actionlint_${ver}_linux_amd64.tar.gz
+          curl -fsSL "$url" -o /tmp/actionlint.tgz
+          echo "${sha}  /tmp/actionlint.tgz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
+          SHELLCHECK_OPTS=--severity=warning /tmp/actionlint -no-color
 
       - name: Coupling gate
         run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
