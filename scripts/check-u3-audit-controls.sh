@@ -223,4 +223,19 @@ run_mutation "M15 the exception-message arm stops redacting" "$REDACT" \
 
 echo
 echo "########## RESULT: $PASS killed, $FAIL not killed"
+
+# THE ROW FLOOR. `FAIL -eq 0` is satisfied by a harness with no rows at
+# all: delete every `run_mutation` call and this prints "0 killed, 0 not
+# killed" and exits 0. The row count is PASS + FAIL, since every row
+# lands in exactly one of them. DERIVED: this harness printed
+# "########## RESULT: 15 killed, 0 not killed" at e5883a0. Lowering this
+# number is a visible diff that has to be defended.
+ROW_FLOOR=15
+ROWS=$((PASS + FAIL))
+if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
+  echo "########## $ROWS/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
 [ "$FAIL" -eq 0 ] || exit 1
