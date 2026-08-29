@@ -105,7 +105,29 @@ class ApprovalAnswer(BaseModel):
     mechanism carries it.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    #: **`strict=True`, and R8-H2 is why it is not optional here.**
+    #: Without it pydantic coerces before `result.data.approve is True`
+    #: can run, so `"true"`, `1`, `"yes"`, `"on"` and `"TRUE"` all
+    #: became `True` on the elicitation leg while the MRTR leg - which
+    #: reads the raw dict and applies `is True` to the wire value -
+    #: refused every one of them. Measured, both legs, real functions:
+    #:
+    #:     wire value    MRTR leg    ELICITATION
+    #:     True          True        True           <- the control
+    #:     "true"        False       True           <- DISAGREED
+    #:     1             False       True           <- DISAGREED
+    #:     "yes"         False       True           <- DISAGREED
+    #:
+    #: The comment on the elicitation leg says "THE SAME CONJUNCTION AS
+    #: THE MRTR LEG" and it sat exactly at the divergence. A host
+    #: answering `{"approve": "yes"}` authorised a `create_candidate`
+    #: write on one era and was refused on the other - and that tool
+    #: emails a living person.
+    #:
+    #: Every one of the six tool input models already sets this. This
+    #: model did not, because no sweep reaches it: it lives outside
+    #: `tools/`, which is R8-H1.
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     approve: bool
 
