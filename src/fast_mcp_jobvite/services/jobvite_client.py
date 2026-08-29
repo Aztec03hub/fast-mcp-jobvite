@@ -405,6 +405,140 @@ def _excerpt(text: str) -> str:
 
 
 # ======================================================================
+# U6 - PAGING. Base-agnostic offset scanning around `request` below.
+#
+# THE WHOLE MECHANISM IS ONE CHARACTER (DESIGN.md:455-464): every scan
+# starts at `start=0`. A 0-based server returns record zero; a 1-based
+# server returns the same first page it would have returned anyway.
+# Starting at 1 is the only choice that can silently lose a record.
+#
+# WHAT IS OBSERVED, and it is narrower than the design's own first
+# sentence. DESIGN.md:451 says `start` is 1-based *per Jobvite's own v1
+# documentation, which is the only statement from the vendor*. That is
+# a VENDOR CLAIM. The observation is `JOBVITE-API.md:399`: `start=0` is
+# accepted and returns records, in one genuine `200`. That falsifies
+# "1-based and strict" and separates nothing else - "0-based" and
+# "1-based with clamping" both remain live, and `start=0` is safe under
+# both, which is the point of being base-agnostic.
+#
+# WHY DE-DUPLICATION IS NOT THE SAFETY MECHANISM (DESIGN.md:465-468).
+# The seen set defends against OVER-reading only. Under the
+# 1-based-with-clamping hypothesis `start=0` is clamped to 1, so
+# advancing by `count` re-reads one boundary record per page and the
+# seen set drops it. It CANNOT recover a record that was never
+# returned, "which is exactly why the fix is starting at 0 rather than
+# de-duplicating harder". Moving the start to 1 and trusting the seen
+# set loses record zero on a 0-based server, silently, forever.
+#
+# WHY THE ADVANCE IS `+= count` FROM 0 AND NOT FROM A DECLARED BASE. It
+# is gap-free under both surviving hypotheses:
+#   0-based:            page 1 = records 0..count-1, next start = count
+#   1-based + clamping: page 1 = records 1..count,   next start = count
+#                       -> record `count` arrives twice, the seen set
+#                          drops one copy, and NO record is skipped.
+# Advancing from a declared base of 1 would skip record `count` on a
+# 0-based server, which is the loss this whole section exists to avoid.
+# ======================================================================
+
+#: The v2 transport page cap (DESIGN.md:434). **Not observed.** No call
+#: in our evidence requested more than 5 records, so whether 500 is a
+#: real server limit is unknown; it is the design's figure, and this
+#: constant is where a measurement would land.
+V2_PAGE_CAP: Final = 500
+
+#: The `/v1/jobFeed` transport page cap (DESIGN.md:434). Unobserved for
+#: the same reason as `V2_PAGE_CAP`.
+JOBFEED_PAGE_CAP: Final = 1000
+
+#: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
+#: `min(transport_cap, configured_result_cap)` (DESIGN.md:434-436,
+#: DESIGN.md:1572-1575). 50 agrees with the `showing 50 of 1,240`
+#: string a caller already reads, which makes it internally consistent
+#: and NOT a measurement of anything.
+DEFAULT_MAX_RESULTS: Final = 50
+
+#: Where every scan starts (DESIGN.md:455). Named rather than inlined
+#: so a future edit is a visible one-line diff with this comment
+#: attached, instead of a `0` quietly becoming a `1` inside a call.
+SCAN_START: Final = 0
+
+#: The envelope key carrying the full result-set size.
+#: `JOBVITE-API.md:398`: `total` is the size of the whole result set,
+#: not of the page - a call requesting 5 reported a `total` in the
+#: hundreds of thousands. It is REPORTED and never a loop condition
+#: (DESIGN.md:486-487).
+TOTAL_KEY: Final = "total"
+
+#: The default per-record identifier. `eId` is an opaque 8-character
+#: id, which is why completeness is a COUNT against `total` and not a
+#: search for a hole (DESIGN.md:469-472).
+DEFAULT_ID_KEY: Final = "eId"
+
+
+class ScanResult:
+    """One scan's records, and what a caller must not re-derive.
+
+    Carried as an object rather than a bare list because three of these
+    fields are the difference between a capped answer and an anomaly,
+    and a caller handed only `items` has to guess which it is holding.
+    """
+
+    __slots__ = (
+        "capped",
+        "duplicates_dropped",
+        "exhaustive",
+        "incomplete",
+        "items",
+        "pages",
+        "total",
+        "unidentified",
+    )
+
+    def __init__(
+        self,
+        *,
+        items: list[dict[str, Any]],
+        total: int | None,
+        pages: int,
+        duplicates_dropped: int,
+        unidentified: int,
+        capped: bool,
+        exhaustive: bool,
+        incomplete: bool,
+    ) -> None:
+        """Record one scan.
+
+        Args:
+            items: The de-duplicated records, in arrival order.
+            total: The envelope's `total`, reported and never trusted
+                as a loop condition (DESIGN.md:486-487). `None` when
+                no page carried one.
+            pages: How many requests the scan issued.
+            duplicates_dropped: Records the seen set rejected. Under
+                the clamping hypothesis this is about one per page
+                after the first, so a non-zero value is normal rather
+                than alarming.
+            unidentified: Records carrying no id. They are KEPT and
+                never de-duplicated: collapsing them onto a single
+                `None` key would delete real records, which is the
+                over-reading defence causing the under-read it exists
+                to prevent.
+            capped: The scan stopped because it reached its limit.
+            exhaustive: The caller requested no limit.
+            incomplete: The completeness check fired. Only ever `True`
+                on an exhaustive scan (DESIGN.md:469-477).
+        """
+        self.items = items
+        self.total = total
+        self.pages = pages
+        self.duplicates_dropped = duplicates_dropped
+        self.unidentified = unidentified
+        self.capped = capped
+        self.exhaustive = exhaustive
+        self.incomplete = incomplete
+
+
+# ======================================================================
 # The client. One request entry point, feeding the invariant above.
 # ======================================================================
 
@@ -432,6 +566,8 @@ class JobviteClient:
         company_id: SecretValue | None = None,
         transport: httpx2.AsyncBaseTransport | None = None,
         timeout: httpx2.Timeout | None = None,
+        max_results: int = DEFAULT_MAX_RESULTS,
+        start_base_overrides: Mapping[str, int] | None = None,
     ) -> None:
         """Build the client.
 
@@ -454,10 +590,26 @@ class JobviteClient:
                 this is the timeout half, which cannot wait for it
                 because the default it would otherwise inherit is
                 silent.
+            max_results: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
+                `min(transport_cap, configured_result_cap)`
+                (DESIGN.md:434-436). U5 applies the same figure
+                in-tool in `tools/jobs.py` and owns the
+                `showing N of total` string; this half bounds what
+                leaves the transport, and neither unit owns all of it.
+            start_base_overrides: `JOBVITE_PAGINATION_START_BASE`,
+                **per resource and not global** (DESIGN.md:478-480),
+                keyed by the same `path` a scan is given. Absent, every
+                resource starts at `SCAN_START`. This exists for
+                someone who has ESTABLISHED the base against a live
+                tenant; it is not a place to write down the vendor's
+                claim, because a declared 1 here loses record zero on a
+                0-based server.
         """
         self._api_key = api_key
         self._api_secret = api_secret
         self._company_id = company_id
+        self._max_results = max_results
+        self._start_base_overrides = dict(start_base_overrides or {})
         self._client = httpx2.AsyncClient(
             transport=transport,
             timeout=timeout
@@ -684,3 +836,231 @@ class JobviteClient:
             self._client.cookies.clear()
 
         return evaluate_response(response.status_code, response.content)
+
+    # -- paging (U6)
+    # ------------------------------------------------------
+
+    def transport_cap(self, *, jobfeed: bool = False) -> int:
+        """The transport page cap for a route (DESIGN.md:434).
+
+        Args:
+            jobfeed: Select the `/v1/jobFeed` route's cap.
+
+        Returns:
+            1000 on `/v1/jobFeed`, 500 on v2. **Neither is observed**;
+            both are the design's figures.
+        """
+        return JOBFEED_PAGE_CAP if jobfeed else V2_PAGE_CAP
+
+    def result_cap(self, *, jobfeed: bool = False) -> int:
+        """`min(transport_cap, configured_result_cap)`.
+
+        **THE TRANSPORT HALF OF ONE BEHAVIOUR SPLIT ACROSS TWO FILES**
+        (DESIGN.md:434-436). U5's `tools/jobs.py` applies
+        `JOBVITE_MAX_RESULTS` to a page and owns the caller-facing
+        `showing N of total` string; this is the `min()` that composes
+        the two caps, and it is deliberately not a second copy of U5's
+        reporting. Neither unit owns all of it.
+
+        Args:
+            jobfeed: Select the `/v1/jobFeed` route's transport cap.
+
+        Returns:
+            The smaller of the route's transport cap and the
+            configured result cap.
+        """
+        return min(self.transport_cap(jobfeed=jobfeed), self._max_results)
+
+    def scan_start(self, path: str) -> int:
+        """The FIRST `start` of a scan of `path` (DESIGN.md:455-464).
+
+        `SCAN_START` unless an operator has overridden this resource.
+        The override is per resource and not global
+        (DESIGN.md:478-480), and it exists for someone who has
+        established the base against a live tenant. **The vendor's
+        1-based claim is not written here as a default**: a declared 1
+        never requests record zero, so on a 0-based server it loses
+        that record on every scan and nothing reports it.
+
+        Args:
+            path: The resource path, the same value `scan` is given.
+
+        Returns:
+            The offset the scan's first request will carry.
+        """
+        return self._start_base_overrides.get(path, SCAN_START)
+
+    async def scan(
+        self,
+        path: str,
+        *,
+        items_key: str,
+        params: Mapping[str, str] | None = None,
+        jobfeed: bool = False,
+        id_key: str = DEFAULT_ID_KEY,
+        limit: int | None = None,
+    ) -> ScanResult:
+        """Page a resource, base-agnostically (DESIGN.md:455-487).
+
+        Args:
+            path: The path below the base URL, e.g. `/job`.
+            items_key: The envelope key holding the page's records.
+            params: Non-credential, non-paging query parameters.
+            jobfeed: Select the v1 `jobFeed` route.
+            id_key: The per-record identifier the seen set reads.
+            limit: The caller's cap, clamped to `result_cap`. **`None`
+                means an EXHAUSTIVE scan**, and it is the only input
+                that arms the completeness check.
+
+        Returns:
+            The scan, with its counts.
+
+        Raises:
+            JobviteUpstreamError: From `request`, unchanged.
+            JobviteUnavailableError: From `request`, unchanged.
+        """
+        # ONE RULE FOR THE PAGE SIZE, and it is DESIGN.md:434-436's
+        # `min(transport_cap, configured_result_cap)` with no branch on
+        # top of it. An exhaustive scan pages at the same size and just
+        # keeps going; a caller's `limit` only ever narrows it further.
+        # A separate "exhaustive scans use the raw transport cap" rule
+        # would be a paging policy this design does not state, invented
+        # here, and untestable without a knob invented to test it.
+        exhaustive = limit is None
+        cap = self.result_cap(jobfeed=jobfeed)
+        effective_limit = cap if exhaustive else min(limit or 0, cap)
+        count = cap if exhaustive else max(effective_limit, 1)
+
+        start = self.scan_start(path)
+        base_params = dict(params or {})
+        seen: set[Any] = set()
+        items: list[dict[str, Any]] = []
+        total: int | None = None
+        pages = 0
+        duplicates = 0
+        unidentified = 0
+        short_page = False
+        capped = False
+
+        while True:
+            payload = await self.request(
+                "GET",
+                path,
+                params={**base_params, "start": str(start), "count": str(count)},
+                jobfeed=jobfeed,
+            )
+            pages += 1
+            reported = payload.get(TOTAL_KEY)
+            if isinstance(reported, int):
+                total = reported
+            raw = payload.get(items_key)
+            page: list[dict[str, Any]] = (
+                [item for item in raw if isinstance(item, dict)]
+                if isinstance(raw, list)
+                else []
+            )
+
+            for item in page:
+                ident = item.get(id_key)
+                if ident is None:
+                    # KEPT, and never de-duplicated. Every id-less
+                    # record would collapse onto one `None` key, so a
+                    # seen set that swallowed them would DELETE
+                    # records - the over-reading defence causing the
+                    # under-read it exists to prevent
+                    # (DESIGN.md:465-468).
+                    unidentified += 1
+                    items.append(item)
+                    continue
+                if ident in seen:
+                    duplicates += 1
+                    continue
+                seen.add(ident)
+                items.append(item)
+
+            # THE ONLY TERMINATION THAT READS THE SERVER
+            # (DESIGN.md:486-487). `len(page) < count`, on the RAW page
+            # and not on the de-duplicated total: a fully duplicate
+            # full-length page is not a short page, and stopping on it
+            # would end a scan early on the clamping hypothesis.
+            # `total` is reported and is never a loop condition.
+            if len(page) < count:
+                short_page = True
+                break
+
+            if not exhaustive and len(items) >= effective_limit:
+                capped = True
+                break
+
+            start += count
+
+        if not exhaustive and len(items) > effective_limit:
+            capped = True
+            items = items[:effective_limit]
+
+        incomplete = self._check_completeness(
+            path=path,
+            exhaustive=exhaustive,
+            short_page=short_page,
+            unique=len(seen) + unidentified,
+            total=total,
+        )
+
+        return ScanResult(
+            items=items,
+            total=total,
+            pages=pages,
+            duplicates_dropped=duplicates,
+            unidentified=unidentified,
+            capped=capped,
+            exhaustive=exhaustive,
+            incomplete=incomplete,
+        )
+
+    def _check_completeness(
+        self,
+        *,
+        path: str,
+        exhaustive: bool,
+        short_page: bool,
+        unique: int,
+        total: int | None,
+    ) -> bool:
+        """Completeness vs `total`, ARMED ONLY BY AN EXHAUSTIVE SCAN.
+
+        DESIGN.md:469-477. The check has two required halves and the
+        second is the one that gets left out:
+
+        * it fires when a scan that requested EVERYTHING terminated on
+          a short page and returned fewer unique records than `total`;
+        * **it must NOT fire on a capped call.** A capped result is a
+          mismatch BY DESIGN - `showing 50 of 1,240` is §7.7's own
+          worked example - and DESIGN.md:474 says wiring the check to
+          every call "would fire the alarm on the default path and
+          train everyone to ignore it".
+
+        Comparing a COUNT is the whole mechanism, because `eId` is
+        opaque and you cannot find a hole in a set of opaque ids
+        (DESIGN.md:469-472).
+
+        Args:
+            path: The resource, for the log line.
+            exhaustive: The caller requested no limit.
+            short_page: The scan terminated on a short page.
+            unique: Unique records returned.
+            total: The envelope's reported `total`, if any.
+
+        Returns:
+            Whether the anomaly was logged.
+        """
+        if not exhaustive or not short_page or not isinstance(total, int):
+            return False
+        if unique == total:
+            return False
+        logger.warning(
+            "jobvite scan incomplete",
+            route=redact_url(f"{V2_BASE_URL}{path}"),
+            unique=unique,
+            reported_total=total,
+        )
+        return True
