@@ -1,11 +1,25 @@
 """U14 - the argument-layer completeness sweep (§8 #7, #8, #9).
 
 **THE POINT OF THIS MODULE IS THAT IT NAMES NO INPUT MODEL.** Every
-assertion below is parametrised over a set discovered by walking
-`src/fast_mcp_jobvite/tools/`, twice, by two independent routes, with
-the two sets asserted EQUAL. A hand-kept list of input models beside
-the input models is the defect this repository has recorded nine times,
-and this is the unit whose entire job is completeness.
+assertion below is parametrised over a set discovered by walking a
+container: `src/fast_mcp_jobvite/tools/` twice, by two independent
+routes whose results are asserted EQUAL, and then the WHOLE PACKAGE
+once more for the models a tool annotation cannot reach. A hand-kept
+list of input models beside the input models is the defect this
+repository has recorded nine times, and this is the unit whose entire
+job is completeness.
+
+**AND ENUMERATING A CONTAINER IS ONLY AS GOOD AS CHOOSING THE RIGHT
+CONTAINER, which is what R8-H1 cost.** The first version of this module
+did the thing this repository keeps asking for - it replaced the
+hand-kept list with an enumerated directory - and then asserted a
+property about *the inbound surface* while enumerating *one directory*.
+`ApprovalAnswer` is filled in by the host through
+`ctx.elicit(..., response_type=...)`, lives in `approval.py`, and was
+therefore invisible to both routes: deleting its `extra="forbid"` left
+all 768 tests green. The set below is now the UNION of route A and
+route C, and section 1c names the one inbound path that has no model
+for any route to find.
 
 **The brief that dispatched this unit said "the four input models:
 `tools/jobs.py` (two), `tools/candidates.py` (two)". There are FIVE**,
@@ -176,11 +190,165 @@ def _resolve(found: dict[str, str]) -> list[type[BaseModel]]:
     return models
 
 
+# ======================================================================
+# 1b. ROUTE C. THE SECOND WAY A MODEL RECEIVES DATA FROM OUTSIDE, AND
+#     A CONTAINER THAT IS THE WHOLE PACKAGE RATHER THAN ONE DIRECTORY.
+# ======================================================================
+#
+# **R8-H1 IS WHY THIS EXISTS, AND THE SHAPE MATTERS MORE THAN THE FIX.**
+# Routes A and B replaced a hand-kept LIST with an enumerated CONTAINER,
+# which is what this repository keeps asking for, and the container they
+# chose - `tools/` - is NARROWER than the property this module asserts.
+# `ApprovalAnswer` (`approval.py`) is populated by
+# `ctx.elicit(..., response_type=ApprovalAnswer)`, so it is inbound, and
+# it lives outside `tools/`. Setting its `extra="forbid"` to
+# `extra="allow"` left the entire suite green.
+#
+# Route C therefore enumerates a DIFFERENT container - every module of
+# the package - and selects inside it by USE, exactly as route B keeps
+# output models out by their `output_schema=` use and not by their name.
+# The use it looks for is the second way a model receives outside data:
+# being named as the response type of a request this server makes of its
+# host.
+
+
+SRC_PACKAGE_DIR: Final = SRC / "fast_mcp_jobvite"
+
+#: The keywords through which this server hands a schema to its host and
+#: is handed data back. **Not a naming convention** - a name filter is a
+#: second hand-kept list in a disguise, and amputation M4 already kills
+#: that idea for route B.
+OUTSIDE_RESPONSE_KEYWORDS: Final = ("response_type", "requested_schema")
+
+
+def _package_module_paths() -> list[pathlib.Path]:
+    """Every module of the package - **the package is the container**.
+
+    A tool argument is not the only way outside data reaches a model,
+    so one directory cannot be the container for a claim about all of
+    them.
+    """
+    return sorted(SRC_PACKAGE_DIR.rglob("*.py"))
+
+
+def _module_path_of(path: pathlib.Path) -> str:
+    parts = list(path.relative_to(SRC).with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _schema_call_owner(value: ast.expr | None) -> str | None:
+    """`X.model_json_schema(...)` -> `"X"`, anything else -> `None`."""
+    if (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and value.func.attr == "model_json_schema"
+        and isinstance(value.func.value, ast.Name)
+    ):
+        return value.func.value.id
+    return None
+
+
+def _schema_aliases(tree: ast.Module) -> dict[str, str]:
+    """`APPROVAL_SCHEMA = ApprovalAnswer.model_json_schema()`.
+
+    **THE MRTR LEG REACHES ITS MODEL THROUGH EXACTLY THIS INDIRECTION**
+    (`approval.py`), so a route that only reads a bare `Name` off the
+    keyword sees the elicitation leg and not the sampling one. It
+    would have found `ApprovalAnswer` anyway today, by the other
+    keyword, and the day those two stop naming the same model is the
+    day that coincidence stops covering for the gap.
+    """
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets: list[ast.expr] = list(node.targets)
+            value: ast.expr | None = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        owner = _schema_call_owner(value)
+        if owner is None:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = owner
+    return aliases
+
+
+def models_named_as_an_outside_response(tree: ast.Module) -> set[str]:
+    """ROUTE C: every class named as the response type of a request.
+
+    Route A asks *"what can a tool caller send?"*. This asks *"what can
+    the HOST send back?"* - the same question about the other
+    direction, which had no route at all.
+    """
+    aliases = _schema_aliases(tree)
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.keyword):
+            continue
+        if node.arg not in OUTSIDE_RESPONSE_KEYWORDS:
+            continue
+        value = node.value
+        if isinstance(value, ast.Name):
+            found.add(aliases.get(value.id, value.id))
+            continue
+        owner = _schema_call_owner(value)
+        if owner is not None:
+            found.add(owner)
+    return found
+
+
+def _enumerate_package(
+    route: typing.Callable[[ast.Module], set[str]],
+) -> dict[str, str]:
+    """Run one route over every package module. name -> module."""
+    out: dict[str, str] = {}
+    for path in _package_module_paths():
+        for name in route(_parse(path)):
+            out[name] = _module_path_of(path)
+    return out
+
+
+def _resolve_outside_responses(found: dict[str, str]) -> list[type[BaseModel]]:
+    """Like `_resolve`, but it REFUSES a non-model response type.
+
+    `ctx.elicit(..., response_type=bool)` is legal and would give this
+    server an inbound path with no model, no `extra="forbid"` and no
+    `strict=True` - the very shape route C exists to find. Resolving one
+    to something that is not a `BaseModel` therefore fails loudly here
+    rather than being quietly dropped for want of a config to assert.
+    """
+    models: list[type[BaseModel]] = []
+    for name, module_path in sorted(found.items()):
+        module = importlib.import_module(module_path)
+        model = getattr(module, name)
+        assert isinstance(model, type) and issubclass(model, BaseModel), (
+            f"{module_path}.{name} is named as an outside response type and is "
+            f"not a pydantic model, so it carries no config for this sweep to "
+            f"assert - it is an inbound path with nothing on it"
+        )
+        models.append(model)
+    return models
+
+
+#: name -> module for every model the HOST is asked to fill in.
+OUTSIDE_RESPONSE_MODELS: Final = _enumerate_package(models_named_as_an_outside_response)
+
+
 #: The swept set, resolved once. **Collected at import time**, on
 #: purpose:
 #: if the enumeration breaks, collection fails loudly rather than
 #: parametrising zero cases and passing.
-INPUT_MODELS: Final = _resolve(_enumerate(models_named_by_tool_functions))
+#: **THE UNION OF ROUTE A AND ROUTE C**, which is what this name has
+#: claimed since U14 wrote it: every model this server exposes to data
+#: it did not produce, whichever direction that data arrives from.
+INPUT_MODELS: Final = _resolve(
+    _enumerate(models_named_by_tool_functions)
+) + _resolve_outside_responses(OUTSIDE_RESPONSE_MODELS)
 
 #: How many tools this server registers, derived the same way.
 TOOL_COUNT: Final = len(_enumerate(models_named_by_tool_functions))
@@ -211,12 +379,70 @@ def test_the_enumeration_is_not_a_wrong_zero() -> None:
     a path that does not exist returns a clean, self-explaining empty -
     identical to a real absence. The counts are asserted, and the floor
     is the number of tools this server registered when U14 swept it.
+
+    **ROUTE C GETS THE SAME GUARD AND NEEDS IT MORE**, because its
+    container is wider and its selector is narrower: one renamed keyword
+    and it finds nothing, silently, and every arm below goes back to
+    sweeping exactly what it swept before R8-H1 was found.
     """
     assert _tool_module_paths(), f"no tool module under {TOOLS_DIR}"
+    assert _package_module_paths(), f"no module under {SRC_PACKAGE_DIR}"
+    assert len(_package_module_paths()) > len(_tool_module_paths()), (
+        "route C's container must be WIDER than route A's, or it is the "
+        "same enumeration under a second name"
+    )
+    assert OUTSIDE_RESPONSE_MODELS, (
+        f"route C found no model named by any of {OUTSIDE_RESPONSE_KEYWORDS} "
+        f"under {SRC_PACKAGE_DIR}; this server does ask its host to fill one "
+        f"in, so an empty result is a broken route and not an absence"
+    )
     assert len(INPUT_MODELS) >= 5, _ids(INPUT_MODELS)
-    assert len(INPUT_MODELS) == TOOL_COUNT, (
-        "every registered tool has its own input model, and no input "
-        "model is unreachable"
+    assert TOOL_COUNT >= 5, TOOL_COUNT
+    assert len(INPUT_MODELS) == TOOL_COUNT + len(OUTSIDE_RESPONSE_MODELS), (
+        "every registered tool has its own input model, no input model is "
+        "unreachable, and the two routes' results are disjoint so the sum "
+        "is the union"
+    )
+
+
+def test_route_C_reaches_a_model_route_A_structurally_cannot() -> None:
+    """The arm that would have failed on R8-H1, and the anti-tautology.
+
+    Asserting "every model route C finds is in the swept set" is true by
+    construction now that the swept set is their union - it would pass
+    against a route C that found nothing, which is precisely the state
+    this module was in when the mutation survived. What is NOT true by
+    construction is that route C reaches outside route A's container, so
+    that is what is asserted, without naming the model.
+    """
+    by_tool = set(_enumerate(models_named_by_tool_functions))
+    outside = set(OUTSIDE_RESPONSE_MODELS) - by_tool
+    assert outside, (
+        "route C found only models route A had already found, so the wider "
+        "container is buying nothing and R8-H1 could recur unseen"
+    )
+    for name in outside:
+        module_path = OUTSIDE_RESPONSE_MODELS[name]
+        assert not module_path.startswith(f"{TOOLS_PACKAGE}."), (
+            f"{name} is in {module_path}, inside route A's own container"
+        )
+
+
+def test_the_two_routes_into_the_swept_set_are_disjoint() -> None:
+    """`INPUT_MODELS` is a CONCATENATION.
+
+    The count arithmetic above only reads as a union while the two
+    routes share nothing.
+
+    A model that is both a tool's `params` and a `response_type=` is a
+    legitimate thing to write; it would appear TWICE in the swept set,
+    parametrise every arm twice under a duplicate id, and quietly turn
+    the sum assertion above into a false statement about a union. If
+    this ever fails, deduplicate the concatenation - do not relax it.
+    """
+    by_tool = set(_enumerate(models_named_by_tool_functions))
+    assert not (by_tool & set(OUTSIDE_RESPONSE_MODELS)), sorted(
+        by_tool & set(OUTSIDE_RESPONSE_MODELS)
     )
 
 
@@ -267,6 +493,187 @@ def test_the_enumeration_finds_a_model_planted_in_a_synthetic_module(
     # green on a deleted behaviour. Two instruments that cannot disagree
     # are one instrument reported twice.
     assert by_class - by_tool == {"OrphanInput"}
+
+
+def test_route_C_finds_both_keyword_shapes_in_a_synthetic_module(
+    tmp_path: pathlib.Path,
+) -> None:
+    """POSITIVE CONTROL for route C, with two negative arms.
+
+    The real tree names its one model through BOTH keywords, so a route
+    handling only one of them still finds it and the gap only opens
+    later. This plants a module where the two keywords name DIFFERENT
+    models and requires both, reaches one of them through the
+    `X.model_json_schema()` alias the MRTR leg actually uses, and
+    requires that an `output_schema=` model and an unused class are NOT
+    picked up - the exclude-by-USE rule, in the direction that would
+    otherwise sweep every model in the package.
+    """
+    planted = tmp_path / "planted_responses.py"
+    planted.write_text(
+        "from pydantic import BaseModel\n"
+        "class ElicitedAnswer(BaseModel):\n"
+        "    pass\n"
+        "class SampledAnswer(BaseModel):\n"
+        "    pass\n"
+        "class PlantedResult(BaseModel):\n"
+        "    pass\n"
+        "class NeverAskedFor(BaseModel):\n"
+        "    pass\n"
+        "SAMPLED_SCHEMA = SampledAnswer.model_json_schema()\n"
+        "async def ask(ctx):\n"
+        "    await ctx.request(requested_schema=SAMPLED_SCHEMA)\n"
+        "    await ctx.report(output_schema=PlantedResult.model_json_schema())\n"
+        "    return await ctx.elicit('m', response_type=ElicitedAnswer)\n"
+    )
+    found = models_named_as_an_outside_response(_parse(planted))
+    assert found == {"ElicitedAnswer", "SampledAnswer"}, sorted(found)
+
+
+def test_route_C_refuses_a_response_type_that_is_not_a_model() -> None:
+    """`response_type=bool` is legal, and is a path with nothing on it.
+
+    No `extra="forbid"`, no `strict=True`, no structural limits.
+
+    The resolver must go RED rather than drop it, because dropping it
+    reproduces R8-H1 exactly: a path outside every assertion that a
+    future reader assumes the sweep reached.
+    """
+    with pytest.raises(AssertionError, match="not a pydantic model"):
+        _resolve_outside_responses({"getattr": "builtins"})
+
+
+# ======================================================================
+# 1c. THE INBOUND PATH THAT HAS NO MODEL AT ALL, ENUMERATED BECAUSE NO
+#     ROUTE OVER MODELS CAN SEE IT.
+# ======================================================================
+#
+# **A ROUTE THAT ENUMERATES MODELS CANNOT SEE A PATH THAT HAS NONE.**
+# The MRTR leg of `resolve_approval` reads `ctx.input_responses` and
+# takes `content.get("approve")` off a RAW DICT, so no model, no
+# `extra="forbid"`, no `strict=True` and no structural limit applies to
+# it. Routes A, B and C are all blind to it by construction.
+#
+# **THE DECISION, WRITTEN DOWN RATHER THAN IMPLIED BY A GREEN.** No
+# model is introduced there, for two measured reasons and one design
+# one:
+#
+#   1. Its acceptance rule is already the strictest available.
+#      `_approved_by_conjunction` applies `is True` to the WIRE value,
+#      which is exactly what `ApprovalAnswer`'s `strict=True` was added
+#      (R8-H2, `fd1057a`) to reproduce on the other leg.
+#      `tests/test_approval_strictness.py` pins the two legs to agree on
+#      every plausible answer, so a regression on EITHER goes red.
+#   2. The four structural limits have nothing to bound there. That code
+#      reads one key and compares identity: it never recurses, never
+#      re-serialises and never stores the payload. A model placed there
+#      would validate a body the transport has already accepted in
+#      full, so the bound that matters for this path is the 1 MiB body
+#      cap at the middleware seat - ADR-0029 as corrected, task #81 -
+#      and no model can stand in for it.
+#   3. Putting a model there where there is none is a new contract - it
+#      decides what shape a host response must have before this server
+#      will read one key out of it - and inventing that in a fix is what
+#      an ADR exists to prevent. This path needs no new contract to be
+#      safe today. (Contrast `ApprovalAnswer`, which HAS a model: giving
+#      it `InboundModel` completes §2.1's set on a class that already
+#      declared two thirds of it, and adds a refusal rather than a
+#      shape.)
+#
+# What WAS missing is enumeration: nothing told a reader that this path
+# exists and is outside every route. The census below is that, and it
+# turns "an unenumerated path" into a one-element set that goes red the
+# day a second one appears.
+
+
+def _walk_not_entering_nested_functions(node: ast.AST) -> list[ast.AST]:
+    """`ast.walk` that stops at a nested `def`.
+
+    A read is then attributed to the function that performs it.
+    """
+    out: list[ast.AST] = []
+    for child in ast.iter_child_nodes(node):
+        out.append(child)
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        out.extend(_walk_not_entering_nested_functions(child))
+    return out
+
+
+#: The attribute through which a host response arrives with no model
+#: around it.
+RAW_HOST_RESPONSE_ATTRIBUTE: Final = "input_responses"
+
+
+def raw_host_response_reads(tree: ast.Module, module_path: str) -> set[str]:
+    """Every read of `ctx.input_responses`, anchored to its function.
+
+    **Anchored to the function name, never to a line number.** A line
+    number in an expected set is a citation that drifts on the next edit
+    and is then repointed mechanically; a function name is the subject.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for inner in _walk_not_entering_nested_functions(node):
+            if (
+                isinstance(inner, ast.Attribute)
+                and inner.attr == RAW_HOST_RESPONSE_ATTRIBUTE
+            ):
+                found.add(f"{module_path}:{node.name}")
+    return found
+
+
+#: Every place in the package where a host response is read with no
+#: model between the wire and the code.
+MODELLESS_INBOUND_READS: Final = sorted(
+    read
+    for path in _package_module_paths()
+    for read in raw_host_response_reads(_parse(path), _module_path_of(path))
+)
+
+
+def test_the_modelless_inbound_paths_are_exactly_the_reasoned_one() -> None:
+    """The seventh inbound path, enumerated (R8's answer to Q1).
+
+    This is an EXPECTED-VALUE list, not a search space: the container is
+    every module of the package and the selector is an AST attribute
+    read, so a new site cannot be missed by anyone forgetting to add it
+    here - it appears, and this goes red. The reasoning for the one site
+    that exists is in the section comment above; a second site has not
+    been reasoned about by anybody and must not arrive silently.
+
+    Comments and docstrings mentioning `ctx.input_responses` are
+    invisible to this by construction, which is why it is an AST
+    census and not a grep - `approval.py` mentions the attribute in
+    four places and reads it in one.
+    """
+    assert MODELLESS_INBOUND_READS == ["fast_mcp_jobvite.approval:resolve_approval"], (
+        MODELLESS_INBOUND_READS
+    )
+
+
+def test_the_modelless_census_finds_a_read_planted_in_a_synthetic_module(
+    tmp_path: pathlib.Path,
+) -> None:
+    """POSITIVE CONTROL for the census.
+
+    Without it the assertion above passes on a census that can only ever
+    return the one entry it was written against - and an expected-value
+    list whose instrument cannot see anything else is a hand-kept list
+    with extra steps.
+    """
+    planted = tmp_path / "planted_raw.py"
+    planted.write_text(
+        "async def handler(ctx):\n"
+        "    answers = ctx.input_responses\n"
+        "    return answers\n"
+        "def unrelated(ctx):\n"
+        "    return ctx.something_else\n"
+    )
+    found = raw_host_response_reads(_parse(planted), "planted_raw")
+    assert found == {"planted_raw:handler"}, sorted(found)
 
 
 # ======================================================================
@@ -355,7 +762,12 @@ def test_the_string_field_sweep_covers_what_the_models_actually_declare() -> Non
     """
     assert len(STRING_FIELDS) >= 9, STRING_FIELDS
     without = [m.__name__ for m in INPUT_MODELS if not _string_fields(m)]
-    assert without == ["SearchCandidatesInput"], without
+    # TWO models carry no string field, and for different reasons that
+    # are both deliberate: `SearchCandidatesInput` declares only
+    # non-string filters, and `ApprovalAnswer` is one `bool`. Naming
+    # both is what stops a model that quietly lost its fields from
+    # shrinking this sweep to nothing while every arm below stays green.
+    assert without == ["SearchCandidatesInput", "ApprovalAnswer"], without
 
 
 @pytest.mark.parametrize(

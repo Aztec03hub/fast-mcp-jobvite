@@ -43,13 +43,14 @@ cd "$REPO_ROOT" || exit 3
 CONSTRAINTS="src/fast_mcp_jobvite/utils/constraints.py"
 JOBS="src/fast_mcp_jobvite/tools/jobs.py"
 CANDIDATES="src/fast_mcp_jobvite/tools/candidates.py"
+APPROVAL="src/fast_mcp_jobvite/approval.py"
 SUITE="tests/test_arguments_sweep.py"
 OUT=/tmp/u14-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
 trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
-for f in "$CONSTRAINTS" "$JOBS" "$CANDIDATES" "$SUITE"; do
+for f in "$CONSTRAINTS" "$JOBS" "$CANDIDATES" "$APPROVAL" "$SUITE"; do
   cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
     { echo "COULD NOT TAKE PRISTINE COPY of $f"; exit 3; }
 done
@@ -277,6 +278,82 @@ amputate "A10 the structural walk never descends" "$CONSTRAINTS" \
             _measure(value, depth + 1)
         return' \
   '        return'
+
+# ---------------------------------------------------------------------------
+# ROWS A11 TO A16 ARE R8-H1's, AND THEY EXIST BECAUSE ROWS A1 TO A10
+# COULD ALL PASS WHILE AN INBOUND MODEL SAT OUTSIDE EVERY ONE OF THEM.
+# R8 set `ApprovalAnswer`'s `extra="forbid"` to `extra="allow"` and all
+# 768 tests stayed green: the sweep asserted a property about the
+# INBOUND SURFACE while enumerating ONE DIRECTORY. Route C widened the
+# container to the package; these rows are what say so out loud.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A11 - ROUTE C FINDS NOTHING. The third route returns an empty set, so
+# the swept set silently reverts to route A's - which is precisely the
+# tree R8 mutated, and it went green. A route whose absence costs
+# nothing is not a route.
+# ---------------------------------------------------------------------------
+amputate "A11 route C finds no outside-response model" "$SUITE" \
+  '    aliases = _schema_aliases(tree)' \
+  '    return set()
+    aliases = _schema_aliases(tree)'
+
+# ---------------------------------------------------------------------------
+# A12 - ROUTE C'S CONTAINER NARROWS BACK TO `tools/`. This is R8-H1
+# ITSELF, reproduced as a row: the route is intact, the selector is
+# intact, and only the container is wrong. It is the shape that is worth
+# catching, because a narrowed container looks exactly like a working
+# enumeration from every angle except the one model it cannot see.
+# ---------------------------------------------------------------------------
+amputate "A12 route C's container narrows to the tools directory" "$SUITE" \
+  '    return sorted(SRC_PACKAGE_DIR.rglob("*.py"))' \
+  '    return _tool_module_paths()'
+
+# ---------------------------------------------------------------------------
+# A13 - THE ELICITED MODEL STOPS FORBIDDING EXTRA KEYS. **This is R8's
+# surviving mutation, byte for byte.** If this row is vacuous, nothing
+# in this unit has changed since R8 measured it.
+# ---------------------------------------------------------------------------
+amputate "A13 the elicited model's extra-key refusal is gone" "$APPROVAL" \
+  '    model_config = ConfigDict(extra="forbid", strict=True)' \
+  '    model_config = ConfigDict(strict=True)'
+
+# ---------------------------------------------------------------------------
+# A14 - THE ELICITED MODEL STOPS BEING STRICT. R8-H2's fix (`fd1057a`)
+# has its own test file; this row asks the different question of whether
+# the SWEEP would have caught it, so that the next model to arrive
+# outside `tools/` does not need a reviewer to notice it by hand.
+# ---------------------------------------------------------------------------
+amputate "A14 the elicited model stops being strict" "$APPROVAL" \
+  '    model_config = ConfigDict(extra="forbid", strict=True)' \
+  '    model_config = ConfigDict(extra="forbid")'
+
+# ---------------------------------------------------------------------------
+# A15 - THE ELICITED MODEL LOSES THE SHARED STRUCTURAL LIMITS. The
+# third of §2.1's three properties, on the model that declared the other
+# two and not this one for four months because no sweep reached it.
+# ---------------------------------------------------------------------------
+#
+# It is amputated at the IMPORT rather than at the class statement,
+# because `approval.py` no longer imports `BaseModel` for anything else -
+# a row rewriting the base to a name the module does not bind goes red on
+# a `NameError`, which measures the harness rather than the property.
+amputate "A15 the elicited model loses the structural limits" "$APPROVAL" \
+  'from fast_mcp_jobvite.utils.constraints import InboundModel' \
+  'from pydantic import BaseModel as InboundModel'
+
+# ---------------------------------------------------------------------------
+# A16 - THE MODELLESS-PATH CENSUS FINDS NOTHING. The MRTR leg reads
+# `ctx.input_responses` and takes a key off a raw dict, so no route over
+# MODELS can see it and the census is the only thing that does. Deleted,
+# its equality assertion compares `[]` with a one-element list and goes
+# red; if it did not, the census would be decoration and a second
+# modelless inbound path could arrive unremarked.
+# ---------------------------------------------------------------------------
+amputate "A16 the modelless-inbound census finds nothing" "$SUITE" \
+  '                found.add(f"{module_path}:{node.name}")' \
+  '                pass'
 
 # ---------------------------------------------------------------------------
 # THE GATE. `ROWS == APPLIED` says every row measured something; VACUOUS

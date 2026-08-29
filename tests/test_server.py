@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.server.lifespan import Lifespan, lifespan
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 
 from fast_mcp_jobvite.__main__ import EXIT_CONFIGURATION_REFUSED, main
 from fast_mcp_jobvite.config import READ_TOOLS, Settings, load_settings
@@ -313,23 +313,27 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
     )
 
 
-def _input_models() -> list[tuple[str, type]]:
-    """Every `*Input` model under `tools/`, discovered not listed."""
+def _input_models() -> list[tuple[str, type[BaseModel]]]:
+    """Every `*Input` model under `tools/`, discovered not listed.
+
+    **The element type is `type[BaseModel]`, not bare `type`, and mypy
+    was RED on that for two commits.** A bare `type` has no
+    `model_json_schema`, so the type gate failed on the one line that
+    calls it - the annotation was the defect, not the call.
+    """
     import importlib
     import pkgutil
 
-    import pydantic
-
     import fast_mcp_jobvite.tools as tools_pkg
 
-    found: list[tuple[str, type]] = []
+    found: list[tuple[str, type[BaseModel]]] = []
     for info in pkgutil.iter_modules(tools_pkg.__path__):
         module = importlib.import_module(f"{tools_pkg.__name__}.{info.name}")
         for attr in dir(module):
             obj = getattr(module, attr)
             if (
                 isinstance(obj, type)
-                and issubclass(obj, pydantic.BaseModel)
+                and issubclass(obj, BaseModel)
                 and attr.endswith("Input")
             ):
                 found.append((attr, obj))
