@@ -41,12 +41,20 @@ also named its own trigger - "the first nested input model" - and
 `create_candidate` landed FLAT, so the trigger could never fire while
 the obligation stayed open. See `InboundModel` below.
 
-**The 1 MiB body limit of DESIGN.md:165 is still not discharged here,
-and ADR-0029 records why.** `check_structural_limits` bounds the
-serialised size of the ARGUMENT PAYLOAD, which is a real bound and is
-not the middleware body cap the design asks for: a request whose body
-never becomes an argument payload is not measured by anything in this
-module.
+**The 1 MiB body limit of DESIGN.md:165 is discharged ELSEWHERE, and
+this module is still not where it lives.** `check_structural_limits`
+bounds the serialised size of the ARGUMENT PAYLOAD, which is a real
+bound and is not the body cap: a request whose body never becomes an
+argument payload is measured by nothing in this module. The cap itself
+is now `http_hardening.BodySizeLimitMiddleware`, an `ASGIMiddleware`
+mounted by `http_run_kwargs` - ADR-0029 as corrected by its ruling of
+2026-08-29, which established that the seat existed and the row was a
+gap rather than an impossibility.
+
+**The two are not duplicates and neither may be deleted as one.** The
+body cap is HTTP-only by construction, because stdio has no request
+body; `MAX_PAYLOAD_BYTES` below is the only inbound size bound on the
+stdio path and remains necessary.
 """
 
 from __future__ import annotations
@@ -191,17 +199,29 @@ PositiveCount = Annotated[int, Field(ge=1)]
 #     Max nesting depth   5 levels     <- MAX_NESTING_DEPTH
 #     Max list items      1,000        <- MAX_LIST_ITEMS
 #     Max dict keys       100          <- MAX_DICT_KEYS
-#     Max request body    1 MiB   <- MAX_PAYLOAD_BYTES, SEE BELOW
+#     Max request body    1 MiB   <- NOT HERE, SEE BELOW
 #
-# THE FOURTH IS NOT THE DESIGN'S FOURTH, AND ADR-0029 SAYS SO.
+# THE FOURTH IS NOT THIS MODULE'S, AND ADR-0029 SAYS SO.
 # DESIGN.md:165 and ADR-0012 both place body size "at the middleware".
 # `MAX_PAYLOAD_BYTES` bounds the serialised ARGUMENT PAYLOAD, which is
 # the largest thing this module can see. A body that never becomes an
 # argument payload - a malformed frame, a body rejected by the JSON
 # parser, a body on a non-tool route - is measured by nothing here.
-# That residue is ADR-0029 and task-tracked; it is NOT closed by this
-# module and this comment exists so that reading the file does not
-# suggest otherwise.
+#
+# THAT RESIDUE IS NOW BOUNDED, at the layer that can see the bytes:
+# `http_hardening.BodySizeLimitMiddleware`, mounted by
+# `http_run_kwargs`, refusing on `Content-Length` where one is declared
+# and on a running sum over the streamed body where one is not. The
+# ruling on ADR-0029 dated 2026-08-29 corrected the ADR's own claim
+# that there was no middleware to live in: `FastMCP.run_http_async`
+# takes `middleware: list[ASGIMiddleware]`, and an ASGI middleware sees
+# the raw body that our MCP-protocol `Middleware` objects never do.
+#
+# **`MAX_PAYLOAD_BYTES` IS STILL NOT THAT CAP AND IS NOT REDUNDANT.**
+# The body cap is HTTP-only by construction - stdio carries no request
+# body - so on stdio this constant is the only inbound size bound there
+# is. Deleting it as a duplicate would leave that transport unbounded,
+# and this comment exists so that reading the file does not suggest it.
 
 #: SS2.1's nesting ceiling. The argument object itself is depth 1, so a
 #: flat object of scalars is depth 1 and five levels of nesting is the
@@ -231,11 +251,18 @@ MAX_DICT_KEYS: Final = 100
 #: "conservative"; it is conservative about the object and not about
 #: the wire, and the wire is what a body cap is for.
 #:
-#: **Left as-is deliberately.** An exact bound belongs where the bytes
-#: actually are, which is the ASGI middleware seat ADR-0029 names -
-#: this module never sees them. Recorded here so the next reader does
-#: not have to re-derive it, and so nobody "tightens" this constant
-#: believing it bounds the body.
+#: **Left as-is deliberately, and the exact bound now EXISTS.** An
+#: exact bound belongs where the bytes actually are, which is the ASGI
+#: middleware seat ADR-0029 names - this module never sees them.
+#: `http_hardening.MAX_REQUEST_BODY_BYTES` is that bound and is
+#: byte-exact: it compares the caller's own `Content-Length`, or a
+#: running sum of the bytes ASGI delivered, and re-serialises nothing.
+#: **So the 6x residue below is now bounded on the HTTP transport at
+#: the right layer, and remains UNBOUNDED on stdio**, where there is no
+#: request body for a middleware to measure and this constant is the
+#: only limit there is. Recorded here so the next reader does not have
+#: to re-derive it, and so nobody "tightens" this constant believing it
+#: bounds the body or deletes it believing the middleware replaced it.
 #:
 #: The first measurement of this taken here was itself wrong: comparing
 #: `dumps(ensure_ascii=True)` against `dumps(ensure_ascii=False)` gives

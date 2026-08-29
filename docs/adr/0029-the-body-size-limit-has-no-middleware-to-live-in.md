@@ -149,8 +149,39 @@ pieces of work - **an impossibility claim needs a higher bar than the one that w
   reachable. The ADR deliberately declined to make that call and was right to; the implementing unit
   makes it, and must pick the row deliberately rather than by whichever is nearest.
 
-### What I did not settle
+### What I did not settle, and what the implementing unit then measured
 
-Whether `uvicorn_config` offers a body limit that would make an explicit middleware unnecessary. I
-did not look; if it does, that is a cheaper answer and the implementing unit should find it before
-writing one.
+I left open whether `uvicorn_config` offers a body limit that would make an explicit middleware
+unnecessary, because I did not look. **The implementing unit looked, and it does not.**
+
+`scripts/probe-uvicorn-body-limit.py` is the measurement, committed so the next reader re-runs it
+rather than trusting this paragraph. Against the locked `uvicorn 0.52.4` it serves a counting
+application and posts two megabytes twice:
+
+```
+uvicorn 0.52.4, h11_max_incomplete_event_size=1024
+  A. Content-Length: 2097152 -> HTTP 200, the app saw 2097152 bytes
+  B. chunked, NO Content-Length  -> HTTP 200, the app saw 2097152 bytes
+```
+
+`h11_max_incomplete_event_size` is set small deliberately: it is the only `uvicorn.Config`
+parameter whose name suggests an inbound size ceiling, and the probe is the positive control that
+it is not one - it bounds the buffer for an *incomplete* h11 event, which is the request line and
+headers, while body data arrives as complete events and is never held against it. Nothing else in
+`uvicorn.Config` is a body limit; `ws_max_size` is a websocket frame and `limit_max_requests` is a
+request count.
+
+**So the ASGI middleware seat is the answer, and this ADR's remaining open question is closed.**
+The row was discharged by `http_hardening.BodySizeLimitMiddleware` on task #81.
+
+### The 413-or-422 choice this ADR declined to make
+
+The implementing unit chose **`/problems/validation-error`, 422**, and the decisive reason is that
+**413 was never available.** `error-contract.md:96-108` has no 413 row at all, `errors.py`'s
+registry is closed against local invention in as many words, and `DESIGN.md:510-511` makes a
+published `type` URI a contract owed forever - so a 413 would have meant minting
+`/problems/payload-too-large`. **ADR-0031 ruled that exact shape already**: use a row, do not mint a
+slug. 422 also holds on the merits, since its own *"When"* column reads *"Request body/params failed
+validation"* and `DESIGN.md:186-188` independently names 422 as the status a §2.1 structural limit
+would carry. The cost, stated rather than glossed: 413 is the more precise HTTP status, and that
+signal now lives in `detail` instead.

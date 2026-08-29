@@ -27,6 +27,8 @@ from typing import Any
 
 import uvicorn
 from fastmcp import FastMCP
+from starlette.middleware import Middleware as ASGIMiddleware
+from starlette.types import ASGIApp
 
 from tests.boot_process import free_port, wait_for_port
 
@@ -37,14 +39,21 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 
 
 @contextlib.contextmanager
-def serve_http(server: FastMCP[Any]) -> Iterator[str]:
-    """Serve `server` over HTTP on a free loopback port.
+def _serve(app: ASGIApp, suffix: str) -> Iterator[str]:
+    """Serve any ASGI app on a free loopback port.
+
+    Extracted from `serve_http` so that a plain ASGI application can be
+    put on a real socket too. `tests/test_body_cap.py` needs that: the
+    cap it tests is an `ASGIMiddleware`, and measuring how many bytes
+    reach the application it wraps requires an application that counts
+    them - which the MCP app, by construction, is not.
 
     Args:
-        server: The instance to serve.
+        app: The ASGI application to serve.
+        suffix: Appended to the base URL to form what is yielded.
 
     Yields:
-        The MCP endpoint URL, ready for `StreamableHttpTransport`.
+        The URL of the running server.
 
     Raises:
         RuntimeError: If uvicorn did not bind within the timeout. A
@@ -53,7 +62,7 @@ def serve_http(server: FastMCP[Any]) -> Iterator[str]:
     """
     port = free_port()
     config = uvicorn.Config(
-        server.http_app(),
+        app,
         host="127.0.0.1",
         port=port,
         log_level="error",
@@ -66,7 +75,45 @@ def serve_http(server: FastMCP[Any]) -> Iterator[str]:
         if not wait_for_port("127.0.0.1", port, timeout=STARTUP_TIMEOUT_SECONDS):
             msg = f"uvicorn did not bind 127.0.0.1:{port}"
             raise RuntimeError(msg)
-        yield f"http://127.0.0.1:{port}/mcp/"
+        yield f"http://127.0.0.1:{port}{suffix}"
     finally:
         http.should_exit = True
         thread.join(timeout=STARTUP_TIMEOUT_SECONDS)
+
+
+@contextlib.contextmanager
+def serve_http(
+    server: FastMCP[Any],
+    middleware: list[ASGIMiddleware] | None = None,
+) -> Iterator[str]:
+    """Serve `server` over HTTP on a free loopback port.
+
+    Args:
+        server: The instance to serve.
+        middleware: ASGI middleware to mount around the app, in the
+            shape `http_run_kwargs` produces. Defaulted to `None`, which
+            is `http_app`'s own default, so every existing caller is
+            unchanged. **Passed through rather than constructed here**:
+            a test asserting the body cap fires must serve the list
+            `http_run_kwargs` actually returns, or it proves the class
+            works and nothing about whether it is mounted.
+
+    Yields:
+        The MCP endpoint URL, ready for `StreamableHttpTransport`.
+    """
+    with _serve(server.http_app(middleware=middleware), "/mcp/") as url:
+        yield url
+
+
+@contextlib.contextmanager
+def serve_asgi(app: ASGIApp) -> Iterator[str]:
+    """Serve a bare ASGI app over real HTTP, rooted at `/`.
+
+    Args:
+        app: The application to serve.
+
+    Yields:
+        The base URL.
+    """
+    with _serve(app, "/") as url:
+        yield url
