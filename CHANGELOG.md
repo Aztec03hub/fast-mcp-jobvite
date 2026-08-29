@@ -332,6 +332,14 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **Three CI floors were behind the tree they gate.** The suite floor said 863 against 867 passing
+  tests, the harness-anchor floor 453 against 456 resolving anchors, and the critical-path
+  amputation's `--min-rows` 15 against a harness that runs 18 rows. A floor below its live count is
+  the silent direction - it fails nothing while tolerating exactly the loss it exists to catch, and
+  the amputation one had drifted three rows. All three were re-derived from a run on the merged tree
+  rather than by adding each merged branch's delta to the previous number, because a branch-local
+  floor plus a delta is how the last slack floor was produced. (2026-08-29 11:42 AM CDT)
+
 - **A row floor could sit below its harness's live row count and say nothing.**
   `check-u7-resilience-controls.sh` carried 31 rows against `ROW_FLOOR=26`, so five of its rows
   could have been deleted with CI green. Neither branch was wrong: the 26 was honestly derived on

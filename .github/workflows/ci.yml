@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 865
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 867
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -553,7 +553,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 453
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 456
 
       # WIRED ONLY NOW THAT ITS BACKLOG IS ZERO. It reported 10 floorless
       # harnesses when written and stayed unwired through all of them,
@@ -801,7 +801,7 @@ jobs:
       - name: Critical-path coverage amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-critical-coverage-amputation.sh \
-            --anchors-applied --min-rows 15 --row-re '^########## A[0-9]+ '
+            --anchors-applied --min-rows 18 --row-re '^########## A[0-9]+ '
 
       # ADR NUMBERS ARE UNIQUE, CONTIGUOUS, AND MATCH THEIR OWN HEADINGS.
       # Two agents claimed 0027 within one hour: one checked `git log --all`
