@@ -401,6 +401,30 @@ class RedactingLogFilter(logging.Filter):
     **Returns `True` always.** Dropping the record would turn a leak
     into silence, which is the other way to lose a log line - the same
     call `__main__._redact_message` makes, for the same reason.
+
+    **WHAT IT DOES NOT REACH: `record.exc_info`.** A stdlib filter sees
+    `msg` and `args`; a traceback is rendered by the FORMATTER, later,
+    from `exc_info`, and no filter can redact it. `__main__` needs two
+    depths for exactly this reason - a serialised exception carries the
+    URL.
+
+    **Measured, so the residue is bounded rather than feared.** Across
+    the whole installed `httpx2` package, subdirectories included:
+
+        getLogger(  -> 1   (_client.py:110, "httpx2")
+        logger.*(   -> 2   (_client.py:1085 and :1923, both .info)
+        exc_info=   -> 0   on any logging call
+
+    So **httpx2 never attaches an exception to a record**, and the two
+    calls it does make are `.info` with the URL in `args`, which is what
+    this filter is built for. The one `getLogger` also settles the wider
+    question: a filter on `httpx2` covers every logger this package
+    creates, not merely the one somebody noticed.
+
+    The real residual is narrower than "exceptions are unguarded": an
+    EMBEDDER formatting a traceback on THEIR OWN logger was never within
+    reach of a filter installed on `httpx2`, and could not be. That is
+    what `configure_logging()` is for on the shipped path.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
