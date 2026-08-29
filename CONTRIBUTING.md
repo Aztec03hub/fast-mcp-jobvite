@@ -119,6 +119,8 @@ bash scripts/check-u3-audit-controls.sh    # U3 mutation: every row must be kill
 bash scripts/check-u3-audit-amputation.sh  # U3 amputation: survivors are the OUTPUT
 bash scripts/check-u4-client-controls.sh   # U4 mutation: every row must be killed
 bash scripts/check-u4-client-amputation.sh # U4 amputation: survivors are the OUTPUT
+bash scripts/check-u5-jobs-controls.sh     # U5 mutation: every row must be killed
+bash scripts/check-u5-jobs-amputation.sh   # U5 amputation: survivors are the OUTPUT
 bash scripts/check-suite-floor-amputation.sh  # the guard that floors the suite size
 python3 scripts/check-committed-file-types.py --all
 uv run --frozen python scripts/check_advisories.py        # the expiry half
