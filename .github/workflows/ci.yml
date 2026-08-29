@@ -64,10 +64,20 @@ on:
 # cancel-in-progress the two cancel each other - a security sweep that never ran
 # looks identical to one that was never scheduled. Keyed per event they cannot
 # collide, and cancel-in-progress still does its real job of superseding an
-# outdated run of the SAME event.
+# outdated run of the SAME event ON A BRANCH - see below, it no longer applies
+# to `main` at all.
+# CANCELLING IS RIGHT FOR A BRANCH AND WRONG FOR THE TRUNK. On a busy branch
+# the newest push is the only one anyone cares about. On `main` the RUN IS THE
+# RECORD, and a cancelled run leaves none: measured 2026-08-29, main had 54
+# cancelled runs, 5 failures and ZERO successes in a day, and because a
+# `cancelled` conclusion is not a failure, nothing anywhere read as red while
+# the trunk had been broken for hours. Every push simply cancelled the evidence
+# that the previous one was broken.
+#
+# So main keeps its runs and every other ref still cancels.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
