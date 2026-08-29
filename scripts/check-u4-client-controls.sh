@@ -219,10 +219,29 @@ run_mutation "M11 the jobFeed route no longer requires a companyId" "$CLIENT" \
 
 # M12 - the exception-message redaction arm is removed. `httpx` puts the
 # request URL in its exception text, and on the feed that URL carries `sc=`.
+#
+# THE ANCHOR MOVED WHEN M-5 WAS FIXED and the harness said so only in a line
+# the CI step did not read: `COULD NOT APPLY` left the run at exit 0 with
+# "16 killed, 1 not killed", and the step gates on the exit code and on
+# `killed > 0`. The exception text is no longer built for the consumer's
+# `detail`; it is built for the log line, and that is where the arm lives now.
 run_mutation "M12 a transport error is no longer redacted" "$CLIENT" \
-  '                redact_text(f"{type(exc).__name__}: {exc}")' \
-  '                f"{type(exc).__name__}: {exc}"' \
+  '                error=redact_text(f"{type(exc).__name__}: {exc}"),' \
+  '                error=f"{type(exc).__name__}: {exc}",' \
   'test_a_transport_error_on_the_jobfeed_route_is_redacted'
+
+# M12b - the enumerated consumer detail is replaced by the exception text.
+# M-5 itself, as a mutation rather than an amputation.
+run_mutation "M12b the consumer detail is formatted from the exception again" "$CLIENT" \
+  '            raise JobviteUnavailableError(_unavailable_detail(exc)) from None' \
+  '            raise JobviteUnavailableError(str(exc)) from None' \
+  'test_a_transport_error_on_the_jobfeed_route_is_redacted'
+
+# M12c - `redact_headers` loses its one caller (L-1, unwired again).
+run_mutation "M12c the v2 credential headers reach the log unredacted" "$CLIENT" \
+  '                headers=redact_headers(headers),' \
+  '                headers=headers,' \
+  'test_the_v2_credential_headers_are_redacted_in_the_failure_log'
 
 # M13 - the body excerpt stops being redacted, so an error body that quotes the
 # request URL back at us publishes the credential into `detail`.

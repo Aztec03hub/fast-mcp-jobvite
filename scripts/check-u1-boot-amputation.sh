@@ -208,7 +208,18 @@ p.write_text(s[:start] + "    return" + s[end:])
 PY
 report "K. configure_logging() runs and configures NOTHING"
 
-# --- L. the sink redacts nothing ------------------------------------------
+# --- L. the record FILTER redacts nothing ---------------------------------
+# The RECORD half. `_redact_message` mutates `record["message"]`, which is
+# what every handler in the process sees - including one this project did not
+# install, and the suite itself is such a handler.
+#
+# THIS ROW ONCE SURVIVED 78/78 AND THE SURVIVAL WAS AN INSTRUMENT FAULT. Once
+# the sink began redacting what it renders, every arm in this suite - all of
+# which read the process's own stream - stopped being able to see the filter
+# at all, and the filter was briefly deleted on that evidence. The full suite
+# then went red on a foreign sink. The arm that fixes the instrument is
+# tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+# and it must die here.
 python3 - "$MAIN" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
@@ -216,7 +227,21 @@ anchor = '    message = record.get("message")'
 assert s.count(anchor) == 1, "L anchor is not unique"
 p.write_text(s.replace(anchor, "    return True\n" + anchor))
 PY
-report "L. the sink's redactor returns without redacting"
+report "L. the record filter returns without redacting"
+
+# --- N. the SINK-level redaction is bypassed ------------------------------
+# The RENDERED half. `serialize` emits `record["exception"]` and a `text`
+# carrying the formatted traceback, neither of which is `record["message"]`,
+# so the filter above cannot reach them. Measured before this sink existed: a
+# stdlib `logger.exception` published the feed URL twice, in the clear.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        _redacting_sink(sys.stderr),"
+assert s.count(anchor) == 1, "N anchor is not unique"
+p.write_text(s.replace(anchor, "        sys.stderr,"))
+PY
+report "N. the sink writes the serialised record without redacting it"
 
 # --- M. stdlib logging is never bridged into loguru -----------------------
 # Two logging systems again, both live, writing two shapes onto one fd.

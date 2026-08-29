@@ -292,8 +292,8 @@ jobs:
           # the code it covered can RAISE it.
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
-          # that has to be defended. 355 measured at c7809f6.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 355
+          # that has to be defended. 360 measured at the merge of fix/m5-exception-detail.
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 360
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -435,8 +435,8 @@ jobs:
           if printf '%s\n' "$out" | grep -q 'TIMED OUT'; then
             echo "::error::a U1 amputation hung; that row proved nothing"; exit 1
           fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## [A-M]\. ')
-          [ "$rows" -ge 13 ] || { echo "::error::only $rows amputation rows ran, expected 13"; exit 1; }
+          rows=$(printf '%s\n' "$out" | grep -cE '^########## [A-N]\. ')
+          [ "$rows" -ge 14 ] || { echo "::error::only $rows amputation rows ran, expected 14"; exit 1; }
 
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
       # else touched. Both harnesses run here, because a control that runs only
@@ -453,6 +453,17 @@ jobs:
           [ -n "$line" ] || { echo "::error::no U3 'RESULT:' line"; exit 1; }
           killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
           [ "$killed" -gt 0 ] || { echo "::error::zero U3 mutations killed - the harness ran nothing"; exit 1; }
+          # A MOVED ANCHOR PASSED THIS STEP SILENTLY. The harness prints
+          # "COULD NOT APPLY", exits 0 anyway, and reports "N killed, 1 not
+          # killed" - and the three checks above read the exit code and the
+          # KILLED half only. Measured: U3's M12 anchor moved when M-5
+          # was fixed and the step stayed green. The amputation steps already
+          # gate on both; these did not.
+          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
+            echo "::error::a U3 mutation anchor moved; that row tested nothing"; exit 1
+          fi
+          not_killed=$(printf '%s' "$line" | grep -oE '[0-9]+ not killed' | grep -oE '[0-9]+')
+          [ "${not_killed:-1}" -eq 0 ] || { echo "::error::$not_killed U3 mutations survived"; exit 1; }
 
       # Amputation exits 0 by design: SURVIVORS ARE ITS OUTPUT, not its verdict.
       # So this step cannot gate on the exit code alone. It gates on the harness
@@ -499,6 +510,17 @@ jobs:
           [ -n "$line" ] || { echo "::error::no U4 'RESULT:' line"; exit 1; }
           killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
           [ "$killed" -gt 0 ] || { echo "::error::zero U4 mutations killed - the harness ran nothing"; exit 1; }
+          # A MOVED ANCHOR PASSED THIS STEP SILENTLY. The harness prints
+          # "COULD NOT APPLY", exits 0 anyway, and reports "N killed, 1 not
+          # killed" - and the three checks above read the exit code and the
+          # KILLED half only. Measured: U4's M12 anchor moved when M-5
+          # was fixed and the step stayed green. The amputation steps already
+          # gate on both; these did not.
+          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
+            echo "::error::a U4 mutation anchor moved; that row tested nothing"; exit 1
+          fi
+          not_killed=$(printf '%s' "$line" | grep -oE '[0-9]+ not killed' | grep -oE '[0-9]+')
+          [ "${not_killed:-1}" -eq 0 ] || { echo "::error::$not_killed U4 mutations survived"; exit 1; }
 
       # Amputation exits 0 by design: SURVIVORS ARE ITS OUTPUT, not its verdict.
       # So this step cannot gate on the exit code alone. It gates on the harness
@@ -516,8 +538,12 @@ jobs:
           if printf '%s\n' "$out" | grep -q 'DID NOT LAND'; then
             echo "::error::a U4 amputation did not land; that row tested nothing"; exit 1
           fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+ ')
-          [ "$rows" -ge 12 ] || { echo "::error::only $rows amputation rows ran, expected 12"; exit 1; }
+          # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the
+          # old pattern required a space straight after the digits, so it would
+          # have counted 12 while 17 ran - a gate reporting the number of rows
+          # it can SEE, which is how a row goes missing without a red run.
+          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+[a-z]* ')
+          [ "$rows" -ge 17 ] || { echo "::error::only $rows amputation rows ran, expected 17"; exit 1; }
 
       - name: Secret scan hook runs clean
         # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,

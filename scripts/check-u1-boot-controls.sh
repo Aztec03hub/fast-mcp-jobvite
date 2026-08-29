@@ -299,15 +299,19 @@ control "M17 catch=True swallows sink failures" "$MAIN" "MUTANT-M17" \
   "tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect"
 
 # --- M18: the sink stops redacting ---------------------------------------
+# The anchor moved when `filter=_redact_message` was deleted: the filter
+# reached `record["message"]` only, and the U1 amputation harness measured the
+# whole boot suite passing 78/78 with it neutered, because the sink now
+# redacts the rendered record. This mutant points at the sink instead.
 python3 - "$MAIN" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-anchor = "        filter=_redact_message,"
+anchor = "        _redacting_sink(sys.stderr),"
 assert s.count(anchor) == 1, "M18 anchor is not unique"
-p.write_text(s.replace(anchor, "        # MUTANT-M18"))
+p.write_text(s.replace(anchor, "        sys.stderr,  # MUTANT-M18"))
 PY
-control "M18 the sink stops redacting" "$MAIN" "MUTANT-M18" \
-  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
+control "M18 the serialising sink stops redacting" "$MAIN" "MUTANT-M18" \
+  "tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink"
 
 # --- M19: stdlib records no longer reach the one sink ---------------------
 # The two-logging-systems defect reinstated: loguru is configured, stdlib keeps
@@ -321,6 +325,24 @@ p.write_text(s.replace(anchor, "        stream=sys.stderr,  # MUTANT-M19"))
 PY
 control "M19 stdlib records bypass the one sink" "$MAIN" "MUTANT-M19" \
   "tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink"
+
+
+# --- M20: the record filter stops redacting -------------------------------
+# M18 above is the RENDERED half; this is the RECORD half, and they are not
+# interchangeable. The filter is what a handler this project did not install
+# sees, and the arm named below is the only one that reads such a handler -
+# every other arm in that module reads the process's own stream, which M18's
+# sink already cleans. That asymmetry is why deleting the filter once left
+# this suite entirely green.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = '    message = record.get("message")'
+assert s.count(anchor) == 1, "M20 anchor is not unique"
+p.write_text(s.replace(anchor, "    return True  # MUTANT-M20\n" + anchor))
+PY
+control "M20 the record filter stops redacting" "$MAIN" "MUTANT-M20" \
+  "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
 
 
 echo
