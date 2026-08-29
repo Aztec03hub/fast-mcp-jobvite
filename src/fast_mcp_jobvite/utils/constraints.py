@@ -216,6 +216,31 @@ MAX_DICT_KEYS: Final = 100
 
 #: SS2.1's body ceiling, applied to the serialised argument payload.
 #: See the caveat above and ADR-0029.
+#:
+#: **AND IT UNDER-MEASURES THE WIRE BY UP TO 6x (R8-M2, measured).**
+#: This re-serialises with `json.dumps(..., ensure_ascii=False)`, which
+#: is NOT the bytes that arrived. A client may `\u`-escape any
+#: character it likes, including printable ASCII, and `dumps` will not
+#: put the escaping back:
+#:
+#:     wire the client sent  '{"k": "\u0041\u0041..."}'   6009 bytes
+#:     what this measures    '{"k": "AA..."}'              1009 bytes
+#:     under-measurement                                      5.96x
+#:
+#: So a ~5.9 MiB wire payload passes a 1 MiB cap. U14 parked this as
+#: "conservative"; it is conservative about the object and not about
+#: the wire, and the wire is what a body cap is for.
+#:
+#: **Left as-is deliberately.** An exact bound belongs where the bytes
+#: actually are, which is the ASGI middleware seat ADR-0029 names -
+#: this module never sees them. Recorded here so the next reader does
+#: not have to re-derive it, and so nobody "tightens" this constant
+#: believing it bounds the body.
+#:
+#: The first measurement of this taken here was itself wrong: comparing
+#: `dumps(ensure_ascii=True)` against `dumps(ensure_ascii=False)` gives
+#: a 3x ceiling, because it measures two re-serialisations rather than
+#: the wire against one. The wire is whatever the client sent.
 MAX_PAYLOAD_BYTES: Final = 1024 * 1024
 
 
@@ -225,9 +250,26 @@ def _measure(payload: object, depth: int) -> None:
     `depth` is the depth of `payload` itself, counting from 1.
 
     **The check is BEFORE the descent, not after**, so a violation is
-    reported at the level that carries it rather than one level down,
-    and so a payload that would blow the interpreter's own recursion
-    limit is refused before it can.
+    reported at the level that carries it rather than one level down.
+
+    **It is NOT what protects against a recursion blow-up, and an
+    earlier version of this docstring said it was (R8-N1).**
+    `json.dumps` at the size check runs FIRST and recurses before this
+    function is entered, so ordering here cannot be the guard. The real
+    margin is that `json.loads` gives out FIRST, measured here:
+
+        depth  9997  -> ValueError, "nests deeper than 5 levels"
+        depth  9998  -> json.loads raises RecursionError itself
+
+    So every payload this code can be reached with is one the depth
+    ceiling refuses cleanly, and anything deeper never parses. A cycle
+    raises `ValueError('Circular reference detected')` from `dumps`.
+    Both fail closed and reach the caller as a `ValidationError`, per
+    `DESIGN.md:181-190`.
+
+    That margin is a property of the stdlib, not of this code, so it is
+    written down: a future change to the size check's `default=` or
+    `ensure_ascii` could remove a protection nobody had recorded.
     """
     if depth > MAX_NESTING_DEPTH:
         raise ValueError(
@@ -246,6 +288,13 @@ def _measure(payload: object, depth: int) -> None:
     # them by exclusion from `Sequence` is the form that admits the
     # type nobody thought of; `list`/`tuple`/`set` is the form that
     # names what it means.
+    #
+    # **`set` and `frozenset` are unreachable from `json.loads`, which
+    # produces only dict/list/str/int/float/bool/None (R8-N2).** They
+    # are here as defence for a non-JSON producer calling this
+    # directly, and are named so nobody deletes them believing they
+    # were reachable - or writes a coverage arm for a branch no wire
+    # payload can enter.
     if isinstance(payload, (list, tuple, set, frozenset)):
         if len(payload) > MAX_LIST_ITEMS:
             raise ValueError(
