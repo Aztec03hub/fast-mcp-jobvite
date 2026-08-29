@@ -141,11 +141,29 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         # "did this write email a live person?", which is the single
         # question that row exists to make answerable.
         #
-        # DESIGN.md:1072 says `send_email` "is an argument like any
-        # other". That line and C1-T1 pull in opposite directions on
-        # this field; the audit surface is where it matters, and the
-        # value discloses nothing about the candidate. Raised as a task
-        # rather than settled here - the design is frozen.
+        # AND THE DESIGN ALREADY REQUIRES THE VALUE TO BE DISCLOSED.
+        # DESIGN.md:1070-1071: the elicitation payload "names the
+        # candidate, the target job, and **whether `send_email` is
+        # true**, in those terms" - so the value is shown to the
+        # approver at the moment of approval. A value the design
+        # mandates showing to the approver cannot coherently be a secret
+        # in the record of what was approved.
+        #
+        # **There is no tension with DESIGN.md:1072, and reading half of
+        # it manufactured one.** That line says `send_email` "is also an
+        # argument like any other AND IS SUBJECT TO §2.1's SCHEMA RULES;
+        # it defaults to `false` (§2.2)". It is scoped to schema and
+        # defaulting - it says this field gets no special treatment from
+        # the INPUT MODEL, and says nothing about the audit surface. A
+        # citation trimmed at the comma reads as a conflict with C1-T1
+        # and there is none; that misreading was carried into a review,
+        # a task and this comment before anyone quoted the sentence
+        # whole.
+        #
+        # NOT A LICENCE TO WIDEN. The next flag proposed for this list
+        # gets both questions asked out loud, and "it is a bool" is not
+        # on its own an answer: `approve` is also a bool and belongs
+        # nowhere near here.
         "send_email",
         # `companyId` WAS HERE AND IS A CREDENTIAL. R2-H5.
         #

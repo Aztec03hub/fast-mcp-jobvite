@@ -229,8 +229,24 @@ still `[REDACTED:str]`, so admitting this key cannot quietly admit its neighbour
 
 Amputation: removing the entry fails both arms, exit 1.
 
-**The design tension is RAISED, not settled** - `DESIGN.md:1072` and C1-T1 pull opposite ways. Task
-**#82**.
+**There was no design tension, and I manufactured one by reading half a sentence.** I raised
+`DESIGN.md:1072` against C1-T1 as task **#82**. It was ruled with no ADR needed, because the clause
+in full reads *"is also an argument like any other **and is subject to §2.1's schema rules**; it
+defaults to `false` (§2.2)"* - scoped to the input model's schema and defaulting, silent on the
+audit surface. **A citation trimmed at the comma became a conflict that does not exist**, and it
+travelled through R7's report, my task and my first code comment before anyone quoted the sentence
+whole.
+
+Read from `git show c15b138:docs/DESIGN.md` myself rather than taken on report:
+`DESIGN.md:1070-1071` already requires the elicitation payload to name *"**whether `send_email` is
+true**, in those terms"*. **The design mandates showing this value to the approver**, so redacting
+it from the record of what was approved was the incoherent half. The change is consistent with an
+existing requirement, not a widening of one - which is a better justification than the one I
+originally wrote, and I only have it because the half-sentence was caught.
+
+**The admission-rule widening stands**, and is not a licence: the next flag proposed for that list
+gets both questions asked out loud, and *"it is a bool"* is not on its own an answer - `approve` is
+also a bool and belongs nowhere near it. That sentence is now in the code beside the entry.
 
 ## L1 (NIT) - the guard that never called its subject. REWRITTEN.
 
@@ -397,23 +413,38 @@ check-u3-audit-amputation.sh   --amputation --min-rows 10           EXIT=0   915
 check-u9-http-controls.sh      --controls-fired                     EXIT=0   14/14 controls fired
 ```
 
-**Three harnesses have NO valid result and must be run before this branch merges:**
+**Both outstanding harnesses have since been run to completion, one at a time, on the final tree:**
 
-| harness | state |
-|---|---|
-| `check-u9-http-amputation.sh` | **killed mid-run.** Stranded the amputation above. No verdict. |
-| `check-u0-test-controls.sh` | **no valid run.** See below. |
+```
+check-u9-http-amputation.sh  --amputation --min-rows 14   EXIT=0   14 rows, 14 ANCHORS APPLIED,
+                                                                   0 VACUOUS, 124 killing assertions
+check-u0-test-controls.sh    --controls-fired             EXIT=0   11/11 controls fired
+```
 
-`check-u0-test-controls.sh` was killed by **me**, deliberately, and its `U0_EXIT=143` is that kill
-rather than a verdict. **I edited and committed `tests/test_http_hardening.py` while it was
-running**, which is the rule that a mutation harness owns the working tree for its whole run. The
-commit captured only my own changes - checked, its diff is one file with no foreign sed edit - but
-the RUN's subject changed underneath it, so its result was not trustworthy and I killed it rather
-than report a number taken while I was moving what it measured. I verified the tree was clean
-immediately after that kill; nothing was stranded by it. A rerun on the final tree was queued and
-was itself stopped before it started.
+Tree checked after each, by the runner and again live: clean both times, nothing stranded.
 
-`check-u9-http-controls.sh` DID complete validly, on the final tree, after that kill - 14/14, exit 0.
+**U0's first completed run said `10/11, exit 1`, and that was an instrument defect, not a finding.**
+The FIXTURES_DIR row reported *"`test_fixtures_directory_resolves` was NOT the failing test"* while
+printing `FAILED tests/test_fixture_path.py::test_fixtures_directory_resolves` twenty-seven lines
+below its own verdict. That row emits **89 FAILED lines** - the largest output in the run, and
+exactly the size that trips `printf | grep -q` into exit 141 under `set -o pipefail`, which is
+recorded on main as its own defect and fixed there. Re-run with main's fixed
+`check-u0-test-controls.sh` and `ci-harness-gate.sh` copied in (**borrowed, run, then reverted** -
+neither is committed on this branch): **11/11, exit 0**.
+
+A wrong verdict that explains itself is the shape this project keeps recording. The row said the
+named test did not fire, which reads as a real gap; the same row's own output contained the test
+failing.
+
+**An EARLIER U0 attempt showed `exit 143`, and that was my own kill rather than a verdict.** I
+edited and committed `tests/test_http_hardening.py` while that run was in progress, which breaks the
+rule that a mutation harness owns the working tree for its whole run. The commit captured only my
+own changes - checked, its diff is one file with no foreign sed edit - but the RUN's subject changed
+underneath it, so I killed it rather than report a number taken while I was moving what it measured.
+A measurement of a moving subject is not a weaker measurement, it is a different one. The tree was
+clean immediately after that kill; nothing was stranded by it.
+
+`check-u9-http-controls.sh` completed validly on the final tree - **14/14 controls fired, exit 0**.
 
 `OBLIGATIONS.md` was not hand-edited and `check-obligations.py` exits 0, so no anchor moved.
 
@@ -423,8 +454,10 @@ was itself stopped before it started.
 
 - **#78** - `DereferenceRefsMiddleware` live, framework-injected, modelled nowhere. Since **ruled as
   ADR-0032 (Accepted)**, with a C2 row added.
-- **#82** - `DESIGN.md:1072` against C1-T1 on `send_email`, and the admission-rule widening that came
-  with the fix.
+- **#82** - `DESIGN.md:1072` against C1-T1 on `send_email`. **RULED, and no ADR was needed**: the
+  tension dissolves on reading the full sentence, which is scoped to §2.1's schema rules. My task
+  text and my first code comment both repeated the trimmed citation; both are corrected. The M4
+  change and the admission-rule widening stand as landed.
 
 ---
 
@@ -432,15 +465,13 @@ was itself stopped before it started.
 
 This list is for what I cannot settle, not for what I did not try.
 
-- **`check-u9-http-amputation.sh` and `check-u0-test-controls.sh` have no verdict**, for the two
-  different reasons set out in the harness section above: the first was killed mid-run and stranded
-  a security amputation I found and restored; the second I killed myself after breaking the
-  tree-ownership rule, and its queued rerun was stopped before it started. `check-u9-http-controls.sh`
-  DID complete validly on the final tree at 14/14, exit 0. **These two are the one thing that must
-  be run before this branch merges**, and `tests/test_http_hardening.py` is a file I changed, so U9's
-  amputation is the one most likely to have something to say. I have not relaunched them: three
-  background tasks were stopped at once, which reads as a deliberate stop rather than a crash, and
-  restarting work someone has just halted is not mine to decide.
+- **Nothing about the harnesses remains unsettled.** All eight of the units' harnesses touching files
+  I changed have now completed on the final tree, one at a time, exit 0 each - the table above. This
+  bullet previously said two had no verdict; both were subsequently run and are recorded there
+  instead. It is kept only to note that **I twice inferred a cause I could not see**: I read three
+  simultaneous task stops as a deliberate halt and declined to relaunch, and the premise was wrong -
+  nobody had halted anything. The caution cost nothing but the inference was not evidence, and the
+  right move would have been to ask rather than conclude.
 - **Whether L4's new arm can actually fail.** Its assertions are strong - the refusal must name a
   rate limit and carry `token_client_id`'s digest, the bystander must connect, and `drained > 0` is
   a positive control - but I did not amputate it. Making the limiter key on the connection rather
@@ -483,7 +514,7 @@ orchestrator's.
 
 Every commit message was written with `git commit -F` and a quoted heredoc delimiter.
 
-**The worktree `/tmp/r7-fixes-work` is left in place**, because two harnesses still have no verdict
-and need a tree to run in. No harness of mine is running in it now, and it is **clean** - verified
-after restoring the stranded amputation. Remove it once `check-u9-http-amputation.sh` and
-`check-u0-test-controls.sh` have been run and read.
+**The worktree `/tmp/r7-fixes-work` is clean and can be removed at merge.** Every harness has run;
+nothing of mine is executing in it. Verified `git status --porcelain` empty and `git diff --quiet
+HEAD` identical after the last run and after reverting the two borrowed scripts. I have left it in
+place rather than removing it myself, so the orchestrator can re-run anything before merging.
