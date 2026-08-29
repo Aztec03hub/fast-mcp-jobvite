@@ -89,6 +89,30 @@ rows above, so fix them in the same pass rather than leaving a neighbour wrong:
   The map was wrong in exactly the shape it exists to prevent, and a machine caught it because
   the target could not be anyone's subject.
 
+## This document is no longer the only list, and that is the risk it warns about
+
+**A second verdict list now exists**, `docs/reviews/CITATION-READ-VERDICTS.md`, holding ten more
+wrong ranges found by READING rather than by shape. A third is in progress over `src/` and
+`scripts/`. Three lists describing one defect is exactly the second-list shape this repository has
+recorded eight times, so the boundary between them is stated here rather than left to be inferred:
+
+- **This map covers the 36 SHAPE-DETECTABLE ranges** - blank targets, fences, off-by-one starts -
+  plus the two adjacent ones a reader caught. **All are applied.** `check-design-citation-shape.py`
+  exits 0, and re-running it is the check that this list is discharged.
+- **`CITATION-READ-VERDICTS.md` covers `tests/`**, read by subject. Ten wrong of 115. **Not yet
+  applied** - task #54, held while `r2-fixes` is in those files.
+- **`CITATION-READ-SRC-VERDICTS.md` will cover `src/` and `scripts/`.**
+
+**The three populations are disjoint by construction**, because each was enumerated from a different
+selector: a shape checker, a read of `tests/`, a read of `src/ scripts/`. They are not three views of
+one list, and merging them into one table would lose which instrument found what - which is the only
+thing that says how each was verified.
+
+**What survives here and belongs nowhere else** is the argument in the section above: that a constant
+offset is the wrong instrument. The second round proved it harder than this one did, with deltas from
+`-307` to `+40`, six negative and four positive, and **exactly one that a `+1` sweep would have
+touched - which needed `-1`.**
+
 ## Who applies which
 
 - **`src/` and `tests/`** - 33 shape rows, plus 11 of the 12 `312-316` sites - belong to `r4-fixes`.
