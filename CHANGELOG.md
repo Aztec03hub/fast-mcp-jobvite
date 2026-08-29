@@ -332,6 +332,17 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **A CI gate had never once passed on a runner, and could not.** `Standards citations resolve`
+  reads a corpus that lives in a private sibling repository. `GITHUB_TOKEN` is scoped to this
+  repository and no step checks the other one out, so on a runner the checker finds no corpus and
+  exits 2 - deliberately, because a checker reporting all-clear when it cannot find its subject has
+  checked nothing. Reproduced by unpacking the tree into a directory with no sibling. The step now
+  distinguishes its two states: an absent corpus is reported loudly as a gate that DID NOT RUN, in a
+  green run, and a citation that genuinely fails still fails the build. Verified by planting a
+  citation past the end of its standard - exit 1, distinct from the absent-corpus exit 2. Making it
+  green is not making it pass: nothing about standards citations is checked on a runner until a
+  `STANDARDS_TOKEN` secret exists. (2026-08-29 12:16 PM CDT)
+
 - **The last two audit rows that nothing asserted are now asserted, and one was on the write.**
   Six places in `src/` record a failed invocation as `result_status = "error"`; deleting each in
   turn and running the whole suite showed two that no test could see - `search_candidates` and
