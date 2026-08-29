@@ -288,5 +288,16 @@ is involved, and no `--row-re` had to be checked against a harness's real output
 - Both floors read from `ci.yml` by grep, never retyped: suite floor `768`, anchor floor `401`.
 - `docs/OBLIGATIONS.md` not touched, so no anchors moved and no repoint was needed.
 - Not merged, not pushed, `ci.yml` not edited.
-- **Worktree `/tmp/row-floors-work` NOT removed** - it holds the eleven commits and nothing is
-  pushed, so removing it would strand them. Remove it after you have merged the branch.
+- **Worktree `/tmp/row-floors-work` removed**, after checking that removing it strands nothing. My
+  first instinct was to leave it, on the grounds that twelve unpushed commits live in it - which is
+  wrong, and worth writing down because the mistake is one-directional: a worktree shares the main
+  repository's object store and its branch ref, so `chore/row-floors` and every commit on it are
+  reachable from the main checkout with the worktree gone. Verified before removing, read-only,
+  from the main checkout rather than from inside the worktree:
+
+  ```
+  $ git -C <main checkout> log --oneline -1 chore/row-floors
+  ```
+
+  which resolved to this branch's tip. Nothing on this branch is pushed; the branch ref is the
+  only copy, so do not delete it before merging.
