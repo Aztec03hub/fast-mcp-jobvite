@@ -15,6 +15,23 @@ design decisions the implementation was built against and the units built so far
 
 ### Added
 
+- **Base-agnostic offset paging in the Jobvite client.** Every scan starts at `start=0`, which is
+  the whole mechanism and is one character: a 0-based server returns record zero, and a 1-based
+  server returns the same first page it would have returned anyway. Starting at 1 is the only
+  choice that can silently lose a record. Returned ids are checked against a per-scan seen set, so
+  a clamped or overlapping page drops duplicates - **de-duplication defends against over-reading
+  only and cannot recover a record that was never returned**, which is why the fix is starting at
+  zero rather than de-duplicating harder. A scan terminates on a short page and never on the
+  reported `total`, so a `total` that lies neither shortens nor extends it. (2026-08-29 05:12 AM CDT)
+- Completeness is checked against `total` **only on an exhaustive scan**. A capped call is a
+  mismatch by design - it reports `showing 50 of 1,240` - so wiring the check to every call would
+  fire the alarm on the default path and train everyone to ignore it. (2026-08-29 05:12 AM CDT)
+- The per-resource pagination start base, with `JOBVITE_PAGINATION_START_BASE` as an override for
+  anyone who has established which base a resource actually uses. **Whether `start` is 0- or
+  1-based remains unestablished as a fact about Jobvite**: the vendor documents 1-based, and what
+  is observed is only that `start=0` is accepted and returns records. Correctness does not rest on
+  which is true. (2026-08-29 05:12 AM CDT)
+
 - **`search_jobs`, and with it the first runnable server.** The tool composes every cross-cutting
   mechanism the earlier units built - configuration fail-fast, the RFC 9457 error contract, the
   audit path, the result cap and `_meta` - on the public job-data class, which is the least
@@ -241,6 +258,12 @@ design decisions the implementation was built against and the units built so far
   (2026-08-27 02:45 PM CDT)
 
 ### Fixed
+
+- **The two halves of the result cap could hold different numbers.** `JOBVITE_MAX_RESULTS` is applied
+  in two places by design - once in the tool, which owns the `showing N of total` string, and once at
+  the transport, which bounds what leaves the client. The tool built its client without passing the
+  setting through, so raising the limit moved one half and left the other at the client's own
+  default. No test could see it, because each half was correct on its own. (2026-08-29 05:12 AM CDT)
 
 - **The audit event's mandated fields now reach the log stream.** `audit.py` writes through `loguru`
   and nothing configured it, so every record went to `loguru`'s default handler, whose format
