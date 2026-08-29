@@ -29,21 +29,33 @@ SS6.1's fencing applies on the way back out, so neither reaches an
 inbound argument on its way to Jobvite.
 
 **Scope actually built here, stated rather than implied.** This module
-holds the **character rule** of DESIGN.md:172-179. The three
+holds the **character rule** of DESIGN.md:172-179 AND the three
 structural limits of DESIGN.md:162-164 - nesting depth 5, 1,000 list
-items, 100 dict keys - are **not here**, because no input model in the
-tree today is deeper than one flat object, so the code would have no
-caller and no reachable test. Writing an unreachable limit and a test
-that cannot exercise it is worse than recording the gap: it would read
-as discharged. The gap is filed as its own task.
+items, 100 dict keys - which U14 landed. **This paragraph used to say
+they were "not here"**, on the reasoning that no input model was
+deeper than one flat object so the code would have no caller. That
+reasoning was about the MODELS and the limits are about the PAYLOAD:
+a caller sends whatever it likes, and a flat model receiving a
+1,001-item list is exactly the shape the limits bound. The deferral
+also named its own trigger - "the first nested input model" - and
+`create_candidate` landed FLAT, so the trigger could never fire while
+the obligation stayed open. See `InboundModel` below.
+
+**The 1 MiB body limit of DESIGN.md:165 is still not discharged here,
+and ADR-0029 records why.** `check_structural_limits` bounds the
+serialised size of the ARGUMENT PAYLOAD, which is a real bound and is
+not the middleware body cap the design asks for: a request whose body
+never becomes an argument payload is not measured by anything in this
+module.
 """
 
 from __future__ import annotations
 
+import json
 import re
-from typing import Annotated, Final
+from typing import Annotated, Any, Final
 
-from pydantic import Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 #: C0 and C1 control characters, **except** tab, newline and carriage
 #: return, which DESIGN.md:178-179 names as the three permitted ones.
@@ -150,42 +162,156 @@ PositiveCount = Annotated[int, Field(ge=1)]
 
 
 # ----------------------------------------------------------------------
-# THE THREE STRUCTURAL LIMITS ARE NOT HERE, AND THAT IS A GAP
+# THE STRUCTURAL LIMITS OF DESIGN.md:162-165 (SS2.1)
 # ----------------------------------------------------------------------
 #
-# `DESIGN.md:295-297` at the frozen `c15b138` specifies this module as
-# holding "control-character and bidi rejection, AND the
-# depth/list/dict-key limits (SS2.1)". Only the first half exists.
+# THIS BLOCK USED TO SAY THE LIMITS WERE ABSENT BY DECISION. It is
+# rewritten rather than appended to, because two contradictory claims
+# about the same module is worse than either one alone.
 #
-# **This note first said the character rule "exists", which was too
-# generous.** R4-H2 found that it did not COMPILE: a
-# negative lookahead against an engine with no look-around, so a
-# single `SafeText` field raised at class construction. Written down,
-# and unusable. Fixed; `tests/test_constraints.py` now declares a model
-# of each type, which is the caller that was missing.
-# SS2.1's table is:
+# The deferral's reasoning was: "no input model in the tree is deeper
+# than one flat object, so a depth-5 check, a 1000-item check and a
+# 100-key check would each have NO CALLER and NO REACHABLE TEST", with
+# the trigger named as "the first nested input model".
 #
-#     Max nesting depth   5 levels
-#     Max list items      1,000
-#     Max dict keys       100
-#     Max request body    1 MiB      <- middleware, not this module
+# **THE REASONING CONFUSED THE MODEL WITH THE PAYLOAD, and its trigger
+# could not fire.** A limit on inbound structure bounds what a CALLER
+# SENDS, not what a model declares. Every one of these limits is
+# reachable against a flat model today: a caller can post
+# `{"ids": [[[[[[1]]]]]]}` or a 1,001-element list or a 200-key object
+# at any of the five input models in this server, and before U14 the
+# only thing between that payload and pydantic's own recursion was
+# `extra="forbid"` firing for a DIFFERENT reason. Fail-closed by
+# accident is the shape this repository keeps finding.
 #
-# and SS8 requires one test arm per limit.
+# And `create_candidate` - the tool the deferral named as its trigger -
+# landed with SIX FLAT SCALAR FIELDS. The trigger was written so that
+# it could not fire while the obligation stayed open.
 #
-# WHY THEY ARE NOT IMPLEMENTED YET. No input model in the tree is deeper
-# than one flat object of scalars, so a depth-5 check, a 1000-item check
-# and a 100-key check would each have NO CALLER and NO REACHABLE TEST.
-# This project forbids inoperative code, and an unreachable limit is
-# worse than absent: it reads as discharged. A green suite over an
-# unreachable guard is the failure the `scripts/` harnesses exist to
-# catch.
+#     Max nesting depth   5 levels     <- MAX_NESTING_DEPTH
+#     Max list items      1,000        <- MAX_LIST_ITEMS
+#     Max dict keys       100          <- MAX_DICT_KEYS
+#     Max request body    1 MiB   <- MAX_PAYLOAD_BYTES, SEE BELOW
 #
-# THE TRIGGER IS THE FIRST NESTED INPUT MODEL, not a date.
-# `create_candidate` carries a nested payload (SS4's table) and is the
-# write tool; whichever unit lands the first model with a nested field
-# owns implementing these three and their arms.
-#
-# Until then this comment is the record that the module is INCOMPLETE
-# against a frozen design, so that reading the file does not suggest
-# otherwise. Found by U5, which correctly declined to build them for a
-# tool whose input is a single optional string.
+# THE FOURTH IS NOT THE DESIGN'S FOURTH, AND ADR-0029 SAYS SO.
+# DESIGN.md:165 and ADR-0012 both place body size "at the middleware".
+# `MAX_PAYLOAD_BYTES` bounds the serialised ARGUMENT PAYLOAD, which is
+# the largest thing this module can see. A body that never becomes an
+# argument payload - a malformed frame, a body rejected by the JSON
+# parser, a body on a non-tool route - is measured by nothing here.
+# That residue is ADR-0029 and task-tracked; it is NOT closed by this
+# module and this comment exists so that reading the file does not
+# suggest otherwise.
+
+#: SS2.1's nesting ceiling. The argument object itself is depth 1, so a
+#: flat object of scalars is depth 1 and five levels of nesting is the
+#: deepest ACCEPTED payload.
+MAX_NESTING_DEPTH: Final = 5
+
+#: SS2.1's list ceiling. 1,000 items is ACCEPTED; 1,001 is not.
+MAX_LIST_ITEMS: Final = 1_000
+
+#: SS2.1's mapping ceiling. 100 keys is ACCEPTED; 101 is not.
+MAX_DICT_KEYS: Final = 100
+
+#: SS2.1's body ceiling, applied to the serialised argument payload.
+#: See the caveat above and ADR-0029.
+MAX_PAYLOAD_BYTES: Final = 1024 * 1024
+
+
+def _measure(payload: object, depth: int) -> None:
+    """Walk `payload`, raising on the first structural limit exceeded.
+
+    `depth` is the depth of `payload` itself, counting from 1.
+
+    **The check is BEFORE the descent, not after**, so a violation is
+    reported at the level that carries it rather than one level down,
+    and so a payload that would blow the interpreter's own recursion
+    limit is refused before it can.
+    """
+    if depth > MAX_NESTING_DEPTH:
+        raise ValueError(
+            f"argument payload nests deeper than {MAX_NESTING_DEPTH} levels"
+        )
+    if isinstance(payload, dict):
+        if len(payload) > MAX_DICT_KEYS:
+            raise ValueError(
+                f"argument payload carries more than {MAX_DICT_KEYS} keys "
+                f"in one object ({len(payload)})"
+            )
+        for value in payload.values():
+            _measure(value, depth + 1)
+        return
+    # `str` and `bytes` are Sequences and are NOT lists. Testing for
+    # them by exclusion from `Sequence` is the form that admits the
+    # type nobody thought of; `list`/`tuple`/`set` is the form that
+    # names what it means.
+    if isinstance(payload, (list, tuple, set, frozenset)):
+        if len(payload) > MAX_LIST_ITEMS:
+            raise ValueError(
+                f"argument payload carries a collection of more than "
+                f"{MAX_LIST_ITEMS} items ({len(payload)})"
+            )
+        for item in payload:
+            _measure(item, depth + 1)
+
+
+def check_structural_limits(payload: object) -> None:
+    """Enforce SS2.1's structural limits on one argument payload.
+
+    Raises `ValueError` on the first limit exceeded. **It raises rather
+    than returning a problem object, and that is the design's own
+    choice**: DESIGN.md:181-190 records that every check in the input
+    models runs before the tool body and is raised by the framework, so
+    nothing on this path can return one. The rule fails closed, which
+    is the whole of what B25 and B30 require.
+
+    Args:
+        payload: The raw inbound arguments, before validation.
+
+    Raises:
+        ValueError: The payload exceeds one of SS2.1's four limits.
+    """
+    # SIZE FIRST, because it is the one limit whose violation makes the
+    # walk expensive rather than merely wrong.
+    #
+    # `default=str` because this runs on a RAW payload that has not been
+    # validated yet: a value pydantic would have rejected must not turn
+    # a fail-closed size check into a TypeError from `json.dumps`.
+    encoded = json.dumps(payload, default=str, ensure_ascii=False).encode("utf-8")
+    if len(encoded) > MAX_PAYLOAD_BYTES:
+        raise ValueError(
+            f"argument payload is larger than {MAX_PAYLOAD_BYTES} bytes "
+            f"({len(encoded)})"
+        )
+    _measure(payload, 1)
+
+
+class InboundModel(BaseModel):
+    """The base every tool's input model inherits.
+
+    **This class is the CALLER the structural limits did not have.**
+    ADR-0012 settles that the limits live in this module and explicitly
+    leaves "whether the constraint types are Pydantic `Annotated`
+    aliases, validators, or a base model" to the unit that builds them.
+    A base model is chosen because the limits are properties of the
+    PAYLOAD rather than of any one field, so there is no field to hang
+    an `Annotated` alias on.
+
+    **It deliberately sets no `model_config`.** Each input model
+    declares `extra="forbid", strict=True` for itself, and
+    `tests/test_arguments_sweep.py` asserts every enumerated model
+    does - inheriting the config here would make that assertion pass
+    for a model that never stated it, which is a green over a property
+    nobody chose.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _enforce_structural_limits(
+        cls,
+        data: Any,  # noqa: ANN401 - the RAW payload, before validation
+    ) -> Any:  # noqa: ANN401 - returned unchanged, for pydantic
+        """Refuse a payload past SS2.1's limits, before a field runs."""
+        check_structural_limits(data)
+        return data
