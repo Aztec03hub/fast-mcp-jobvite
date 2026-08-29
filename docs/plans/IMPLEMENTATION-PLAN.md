@@ -17,7 +17,8 @@ and exits non-zero when a plan claim stops reproducing. **Since `ff9461a` it run
 each re-ran some of these by hand and reproduced them, which is the right instinct and the wrong
 mechanism: it does not survive the reviewer who does not think of it, and **there is no round 8.**
 **Prose about a measurement decays into a claim about one.**
-Written against `docs/DESIGN.md` at **revision 6, FROZEN** at commit `135c3ac` - no open Critical,
+Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE-FROZEN at `09ea30c`**
+where the eight-ADR batch landed - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
 finding against the design is no longer an edit request - it is an ADR, and every open item below
@@ -141,7 +142,7 @@ the lane sentence named the wrong pair for the right count, on its fourth revisi
 landed as a deny-list while the plan still described an allow-list; and no rule covered **reading**
 a file another unit is rewriting, which U5 and U6 do concurrently by design.
 
-**Every `DESIGN.md:<line>` citation resolves against the `135c3ac` git object** - the frozen text,
+**Every `DESIGN.md:<line>` citation resolves against the `09ea30c` git object** - the frozen text,
 read with `git show` rather than off a working tree that four other agents were moving today.
 **§11's threat rows are repointed by ROW ID, not by text** - matching `C3-I1` to the line that
 begins that row - because text-identity matching is what let six §11 anchors go stale through two
@@ -2305,7 +2306,7 @@ of them is incomplete:
    bodies, not names**.
 4. **The instruction to expect a design defect.** Every item in §10.2's list above was found by
    building or by running something, and none by reading. A unit that finds one files an ADR
-   (`DESIGN.md` is FROZEN at `135c3ac` and only a numbered ADR moves it) and reports it - **finding
+   (`DESIGN.md` is FROZEN at `09ea30c` and only a numbered ADR moves it) and reports it - **finding
    one is the expected outcome of building, not evidence that the unit went wrong.**
 
 ---
