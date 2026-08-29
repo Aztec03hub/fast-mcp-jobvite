@@ -36,11 +36,13 @@ from typing import Any
 
 from tests.boot_process import clean_env, run_entry
 
-# : Emit one complete audit event from a process configured the shipped
-# way. : : `import fast_mcp_jobvite.__main__` and not a `logger.add` of
-# its own: the : configuration under test is the one `python -m` runs,
-# and a script that : configured its own sink would be the defect this
-# module exists to close.
+#: Emit one complete audit event from a process configured the shipped
+#: way.
+#:
+#: `import fast_mcp_jobvite.__main__` and not a `logger.add` of its own:
+#: the configuration under test is the one `python -m` runs, and a
+#: script that configured its own sink would be the defect this module
+#: exists to close.
 EMIT_ENTRY = """
 import fast_mcp_jobvite.__main__  # noqa: F401 - configures the one log sink
 
@@ -54,13 +56,16 @@ with audit_scope(
     emit(event, AuditPhase.READ)
 """
 
-# : Emit with the process's stderr pointed at a device that fails every
-# write. : : `sys.stderr` is replaced BEFORE `__main__` is imported,
-# because : `configure_logging` binds the stream object it is given at
-# configuration : time; swapping it afterwards would leave the sink on
-# the original fd and : the arm would prove nothing. : : The outcome
-# goes to a FILE. stderr is the thing under test and stdout is : the
-# JSON-RPC channel, so neither can carry the result.
+#: Emit with the process's stderr pointed at a device that fails every
+#: write.
+#:
+#: `sys.stderr` is replaced BEFORE `__main__` is imported, because
+#: `configure_logging` binds the stream object it is given at
+#: configuration time; swapping it afterwards would leave the sink on
+#: the original fd and the arm would prove nothing.
+#:
+#: The outcome goes to a FILE. stderr is the thing under test and stdout
+#: is the JSON-RPC channel, so neither can carry the result.
 FAILING_SINK_ENTRY = """
 import json
 import os
@@ -336,11 +341,11 @@ def test_a_failing_sink_after_a_write_returns_a_warning_not_an_error(
     assert "create_candidate" in warning
 
 
-# : A stdlib log record carrying the credential-bearing feed URL,
-# emitted from : a process configured the shipped way. `httpx2` emits
-# this exact shape at : INFO for every request, and DESIGN.md:312-316
-# classifies the `jobFeed` URL : as sensitive because it structurally
-# carries `api`, `sc` and `companyId`.
+#: A stdlib log record carrying the credential-bearing feed URL, emitted
+#: from a process configured the shipped way. `httpx2` emits this exact
+#: shape at INFO for every request, and DESIGN.md:312-316 classifies the
+#: `jobFeed` URL as sensitive because it structurally carries `api`,
+#: `sc` and `companyId`.
 LEAK_ENTRY = """
 import logging
 
@@ -399,16 +404,19 @@ def test_a_third_party_log_line_is_redacted_at_the_sink(
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
 
 
-# : A SECOND loguru sink, added by something that is not
-# `configure_logging`. : : `_InterceptHandler` routes every stdlib
-# record in the process into loguru, : so a handler nobody in `src/`
-# installed still receives them - and the suite : itself is such a
-# handler: `tests/test_boot.py` imports `__main__` at module : scope, so
-# by the time `tests/test_jobvite_client.py` adds its own sink the :
-# intercept is live and `httpx2`'s INFO line reaches it. : : The record
-# has to be clean, not just the stream, and that is what :
-# `_redact_message` is for. The outcome goes to a FILE because stderr
-# carries : the shipped sink's own output.
+#: A SECOND loguru sink, added by something that is not
+#: `configure_logging`.
+#:
+#: `_InterceptHandler` routes every stdlib record in the process into
+#: loguru, so a handler nobody in `src/` installed still receives them -
+#: and the suite itself is such a handler: `tests/test_boot.py` imports
+#: `__main__` at module scope, so by the time
+#: `tests/test_jobvite_client.py` adds its own sink the intercept is
+#: live and `httpx2`'s INFO line reaches it.
+#:
+#: The record has to be clean, not just the stream, and that is what
+#: `_redact_message` is for. The outcome goes to a FILE because stderr
+#: carries the shipped sink's own output.
 FOREIGN_SINK_ENTRY = """
 import json
 import logging
@@ -477,14 +485,17 @@ def test_a_sink_this_project_did_not_install_sees_a_redacted_record(
     assert not leaked, f"{len(leaked)} of 3 credentials reached the foreign sink"
 
 
-# : An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
-# : : `_InterceptHandler` forwards `record.exc_info` for every stdlib
-# logger in : the process, so `record["exception"]` is populated - and
-# `serialize=True` : renders it, plus the formatted traceback inside
-# `text`. `_redact_message` : reaches `record["message"]` and neither of
-# those. : : MEASURED before the sink-level redaction landed: both
-# credentials came back : in the clear, twice each, on a process
-# configured the shipped way.
+#: An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
+#:
+#: `_InterceptHandler` forwards `record.exc_info` for every stdlib
+#: logger in the process, so `record["exception"]` is populated - and
+#: `serialize=True` renders it, plus the formatted traceback inside
+#: `text`. `_redact_message` reaches `record["message"]` and neither of
+#: those.
+#:
+#: MEASURED before the sink-level redaction landed: both credentials
+#: came back in the clear, twice each, on a process configured the
+#: shipped way.
 EXCEPTION_LEAK_ENTRY = """
 import logging
 
@@ -558,16 +569,18 @@ def test_an_exception_carrying_a_credential_is_redacted_at_the_sink(
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
 
 
-# : The M-5 path end to end, in a process configured the shipped way. :
-# : `tests/test_jobvite_client.py` asserts the same behaviour against a
-# sink it : installs itself. A sink a test invents is a real loguru
-# stream, just not the : one the server writes to - which is exactly how
-# H-1 stayed invisible - so : the claim that a transport failure
-# publishes nothing is settled HERE, on the : bytes the process wrote,
-# and the client suite covers the shape. : : `detail` is written to a
-# file rather than logged: it is the value that : reaches the API
-# CONSUMER, and putting it on the stream under test would : make the
-# stream assertions unable to tell the two apart.
+#: The M-5 path end to end, in a process configured the shipped way.
+#:
+#: `tests/test_jobvite_client.py` asserts the same behaviour against a
+#: sink it installs itself. A sink a test invents is a real loguru
+#: stream, just not the one the server writes to - which is exactly how
+#: H-1 stayed invisible - so the claim that a transport failure
+#: publishes nothing is settled HERE, on the bytes the process wrote,
+#: and the client suite covers the shape.
+#:
+#: `detail` is written to a file rather than logged: it is the value
+#: that reaches the API CONSUMER, and putting it on the stream under
+#: test would make the stream assertions unable to tell the two apart.
 CLIENT_FAILURE_ENTRY = """
 import asyncio
 import json
