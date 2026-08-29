@@ -130,9 +130,16 @@ standards-coverage task.
 The `-u` and `-o pipefail` halves are kept and are not in question. Only `-e` is dropped, and only
 in `scripts/*.sh`.
 
-**Scope.** This ADR covers the fifteen control/amputation harnesses in `scripts/` and nothing else.
-A new script in this repository that is *not* such a harness gets `set -euo pipefail` and is not
-covered here. This ADR is not a licence to omit `-e` generally.
+**Scope, stated by PURPOSE and not by path.** This ADR covers **any script here whose measurement is
+the exit code of a command that is expected to fail** - today the fifteen control and amputation
+harnesses in `scripts/`, and the two probes in `docs/reviews/` that this ADR and its obligation row
+are evidenced by. Any other script in this repository gets `set -euo pipefail` and is not covered
+here. This ADR is not a licence to omit `-e` generally.
+
+*Scoping this by directory was the first draft, and it was wrong within the hour: it excluded
+`docs/reviews/probe-set-e-vs-harness.sh` - the probe that measures this very ADR's central claim,
+and whose ARM B is expected to exit non-zero by construction. A path-shaped rule selects for the
+member nobody thought of, and the member it missed here was the ADR's own evidence.*
 
 **Every one of these scripts should say so at the `set` line.** A reader who knows `bash.md` will
 otherwise read the missing `-e` as an oversight, which is exactly how a considered deviation decays

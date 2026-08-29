@@ -265,6 +265,41 @@ CONTROL FIRED: the BASH-* namespace is parsed and verified.
 Verified count drops 23 -> 22 under the amputation, so BASH-1 was among the verified. Restore checked
 against **git**, not against the backup alone: `git diff --quiet HEAD -- <adr>` is clean.
 
+**A negative arm, because a control that only ever passes proves nothing about what it is testing.**
+`/tmp` script, not committed: revert `ROW` to `B\d+[a-z]?` and re-run the probe. It **must** fail.
+
+```
+mutation landed (regex reverted to B-only)
+restored
+probe exit with the namespace REMOVED = 1
+    CONTROL DID NOT FIRE: a BASH-* row is being SILENTLY SKIPPED.
+NEGATIVE ARM CORRECT: the probe notices the namespace being dropped.
+```
+
+So the probe is falsifiable both ways: it fires when the anchor breaks, and it fails when the
+namespace it exists to guard is removed.
+
+### The probe went vacuous within the hour, and this is how I found out
+
+Worth recording, because it is the sharper of the two lessons in this section and it happened to me
+rather than to the codebase.
+
+The first version of this probe **hard-coded** the anchor `` Keep `set -uo pipefail` in ``. When the
+clause-citation bug above forced me to change BASH-1's subject to `the clause admits no exception`,
+the probe kept amputating the old literal - **which still existed elsewhere in the ADR**, in the
+Decision section. So the mutation landed, the checker correctly stayed green (I had not touched the
+real anchor), and the probe reported `CONTROL DID NOT FIRE`.
+
+The failure was silent in the sense that matters: nothing about the probe's own output said *"you
+edited the fixture and this literal no longer refers to it"*. It said the namespace was broken, which
+was false. I only caught it because I re-ran everything after an unrelated edit to the ADR's scope
+paragraph, and something that had passed twenty minutes earlier now failed.
+
+**Fixed by removing the class rather than the instance:** the probe now reads the artifact and
+subject **out of the BASH-1 row itself**, so there is exactly one place either value lives. A
+hard-coded copy of a value that lives somewhere else is a second list, and it decays the moment the
+first one moves.
+
 ### The bug this control caught in passing
 
 My first BASH-1 anchor was `` Keep `set -uo pipefail` in ``. `check-obligations.py` verified it
@@ -347,7 +382,20 @@ bash docs/reviews/probe-bash-namespace-amputation.sh         exit 0
 
 bash docs/reviews/probe-set-e-vs-harness.sh                  exit 0
     both arms as quoted in §2
+
+shellcheck --severity=warning docs/reviews/probe-*.sh        exit 0
 ```
+
+**My own two probes are shell, so the gate I am proposing would judge them.** They pass it. At
+default severity they carry 2 findings - one `SC2016`, one `SC2001` - both below the specified
+threshold and both in categories already present in `scripts/`. I checked rather than assumed:
+proposing a gate and quietly exempting my own contribution from it would make the proposal
+worthless.
+
+Two defects in my own files, caught by that check and by the re-run, fixed before delivery:
+`probe-set-e-vs-harness.sh` as first committed **had no strict-mode line at all** - a file arguing
+about `set -euo pipefail` that carried no `set` line - and its header cited **ADR-0022**, the stale
+number from the brief, copied before I renumbered.
 
 **Row count verified against git, not against memory**: `29 -> 31` rows, `git diff --stat eb4d254`
 shows `docs/OBLIGATIONS.md | 2 ++`. Exactly the two rows I added, no more.
