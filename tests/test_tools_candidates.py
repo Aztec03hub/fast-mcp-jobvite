@@ -35,7 +35,7 @@ from typing import Any
 
 import httpx2
 import pytest
-from fastmcp import Client
+from fastmcp import Client, FastMCP
 from loguru import logger
 from pydantic import BaseModel, SecretStr, ValidationError
 
@@ -1404,3 +1404,261 @@ def test_a_list_of_not_free_text_scalars_passes_through() -> None:
     }
     fenced = fence_payload({"tags": ["Active", "Hired"]}, registry, "candidates[]")
     assert fenced["tags"] == ["Active", "Hired"]
+
+
+# ======================================================================
+# 9. THE FIVE UNREAD BRANCHES OF THE WRITE PATH (#94).
+#
+#    ADR-0010 puts "the write" on the critical-path floor at 95% line
+#    and 90% branch. This module measured 94.04% line and 80.77%
+#    BRANCH - the miss was mostly on the half nobody looks at, and one
+#    of the arms is the registration guard that stands between an
+#    unconfigured deployment and a client that can see the tools.
+# ======================================================================
+
+
+def test_a_date_field_arriving_as_a_non_integer_becomes_none() -> None:
+    """§9 hazard 2: `sentDate` is normalised, never cast.
+
+    **The `bool` arm is not pedantry.** `bool` is a subclass of `int`,
+    so a bare `isinstance(value, int)` admits `True` and
+    `epoch_ms_to_date(True)` dates the application to 1970-01-01 - a
+    plausible-looking wrong answer in a record a recruiter reads,
+    which is worse than an absent field.
+
+    **The string arm is the recoverability one.** Without the guard a
+    Jobvite field arriving as a string raises inside a READ tool
+    (`epoch_ms_to_date` divides), and a read is the operation that is
+    supposed to be recoverable.
+
+    The positive control is a genuine epoch, because a normaliser that
+    returned `None` for everything would satisfy both arms above and
+    would delete every real date this tool exists to report.
+    """
+
+    def application(sent: object, updated: object) -> dict[str, Any]:
+        return {
+            "candidates": [
+                {
+                    "eId": "C1",
+                    "application": {"sentDate": sent, "lastUpdatedDate": updated},
+                }
+            ]
+        }
+
+    flagged = build_result(application(True, False), 10).candidates[0].application
+    assert flagged is not None
+    assert flagged.sent_date is None, (
+        "a boolean was cast through epoch_ms_to_date, so a flag is reported "
+        "to the caller as the date 1970-01-01"
+    )
+    assert flagged.last_updated_date is None
+
+    stringly = build_result(application("1717171717000", None), 10).candidates[0]
+    assert stringly.application is not None
+    assert stringly.application.sent_date is None
+
+    genuine = build_result(application(1717171717000, None), 10).candidates[0]
+    assert genuine.application is not None
+    assert genuine.application.sent_date is not None, (
+        "the positive control lost its date, so the two arms above are "
+        "satisfied by a normaliser that reports no date at all"
+    )
+
+
+def test_registering_the_candidate_tools_without_credentials_refuses() -> None:
+    """The registration guard, which is defence in depth and reachable.
+
+    `validate_settings` refuses this configuration at boot, and the
+    positive control below proves it still does. **That is exactly why
+    this arm needs its own case**: the guard's only remaining caller is
+    a path where the boot check was bypassed - a test, a library
+    consumer calling `register` directly, or a future `build_server`
+    that stops calling `validate_settings` - and in every one of them
+    the alternative to raising is registering three tools that will
+    reach for a credential that is not there.
+
+    **The assertion names what the message must carry.** A bare
+    `pytest.raises(ValueError)` would pass against an unrelated
+    `ValueError` raised three lines earlier, and the operator reading
+    this needs to be told which tools were enabled.
+    """
+    from fast_mcp_jobvite.config import ConfigurationError, validate_settings
+    from fast_mcp_jobvite.tools.candidates import register
+
+    uncredentialed = Settings(tools=f"{SEARCH_CANDIDATES},{GET_CANDIDATE}")
+
+    with pytest.raises(ValueError) as raised:
+        register(FastMCP("test"), uncredentialed)
+    message = str(raised.value)
+    assert SEARCH_CANDIDATES in message and GET_CANDIDATE in message, (
+        "the refusal did not name the enabled tools, so an operator cannot "
+        "tell which configuration it is complaining about"
+    )
+    assert "validate_settings" in message
+
+    # THE FIRST LINE OF DEFENCE, ASSERTED RATHER THAN ASSUMED. The
+    # docstring on the guard claims boot already refuses this; if that
+    # stopped being true the guard would be the ONLY thing standing
+    # here, and this case would be the only notice of it.
+    with pytest.raises(ConfigurationError):
+        validate_settings(uncredentialed)
+
+    # The positive control: the same registration with credentials
+    # present does not raise, so the case above is not satisfied by a
+    # `register` that refuses everything.
+    register(FastMCP("test"), settings())
+
+
+async def test_the_default_client_factory_is_built_from_the_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`client_factory=None` - the branch every other case skips.
+
+    `tools/jobs.py` records the history at length: the default factory
+    omitted `max_results` (U6-F1) and then `start_base_overrides`
+    (R5-M1), the same defect twice in one argument list. **This module
+    has the identical factory and no case that reaches it**, because
+    every other test here supplies its own `client_factory` and returns
+    before the branch is taken.
+
+    **`start_base_overrides` is asserted as BEHAVIOUR.** A case
+    checking the keyword argument passes against a client that ignores
+    what it was handed; `scan_start()` is what a scan actually reads,
+    so the built client is asked directly. `max_results` and
+    `company_id` have no public reader on the client, so those two are
+    asserted on the argument list - the weaker of the two claims, and
+    said plainly here rather than implied.
+
+    **The silence arm is not decoration.** Without it this case passes
+    against a factory that hands every route a base unconditionally,
+    which loses record zero on a 0-based server.
+    """
+    from fast_mcp_jobvite.services.jobvite_client import JobviteClient as RealClient
+
+    built: list[JobviteClient] = []
+    seen: list[dict[str, Any]] = []
+
+    def recording(**kwargs: Any) -> JobviteClient:
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            return httpx2.Response(200, content=fixture_bytes(CANDIDATE_LIST_SUCCESS))
+
+        # `RealClient` is the class imported from `services`, NOT the
+        # name being replaced, so this builds a real client rather than
+        # recursing into itself.
+        seen.append(dict(kwargs))
+        client = RealClient(**{**kwargs, "transport": httpx2.MockTransport(handler)})
+        built.append(client)
+        return client
+
+    monkeypatch.setattr("fast_mcp_jobvite.tools.candidates.JobviteClient", recording)
+
+    async def run(**overrides: Any) -> JobviteClient:
+        built.clear()
+        seen.clear()
+        server = build_server(settings(**overrides), client_factory=None)
+        async with Client(server) as client:
+            await client.call_tool(SEARCH_CANDIDATES, {"params": {}})
+        assert built, "the default factory was never reached; this proves nothing"
+        return built[0]
+
+    await run(max_results=7, company_id=SecretStr("test-company"))
+    assert seen[0]["max_results"] == 7, (
+        "the client did not get JOBVITE_MAX_RESULTS, so the transport half "
+        "of the cap holds a different number from the in-tool half"
+    )
+    assert seen[0]["company_id"] is not None
+
+    configured = await run(pagination_start_base=1)
+    assert configured.scan_start(CANDIDATES_PATH) == 1, (
+        "JOBVITE_PAGINATION_START_BASE did not reach the client, so the "
+        "documented operator override moves nothing on the wire"
+    )
+
+    unset = await run()
+    assert unset.scan_start(CANDIDATES_PATH) == 0
+
+
+async def test_get_candidate_skips_a_non_record_and_falls_back_to_an_empty_one() -> (
+    None
+):
+    """`_one_record` walks the page; it does not index into it.
+
+    JOBVITE-CONTRACT.md:161 records that the record-level "not found"
+    shape is UNKNOWN, so this reader must survive whatever the envelope
+    holds. Two arms, and both are branches no other case reaches:
+
+    - a page whose first element is NOT an object is skipped rather
+      than handed to the mapper, which is what `payload["candidates"]
+      [0]` would do and which raises inside a read tool;
+    - a page with no object in it at all yields an EMPTY candidate, not
+      an invented error type - guessing a shape for a response nobody
+      has observed is how a wrong answer acquires an explanation.
+
+    The positive control is the surviving record in the first arm: if
+    the walk skipped everything, an all-empty result would satisfy both
+    arms and `get_candidate` would report nothing for every call.
+    """
+
+    async def fetch(items: list[Any]) -> dict[str, Any]:
+        body = json.dumps({"candidates": items, "total": len(items)}).encode()
+        server = build_server(settings(), client_factory=client_factory(body))
+        async with Client(server) as client:
+            result = await client.call_tool(
+                GET_CANDIDATE, {"params": {"candidate_id": "TESTCND1"}}
+            )
+        assert result.is_error is False
+        content: dict[str, Any] | None = result.structured_content
+        assert content is not None
+        return content
+
+    skipped = await fetch(["a bare string", {"eId": "TESTCND9"}])
+    assert skipped["eid"] == "TESTCND9", (
+        "the reader took the first element of the page rather than the "
+        "first RECORD, so a non-object element reaches the mapper"
+    )
+
+    exhausted = await fetch(["a bare string", 42, None])
+    assert exhausted["eid"] is None, (
+        "a page carrying no object at all did not fall through to an empty "
+        "candidate, so the reader invented a shape nobody has observed"
+    )
+
+
+async def test_a_get_candidate_read_error_is_a_problem_object_and_an_audit_row(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """`get_candidate`'s error arm, which had no case at all.
+
+    `test_a_candidate_read_error_is_a_problem_object_not_a_raise`
+    covers the SIBLING tool and nothing covered this one - four
+    consecutive lines of the error rule, on a critical path, with the
+    module's aggregate reading 94% because line coverage averages over
+    a file.
+
+    Two claims, not one. The caller must get a problem object rather
+    than a raise (DESIGN.md:536-540), **and the audit row must record
+    the failure as a failure**: a read that fails and is written down
+    as a success is a record that lies, and the row is the only
+    evidence anyone has afterwards.
+    """
+    server = build_server(
+        settings(), client_factory=client_factory(b"not json at all", status=200)
+    )
+    async with Client(server) as client:
+        result = await client.call_tool(
+            GET_CANDIDATE,
+            {"params": {"candidate_id": "TESTCND1"}},
+            raise_on_error=False,
+        )
+
+    assert result.is_error is True
+    problem = result.structured_content
+    assert problem is not None
+    assert problem["status"] == 502
+
+    event = audit_event(audit_records)
+    assert event["result_status"] == "error", (
+        "the audit row recorded a failed read as anything other than an "
+        "error, so the only surviving evidence of the failure is wrong"
+    )
