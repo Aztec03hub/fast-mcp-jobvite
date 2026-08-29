@@ -184,12 +184,49 @@ amputate "A1  the result cap does not exist; total is recomputed to agree" \
 # reaches the caller must die here; anything that survives was asserting
 # something else.
 # ---------------------------------------------------------------------------
+# THE ANCHOR SPANS FROM `build_result`, and it has to: U12's
+# `get_job_feed` half of this file ends in a BYTE-IDENTICAL block, so the
+# short form matched twice and the row applied to nothing.
 amputate "A2  the success result carries no _meta at all" "$TOOLS" \
-  '            return ToolResult(
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
+                return ToolResult(
+                    structured_content=problem,
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                    is_error=True,
+                )
+            emit(event, AuditPhase.READ)
+            return ToolResult(
                 structured_content=result.model_dump(mode="json"),
                 meta={REQUEST_ID_META_KEY: event.request_id},
             )' \
-  '            return ToolResult(
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
+                return ToolResult(
+                    structured_content=problem,
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                    is_error=True,
+                )
+            emit(event, AuditPhase.READ)
+            return ToolResult(
                 structured_content=result.model_dump(mode="json"),
             )'
 
@@ -201,13 +238,43 @@ amputate "A2  the success result carries no _meta at all" "$TOOLS" \
 # masked string with no `request_id`, no `status` and no `type`.
 # ---------------------------------------------------------------------------
 amputate "A3  the error path raises rather than returning a problem" "$TOOLS" \
-  '                problem = problem_from_exception(exc, event.request_id)
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
                 return ToolResult(
                     structured_content=problem,
                     meta={REQUEST_ID_META_KEY: event.request_id},
                     is_error=True,
-                )' \
-  '                raise'
+                )
+            emit(event, AuditPhase.READ)
+            return ToolResult(
+                structured_content=result.model_dump(mode="json"),
+                meta={REQUEST_ID_META_KEY: event.request_id},
+            )' \
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                raise
+            emit(event, AuditPhase.READ)
+            return ToolResult(
+                structured_content=result.model_dump(mode="json"),
+                meta={REQUEST_ID_META_KEY: event.request_id},
+            )'
 
 # ---------------------------------------------------------------------------
 # A4 - THE AUDIT EVENT IS NEVER EMITTED. Both id cases match the wire
@@ -218,11 +285,47 @@ amputate "A3  the error path raises rather than returning a problem" "$TOOLS" \
 # ---------------------------------------------------------------------------
 amputate "A4  no audit event is ever emitted (the id pairings go vacuous)" \
   "$TOOLS" \
-  '            emit(event, AuditPhase.READ)
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
+                return ToolResult(
+                    structured_content=problem,
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                    is_error=True,
+                )
+            emit(event, AuditPhase.READ)
             return ToolResult(
-                structured_content=result.model_dump(mode="json"),' \
-  '            return ToolResult(
-                structured_content=result.model_dump(mode="json"),'
+                structured_content=result.model_dump(mode="json"),
+                meta={REQUEST_ID_META_KEY: event.request_id},
+            )' \
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
+                return ToolResult(
+                    structured_content=problem,
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                    is_error=True,
+                )
+            return ToolResult(
+                structured_content=result.model_dump(mode="json"),
+                meta={REQUEST_ID_META_KEY: event.request_id},
+            )'
 
 # ---------------------------------------------------------------------------
 # A5 - THE FENCING REGISTRY GENERATES NOTHING. `fencing_paths` returns
@@ -273,8 +376,10 @@ amputate "A7  registration ignores the enable gate entirely" "$TOOLS" \
 # ---------------------------------------------------------------------------
 amputate "A8  an admitted field forwards the entire raw Jobvite object" \
   "$TOOLS" \
-  '        title=raw.get("title") or "",' \
-  '        title=str(raw),'
+  '        eid=raw.get("eId") or "",
+        title=raw.get("title") or "",' \
+  '        eid=raw.get("eId") or "",
+        title=str(raw),'
 
 # ---------------------------------------------------------------------------
 # A9 - THE INBOUND CHARACTER RULE IS GONE. The identifier type keeps its
@@ -311,8 +416,12 @@ amputate "A10 the caller-facing summary string is removed" "$MODELS" \
 amputate "A11 the live request _meta is never read (trace context lost)" \
   "$TOOLS" \
   '        request_context = ctx.request_context
-        meta = request_context.meta if request_context is not None else None' \
-  '        meta = None'
+        meta = request_context.meta if request_context is not None else None
+        with audit_scope(
+            SEARCH_JOBS,' \
+  '        meta = None
+        with audit_scope(
+            SEARCH_JOBS,'
 
 # ---------------------------------------------------------------------------
 # A12 - THE COMPUTED-FIELD WALK IS GONE (R4-M1). `fencing_paths` goes
