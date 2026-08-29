@@ -16,6 +16,11 @@ build/
 .coverage
 .coverage.*
 coverage.xml
+# `coverage.json` is what `docs/reviews/check-coverage-floors.py` reads, so the
+# gate produces one on every run. It was NOT listed here, and `coverage.xml`
+# next to it is the reason: an artefact list beside a tool is blind to the
+# format nobody added, which is this repository's most-repeated defect.
+coverage.json
 htmlcov/
 .mypy_cache/
 
