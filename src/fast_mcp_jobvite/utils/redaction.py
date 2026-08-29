@@ -48,54 +48,60 @@ import urllib.parse
 from collections.abc import Mapping, Sequence
 from typing import Final
 
-# : The value shape a validated tool argument can take. Recursive,
-# because : `create_candidate`'s payload is nested and a redactor typed
-# only at the top : level would be typed for the case that does not
-# matter. `Any` is not : available: `ANN401` is on (`pyproject.toml`,
-# ruff `ANN`), and it would also : switch mypy off exactly where the
-# fail-closed walk needs checking.
+#: The value shape a validated tool argument can take. Recursive,
+#: because `create_candidate`'s payload is nested and a redactor typed
+#: only at the top level would be typed for the case that does not
+#: matter. `Any` is not available: `ANN401` is on (`pyproject.toml`,
+#: ruff `ANN`), and it would also switch mypy off exactly where the
+#: fail-closed walk needs checking.
 type JsonValue = (
     str | int | float | bool | None | Mapping[str, JsonValue] | Sequence[JsonValue]
 )
 
-# : What replaces a redacted scalar. A fixed sentinel rather than a
-# length- : preserving mask: a mask that preserves length leaks the
-# length, and a : credential's length is a real hint.
+#: What replaces a redacted scalar. A fixed sentinel rather than a
+#: length-preserving mask: a mask that preserves length leaks the
+#: length, and a credential's length is a real hint.
 REDACTED: Final = "[REDACTED]"
 
-# : A URL carrying credentials in its USERINFO -
-# `scheme://user:password@host`. : : Round 2 found this surviving:
-# `redact_text` only inspected tokens containing : both `?` and `=`, so
-# a proxy URL - which has neither - passed through whole : and reached
-# the caller's problem `detail`. Measured before the fix: :
-# `https://user:hunter2@proxy.internal:8080/path` came back unchanged. :
-# : `://` before the `@` is what separates this from an email address,
-# which must : not be touched: `someone@example.com` has no scheme and
-# no colon-password.
+#: A URL carrying credentials in its USERINFO -
+#: `scheme://user:password@host`.
+#:
+#: Round 2 found this surviving: `redact_text` only inspected tokens
+#: containing both `?` and `=`, so a proxy URL - which has neither -
+#: passed through whole and reached the caller's problem `detail`.
+#: Measured before the fix:
+#: `https://user:hunter2@proxy.internal:8080/path` came back unchanged.
+#:
+#: `://` before the `@` is what separates this from an email address,
+#: which must not be touched: `someone@example.com` has no scheme and no
+#: colon-password.
 _USERINFO: Final = re.compile(
     r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*://)(?P<user>[^/@\s:]+):(?P<pw>[^/@\s]*)@"
 )
 
-# : Query parameters on the `jobFeed` URL that carry a credential :
-# (DESIGN.md:312-319). Compared case-insensitively, because a URL a
-# human : assembled will not always match Jobvite's casing and a
-# redactor that misses : `SC=` has failed open.
+#: Query parameters on the `jobFeed` URL that carry a credential
+#: (DESIGN.md:312-319). Compared case-insensitively, because a URL a
+#: human assembled will not always match Jobvite's casing and a redactor
+#: that misses `SC=` has failed open.
 SECRET_QUERY_PARAMS: Final[frozenset[str]] = frozenset({"api", "sc", "companyid"})
 
-# : Request headers that carry a v2 credential (DESIGN.md:311).
-# Lower-cased; : callers must lower-case the key before lookup.
+#: Request headers that carry a v2 credential (DESIGN.md:311).
+#: Lower-cased; callers must lower-case the key before lookup.
 SECRET_HEADERS: Final[frozenset[str]] = frozenset({"x-jvi-api", "x-jvi-sc"})
 
-# : Argument keys whose values may appear in an audit record in the
-# clear. : : **Fail-closed: anything absent from this set is redacted.**
-# Every member is : here because its value is structurally an
-# identifier, a bound or a page : cursor rather than anything a
-# candidate typed or that identifies one. A tool : added later
-# contributes its arguments to the audit event redacted, and stays :
-# that way until someone adds the key here deliberately - which is the
-# point. : : `query` is deliberately ABSENT. A `search_candidates` query
-# is free text a : caller composed, and the obvious thing to search for
-# is a person's name.
+#: Argument keys whose values may appear in an audit record in the
+#: clear.
+#:
+#: **Fail-closed: anything absent from this set is redacted.** Every
+#: member is here because its value is structurally an identifier, a
+#: bound or a page cursor rather than anything a candidate typed or that
+#: identifies one. A tool added later contributes its arguments to the
+#: audit event redacted, and stays that way until someone adds the key
+#: here deliberately - which is the point.
+#:
+#: `query` is deliberately ABSENT. A `search_candidates` query is free
+#: text a caller composed, and the obvious thing to search for is a
+#: person's name.
 NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
     {
         "candidate_id",
