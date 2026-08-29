@@ -8,6 +8,7 @@ teardown is usually not.
 
 from __future__ import annotations
 
+import ast
 import pathlib
 from collections.abc import AsyncIterator
 from typing import Any
@@ -66,7 +67,27 @@ def test_mask_error_details_is_set_explicitly() -> None:
         / "fast_mcp_jobvite"
         / "server.py"
     ).read_text()
-    assert "mask_error_details=True" in source
+
+    # R3-L5. This was `assert "mask_error_details=True" in source`, a
+    # substring match over raw text - which passes on a COMMENTED-OUT
+    # line. That made the guard inoperative in precisely the scenario
+    # the docstring above says it exists for: if a dependency bump
+    # flipped the framework default to True, the instance assertion
+    # would pass on the default and the source assertion would pass on a
+    # comment, with the setting absent from the real call. Parse
+    # instead, so only a live keyword argument counts.
+    keywords = [
+        keyword
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg == "mask_error_details"
+    ]
+    assert keywords, "server.py passes no mask_error_details keyword at all"
+    assert all(
+        isinstance(keyword.value, ast.Constant) and keyword.value.value is True
+        for keyword in keywords
+    ), "mask_error_details is passed, but not as a literal True"
 
 
 async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> None:

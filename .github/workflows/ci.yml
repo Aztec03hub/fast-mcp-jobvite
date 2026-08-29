@@ -29,8 +29,6 @@ name: CI
 #       Blocked on the serialised dependency slot (collision 10). Tracked as #26.
 #       NEVER `uv run --with pip-audit` - that resolves unpinned outside the lock,
 #       which is exactly the defect ADR-0015 records for pip-licenses.
-#     coverage floors -> U1 (src/fast_mcp_jobvite holds only __init__.py, so a
-#       coverage run reports "No data collected" or a vacuous 100%)
 #     fastmcp inspect capability-drift diff -> U1 (`fastmcp inspect` takes a
 #       server spec; server.py is U1's file). Note DESIGN.md:1494-1497: standing
 #       this up in CI does NOT execute it. A diff that has never seen a real

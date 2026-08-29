@@ -152,12 +152,17 @@ filterwarnings = [
 # Only the overall floor is expressible as a single fail_under; the per-module
 # floors are enforced by the units that create those modules.
 #
-# NOT wired into addopts, and the CI coverage step is commented out with a U1
-# reference, for the same reason the plan gives for the pip-audit step
-# (IMPLEMENTATION-PLAN.md:206-211): src/fast_mcp_jobvite holds only __init__.py
-# today, so a coverage run here reports either "No data collected" (red from the
-# first run) or a vacuous 100% over an empty package. U1 lands the first real
-# module and turns the step on.
+# WIRED. `ci.yml`'s Coverage step runs `pytest --cov`, and `fail_under` below is the
+# floor it enforces - measured at 92.66% over 552 statements, against a floor of 80.
+#
+# `--cov-fail-under` is deliberately NOT passed on that command line, so the floor
+# lives in this file alone. Two places to change a threshold is one place to forget.
+#
+# This comment previously said the step was commented out and the package held only
+# __init__.py. Both were false, and the DEFERRED list in ci.yml's header had gone
+# stale in exactly the same way once before (the advisories entry, which U11 flagged
+# and could not fix). A deferral note outlives the deferral unless deleting it is
+# part of landing the thing.
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 source = ["src/fast_mcp_jobvite"]
