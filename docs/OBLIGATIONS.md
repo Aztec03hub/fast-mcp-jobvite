@@ -68,7 +68,7 @@ the map exists to make visible.
 | B51 | MET | `pyproject.toml:169` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
 | B52 | MET | `pyproject.toml:163` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
 | B53 | MET | `.env.example:16` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
-| B58 | MET | `tests/test_collection_guard.py:163` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
+| B58 | MET | `tests/test_collection_guard.py:173` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
 | B59 | MET | `.github/workflows/ci.yml:250` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
 | B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md:117` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
