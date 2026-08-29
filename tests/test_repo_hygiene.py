@@ -80,8 +80,22 @@ def test_every_secret_class_variable_is_empty() -> None:
     variables = _declared_variables()
     missing = [name for name in SECRET_CLASS if name not in variables]
     assert not missing, f".env.example does not declare {missing}"
-    carrying = {name: variables[name] for name in SECRET_CLASS if variables[name] != ""}
-    assert not carrying, f"secret-class variables carrying a value: {carrying}"
+    # NAMES ONLY. The only condition under which this fires is "a real value is
+    # sitting in a secret-class slot", and this repository is PUBLIC - a failure
+    # message goes into a world-readable Actions log, which is exactly what
+    # credential-scanning vendors index. The variable NAME is the whole diagnosis;
+    # the value adds nothing and is the thing being protected. Length is offered
+    # for triage instead. CREDENTIAL-CHECKLIST.md:88 requires the redaction to
+    # happen before the capture touches disk.
+    carrying = sorted(
+        f"{name} ({len(variables[name])} chars)"
+        for name in SECRET_CLASS
+        if variables[name] != ""
+    )
+    assert not carrying, (
+        "secret-class variables in .env.example carry a value. Names and lengths "
+        f"only - the value is deliberately not printed: {carrying}"
+    )
 
 
 def test_the_deliberate_non_secret_defaults_are_intact() -> None:
@@ -107,8 +121,17 @@ def test_no_value_in_env_example_looks_like_a_real_credential() -> None:
         for name, value in variables.items()
         if name in SECRET_CLASS or len(value) >= 20
     }
-    offenders = {name: value for name, value in suspicious.items() if value != ""}
-    assert not offenders, f"values that could be mistaken for credentials: {offenders}"
+    # Names and lengths only, for the same reason as above: this assertion fires
+    # only when a real-looking value is present, and printing it publishes it.
+    offenders = sorted(
+        f"{name} ({len(value)} chars)"
+        for name, value in suspicious.items()
+        if value != ""
+    )
+    assert not offenders, (
+        "values that could be mistaken for credentials, names and lengths only - "
+        f"the value is deliberately not printed: {offenders}"
+    )
 
 
 def test_gitignore_covers_every_credential_pattern() -> None:

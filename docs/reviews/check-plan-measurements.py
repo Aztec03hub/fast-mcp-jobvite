@@ -119,42 +119,71 @@ def m2_per_directory_conftest_does_not_cross_directories() -> tuple[bool, str]:
 def m3_manifest_asserts_a_closed_dependency_set() -> tuple[bool, str]:
     """Collision 10: `tests/test_manifest.py` closes the runtime dependency list.
 
-    Treatment: adding a dependency must break set-equality. Control: the unmutated
-    manifest must satisfy it. The plan schedules five units to add dependencies, so this
-    going quiet would mean the collision had been resolved and the plan should say so.
+    **This probe RUNS the test. An earlier version graded a SUBSTRING of it, and a
+    review demonstrated the difference.** It checked `"set(_dependencies()) ==" in
+    manifest_test`, which is a grep of the test's source. Renaming the function so
+    pytest stops collecting it - the most realistic form of "someone disabled a test" -
+    left the string in place, so M3 stayed PASS with identical output while the suite
+    quietly ran one test fewer. `assert ... or True`, `if False:`, and deleting the
+    function while its docstring still quoted the line all survived too.
+
+    That is a citation check dressed as a measurement, in the file whose premise is
+    that prose about a measurement decays into a claim about one. The machinery to do
+    it properly already existed three functions down, in M4.
+
+    Treatment: add a dependency to a COPY of the manifest and the test must FAIL.
+    Control: against the unmutated copy the same test must PASS, or the treatment
+    proves nothing.
     """
     src = (REPO_ROOT / "pyproject.toml").read_text()
-    manifest_test = (REPO_ROOT / "tests" / "test_manifest.py").read_text()
+    if not tomllib.loads(src)["project"]["dependencies"]:
+        return False, "no runtime dependencies declared at all - the probe read nothing"
 
-    # DERIVED, never hardcoded. An earlier version of this probe pinned the expected set
-    # to the three original pins and went STALE the first time a unit legitimately added
-    # one - reporting a real, approved change as a failed measurement. That is the
-    # two-lists defect this repository names elsewhere, built into the instrument that
-    # checks for it. Four more dependencies are scheduled, so it would have gone stale
-    # four more times.
-    unmutated = set(tomllib.loads(src)["project"]["dependencies"])
-    sentinel = '"zzz-probe-not-a-real-package==0.0.0"'
-    mutated = set(
-        tomllib.loads(src.replace("dependencies = [", f"dependencies = [\n  {sentinel},", 1))[
-            "project"
-        ]["dependencies"]
-    )
+    # THE NODE ID, not the file. Running the whole module passes for the wrong
+    # reason: test_manifest.py holds five tests, so renaming the closed-set one
+    # leaves four others, and one of THOSE also reddens on an added dependency.
+    # The first version of this fix graded the file and stayed green through the
+    # exact mutation it was written to catch. A node id that does not exist makes
+    # pytest exit non-zero, so a renamed or deleted test fails the CONTROL arm,
+    # which is where it should be caught.
+    node = "tests/test_manifest.py::test_the_runtime_dependency_set_is_exactly_these_and_nothing_else"
 
-    if not unmutated:
-        return False, "no runtime dependencies parsed at all - the probe read nothing"
-    if mutated == unmutated:
-        return False, "mutation was a no-op - the probe never changed anything"
-    # The PROPERTY, not the membership: the test compares the whole list with `==`, so
-    # any addition breaks it. Checking the comparison itself is what survives a
-    # legitimate dependency being added.
-    if "set(_dependencies()) ==" not in manifest_test:
+    def run_in(root: Path) -> subprocess.CompletedProcess[str]:
+        return _pytest(root, node, "-p", "no:cacheprovider")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+        shutil.copy(REPO_ROOT / "uv.lock", root / "uv.lock")
+        for name in ("conftest.py", "__init__.py", "test_manifest.py"):
+            shutil.copy(REPO_ROOT / "tests" / name, root / "tests" / name)
+        (root / "docs" / "research" / "fixtures").mkdir(parents=True)
+
+        (root / "pyproject.toml").write_text(src)
+        control = run_in(root)
+
+        sentinel = '  "zzz-probe-not-a-real-package==0.0.0",\n'
+        mutated = src.replace("dependencies = [\n", "dependencies = [\n" + sentinel, 1)
+        if mutated == src:
+            return False, "the mutation did not apply - the probe changed nothing"
+        (root / "pyproject.toml").write_text(mutated)
+        treatment = run_in(root)
+
+    if control.returncode != 0:
         return False, (
-            "tests/test_manifest.py no longer closes the dependency set with `==`; "
-            "collision 10's rule has been relaxed rather than appended to"
+            "control failed: the closed-set test is red, missing or no longer "
+            "collected on an UNMUTATED copy. If it was renamed or deleted, "
+            "collision 10's rule is enforced by nothing"
+        )
+    if treatment.returncode == 0:
+        return False, (
+            "adding a dependency did NOT turn test_manifest.py red - the closed-set "
+            "assertion is gone, disabled, or no longer collected. Collision 10's rule "
+            "is enforced by nothing"
         )
     return True, (
-        f"the manifest closes the set with `==` over {len(unmutated)} dependencies, "
-        "so any addition breaks it"
+        "the manifest test PASSES unmutated and FAILS when a dependency is added - "
+        "run, not grepped"
     )
 
 

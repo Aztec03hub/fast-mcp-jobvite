@@ -52,19 +52,41 @@ TOTAL=0
 # the harness aborts before running a single control. So the gate went down
 # reporting a true fact about a tree this script had built wrong.
 #
-# THIS IS THE THIRD TIME. Whenever a unit adds a test that reads a path outside
-# this list, the harness aborts and every control silently stops running. The
-# list is the fragile part, not the tests: it is an allow-list that has to be
-# updated by whoever adds a test, and nothing reminds them. If it happens a
-# fourth time, stage the whole tree minus .git/.venv/caches instead of naming
-# members - an allow-list of paths selects for exactly the path nobody thought of.
-COPY=(pyproject.toml uv.lock .env.example .gitignore src tests docs scripts .github)
+# THIS IS THE FOURTH TIME, AND THE PREVIOUS COMMENT SAID WHAT TO DO ABOUT IT.
+# U1 landed server.json at the repository root and
+# test_server_json_declares_every_variable reads it; server.json was not in the
+# list, so the file was absent from the copy, the baseline went red with a
+# FileNotFoundError, and all eleven controls stopped running again.
+#
+# So the allow-list is gone, as its own comment prescribed. THE UNIT OF STAGING
+# IS NOW THE TREE, with a deny-list of things that must not be copied. An
+# allow-list of paths selects for exactly the path nobody thought of, and it
+# selected for .github, then for tests/credentialed, and now for server.json.
+# A deny-list fails the other way: a new directory is copied unnecessarily,
+# which costs a little time and breaks nothing.
+#
+# Everything tracked by git is staged, which also means the copy matches what CI
+# checks out rather than what somebody remembered to name. Untracked build
+# artifacts (.venv, caches, .pytest_cache) are excluded for free, because git
+# does not track them.
+SKIP_TOP=(.git .venv venv node_modules)
 
 stage () {
   local dest="$1"
-  local item
-  for item in "${COPY[@]}"; do
-    cp -r "$REPO/$item" "$dest/" || return 1
+  # Every tracked file, reproduced with its directory structure. `git -C ... ls-files`
+  # is the authority on what the repository contains, which is the whole point:
+  # nobody has to remember to add anything.
+  local n
+  n=$(cd "$REPO" && git ls-files | wc -l)
+  [ "$n" -gt 0 ] || { echo "    STAGING CONTROL: git ls-files returned nothing"; return 1; }
+  (cd "$REPO" && git ls-files -z | tar --null -cf - -T -) | (cd "$dest" && tar -xf -) || return 1
+  # Positive control on the staging itself: the three files whose absence has
+  # broken this harness before must be present in the copy. A staging step that
+  # silently copies nothing produces a baseline failure that reads like a real one.
+  local probe
+  for probe in pyproject.toml server.json .github/workflows/mirror.yml; do
+    [ -e "$REPO/$probe" ] || continue
+    [ -e "$dest/$probe" ] || { echo "    STAGING CONTROL: $probe missing from the copy"; return 1; }
   done
 }
 
