@@ -332,6 +332,17 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **The last two audit rows that nothing asserted are now asserted, and one was on the write.**
+  Six places in `src/` record a failed invocation as `result_status = "error"`; deleting each in
+  turn and running the whole suite showed two that no test could see - `search_candidates` and
+  `create_candidate`. Both sit in a module measuring 100.00% line and 100.00% branch on the
+  critical-path floors, because the cases that walk those arms assert the caller-visible half and
+  never read the audit row. The write is the serious one: a failed or ambiguous create was recorded
+  as a success, and the audit row is the only surviving evidence afterwards. The write also emits
+  **twice** - the pre-write row is correctly `success` because nothing has failed yet - so the
+  assertion had to name which row carries the verdict, and the first attempt at it would have
+  passed against the amputated code. (2026-08-29 12:13 PM CDT)
+
 - **CI's zero-skips guard read the wrong input and never fired, and CI has been red all day behind
   cancelled runs.** The step's here-string sat after `then` rather than on its `grep`, so the grep
   read standard input instead of the captured pytest output, matched nothing, and the guard stayed
