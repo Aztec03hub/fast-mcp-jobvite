@@ -6,6 +6,10 @@ task #15 that was assigned with it. Frozen design read as `git show c15b138:docs
 **Verdict: M-5 fixed, L-1 resolved by wiring, and task #15's defect was LIVE and is fixed here.**
 Not "no live path" - a committed probe measured the credentials reaching stderr in the clear.
 
+Two things went wrong on my side and are written up rather than tidied away: I ran `git add -A`
+twice while a harness was mutating the same worktree (§11), and I concluded a redactor was
+redundant from a suite that structurally could not see it (§7).
+
 ---
 
 ## 1. The two standards clauses, quoted from source
@@ -31,10 +35,10 @@ not from an unnumbered window.
 
 **Your reading was right, and I checked it rather than adopting it.** `detail` has to carry one bit -
 upstream failure versus a breaker we opened - and an enumerated string carries it. `errors.py:146-153`
-(`JobviteUnavailableError`) repeats the same requirement in its own docstring. I also grepped
-`git show c15b138:docs/DESIGN.md` for every other mention of `detail` on the unavailable path;
-DESIGN.md:532-534 puts *Jobvite's own message* in `detail`, and that is `JobviteUpstreamError`, a
-different class, untouched by this change. **No ADR is needed.**
+(`JobviteUnavailableError`) repeats the same requirement in its own docstring. I also read every
+other mention of `detail` on the unavailable path at the frozen SHA; DESIGN.md:532-534 puts
+*Jobvite's own message* in `detail`, and that is `JobviteUpstreamError`, a different class, untouched
+by this change. **No ADR is needed.**
 
 ## 3. What `detail` said, verbatim, before and after
 
@@ -106,13 +110,14 @@ consumer's `detail` to a file, and asserts against the bytes the process actuall
 ## 5. L-1: where `redact_headers` is now called
 
 **Confirmed orphaned before acting.** `grep -rna "redact_headers" . --exclude-dir=.git` and
-`git grep -n "redact_headers" HEAD` (two instruments, one of them reading git objects rather than
-the working tree): definition at `src/fast_mcp_jobvite/utils/redaction.py:152`, four hits in
+`git grep -n "redact_headers" HEAD` (two instruments, one reading git objects rather than the
+working tree): definition at `src/fast_mcp_jobvite/utils/redaction.py:152`, four hits in
 `tests/test_redaction.py`, and prose in `docs/reviews/REVIEW-CODE-R2.md` and the brief. No caller in
 `src/`. Positive control on the instrument: the same grep finds `redact_arguments` with `src/` call
 sites, so an empty `src/` column is a real absence and not a broken search.
 
-It is now called at `jobvite_client.py` in the new `logger.warning("jobvite transport failure", ...)`:
+It is now called in the new `logger.warning("jobvite transport failure", ...)` in
+`jobvite_client.request`:
 
 ```python
 headers=redact_headers(headers),
@@ -133,9 +138,8 @@ faked to make them so.
 The brief asked me to check it and state the method. I did not settle it by argument.
 
 **Method: a runnable probe against a process configured the shipped way**, now committed as
-`EXCEPTION_LEAK_ENTRY` /
-`test_an_exception_carrying_a_credential_is_redacted_at_the_sink`. It imports
-`fast_mcp_jobvite.__main__`, raises a `RuntimeError` whose text carries
+`EXCEPTION_LEAK_ENTRY` / `test_an_exception_carrying_a_credential_is_redacted_at_the_sink`. It
+imports `fast_mcp_jobvite.__main__`, raises a `RuntimeError` whose text carries
 `.../jobFeed?api=..&sc=..&companyId=..`, and calls `logging.getLogger(...).exception(...)`.
 
 **Measured at `025aa55`, before any fix - the credentials appear TWICE in one record:**
@@ -149,11 +153,10 @@ So the defect is **wider than task #15 states**: it is not only `record["excepti
 also emits a `text` key holding the fully rendered line **including the formatted traceback**, and
 `_redact_message` reached neither.
 
-**The producers, enumerated rather than asserted absent.** `_InterceptHandler.emit`
-(`__main__.py`) passes `exception=record.exc_info` for **every** stdlib `logging` record in the
-process. That is not an enumerable set of libraries - it is "any dependency that calls
-`logger.exception` or `logger.error(..., exc_info=True)`". Two producers are in the shipped tree
-today:
+**The producers, enumerated rather than asserted absent.** `_InterceptHandler.emit` passes
+`exception=record.exc_info` for **every** stdlib `logging` record in the process. That is not an
+enumerable set of libraries - it is "any dependency that calls `logger.exception` or
+`logger.error(..., exc_info=True)`". Two producers are in the shipped tree today:
 
 1. `__main__.main`'s `logger.exception("the server terminated abnormally")` on the abnormal
    termination path;
@@ -173,10 +176,10 @@ tests assert the record still parses after redaction.
 not a *function* sink, and an unflushed write to a full disk returns normally and raises at
 interpreter shutdown, which would have silently disarmed H-2's `/dev/full` arm.
 
-## 7. A correction I made mid-change, because the first measurement was scoped wrong
+## 7. A wrong conclusion I drew and corrected, because the first measurement was scoped wrong
 
 With the sink redacting, I amputated `_redact_message` and the U1 boot suite passed **78/78**. I
-concluded it was redundant, deleted it, and said so in a docstring.
+concluded it was redundant, deleted it, and wrote that conclusion into a docstring.
 
 **The full suite then went red** on
 `tests/test_jobvite_client.py::test_the_jobfeed_url_never_reaches_a_log_record_whole`, with
@@ -193,14 +196,15 @@ the filter at all: the 78/78 was an instrument fault, not a finding.
 Both are kept. The property is now asserted deterministically by
 `test_a_sink_this_project_did_not_install_sees_a_redacted_record` (a subprocess that adds its own
 second sink), rather than left depending on pytest collection order across two modules. Amputation
-row L carries the story so the next reader does not repeat the deletion.
+row L carries the story so the next reader does not repeat the deletion, and mutation control M20
+kills it.
 
 **This is why the full gate runs before folding, not after.** A focused suite that is green about
 the thing it can see is not a gate.
 
-## 8. Harness rows, wired in the same commit
+## 8. Harness rows, and two gates that were themselves defective
 
-`scripts/check-u4-client-amputation.sh`:
+`scripts/check-u4-client-amputation.sh` - 17 rows, every one applied:
 
 - **A9's anchor was stale** the moment M-5 was fixed. Rewritten as "M-5 reopened": the pre-fix
   `redact_text(f"...")` line restored. Red.
@@ -210,15 +214,26 @@ the thing it can see is not a gate.
 - **A9d** `redact_headers` unwired. Red.
 - **A9e** the exception text logged without `redact_text`. Red.
 - **A9f** the failure is not logged at all, so every control this fix RELOCATED to the log goes
-  vacuous. Red (3 failures).
+  vacuous. Red, 3 failures.
+
+`scripts/check-u4-client-controls.sh`: **M12's anchor was stale too, and the harness said so in a
+line CI does not read.** `COULD NOT APPLY` left the run at exit 0 reporting "16 killed, 1 not
+killed", and the CI step gates on the exit code and on `killed > 0` - so a moved mutation anchor
+passed the gate silently. M12 is repointed at the log line's `redact_text`, and **M12b** (M-5 as a
+mutation) and **M12c** (`redact_headers` unwired) added. Now 19 killed, 0 not killed.
+
+**That CI hole is closed in this branch**: the U3 and U4 mutation steps now fail on
+`COULD NOT APPLY` and on a non-zero "not killed" count, the same way the amputation steps already
+did.
 
 `scripts/check-u1-boot-amputation.sh`: row **L** is the record filter, row **N** the serialising
-sink, each with the other's blind spot written down.
+sink, each carrying the other's blind spot in its comment. Both kill exactly one arm.
 
-`scripts/check-u1-boot-controls.sh`: **M18** repointed (its old anchor `filter=_redact_message`
-would have survived, since the sink now covers that arm) and **M20** added for the filter.
+`scripts/check-u1-boot-controls.sh`: **M18** repointed at the sink (its old anchor
+`filter=_redact_message` would now survive, since the sink covers that arm) and **M20** added for
+the filter. 20/20.
 
-`.github/workflows/ci.yml`: **its U4 row-count gate was itself defective.** It counted
+`.github/workflows/ci.yml`: **its U4 amputation row-count gate was also defective.** It counted
 `'^########## A[0-9]+ '`, with a space straight after the digits, so `A9b`..`A9f` matched nothing:
 the gate would have reported 12 while 17 ran, and `-ge 12` would have passed. Pattern and count
 corrected to 17; the U1 count moved 13 -> 14.
@@ -226,7 +241,7 @@ corrected to 17; the U1 count moved 13 -> 14.
 `CONTRIBUTING.md` needs no edit: it lists the harness SCRIPTS, all of which already run, and no new
 script was added. Said explicitly because the brief asked for both files.
 
-`docs/OBLIGATIONS.md`: my `ci.yml` comment shifted two anchors. `check-obligations.py` output,
+`docs/OBLIGATIONS.md`: my `ci.yml` edits shifted two anchors. `check-obligations.py` output,
 verbatim:
 
 ```
@@ -244,17 +259,38 @@ Every mapped anchor still contains its subject. OK.
 and `--controls`: `Every mapped anchor still contains its subject. OK. / post-run re-check of the
 real OBLIGATIONS.md: exit=0`.
 
-## 9. Gates, by exit code
+## 9. B49b landed mid-task, so this branch's prose is already at 72
+
+`b49b` merged at `f0c3764` while this branch was open, enabling `W505` with
+`max-doc-length = 72`. This branch predates it, so its new prose was written at 79.
+
+**201 doc lines this branch ADDED exceeded 72.** Measured with
+`ruff check --select W505 --config 'lint.pycodestyle.max-doc-length=72' --output-format json`,
+intersected with the lines `git diff -U0 025aa55` reports as added, so the count is this branch's
+own residue and not `b49b`'s. Reflowed to **0**, block by block, restricted to blocks containing an
+added line - rewrapping a line `b49b` had already rewrapped would turn each one into a merge
+conflict for no gain.
+
+Twelve lines the reflow left alone were fixed by hand (docstring summary lines that could only be
+shortened, two `Args:` entries, two rulers cut from 75 to 70 dashes to match `b49b`'s style at
+`f0c3764`). `ruff --fix` then cleared the `D209` closing quotes the reflow had pulled up, and one
+`D205` was rewritten by hand.
+
+**The merge will still conflict** in `__main__.py`, `jobvite_client.py`, `test_jobvite_client.py`
+and `test_logging_process.py`, because `b49b` rewrapped the same files. What this buys is that after
+the conflict is resolved, `ruff check` is clean rather than carrying 201 new violations.
+
+## 10. Gates, by exit code
 
 Baseline at `025aa55`, before any edit: **322 passed, 2 deselected, 0 skipped** - it agrees with
 `PREAMBLE.md`, so that line is not stale.
 
-On the delivered tree:
+On the delivered tree, every harness run **serially** (see §11):
 
 | gate | result |
 | --- | --- |
 | `uv run --frozen ruff check .` | `All checks passed!`, exit 0 |
-| `uv run --frozen ruff format --check .` | `44 files already formatted`, exit 0 |
+| `uv run --frozen ruff format --check .` | `45 files already formatted`, exit 0 |
 | `uv run --frozen mypy` | `Success: no issues found in 32 source files`, exit 0 |
 | `uv run --frozen pytest` | **326 passed, 2 deselected, 0 skipped** |
 | `uv lock --check` | exit 0 |
@@ -265,39 +301,64 @@ On the delivered tree:
 | `docs/reviews/check-coupling-sweep.py` | exit 0 |
 | `docs/reviews/check-obligations.py` (+ `--controls`) | exit 0 |
 | `scripts/check-u1-boot-controls.sh` | **20/20 controls fired**, exit 0 |
-| `scripts/check-u4-client-amputation.sh` | 17 rows, **0 "COULD NOT APPLY"**, every new row red |
+| `scripts/check-u1-boot-amputation.sh` | 14 rows, 0 `COULD NOT APPLY`, 0 `TIMED OUT`; L and N each kill one arm |
+| `scripts/check-u4-client-controls.sh` | **19 killed, 0 not killed**, exit 0 |
+| `scripts/check-u4-client-amputation.sh` | 17 rows, 0 `COULD NOT APPLY`, 0 `DID NOT LAND` |
 
 326 = 322 + 4 new cases (one in `test_jobvite_client.py`, three in `test_logging_process.py`).
-Counts read off the terminal after the run, not predicted.
+Counts read off the terminal after each run, not predicted.
 
-## 10. What I did NOT verify
+## 11. A contamination I caused, and what it invalidated
+
+**I ran `git add -A` twice while `scripts/check-u1-boot-amputation.sh` was running in the same
+worktree.** That harness mutates `config.py`, `server.py` and `__main__.py` and restores each from a
+byte copy it took at its own start. Two of my commits therefore captured an amputated tree:
+
+- `dd3e82c` committed `validate_settings` with its body replaced by `return`;
+- `021db3a` committed `build_server` returning a bare `FastMCP` - caught only because `ruff` then
+  reported `F401 __version__ imported but unused` in a file I had never touched.
+
+Both are restored in `5538c65` from `025aa55` and verified byte-identical to it
+(`git diff 025aa55 -- src/fast_mcp_jobvite/config.py src/fast_mcp_jobvite/server.py` is empty). The
+whole-tree diff against `025aa55` now touches exactly twelve files, all of them this task's.
+
+The harness also restored `__main__.py` over my reflow, from a copy predating it, which is why that
+file was reflowed twice.
+
+**And it voided measurements.** I ran the two U4 harnesses concurrently with the U1 one, in the same
+checkout. The numbers in an earlier draft of this report came from those runs. Every harness quoted
+in §10 has been **re-run serially** on the final tree, and the U4 controls figure changed as a
+result of the M12 repoint (16/1 -> 19/0). Nothing else moved, but "nothing moved" is only worth
+saying because the runs were repeated.
+
+## 12. What I did NOT verify
 
 Things I could not settle, not things I did not try:
 
-1. **`scripts/check-u4-client-controls.sh` and `check-u3-*`** - not run. They are unrelated to this
-   change's anchors, but "unrelated" is my inference and the run is the evidence.
-2. **The U1 amputation harness's full survivor list on the delivered tree** - it was still running
-   when I wrote this. `check-u1-boot-controls.sh` (20/20) covers the same two anchors from the
-   mutation side, so both rows are known to have live subjects; the survivor NAMES for rows L and N
-   are not in this report.
-3. **`redact_text` over a JSON-decoded string can still mangle punctuation adjacent to a URL** - the
+1. **`scripts/check-u3-audit-controls.sh` and `check-u3-audit-amputation.sh`** - not run. Their
+   anchors are in `audit.py`, which this branch does not touch, and the CI change I made to their
+   step is a strictly tightening one - but that is my inference and a run is the evidence. They cost
+   several minutes each and the tree is already serialised behind two other harnesses.
+2. **`redact_text` over a JSON-decoded string can still mangle punctuation adjacent to a URL** - the
    walk stops it corrupting the RECORD, not the value. A message ending `...?sc=x, please` has the
    comma swallowed into the redacted value. Pre-existing, unchanged by me, and cosmetic; I did not
    measure how often it happens on real messages.
-4. **Whether `text` and `record["exception"]` are the only serialize-rendered fields that can carry
+3. **Whether `text` and `record["exception"]` are the only serialize-rendered fields that can carry
    free text.** The walk covers every string in the record whatever its key, so I believe the
    question no longer matters - but I did not enumerate loguru's serialiser field by field, and
    "the walk covers everything" is a claim about the code I read, not about loguru's next version.
-5. **The `retry_after` hint** DESIGN.md:358 attaches to a 503 alongside `detail`. Nothing in the
+4. **The `retry_after` hint** DESIGN.md:358 attaches to a 503 alongside `detail`. Nothing in the
    client produces one today and U7 owns the breaker; I left it alone rather than inventing a
    constant with no producer.
+5. **The merge itself.** I did not attempt the merge onto `f0c3764`, so I cannot say how large the
+   `b49b` conflict is - only that it exists and that resolving it leaves a lint-clean tree.
 
-## 11. Housekeeping
+## 13. Housekeeping
 
-Worktree `/tmp/m5-work` at `025aa55`, branch `fix/m5-exception-detail`. **I removed it after the
-final gate run** and pushed nothing; the branch is in the repository for the lead to merge.
+Worktree `/tmp/m5-work` at `025aa55`, branch `fix/m5-exception-detail`. **Removed after the final
+gate run**; I pushed nothing and the branch is in the repository for you to merge.
 
-I touched `src/`, `tests/`, `scripts/`, `.github/workflows/ci.yml`, `docs/OBLIGATIONS.md` (via its
-checker), one `changelog.d` fragment and this report. `docs/OBLIGATIONS.md` is the only
-documentation edit beyond the fragment, it was mechanical, and I flag it here because `b49b-sweep`
-is also moving through documentation.
+Files touched: `src/` (2), `tests/` (2), `scripts/` (4), `.github/workflows/ci.yml`,
+`docs/OBLIGATIONS.md`, one `changelog.d` fragment, and this report. `docs/OBLIGATIONS.md` is the
+only documentation edit beyond the fragment, it was mechanical, and I flag it because `b49b-sweep`
+was also moving through documentation.
