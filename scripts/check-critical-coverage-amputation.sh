@@ -44,11 +44,12 @@ export PYTHONDONTWRITEBYTECODE=1
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 3
 
-# DERIVED FROM A RUN, not typed in: fifteen rows are defined below and
-# fifteen ran when this was written. `FIRED -ne TOTAL` is satisfied by
-# `0 == 0`, so a harness with every row deleted reports "0/0" and exits
-# clean without a floor.
-ROW_FLOOR=15
+# DERIVED FROM A RUN, not typed in: eighteen rows are defined below and
+# eighteen ran when this was last raised (task #97; it was 15 before,
+# and the new value was read off the run rather than added to the old
+# number). `FIRED -ne TOTAL` is satisfied by `0 == 0`, so a harness
+# with every row deleted reports "0/0" and exits clean without a floor.
+ROW_FLOOR=18
 
 #: The one row whose survival is a declared finding rather than a
 #: defect. Everything else going vacuous fails this harness.
@@ -56,15 +57,17 @@ EXPECTED_SURVIVOR="A1"
 
 APPROVAL="src/fast_mcp_jobvite/approval.py"
 CANDIDATES="src/fast_mcp_jobvite/tools/candidates.py"
+JOBS="src/fast_mcp_jobvite/tools/jobs.py"
 CHECKER="docs/reviews/check-coverage-floors.py"
 SUITE="tests/test_approval_write.py tests/test_tools_candidates.py \
+tests/test_tools_jobs.py tests/test_tools_job_feed.py \
 tests/test_coverage_floors.py"
 OUT=/tmp/critical-coverage-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
 trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
-for f in "$APPROVAL" "$CANDIDATES" "$CHECKER"; do
+for f in "$APPROVAL" "$CANDIDATES" "$JOBS" "$CHECKER"; do
   cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
     { echo "COULD NOT TAKE PRISTINE COPY of $f"; exit 3; }
 done
@@ -394,6 +397,65 @@ amputate "A15 the floors are typed in rather than read from the design" "$CHECKE
         "critical line": 95,
         "critical branch": 90,
     }'
+
+# ---------------------------------------------------------------------------
+# ROWS A16 TO A18 ARE TASK #97: THE SAME TWO SHAPES, IN `tools/jobs.py`.
+#
+# #94 closed the registration credential guard and a read tool's error
+# arm in `tools/candidates.py`. `tools/jobs.py` carries both shapes and
+# is NOT on DESIGN.md:1364's critical-path list, so ADR-0010 gives it
+# the 85% tool-module floor - it measured 97.44% line and 91.67% branch
+# with the guard entirely untested, and `check-coverage-floors.py`
+# passed it and always would. The floor is not defective; it is loose,
+# which is what makes a harness row the only instrument that sees this.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A16 - `search_jobs`' REGISTRATION CREDENTIAL GUARD IS GONE. The tool
+# registers against credentials that are not there and reaches for them
+# on the first call, turning a misconfiguration into a 500 the caller
+# sees. This is A7's shape one module over.
+# ---------------------------------------------------------------------------
+amputate "A16 the search_jobs registration credential guard is deleted" "$JOBS" \
+  '    if settings.api_key is None or settings.api_secret is None:
+        msg = (
+            f"{SEARCH_JOBS} is enabled but its credentials are unset; "
+            f"validate_settings should have refused this configuration"
+        )
+        raise ValueError(msg)
+    api_key = settings.api_key' \
+  '    api_key = settings.api_key'
+
+# ---------------------------------------------------------------------------
+# A17 - THE FEED READ'S FAILURE IS AUDITED AS A SUCCESS. A11's shape,
+# and the row this task exists for: the arm was already at 100% LINE
+# coverage before task #97, because a redaction case drives a failing
+# call through it on the way to asserting something else. Coverage
+# could not distinguish "executed" from "asserted"; this row can.
+# ---------------------------------------------------------------------------
+#
+# The anchor carries `result = build_feed_result(...)` because the
+# `except` line and the `result_status` line appear TWICE in this module
+# - once per tool - and a non-unique anchor is refused rather than
+# applied to the first hit, which would amputate `search_jobs`' audit
+# row instead.
+amputate "A17 a failed feed read is audited as a success" "$JOBS" \
+  '                result = build_feed_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"' \
+  '                result = build_feed_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem'
+
+# ---------------------------------------------------------------------------
+# A18 - ONLY HALF THE GUARD'S DISJUNCTION IS GONE. The narrower row and
+# the more interesting one: a guard reading `api_key` alone still
+# refuses the configuration that supplies neither credential, so A16's
+# broad deletion is satisfied by a case that never separates the two.
+# A deployment holding a key and no secret registers the tool.
+# ---------------------------------------------------------------------------
+amputate "A18 the registration guard reads only half its credential pair" "$JOBS" \
+  '    if settings.api_key is None or settings.api_secret is None:' \
+  '    if settings.api_key is None:'
 
 # ---------------------------------------------------------------------------
 # THE GATE.
