@@ -18,10 +18,17 @@ name: CI
 #     pinned versions and their first real run is their first evidence.
 #
 #   DEFERRED with an owning unit, NOT silently omitted:
-#     pip-audit + scripts/check_advisories.py -> U11 (the script does not exist;
-#       landing the call now makes CI red from its first run, which trains
-#       everyone to ignore the thing this workflow exists to make authoritative -
-#       IMPLEMENTATION-PLAN.md:206-211)
+#     scripts/check_advisories.py -> LANDED by U11 (f4f69f9). The step runs and
+#       enforces the expiry half. This entry stayed here saying "the script does
+#       not exist" after it did, which U11 flagged and could not fix - :1365
+#       gives it its own block and nothing else.
+#     pip-audit ITSELF -> STILL DEFERRED, and this is the sharper gap. The design
+#       requires it and NO step runs it, so check_advisories.py emits
+#       --ignore-vuln flags that NOTHING CONSUMES: the ignore mechanism is fully
+#       built and connected to nothing, and the dependency tree is not audited.
+#       Blocked on the serialised dependency slot (collision 10). Tracked as #26.
+#       NEVER `uv run --with pip-audit` - that resolves unpinned outside the lock,
+#       which is exactly the defect ADR-0015 records for pip-licenses.
 #     coverage floors -> U1 (src/fast_mcp_jobvite holds only __init__.py, so a
 #       coverage run reports "No data collected" or a vacuous 100%)
 #     fastmcp inspect capability-drift diff -> U1 (`fastmcp inspect` takes a
