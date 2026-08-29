@@ -218,6 +218,22 @@ p.write_text(s.replace(anchor, "    return True\n" + anchor))
 PY
 report "L. the sink's redactor returns without redacting"
 
+# --- N. the SINK-level redaction is bypassed ------------------------------
+# L above amputates the record FILTER, which reaches `record["message"]`.
+# This row amputates the other depth: the sink writes the serialised record
+# straight to the stream, so `record["exception"]` and the rendered `text`
+# (which carries the formatted traceback) go out unredacted. Anything
+# claiming "no credential reaches the stream" that only ever populated
+# `message` survives here, and that survivor is the finding.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        _redacting_sink(sys.stderr),"
+assert s.count(anchor) == 1, "N anchor is not unique"
+p.write_text(s.replace(anchor, "        sys.stderr,"))
+PY
+report "N. the sink writes the serialised record without redacting it"
+
 # --- M. stdlib logging is never bridged into loguru -----------------------
 # Two logging systems again, both live, writing two shapes onto one fd.
 python3 - "$MAIN" <<'PY'

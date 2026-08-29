@@ -387,3 +387,186 @@ def test_a_third_party_log_line_is_redacted_at_the_sink(
         if needle in whole
     ]
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
+
+
+#: An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
+#:
+#: `_InterceptHandler` forwards `record.exc_info` for every stdlib logger in
+#: the process, so `record["exception"]` is populated - and `serialize=True`
+#: renders it, plus the formatted traceback inside `text`. `_redact_message`
+#: reaches `record["message"]` and neither of those.
+#:
+#: MEASURED before the sink-level redaction landed: both credentials came back
+#: in the clear, twice each, on a process configured the shipped way.
+EXCEPTION_LEAK_ENTRY = """
+import logging
+
+import fast_mcp_jobvite.__main__  # noqa: F401 - configures the one log sink
+
+try:
+    raise RuntimeError(
+        "timed out connecting to https://api.jobvite.com/v1/jobFeed"
+        "?api=LEAKKEY-not-a-real-credential&sc=LEAKSECRET-not-a-real-credential"
+        "&companyId=LEAKCOMPANY"
+    )
+except RuntimeError:
+    logging.getLogger("some.third.party").exception("upstream call failed")
+"""
+
+
+def test_an_exception_carrying_a_credential_is_redacted_at_the_sink(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`serialize` renders more than one field, so redacting one is not enough.
+
+    **This is the shape of the leak above, one field across.** The fix for the
+    `httpx2` INFO line redacts `record["message"]`; `serialize=True` also
+    renders `record["exception"]` and a `text` carrying the formatted
+    traceback. An exception's `str()` is where a URL lands - which is the whole
+    premise of `redact_text` (DESIGN.md:314-315).
+
+    **The producers are not enumerable, which is why the fix is at the sink.**
+    `_InterceptHandler` forwards `exc_info` for every stdlib logger in the
+    process: any dependency calling `logger.exception` or
+    `logger.error(..., exc_info=True)` reaches this, and `__main__.main` is
+    itself one on the abnormal-termination path. Naming producers is the
+    allow-list that let the original leak sit unseen, so this arm uses a logger
+    name no dependency owns.
+    """
+    result = _run_script(tmp_path, EXCEPTION_LEAK_ENTRY)
+    assert result.returncode == 0, result.stderr
+
+    records = _serialised_records(result.stderr)
+    # POSITIVE half #1: the line was emitted AND the record still parses as
+    # JSON. A redaction that corrupted the line would empty this list, and
+    # every absence below would then pass on a parse failure.
+    assert records, f"no serialised record survived the redaction: {result.stderr!r}"
+
+    # POSITIVE half #2: the exception really did reach `record["exception"]`,
+    # so this arm is about redaction and not about a field that was never
+    # populated - which is what an `logger.error` without `exc_info` gives.
+    with_exception = [
+        record for record in records if record.get("record", {}).get("exception")
+    ]
+    assert with_exception, f"no record carried an exception at all: {records}"
+    rendered = json.dumps(with_exception[0])
+    # POSITIVE half #3: real content reached it, so the absences are about
+    # redaction and not about an empty string.
+    assert "jobvite.com" in rendered
+    assert "[REDACTED]" in rendered
+
+    # ABSENCE half, over the WHOLE stream, computed as a bool first so a red
+    # run prints no credential.
+    leaked = [
+        needle
+        for needle in (
+            "LEAKSECRET-not-a-real-credential",
+            "LEAKKEY-not-a-real-credential",
+            "LEAKCOMPANY",
+        )
+        if needle in result.stderr
+    ]
+    assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
+
+
+#: The M-5 path end to end, in a process configured the shipped way.
+#:
+#: `tests/test_jobvite_client.py` asserts the same behaviour against a sink it
+#: installs itself. A sink a test invents is a real loguru stream, just not the
+#: one the server writes to - which is exactly how H-1 stayed invisible - so
+#: the claim that a transport failure publishes nothing is settled HERE, on the
+#: bytes the process wrote, and the client suite covers the shape.
+#:
+#: `detail` is written to a file rather than logged: it is the value that
+#: reaches the API CONSUMER, and putting it on the stream under test would
+#: make the stream assertions unable to tell the two apart.
+CLIENT_FAILURE_ENTRY = """
+import asyncio
+import json
+import pathlib
+import sys
+
+import httpx2
+
+import fast_mcp_jobvite.__main__  # noqa: F401 - configures the one log sink
+
+from fast_mcp_jobvite.errors import JobviteUnavailableError
+from fast_mcp_jobvite.services.jobvite_client import JOBFEED_PATH, JobviteClient
+
+OUT = pathlib.Path(sys.argv[1])
+
+
+class Secret:
+    def __init__(self, value):
+        self._value = value
+
+    def get_secret_value(self):
+        return self._value
+
+
+def handler(request):
+    raise httpx2.ConnectTimeout("timed out connecting to %s" % request.url)
+
+
+async def main():
+    client = JobviteClient(
+        api_key=Secret("LEAKKEY-not-a-real-credential"),
+        api_secret=Secret("LEAKSECRET-not-a-real-credential"),
+        company_id=Secret("LEAKCOMPANY"),
+        transport=httpx2.MockTransport(handler),
+    )
+    async with client as c:
+        try:
+            await c.request("GET", JOBFEED_PATH, jobfeed=True)
+        except JobviteUnavailableError as exc:
+            OUT.write_text(json.dumps({"detail": exc.detail}))
+
+
+asyncio.run(main())
+"""
+
+
+def test_the_process_publishes_no_credential_when_the_transport_fails(
+    tmp_path: pathlib.Path,
+) -> None:
+    """M-5 and L-1 end to end: what the CONSUMER got, and what the STREAM got.
+
+    The consumer's `detail` carries no third-party text
+    (`backend/error-handling.md:383`, `:493`) and still distinguishes an
+    upstream failure from an open breaker (DESIGN.md:356-360). The stream
+    carries the exception text and the credential headers, redacted.
+    """
+    out = tmp_path / "detail.json"
+    result = _run_script(tmp_path, CLIENT_FAILURE_ENTRY, str(out))
+    assert result.returncode == 0, result.stderr
+
+    detail = json.loads(out.read_text())["detail"]
+    # The consumer's half. Nothing httpx2 wrote, and still actionable.
+    assert "not an open circuit breaker" in detail
+    assert "jobvite.com" not in detail
+    assert "ConnectTimeout" not in detail
+    assert "timed out connecting" not in detail
+
+    # The stream's half. POSITIVE control first: the failure really was logged
+    # and the record still parses, so the absences are not about silence.
+    records = _serialised_records(result.stderr)
+    failures = [
+        record
+        for record in records
+        if record.get("record", {}).get("message") == "jobvite transport failure"
+    ]
+    assert failures, f"the transport failure was never logged: {result.stderr!r}"
+    extra = failures[0]["record"]["extra"]
+    assert "jobvite.com" in extra["error"]
+    assert "ConnectTimeout" in extra["error"]
+
+    leaked = [
+        needle
+        for needle in (
+            "LEAKSECRET-not-a-real-credential",
+            "LEAKKEY-not-a-real-credential",
+            "LEAKCOMPANY",
+        )
+        if needle in result.stderr or needle in detail
+    ]
+    assert not leaked, f"{len(leaked)} of 3 credentials survived the failure path"

@@ -199,14 +199,73 @@ amputate "A8  _excerpt neither redacts nor truncates" "$CLIENT" \
   '    return text'
 
 # ---------------------------------------------------------------------------
-# A9 - the transport-error redaction arm is deleted. httpx puts the request URL
-# into its exception text, so on the feed this publishes `sc=`.
+# A9 - M-5 REOPENED. The consumer's `detail` goes back to being formatted from
+# the exception, which is what `backend/error-handling.md:383` and `:493`
+# forbid. This is the exact pre-fix line, restored.
 # ---------------------------------------------------------------------------
-amputate "A9  a transport error's text is passed through unredacted" "$CLIENT" \
+amputate "A9  M-5 reopened: the exception's text becomes the consumer's detail" "$CLIENT" \
+  '            raise JobviteUnavailableError(_unavailable_detail(exc)) from None' \
   '            raise JobviteUnavailableError(
                 redact_text(f"{type(exc).__name__}: {exc}")
-            ) from None' \
+            ) from None'
+
+# ---------------------------------------------------------------------------
+# A9b - and the same with no redaction at all: `str(exc)` verbatim. httpx puts
+# the request URL into its exception text, so on the feed this publishes `sc=`
+# straight to the caller.
+# ---------------------------------------------------------------------------
+amputate "A9b a transport error's text reaches the consumer unredacted" "$CLIENT" \
+  '            raise JobviteUnavailableError(_unavailable_detail(exc)) from None' \
   '            raise JobviteUnavailableError(str(exc)) from None'
+
+# ---------------------------------------------------------------------------
+# A9c - THE NEGATIVE ARM. The enumerated detail collapses to one string. It
+# leaks nothing, so M-5 stays fixed, and what dies is DESIGN.md:356-360's
+# requirement that `detail` distinguish an upstream outage from an open
+# breaker. A fix that makes `detail` useless passes M-5 and breaks the design;
+# this row is what catches it.
+# ---------------------------------------------------------------------------
+amputate "A9c the enumerated detail says nothing a caller can act on" "$CLIENT" \
+  '    if isinstance(exc, httpx2.TimeoutException):
+        return UNAVAILABLE_TIMEOUT_DETAIL' \
+  '    return "Jobvite is unavailable."
+    if isinstance(exc, httpx2.TimeoutException):
+        return UNAVAILABLE_TIMEOUT_DETAIL'
+
+# ---------------------------------------------------------------------------
+# A9d - L-1 UNWIRED AGAIN. `redact_headers` loses its one caller and the v2
+# credential headers reach the log line in the clear.
+# ---------------------------------------------------------------------------
+amputate "A9d the v2 credential headers reach the log unredacted" "$CLIENT" \
+  '                headers=redact_headers(headers),' \
+  '                headers=headers,'
+
+# ---------------------------------------------------------------------------
+# A9e - the exception text reaches the LOG unredacted. The consumer is still
+# safe, so M-5 stays fixed; what dies is DESIGN.md:314-315's "never in an
+# exception message, `sc=` redacted before any log line".
+# ---------------------------------------------------------------------------
+amputate "A9e the exception text is logged without redact_text" "$CLIENT" \
+  '                error=redact_text(f"{type(exc).__name__}: {exc}"),' \
+  '                error=f"{type(exc).__name__}: {exc}",'
+
+# ---------------------------------------------------------------------------
+# A9f - the failure is not logged AT ALL. The exception text now has nowhere
+# else to go, so every control this fix RELOCATED to the log must die here.
+# This is the row that proves the two transport cases are not asserting
+# absence against an empty list.
+# ---------------------------------------------------------------------------
+amputate "A9f the transport failure is never logged (relocated controls go vacuous)" "$CLIENT" \
+  '            logger.warning(
+                "jobvite transport failure",
+                method=method,
+                route=redact_url(
+                    f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"
+                ),
+                headers=redact_headers(headers),
+                error=redact_text(f"{type(exc).__name__}: {exc}"),
+            )' \
+  '            pass'
 
 # ---------------------------------------------------------------------------
 # A10 - the cookie jar is never cleared. Not httpx2's default behaviour being
