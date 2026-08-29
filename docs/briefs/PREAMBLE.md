@@ -70,12 +70,23 @@ The full list is in `CONTRIBUTING.md`. **mypy is the type gate, not pyright** - 
 lock, and a checklist row naming it once instructed a careful reviewer straight into the
 unfrozen-tool defect that ADR-0015 records.
 
-**The suite baseline is NOT written here, on purpose.** Derive it:
+**NEITHER FLOOR IS WRITTEN HERE, on purpose.** Derive both:
 
 ```bash
 grep -oE 'check-suite-floor\.sh [0-9]+' .github/workflows/ci.yml | head -1
 uv run --frozen pytest        # must be >= that floor, with 0 skipped
+
+grep -oE 'check-harness-anchors\.py --self-check --floor [0-9]+' .github/workflows/ci.yml
+python3 scripts/check-harness-anchors.py --self-check --floor <that number>
 ```
+
+**The anchor floor was added to this paragraph after it made the same mistake
+the suite floor had already made.** A brief dispatched with `--floor 164` in it
+reached an agent when `ci.yml` said 171: 164 was correct at `9eed403` and went
+stale before the brief was sent. The agent reported the disagreement rather than
+running the stale number, which is the behaviour this file asks for - but it
+should never have had to. Both floors now live in exactly one place and are read
+from it.
 
 **This line used to name a number, and the number went stale across three
 ratchets** - 322 while main was at 355, then 360, then 398. Two separate agents
