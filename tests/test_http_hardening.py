@@ -846,6 +846,60 @@ async def test_the_framework_default_throttles_everyone() -> None:
     assert "global" in message or "rate limit" in message, message
 
 
+async def test_a_drained_client_is_locked_out_at_initialize_not_degraded() -> None:
+    """R7-L4: the bucket survives a reconnect, and HOW it survives.
+
+    The arm above documents connection-level refusal for the GLOBAL
+    keying, where it is the thing that makes the default bad. The
+    identical behaviour on the PER-CLIENT keying was undocumented and
+    untested, and it is operator-visible: a drained client does not lose
+    one tool call and carry on, it cannot complete `initialize` at all,
+    on a NEW connection with the same token.
+
+    Two properties in one sequence, and the second is what makes the
+    first mean anything:
+
+    - the bucket is keyed to the TOKEN, not to the connection, so a
+      noisy integrator cannot reset its own quota by reconnecting;
+    - a bystander opening a connection at the same moment is unaffected,
+      which is what separates "this client is locked out" from "the
+      server stopped accepting connections".
+
+    **Sequential and single-client, like every limiter measurement in
+    this file.** Behaviour under simultaneous callers is unverified, and
+    `U9-IMPL-REPORT.md:294` and `ADR-0002:44` both say so. This arm does
+    not change that and does not claim to.
+    """
+    with serve_http(limiter_server(per_client=True)) as url:
+        drained = await refusals(url, JOBS_TOKEN, DRAIN_CALLS)
+
+        # POSITIVE CONTROL: the bucket really is empty. Everything below
+        # would pass against a limiter that refused nothing.
+        assert drained > 0, "the client never drained; this arm proves nothing"
+
+        # A BRAND NEW CONNECTION on the SAME token. The refusal lands on
+        # `initialize`, so it raises out of the context manager rather
+        # than out of `call_tool`.
+        with pytest.raises(Exception) as caught:  # noqa: B017, PT011
+            async with Client(StreamableHttpTransport(url, auth=JOBS_TOKEN)):
+                pass
+
+        # THE BYSTANDER, on the same server, in the same block.
+        bystander = await refusals(url, CANDIDATES_TOKEN, 2)
+
+    message = str(caught.value).lower()
+    assert "rate limit" in message, message
+    # The id in the refusal is the DIGEST, never the bearer token -
+    # `token_client_id` doing its job on the one path that publishes it.
+    assert JOBS_TOKEN not in str(caught.value), str(caught.value)
+    assert token_client_id(JOBS_TOKEN) in str(caught.value), str(caught.value)
+
+    assert bystander == 0, (
+        "the bystander was refused too, so the lockout is not per-client "
+        "and the server is simply closed to everyone"
+    )
+
+
 # ======================================================================
 # U9-F1: the caller's id must be the one that comes back
 # ======================================================================
