@@ -7,7 +7,7 @@ connection. `logging.basicConfig` defaults to stderr, but the default is the
 thing a later import changes, so it is stated.
 
 **The SIGTERM problem, and why the obvious fix is worse than none**
-(DESIGN.md:940-981). Lifespan teardown does not run under SIGTERM, only
+(DESIGN.md:960-1023). Lifespan teardown does not run under SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on the
 previous major, filed upstream as PrefectHQ/fastmcp#4927. Docker, Kubernetes
 and Cloud Run all stop containers with SIGTERM.
@@ -20,18 +20,26 @@ a container the process then does not stop on `docker stop` and is SIGKILLed
 after the grace period, guaranteeing no teardown at all. `_install_shutdown_handler`
 installs an explicit handler instead and never reads ambient state.
 
-**`os._exit(0)` in the `finally` is required on stdio** (DESIGN.md:959-961):
+**`os._exit` in the `finally` is required on stdio** (DESIGN.md:979-981):
 teardown runs there but the process does not die, because a non-daemon AnyIO
 worker thread blocks interpreter shutdown - even an explicit `sys.exit(0)`
 never completes. Teardown completes before `os._exit`, so skipping atexit
 handlers costs nothing we rely on.
 
-**A limit of the shape DESIGN.md:970-981 mandates, recorded rather than
-smoothed over:** because `os._exit(0)` sits in a `finally`, an exception
-escaping `mcp.run` also exits **0**, so a crash is indistinguishable from a
-clean stop to a supervisor. That is what the frozen design specifies and it
-is what is built here. ADR-0018 proposes the change and is **Proposed**, so
-it is not applied.
+**The exit status is the one the run earned** (ADR-0018, DESIGN.md:990-1023).
+`finally` runs on every exit from the `try`, not only the `KeyboardInterrupt`
+path, so a constant `0` would report a bound port, a misconfiguration or an
+escaping cancellation as a clean stop, and every supervisor that reads an exit
+status would believe it. `os._exit` still runs **unconditionally**, so the stdio
+hang above is still closed and nothing about the SIGTERM mitigation changes;
+only the constant moves. `70` is `EX_SOFTWARE`, matching the `EX_CONFIG` 78
+already used on the refusal path.
+
+**Untested by side effect, and that is the gap.** ADR-0018 requires a case that
+forces `mcp.run` to fail for a real reason - a bound port is the cheapest - and
+reads the process's exit status, on the same reasoning SS8 #18 applies to
+teardown. Nothing that can crash `mcp.run` exists yet; U9's HTTP hardening is
+where a bound port becomes reachable.
 """
 
 from __future__ import annotations
@@ -64,6 +72,12 @@ logger = logging.getLogger(__name__)
 #: an ordinary failure.
 EXIT_CONFIGURATION_REFUSED = 78
 
+#: `EX_SOFTWARE` from `sysexits.h`: the serving path ended abnormally. ADR-0018:
+#: a crash must not report itself as a clean stop, because Docker restart
+#: policies, Kubernetes `restartPolicy` and systemd `Restart=on-failure` all
+#: read the exit status and `0` means *do not restart, do not alarm*.
+EXIT_SOFTWARE = 70
+
 
 def _term(signum: int, frame: FrameType | None) -> None:
     """Turn SIGTERM into the interrupt the framework already unwinds on.
@@ -83,7 +97,7 @@ def _term(signum: int, frame: FrameType | None) -> None:
 
 
 def _install_shutdown_handler() -> None:
-    """Install the explicit SIGTERM handler (DESIGN.md:964-968)."""
+    """Install the explicit SIGTERM handler (DESIGN.md:984-988)."""
     signal.signal(signal.SIGTERM, _term)
 
 
@@ -91,7 +105,7 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     """Load configuration, select the transport, and serve until stopped.
 
     **This function does not return on the serving path.** The `finally`
-    calls `os._exit(0)`, which DESIGN.md:959-961 requires because a
+    calls `os._exit(status)`, which DESIGN.md:979-981 requires because a
     non-daemon AnyIO thread blocks interpreter shutdown on stdio. It returns
     a status only on the configuration-refusal path, which happens before
     the handler is installed and before anything is served.
@@ -114,6 +128,7 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     _install_shutdown_handler()
     mcp = build_server(settings, extra_lifespan=extra_lifespan)
 
+    status = 0
     try:
         if settings.mcp_transport == "http":
             logger.info("serving http on %s:%s", settings.mcp_host, settings.mcp_port)
@@ -128,11 +143,19 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
             mcp.run(transport="stdio", show_banner=False)
     except KeyboardInterrupt:
         logger.info("shutting down")
+    except BaseException:
+        logger.exception("the server terminated abnormally")
+        status = EXIT_SOFTWARE
+        # Never reaches a caller - the `finally` below forces the exit first.
+        # It is here so the traceback is not swallowed if that `finally` is
+        # ever removed; the logging call is what actually records the failure.
+        raise
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
-        # DESIGN.md:959-961. Teardown has already completed by here.
-        os._exit(0)
+        # DESIGN.md:979-981. Teardown has already completed by here, and the
+        # call is unconditional so the stdio hang stays closed (ADR-0018).
+        os._exit(status)
 
 
 if __name__ == "__main__":  # pragma: no cover

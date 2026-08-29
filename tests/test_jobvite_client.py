@@ -1,4 +1,4 @@
-"""DESIGN.md §8 case #1 and the rest of U4's contract (DESIGN.md:302-334).
+"""DESIGN.md §8 case #1 and the rest of U4's contract (DESIGN.md:308-340).
 
 **Every assertion here is on BEHAVIOUR, not on source text.** U3's amputation
 harness found a test that still passed with the behaviour deleted, because it
@@ -8,12 +8,12 @@ the source at all it walks the AST (`test_no_module_grep_...` below is the one
 place, and it is checking for the *absence* of a construct, not for prose).
 
 **A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite** (DESIGN.md:1214-1216). The five
+self-consistent, not that it speaks Jobvite** (DESIGN.md:1258-1260). The five
 recorded fixtures are the ground truth and are asserted byte-exact. The two
 malformed fixtures are INVENTED (`JOBVITE-CONTRACT.md` §1), so they are asserted
 to fail loudly and are given no ground-truth weight: their bytes are not pinned.
 
-Transport substitution is `httpx2`'s built-in `MockTransport` (DESIGN.md:1308-1309,
+Transport substitution is `httpx2`'s built-in `MockTransport` (DESIGN.md:1359-1360,
 ADR-0007). No third-party mocking library is used.
 """
 
@@ -114,7 +114,7 @@ def test_the_recorded_200_with_401_body_fixture_is_byte_exact() -> None:
 
 
 async def test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success() -> None:
-    """DESIGN.md:326-327 arm 1, against the recorded fixture VERBATIM.
+    """DESIGN.md:332-333 arm 1, against the recorded fixture VERBATIM.
 
     This is the whole reason the module exists. A client branching on
     `response.status_code` returns this body as a success, finds no `candidates`
@@ -125,7 +125,7 @@ async def test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success() -> None:
         with pytest.raises(JobviteUpstreamError) as caught:
             await c.request("GET", "/candidate")
 
-    # Jobvite's OWN status is preserved (DESIGN.md:517-519)...
+    # Jobvite's OWN status is preserved (DESIGN.md:532-534)...
     assert caught.value.upstream_status == 401
     assert "Invalid api/secret" in caught.value.upstream_message
     # ...and it maps to the registry's row, NOT to a 401 for the caller. The
@@ -137,7 +137,7 @@ async def test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success() -> None:
 async def test_positive_control_a_200_with_status_code_200_SUCCEEDS() -> None:
     """The paired positive control for the case above.
 
-    A guard that refuses everything is not a guard (DESIGN.md:1319-1321). Without
+    A guard that refuses everything is not a guard (DESIGN.md:1370-1372). Without
     this, an `evaluate_response` that raised on every input would pass the C5-S1
     case. This body is SYNTHETIC - no success body has ever been observed
     (`JOBVITE-CONTRACT.md` §3.2) - so it is a hypothesis and carries no
@@ -232,7 +232,7 @@ async def test_a_json_envelope_401_on_an_http_401_fails() -> None:
 
 
 async def test_a_tomcat_html_error_page_fails_loudly() -> None:
-    """`error_task_400.html` - the third handled encoding (DESIGN.md:329-331).
+    """`error_task_400.html` - the third handled encoding (DESIGN.md:335-337).
 
     HTML is not well-formed XML, so `defusedxml` refuses it; the point is that
     it becomes an error rather than being decoded, sniffed, or returned empty.
@@ -349,7 +349,7 @@ async def test_valid_json_that_is_not_an_object_fails() -> None:
 
 
 # ===========================================================================
-# THE INVARIANT'S SECOND ARM, in isolation. DESIGN.md:326-327 says BOTH.
+# THE INVARIANT'S SECOND ARM, in isolation. DESIGN.md:332-333 says BOTH.
 # ===========================================================================
 
 
@@ -402,7 +402,7 @@ def test_a_boolean_status_code_is_not_read_as_an_integer() -> None:
 
 
 # ===========================================================================
-# HR-XML: a HARDENED FALLBACK, not a handled case (DESIGN.md:331-334).
+# HR-XML: a HARDENED FALLBACK, not a handled case (DESIGN.md:337-340).
 # ===========================================================================
 
 
@@ -460,7 +460,7 @@ async def test_positive_control_defusedxml_still_parses_an_ordinary_document() -
 
 
 async def test_v2_credentials_travel_as_headers_and_NEVER_in_the_url() -> None:
-    """DESIGN.md:305-306, asserted on the request the transport actually saw."""
+    """DESIGN.md:311-312, asserted on the request the transport actually saw."""
     seen: dict[str, httpx2.Request] = {}
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -482,7 +482,7 @@ async def test_v2_credentials_travel_as_headers_and_NEVER_in_the_url() -> None:
 
 
 async def test_the_jobfeed_route_is_the_ONE_url_that_carries_credentials() -> None:
-    """DESIGN.md:307-310 - the structural exception, and only for this route."""
+    """DESIGN.md:313-316 - the structural exception, and only for this route."""
     seen: dict[str, httpx2.Request] = {}
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -523,11 +523,11 @@ def test_the_client_and_the_redactor_name_the_SAME_two_headers() -> None:
 
 
 async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
-    """DESIGN.md:307-310, asserted against CAPTURED log output.
+    """DESIGN.md:313-316, asserted against CAPTURED log output.
 
     The absence assertion has a paired positive below: against a silent logger
     every "the secret is not in the log" test passes vacuously, which is the
-    failure mode DESIGN.md:1319-1321 pairs controls to prevent.
+    failure mode DESIGN.md:1370-1372 pairs controls to prevent.
     """
     records: list[str] = []
     sink_id = logger.add(records.append, level="DEBUG")
@@ -549,7 +549,7 @@ async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
 
 
 async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
-    """`httpx` puts the request URL into its exception text (DESIGN.md:308-309).
+    """`httpx` puts the request URL into its exception text (DESIGN.md:314-315).
 
     So a timeout on the feed carries `sc=` in `str(exc)`, and any handler that
     formats the exception publishes the credential. This is the arm
@@ -674,7 +674,7 @@ async def test_the_jar_is_cleared_even_when_the_call_RAISED() -> None:
 
 
 def test_the_module_declares_an_explicit_per_phase_timeout() -> None:
-    """DESIGN.md:340 - "explicit and per-phase. No SDK default, no single scalar".
+    """DESIGN.md:346 - "explicit and per-phase. No SDK default, no single scalar".
 
     Asserted on the CONSTRUCTED client's timeout object, not by reading the
     source for the word "Timeout".
@@ -691,7 +691,7 @@ def test_the_module_declares_an_explicit_per_phase_timeout() -> None:
 
 
 def test_no_third_party_mocking_library_is_imported_anywhere_in_the_suite() -> None:
-    """ADR-0007 and DESIGN.md:1308-1309, enforced by walking the AST.
+    """ADR-0007 and DESIGN.md:1359-1360, enforced by walking the AST.
 
     Not a grep: a grep for "respx" matches this docstring, which is exactly the
     failure U3's amputation found - a test that asserted its own documentation

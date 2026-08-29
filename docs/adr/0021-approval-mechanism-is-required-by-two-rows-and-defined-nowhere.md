@@ -1,11 +1,11 @@
 # ADR-0021: `approval_state`'s "mechanism" is required by two rows and defined nowhere
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md`, which is frozen. It is not held only on sequencing: it
-> asks the design to define a field it currently requires an implementer to invent, and the
-> vocabulary it settles is U10's to emit, so it should be resolved before U10 rather than after.
+> **Accepted and APPLIED**, in the ADR batch, before U10. It asked the design to define a field it
+> required an implementer to invent, and the vocabulary it settles is U10's to emit, so resolving
+> it before U10 was the point of not holding it on sequencing alone.
 
 ## Context
 
@@ -14,14 +14,14 @@ put the field on the wire.
 
 **Two rows require the field.**
 
-`DESIGN.md:1226-1228`, §8's required case for the audit event, states that the event carries
+`DESIGN.md:1276-1278`, §8's required case for the audit event, states that the event carries
 *"on the write `approval_state` together with the mechanism that produced it (§5.3)"*.
 
-`DESIGN.md:1705`, threat row **C4-R1**, rated **High**, states its mitigation as
+`DESIGN.md:1756`, threat row **C4-R1**, rated **High**, states its mitigation as
 *"**Mitigated in §5.3:** the audit event includes `approval_state` and the mechanism that produced
 it"*, and names §8's audit-event case as its test.
 
-**§5.3 does not contain it.** `DESIGN.md:663-669` is §5.3's whole treatment of `approval_state`:
+**§5.3 does not contain it.** `DESIGN.md:678-684` is §5.3's whole treatment of `approval_state`:
 
 > **The audit event includes `approval_state`.** `agent-guardrails.md:121-123` names it explicitly,
 > and `create_candidate` is gated two ways and emails a live human [...] We record what we can
@@ -30,7 +30,7 @@ it"*, and names §8's audit-event case as its test.
 
 That paragraph settles *what* is recorded (a response was received, and what it said) and *who*
 cannot be (ADR-0009). It says nothing about a mechanism. Grepping `mechanism` across the whole of
-§5.3 - `DESIGN.md:567-713` - returns exactly one hit, `DESIGN.md:596`, and it is about the
+§5.3 - `DESIGN.md:582-735` - returns exactly one hit, `DESIGN.md:611`, and it is about the
 `ContextVar`:
 
 > That is the failure this **mechanism** exists to prevent [...]
@@ -47,7 +47,7 @@ that resolves is not a citation that supports.
 
 **And the field is not obvious.** §7.5 makes approval **dual-era** - elicitation on one era,
 sampling with `ctx.input_responses` on the other, and a no-handler arm that fails closed and
-surfaces differently on each (`DESIGN.md:1310-1313`). "The mechanism that produced it" is most
+surfaces differently on each (`DESIGN.md:1361-1364`). "The mechanism that produced it" is most
 plausibly *which of those paths answered*, which is exactly the distinction §8's approval case
 turns on. But that is an inference. Two implementers will not make the same one, and the value ends
 up in an audit record that a compliance reader will later treat as authoritative.
@@ -59,9 +59,9 @@ up in an audit record that a compliance reader will later treat as authoritative
 1. Add to `DESIGN.md`'s §5.3 approval paragraph a sentence stating that the audit event records
    **which approval path produced the response**, in a field named `approval_mechanism`, drawn from
    a closed set: `elicitation`, `sampling`, `no_handler`. The set is closed for the same reason
-   `error-contract.md`'s registry is closed (`DESIGN.md:504-505`): a value emitted into an audit
+   `error-contract.md`'s registry is closed (`DESIGN.md:510-511`): a value emitted into an audit
    record is a contract, and an open string invites a fourth spelling of the first three.
-2. Repoint `DESIGN.md:1228` and `DESIGN.md:1705` at that sentence once it exists. Until then both
+2. Repoint `DESIGN.md:1278` and `DESIGN.md:1756` at that sentence once it exists. Until then both
    cite a subject their target does not carry.
 3. §8's audit-event case gains the corresponding arm: on the write, `approval_mechanism` is present
    and is one of the three.
@@ -88,7 +88,7 @@ it is a guess that later reads as a decision.
 
 ## What this does NOT settle
 
-- **It does not settle what `approval_state` itself may contain.** `DESIGN.md:663-667` says "what it
+- **It does not settle what `approval_state` itself may contain.** `DESIGN.md:678-682` says "what it
   said", which is not a vocabulary either. That is a second gap in the same paragraph and this ADR
   deliberately does not fold it in - `docs/worklogs/U2-REPORT.md`'s D1 and ADR-0017 record what
   happens when one ADR resolves two things and reviewers approve the one they were looking at.
@@ -99,7 +99,7 @@ it is a guess that later reads as a decision.
   intended direction.
 - **It does not settle ADR-0009's boundary.** *Who* approved stays unknowable. This is about *how*
   the answer arrived, which is knowable, and conflating the two is the error ADR-0009's own text
-  warns about (`DESIGN.md:670-673`).
+  warns about (`DESIGN.md:692-695`).
 - **It does not audit the rest of the corpus for the same shape.** Two rows were found because U3
   had to emit the field. `docs/reviews/CITATION-AUDIT.md` covers citations that do not resolve;
   **a citation that resolves to the wrong subject is a different sweep and nobody has run it.**

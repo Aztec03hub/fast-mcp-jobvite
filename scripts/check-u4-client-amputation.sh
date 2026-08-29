@@ -112,7 +112,7 @@ PY
 
 # ---------------------------------------------------------------------------
 # A1 - THE INVARIANT IS GONE ENTIRELY. Every response is a success as long as
-# its body decodes. This is the shape of the bug DESIGN.md:322-327 exists to
+# its body decodes. This is the shape of the bug DESIGN.md:328-333 exists to
 # prevent, and every test claiming to assert the error rule must die here.
 # ---------------------------------------------------------------------------
 amputate "A1  evaluate_response applies NEITHER arm - every decodable body succeeds" \

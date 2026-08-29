@@ -40,11 +40,11 @@ written** - they are U1's, and `PLAN-REVIEW-R2.md:343-351` (N1) already notes U0
 ### Decisions I made that the design and plan left open
 
 - **The credential-dependent marker is named `credentialed`.** Neither document names it;
-  `DESIGN.md:1199` only requires that it be declared. Declared in `markers`, deselected in
+  `DESIGN.md:1243` only requires that it be declared. Declared in `markers`, deselected in
   `addopts`.
 - **A second marker, `network`, exists** and is a decision worth challenging. §8 #11's negative arm
   (removing the `fastmcp-slim` pin must fail to resolve) performs a **real dependency resolve**,
-  and `DESIGN.md:1185` says the default suite runs with **no network**. Excluding it by *selection*
+  and `DESIGN.md:1229` says the default suite runs with **no network**. Excluding it by *selection*
   keeps both properties true and keeps skips at zero. CI runs it as its own step. The alternative -
   putting a network call in the default suite - would quietly contradict `:1185`.
 - **`extend-exclude = ["docs"]` for ruff and mypy.** Running the new lint config over
@@ -127,7 +127,7 @@ no tests collected (19 deselected) in 0.01s                     EXIT=5
 
 **17 passed, 2 deselected, 0 skipped.**
 
-**The "no network" property of `DESIGN.md:1185` is measured, not assumed.** The whole default suite
+**The "no network" property of `DESIGN.md:1229` is measured, not assumed.** The whole default suite
 was re-run with the network forced off, and the exit codes were read directly rather than through a
 pipe (a `cmd | tail` reports `tail`'s status, which is how a green gets misread):
 
@@ -230,7 +230,7 @@ meaningless.
 
 ### D1 - CRITICAL to correct, and it is inside the FROZEN design. Needs an ADR.
 
-**`DESIGN.md:1760`, threat row C8-I1, says `.env.example` is committed with "empty values".** That
+**`DESIGN.md:1763`, threat row C8-I1, says `.env.example` is committed with "empty values".** That
 is false against the committed tree. **Seven of the fifteen variables carry a value**
 (`JOBVITE_ENABLE_WRITES=false`, `JOBVITE_MCP_TRANSPORT=stdio`, `JOBVITE_MCP_HOST=127.0.0.1`,
 `JOBVITE_MCP_PORT=8000`, `JOBVITE_TLS_TERMINATED_BY_PROXY=false`, `JOBVITE_MAX_RESULTS=50`,
@@ -307,7 +307,7 @@ count inside a correction of a wrong count.
 |---|---|---|
 | `pip-audit` behind `scripts/check_advisories.py` | **U11** | the script does not exist; calling it makes CI red from its first run (`IMPLEMENTATION-PLAN.md:206-211`). Landed as a commented step naming U11, with the empty `[tool.fast-mcp-jobvite.advisory-ignores]` table already in `pyproject.toml` so U11 only edits rows inside it |
 | coverage floors enforced in CI | **U1** | `src/fast_mcp_jobvite` holds only `__init__.py`. A coverage run reports either "No data collected" (red) or a **vacuous 100%** over an empty package. The floors are configured in `pyproject.toml` today; only the CI step is off |
-| `fastmcp inspect` capability-drift diff | **U1** | `fastmcp inspect --help` confirms `SERVER-SPEC` is required and `server.py` is U1's file. **Standing it up does not execute it** - `DESIGN.md:1443-1446` carries `UNVERIFIED:` and **U0 does not remove that marker** |
+| `fastmcp inspect` capability-drift diff | **U1** | `fastmcp inspect --help` confirms `SERVER-SPEC` is required and `server.py` is U1's file. **Standing it up does not execute it** - `DESIGN.md:1494-1497` carries `UNVERIFIED:` and **U0 does not remove that marker** |
 | pre-commit hooks (secret scan, committed-file-type gate) | **not built** | see §5 |
 
 ---
@@ -329,7 +329,7 @@ enumerates a uv-created virtualenv the way it enumerates a `requirements.txt`. `
 work from the frozen environment (§2.7, 81 components) and is the fallback if the action comes back
 thin on its first run.
 
-**Not built: the two commit-time gates of `DESIGN.md:1573-1586`** - pre-commit secret scanning and
+**Not built: the two commit-time gates of `DESIGN.md:1624-1637`** - pre-commit secret scanning and
 the committed-file-type gate. The plan lists them under U0 (`IMPLEMENTATION-PLAN.md:201-202`) and I
 did not write them. They are a `.pre-commit-config.yaml` plus a custom allowlist-first,
 magic-number-sniffing, fail-closed file-type hook, which is a real piece of software with its own
@@ -412,7 +412,7 @@ naming it rather than counting it.
 
 It is not left standing alone. `test_the_parser_actually_found_variables` asserts the parser found
 **fifteen** variables and fails first, so the suite goes red. That is deliberately the pairing
-`DESIGN.md:1230-1236` uses for the audit/PII pair - *"the two are paired so that neither can be
+`DESIGN.md:1281-1287` uses for the audit/PII pair - *"the two are paired so that neither can be
 satisfied by silence"* - applied to the instrument rather than to the subject.
 
 Note also that `test_every_secret_class_variable_is_empty` is **not** in that category: it checks

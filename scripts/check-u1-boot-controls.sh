@@ -218,15 +218,29 @@ PY
 control "M11 no SIGTERM handler" "$MAIN" "MUTANT-M11" \
   "tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown"
 
-# --- M12: os._exit(0) removed from the finally ----------------------------
+# --- M12: the forced exit removed from the finally ------------------------
 python3 - "$MAIN" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = s.replace("        os._exit(0)", "        pass  # MUTANT-M12")
+assert s.count("        os._exit(status)") == 1, "M12 anchor is not unique"
+s = s.replace("        os._exit(status)", "        pass  # MUTANT-M12")
 p.write_text(s)
 PY
 control "M12 no forced exit" "$MAIN" "MUTANT-M12" \
   "tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit"
+
+# --- M14: the exit status is a constant 0 again (ADR-0018 defect) ---------
+# The call still runs unconditionally, so the stdio hang stays closed and
+# M12 is untouched. Only the constant moves back, which IS the defect.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+assert s.count("        os._exit(status)") == 1, "M14 anchor is not unique"
+s = s.replace("        os._exit(status)", "        os._exit(0)  # MUTANT-M14")
+p.write_text(s)
+PY
+control "M14 a crash reports exit 0" "$MAIN" "MUTANT-M14" \
+  "tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises"
 
 # --- M13: the lifespan composition is dropped -----------------------------
 python3 - "$SERVER" <<'PY'

@@ -25,20 +25,20 @@ No shared file was touched: `pyproject.toml`, `.github/`, `docs/plans/`, `tests/
 ### `errors.py`
 
 - **The registry is mirrored as seven `ProblemKind` constants**, each a verbatim row of
-  `error-contract.md:96-108`. Nothing is minted locally, per `DESIGN.md:504-505`.
+  `error-contract.md:96-108`. Nothing is minted locally, per `DESIGN.md:510-511`.
 - **The exception hierarchy carries its registry row**, so the mapping is fixed where the
   condition is *known* rather than re-derived from a status at the boundary - which is how
-  Jobvite's status reached `status` in the revision `DESIGN.md:496-503` corrects.
+  Jobvite's status reached `status` in the revision `DESIGN.md:502-509` corrects.
   `JobviteUpstreamError` (502), `JobviteUnavailableError` (503), `ValidationError` (422),
   `ResourceNotFoundError` (404), `DuplicateCandidateError` (409), `ScopeDeniedError` (403),
   and anything else -> `about:blank`.
 - **`JobviteUpstreamError` keeps Jobvite's status and message** on the instance (for the audit
-  event) and reproduces both in `detail` (`DESIGN.md:517-519`). `upstream_status=None` is a first
-  class case: the plain-text and Tomcat-HTML error encodings (`DESIGN.md:339-341`) carry no status.
+  event) and reproduces both in `detail` (`DESIGN.md:532-534`). `upstream_status=None` is a first
+  class case: the plain-text and Tomcat-HTML error encodings (`DESIGN.md:345-347`) carry no status.
 - **`build_problem` and `problem_from_exception` return; they never raise a problem object**
-  (`DESIGN.md:521-525`). The one `raise` in the module is a `ValueError` when an extension member
+  (`DESIGN.md:536-540`). The one `raise` in the module is a `ValueError` when an extension member
   would shadow one of the seven - a call-site programming error, and letting it silently overwrite
-  `status` would reintroduce exactly the defect `DESIGN.md:496` corrects.
+  `status` would reintroduce exactly the defect `DESIGN.md:502` corrects.
 - **An unmapped exception's message never reaches the caller.** `detail` names the exception class
   instead; an arbitrary `str(exc)` can carry a URL, a credential fragment or an upstream body.
 
@@ -105,7 +105,7 @@ KILLED  M6  timestamp member dropped                           3 failed, 31 pass
 KILLED  M7  request_id member dropped                          3 failed, 31 passed
 KILLED  M8  Jobvite message discarded from detail              2 failed, 32 passed
 KILLED  M9  Jobvite status discarded from detail               1 failed, 33 passed
-KILLED  M10 unmapped becomes /problems/internal-error          3 failed, 31 passed
+KILLED  M10 unmapped becomes about:blank (INVERTED, ADR-0017)  2 failed, 32 passed
 KILLED  M11 problem object RAISED instead of returned         18 failed, 16 passed
 KILLED  M12 unmapped exception message leaked to caller        1 failed, 33 passed
 KILLED  M13 naive (non-UTC) timestamp                          1 failed, 33 passed
@@ -205,19 +205,25 @@ iterates over nothing, because a mutant leaves the collection populated.** `asse
 
 ## 5. Findings - design, standards and scope
 
-### D1 (design defect, needs a ruling): the unmapped row specifies no `status`, and `status` is required
+### D1 (design defect): the unmapped row specified no `status`, and `status` is required - DECIDED, ADR-0017
 
-`DESIGN.md:489-490` makes `status` one of seven **required** members. `DESIGN.md:515`'s registry
+`DESIGN.md:495-496` makes `status` one of seven **required** members. `DESIGN.md:515`'s registry
 table gives the unmapped row `about:blank` and a literal `-` in the Status column. Those cannot
 both hold: an unmapped condition must produce a `status` and the design says which value it is
 nowhere.
 
-**Implemented:** `about:blank` with **500** and title `"Internal Server Error"`, per RFC 9457
-§4.2.1 (with `about:blank` the title is the status phrase). This is my reading, not the design's
-instruction. **A defect in the design is an ADR, not an edit** - the design is untouched and this
-is reported for the team lead to file.
+**Implemented at the time:** `about:blank` with **500** and title `"Internal Server Error"`, per
+RFC 9457 §4.2.1 (with `about:blank` the title is the status phrase). That was my reading, not the
+design's instruction, and it was reported rather than edited in - **a defect in the design is an
+ADR, not an edit**.
 
-### D2 (standards vs design, related to D1): `about:blank` may be the wrong row entirely
+**ADR-0017 replaced that reading.** The row is now `/problems/internal-error`, 500, "Internal
+Server Error", and every problem object carries a `status` without exception, which is what makes
+the seven-member requirement checkable. D2 below is the argument, and it is the one that decided
+this. The design line is now `DESIGN.md:521`; `DESIGN.md:515` above is where it stood in the
+frozen object this report was written against.
+
+### D2 (standards vs design, related to D1): `about:blank` was the wrong row - DECIDED, ADR-0017
 
 `error-contract.md:115` scopes the `about:blank` fallback to *"unmapped **HTTP** errors"*, and
 `error-contract.md:106` already carries `/problems/internal-error` **500** *"Unhandled exception
@@ -225,15 +231,25 @@ is reported for the team lead to file.
 row - it is not an unmapped HTTP status. `DESIGN.md:515` routes it to `about:blank` instead, which
 declines a registry row that exists for the case.
 
-Consequence in the tree today: **`INTERNAL_ERROR` is defined in `errors.py` and reached by no code
-path.** It is exercised only by the registry-mirror test. If D2 is resolved in favour of the
-design as written, `INTERNAL_ERROR` should be deleted rather than left as an unused constant; if
-in favour of the standard, `UNMAPPED` becomes `/problems/internal-error` and mutation M10 - which
-is currently a killed mutant - becomes the correct behaviour. **Flagged rather than decided.**
+**DECIDED by ADR-0017, in favour of the standard.** `problem_from_exception` now returns
+`/problems/internal-error`, 500, for an exception outside this module's hierarchy, and
+`FastMcpJobviteError.kind` defaults to it. `INTERNAL_ERROR` was defined in `errors.py` and reached
+by no code path, exercised only by the registry-mirror test; it is now the answer, and **the dead
+constant was the symptom**. `UNMAPPED` keeps `about:blank` for its actual scope - an unmapped HTTP
+status received from Jobvite - and is reached by no path today, which ADR-0017 accepts on the
+grounds that an unreachable fallback that is correct beats a reachable one that is wrong.
+
+**Mutation M10 inverted.** As written here it read *"unmapped becomes `/problems/internal-error`"*
+and the harness killed it; that is now the shipped behaviour. The row above is the mutation in its
+new direction - *"unmapped becomes `about:blank`"* - re-run against the current tree: **2 failed,
+32 passed**, killed by
+`test_every_registry_row_maps_to_its_registry_type_and_status[anything unmapped]` and
+`test_a_problem_object_is_returned_never_raised`. The row's numbers changed with its direction and
+are measured, not carried forward.
 
 ### D3 (design, minor): `retry_after` and the "seven members"
 
-`DESIGN.md:490` names seven members; `DESIGN.md:352` attaches a `retry_after` hint to the 503, and
+`DESIGN.md:496` names seven members; `DESIGN.md:358` attaches a `retry_after` hint to the 503, and
 `error-contract.md:86` defines an `errors` array for 422s. Read strictly, "seven members" and an
 eighth hint are in tension. **Implemented** as RFC 9457 extension members: the seven are always
 present, extensions are additive and may not shadow a required member. This is the reading RFC
@@ -241,7 +257,7 @@ present, extensions are additive and may not shadow a required member. This is t
 
 ### N1 (scope, needs the team lead's ruling): `request_id_scope` is not in the design
 
-`DESIGN.md:589-591` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
+`DESIGN.md:604-606` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
 `utils/correlation.py` is described as holding *"a single `ContextVar[str | None]` named
 `request_id_var`"* - which it still does; there is exactly one `ContextVar(` in the file, asserted
 by `test_correlation_declares_exactly_one_contextvar`.
@@ -281,9 +297,9 @@ standards file hits the same wall.
   read the file by hand at `architecture/error-contract.md:96-108` and transcribed seven rows; a
   transcription error would pass every test in this suite.
 - **The envelope assertion proves nothing today.** See V1.
-- **Nothing here is asserted on the wire.** `DESIGN.md:600-601` requires the problem object's
+- **Nothing here is asserted on the wire.** `DESIGN.md:615-616` requires the problem object's
   `request_id` to match the audit event's id **on the wire**; that is U5's and needs a server.
-- **The 422 row's reachability is unexercised.** `DESIGN.md:548` records it is unreachable on the
+- **The 422 row's reachability is unexercised.** `DESIGN.md:563` records it is unreachable on the
   pre-dispatch path and serves in-body validation only. Nothing in the tree yet produces either,
   so the class exists and no caller raises it.
 - **Timestamp format vs consumers.** `_timestamp()` emits microseconds (`...T14:32:00.123456Z`),

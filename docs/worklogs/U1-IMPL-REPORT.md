@@ -98,11 +98,11 @@ five-row matrix.
 **B75 is not a repoint and I want it read.** That row was `CONTRADICTED` - three commented-out CI
 blocks with no ADR excusing them. U11 enabled the advisory one; U1 enables the other two. **No
 commented-out step remains**, so the row is now `MET` and there is nothing left for an ADR to
-excuse. What it does **not** close is `DESIGN.md:1443-1446`'s `UNVERIFIED` marker on the drift diff
+excuse. What it does **not** close is `DESIGN.md:1494-1497`'s `UNVERIFIED` marker on the drift diff
 itself, and the row now says so.
 
 **`config.py`.** `pydantic-settings`, `SecretStr` on all five credential variables **and on
-`JOBVITE_HTTP_TOKENS`** - six secret-class values, because `DESIGN.md:314` classifies
+`JOBVITE_HTTP_TOKENS`** - six secret-class values, because `DESIGN.md:320` classifies
 `JOBVITE_COMPANY_ID` as the job feed's separate credential and `:316-317` says credentials are
 `SecretStr` throughout. Four refusals: the per-enabled-tool matrix, the unrecognised
 `JOBVITE_TOOLS` name, `JOBVITE_HTTP_TOKENS` unset on `http`, and the off-loopback TLS refusal.
@@ -116,8 +116,10 @@ tokens, and the reason it was actually refused would never be printed.
 **`__main__.py`.** Logging configured to **stderr** before the package imports - on stdio the
 JSON-RPC channel is stdout, so one log record there corrupts the protocol.
 `_install_shutdown_handler()` installs an explicit handler and never reads ambient state.
-`os._exit(0)` in the `finally`. Refusals exit **78** (`EX_CONFIG`), which is distinct from 1 so a
-supervisor can tell "misconfigured, retrying will not help" from an ordinary failure.
+`os._exit(status)` in the `finally`, where `status` is `0` on the `KeyboardInterrupt` path and
+`EXIT_SOFTWARE` (**70**, `EX_SOFTWARE`) when anything else escapes `mcp.run` (ADR-0018). Refusals
+exit **78** (`EX_CONFIG`), which is distinct from both so a supervisor can tell "misconfigured,
+retrying will not help" from an ordinary failure and from a crash.
 
 **`server.py`.** `mask_error_details=True` **explicitly**, `|` composition via
 `from fastmcp.server.lifespan import lifespan`, and settings published into the lifespan context
@@ -128,7 +130,7 @@ one would be constructed at import time, before any refusal could be reported.
 **`build_server(..., extra_lifespan=)` is not a test hook.** §8 #18 requires the teardown **side
 effect** to be observed, and U1 opens no resource. Without a composition point the case would have
 to reimplement `main()`'s handler and `finally` and assert against its own copy - which is exactly
-the mistake `DESIGN.md:970-981` records about the mitigation this one replaced. The test supplies
+the mistake `DESIGN.md:992-1025` records about the mitigation this one replaced. The test supplies
 the resource; the shipped code supplies the mechanism. U4's pool and U9's HTTP resources are the
 next two users.
 
@@ -177,11 +179,11 @@ exit code**. The interpreter is resolved from `/proc/<pid>/cmdline` and compared
 | stdio, `kill -TERM` | yes | 0.01 s |
 | http, `kill -TERM` | yes | 0.16 s |
 
-**Both of `DESIGN.md:982-990`'s inherited limits are closed, and I ran the second rather than
+**Both of `DESIGN.md:1026-1034`'s inherited limits are closed, and I ran the second rather than
 reasoning about it.**
 
 1. **"The composed snippet has never been run end to end on HTTP."** Now run. The handler and the
-   `finally: os._exit(0)` are executed together on HTTP by `test_sigterm_runs_lifespan_teardown[http]`.
+   `finally: os._exit(status)` are executed together on HTTP by `test_sigterm_runs_lifespan_teardown[http]`.
 2. **"PID 1 was never simulated."** Now simulated, in a container, on **both** transports. `unshare
    --pid` is not permitted on this host, so this used Docker with no `--init`, which makes the
    command PID 1, and `docker stop -t 15`, which delivers a real SIGTERM to PID 1 and SIGKILLs after
@@ -209,7 +211,7 @@ Docker daemon into CI for one arm is a required check that goes red for reasons 
 `scripts/check-u1-pid1-shutdown.sh` - **prose about a measurement decays into a claim about one**,
 and I would rather commit the script.
 
-**Only the stdio arm exercises the `os._exit(0)` half**, as `DESIGN.md:1294-1295` says. Mutant M12
+**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1345-1346` says. Mutant M12
 removes it and `test_only_stdio_exercises_the_forced_exit` goes red; the HTTP arm stays green
 against the same mutant. A single-transport test would have shipped it.
 
@@ -236,7 +238,8 @@ byte copy taken at the top, never `git checkout --`.
 | M9 | an empty value counts as a present credential | `test_an_empty_value_is_treated_as_unset` |
 | M10 | `mask_error_details=False` | `test_mask_error_details_is_set_explicitly` |
 | M11 | the SIGTERM handler is never installed | `test_sigterm_runs_lifespan_teardown` |
-| M12 | `os._exit(0)` removed from the `finally` | `test_only_stdio_exercises_the_forced_exit` |
+| M12 | the forced exit removed from the `finally` | `test_only_stdio_exercises_the_forced_exit` |
+| M14 | `os._exit(status)` becomes a constant `os._exit(0)` again, the call still unconditional (ADR-0018's defect) | `test_the_shipped_entry_point_is_what_the_case_exercises` |
 | M13 | the extra lifespan is dropped from the composition | `test_composed_lifespans_start_in_order_and_tear_down_in_reverse` |
 
 **M4 survived its first pairing, and the reason is worth carrying.** Paired with the "all reads"
@@ -276,7 +279,7 @@ exactly the seven transport arms, E killed the matrix arms and **kept** the ones
 F killed 32.
 
 **Finding, and it is the one amputation exists for.** Row H is not stable. Amputating the whole
-`finally` block - the flushes and `os._exit(0)` together - left
+`finally` block - the flushes and the forced exit together - left
 `test_only_stdio_exercises_the_forced_exit` **green** in the harness run and **red** when I re-ran
 the same amputated tree against the full suite. Measured deliberately rather than assumed:
 
@@ -319,7 +322,7 @@ run. Two fixes, both landed:
    HANGS rather than failing`. The interlock fixes this case; the cap is what stops the next one
    costing half an hour.
 
-**A grep for `os._exit(0)` in `__main__.py` is a false negative every time**, because the module
+**A grep for the forced exit in `__main__.py` is a false negative every time**, because the module
 docstring names the call in order to explain it. My first repeat-probe aborted on exactly that. The
 harness's landed-check greps the **8-space-indented** form, and the "handler reads no ambient state"
 test parses the AST rather than grepping, for the same reason: this module's prose names the defect
@@ -379,17 +382,23 @@ config, which is U0's key to add.
 
 ## 9. Findings
 
-**F1 (Medium, ADR filed). `os._exit(0)` in the `finally` reports a crash as a clean stop.**
-`DESIGN.md:970-978` puts the forced exit in a `finally`, which runs on *every* exit from the `try`,
+**F1 (Medium, ADR-0018 ACCEPTED and APPLIED). `os._exit(0)` in the `finally` reported a crash as a
+clean stop.**
+`DESIGN.md:992-1010` puts the forced exit in a `finally`, which runs on *every* exit from the `try`,
 not only the `KeyboardInterrupt` path the prose is about. A port already bound, an unhandled
 exception, an escaping cancellation - all exit **0**. Every supervisor that will ever watch this
 server reads the exit status, and `0` means *finished normally, do not restart, do not alarm*. §8
 #18 already refuses to assert shutdown by the exit code "since a process that dies uncleanly can
 still exit 0" - the design identified that an exit code can lie, and four hundred lines earlier
 specified the code that makes it lie. **`docs/adr/0018-forced-exit-masks-a-crash-as-a-clean-stop.md`,
-Status Proposed, Type Design change. Not applied: I built what the frozen design specifies.**
+Status Accepted, Type Design change. APPLIED in the ADR batch**: `status` is `0` on the
+`KeyboardInterrupt` path and `EXIT_SOFTWARE` (70) on any other escape, `os._exit` still runs
+unconditionally so the stdio hang stays closed, and mutation **M14** above holds the constant in
+place. **Still not discharged by side effect** - nothing that can crash `mcp.run` exists yet, so no
+case forces a real failure and reads the process's exit status. U9's HTTP hardening is where a
+bound port becomes reachable.
 
-**F2 (Low, citation). `DESIGN.md:918-923` is short by one line** and omits the `http` transport row
+**F2 (Low, citation). `DESIGN.md:940-945` is short by one line** and omits the `http` transport row
 at `:924`. Copied into the brief, the task description and `IMPLEMENTATION-PLAN.md:480`. Details in
 §2.
 
@@ -400,7 +409,7 @@ crash, not a refusal.** The template ships `JOBVITE_PAGINATION_START_BASE=` empt
 `JOBVITE_API_KEY=` empty too. Without special handling, pydantic sees a *present* empty string:
 the int field is a parse error at a layer that names no variable, and the credential fields
 **satisfy the required-variable check** and then fail at Jobvite as the confusing 401 that
-`DESIGN.md:891-895` exists to prevent. `config.py` treats an empty or whitespace-only value as
+`DESIGN.md:913-917` exists to prevent. `config.py` treats an empty or whitespace-only value as
 absent, `test_the_whole_committed_template_loads` loads every line of the committed template, and
 mutant M9 kills the arm. Recorded as a finding because the design specifies the empty template and
 the fail-fast rule in two places and never says how they meet.
@@ -418,7 +427,7 @@ cost twenty-two minutes. Interlock in the test plus a hard `timeout 300` per amp
 
 **F7 (N1, resolved). `utils/correlation.py::request_id_scope` had no caller; my decision was KEEP,
 and U3 has since made it moot.** N1 asks whether U1 should call it or it should be deleted.
-Neither: its own docstring cites `DESIGN.md:589-591`, which requires **`audit.py`** to set the var
+Neither: its own docstring cites `DESIGN.md:604-606`, which requires **`audit.py`** to set the var
 in the same statement that mints the id and reset it in a `finally`. U1 mints no `request_id` - it
 runs before any invocation exists - so calling it here would be inventing an id with nothing to
 correlate. **U3 landed while I was building (task #27, merged at `1b34fe0`), and `audit.py` is now
@@ -438,7 +447,7 @@ Things I could not settle, not things I did not try.
   `server.py:create_server`, with the minimum environment that passes the refusals. I confirmed
   `fastmcp inspect --help` requires a SERVER-SPEC and that a factory is the right shape, and I did
   **not** execute the step end to end. The **capability-drift diff itself remains UNVERIFIED** -
-  `DESIGN.md:1443-1446` carries that marker and standing the step up does not remove it. A diff that
+  `DESIGN.md:1494-1497` carries that marker and standing the step up does not remove it. A diff that
   has never seen a real capability change has only ever compared a build to itself.
 - **Whether `JOBVITE_MAX_RESULTS=50` or `JOBVITE_OUTBOUND_RATE_LIMIT=6` are right.** They are
   defaults, the second is an explicit guess, and only a live tenant settles either. I did not

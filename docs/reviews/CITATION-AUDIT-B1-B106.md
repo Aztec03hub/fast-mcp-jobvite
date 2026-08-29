@@ -209,7 +209,7 @@ FastAPI, Redis, and PostgreSQL."* It is a pattern catalogue with `priority: requ
 
 **The over-reading of `caching.md` did happen - in `DESIGN.md`, not here, and it is already fixed.**
 `CITATION-AUDIT.md`'s C-2 caught `caching.md:833` being cited as a requirement when it is a
-checklist tick reading "when needed", and `DESIGN.md:836` now presents the file *"at its actual
+checklist tick reading "when needed", and `DESIGN.md:858` now presents the file *"at its actual
 strength"*, saying `caching.md:841` *"agrees rather than compels"*. Nothing further is owed here.
 
 ### A corpus-wide inference I nearly reported, and why it was wrong
@@ -255,8 +255,8 @@ standards corpus, or `STANDARDS.md`. Four are near-verbatim rather than verbatim
 | B | Rendered as a quotation | The document actually reads |
 |---|---|---|
 | B31 | *"a new Jobvite field is dropped until someone adds it deliberately"* | `an unlisted field is dropped until someone adds it deliberately` (§11, `C6-I2`) |
-| B55 | *"95% line and 90% branch on critical paths"* | `95% line with 90% branch on` (`DESIGN.md:950`) |
-| B58 | *"CI runs --collect-only against the live suite and fails on a collection error"* | `CI runs \`--collect-only\` against it and fails on a collection` (`DESIGN.md:887`) |
+| B55 | *"95% line and 90% branch on critical paths"* | `95% line with 90% branch on` (`DESIGN.md:972`) |
+| B58 | *"CI runs --collect-only against the live suite and fails on a collection error"* | `CI runs \`--collect-only\` against it and fails on a collection` (`DESIGN.md:909`) |
 | B99 | *"single main branch rather than the mandated main+develop GitFlow"* | not located as a quotation; reads as the author's own summary |
 
 No meaning changes in any of the four. The rule they cross is the one this project has already had

@@ -112,7 +112,7 @@ PY
 
 echo "########## MUTATIONS"
 
-# --- the stdio attribution marker (DESIGN.md:676-681) ----------------------
+# --- the stdio attribution marker (DESIGN.md:698-703) ----------------------
 run_mutation "M1  stdio records the literal \"global\"" "$AUDIT" \
   'ATTRIBUTION_UNAVAILABLE: Final = "unavailable:stdio-has-no-caller-token"' \
   'ATTRIBUTION_UNAVAILABLE: Final = "global"' \
@@ -123,7 +123,7 @@ run_mutation "M2  stdio keeps the client id instead of discarding it" "$AUDIT" \
   'client_id=client_id,' \
   'test_stdio_never_records_the_literal_global'
 
-# --- trace context, both arms (DESIGN.md:648-650, :1287-1292) ---------------
+# --- trace context, both arms (DESIGN.md:663-665, :1287-1292) ---------------
 run_mutation "M3  trace fields emitted as None instead of omitted" "$AUDIT" \
   'record.update({key: v for key, v in optional.items() if v is not None})' \
   'record.update(optional)' \
@@ -141,7 +141,7 @@ run_mutation "M5  an all-zero traceparent accepted as a real join" "$AUDIT" \
   'r"\A00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}\Z"' \
   'test_case17_a_malformed_traceparent_yields_nothing_rather_than_a_guess'
 
-# --- the three-branch failure policy (DESIGN.md:689-705) -------------------
+# --- the three-branch failure policy (DESIGN.md:711-727) -------------------
 run_mutation "M6  a pre-write audit failure no longer fails the call" "$AUDIT" \
   '    if phase is AuditPhase.BEFORE_SIDE_EFFECT:' \
   '    if False:' \
@@ -159,7 +159,7 @@ run_mutation "M8  a read surfaces a warning it must not surface" "$AUDIT" \
   '    return ["audit write failed"]' \
   'test_arm2_on_a_read_it_logs_to_stderr_and_continues'
 
-# --- request_id (DESIGN.md:582-591) ----------------------------------------
+# --- request_id (DESIGN.md:597-606) ----------------------------------------
 run_mutation "M9  an inbound request id echoed WITHOUT validation" "$AUDIT" \
   '    if inbound_request_id is not None and _UUID4_RE.match(inbound_request_id):' \
   '    if inbound_request_id is not None:' \
@@ -169,14 +169,14 @@ run_mutation "M9  an inbound request id echoed WITHOUT validation" "$AUDIT" \
 # twice - once in the module docstring, which quotes it as the proof that the
 # mint and the bind are one statement - and the harness refused to guess which.
 run_mutation "M10 the var is set directly, losing correlation.py's finally" "$AUDIT" \
-  '    # DESIGN.md:589-591: minted and bound in the same statement.
+  '    # DESIGN.md:604-606: minted and bound in the same statement.
     with request_id_scope(resolve_request_id(inbound_request_id)) as request_id:' \
   '    request_id = resolve_request_id(inbound_request_id)
     request_id_var.set(request_id)
     if True:' \
   'test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself'
 
-# --- redaction (DESIGN.md:306-310) -----------------------------------------
+# --- redaction (DESIGN.md:312-316) -----------------------------------------
 run_mutation "M11 sc= dropped from the secret parameter set" "$REDACT" \
   'frozenset({"api", "sc", "companyid"})' \
   'frozenset({"api", "companyid"})' \

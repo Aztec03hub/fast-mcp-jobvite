@@ -3,9 +3,10 @@
 **Status:** Accepted
 **Type:** Deviation
 
-> **Accepted, not Proposed**, unlike ADR-0012 to 0014. Those three change `DESIGN.md` and are held
-> while the plan repoints against the frozen object. This one changes no design text: it records a
-> deviation from a standard and documents the gate that shipped in U0. Nothing is waiting on it.
+> **Accepted ahead of ADR-0012 to 0014**, which changed `DESIGN.md` and were held while the plan
+> repointed against the frozen object; they have since landed in the ADR batch. This one changes no
+> design text: it records a deviation from a standard and documents the gate that shipped in U0.
+> Nothing was ever waiting on it.
 
 ## Context
 

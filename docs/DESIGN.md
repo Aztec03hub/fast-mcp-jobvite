@@ -292,7 +292,13 @@ src/fast_mcp_jobvite/
   utils/correlation.py        request_id_var, the per-invocation correlation ContextVar (§5.3)
   utils/redaction.py          log redaction; untrusted-content fencing
   utils/normalise.py          casing, dates, empty-string/null unification
+  utils/constraints.py        the shared inbound constraint types every input model reuses:
+                              control-character and bidi rejection, and the depth/list/dict-key
+                              limits (§2.1)
 ```
+
+Every input model imports its constraints from `utils/constraints.py`. No input model defines its
+own (ADR-0012).
 
 No cache module, no bulk module, no custom logging module. Framework middleware and `loguru`
 cover the first and third; the second is speculation.
@@ -512,7 +518,16 @@ own. Both were wrong:
 | Candidate or job id not found | `/problems/resource-not-found` | 404 |
 | Duplicate candidate on create | `/problems/conflict` | 409 |
 | Caller's token lacks the scope | `/problems/forbidden` | 403 |
-| Anything unmapped | `about:blank` per `:212` | - |
+| Anything unmapped, including an unhandled exception in a tool body | `/problems/internal-error`, *"Internal Server Error"* | 500 |
+
+**`about:blank` keeps its actual scope** and no other: an unmapped **HTTP status received from
+Jobvite**, where we genuinely have no type for what the upstream returned
+(`error-contract.md:115`, RFC 9457 §4.2.1 - an external reference, and the filename is on this line
+so `check-cross-references.py` reads it as one). It is not the answer for an unhandled exception in
+our own tool body, which the
+registry already names `/problems/internal-error`. Every problem object therefore carries a
+`status`, without exception, which is what makes the seven-member requirement above checkable
+(ADR-0017).
 
 Jobvite's own status and message are **not discarded** - they go in `detail` and in the audit
 event, where they help whoever is debugging, rather than in `status`, where they mislead whoever is
@@ -600,7 +615,7 @@ below asserts under concurrency rather than on a single call.
 `backend/resilience.md:224-226` requires both. Every retry attempt logs the attempt number, the
 elapsed delay and the exception type; every breaker transition logs the direction
 (`closed->open`, `open->half_open`, `half_open->closed`) and the counter that triggered it. **The breaker must evaluate transitions on the call path, not from a background timer.** A ContextVar is per-Task: a half-open expiry fired by a timer task has no `request_id_var` set and would log `None`, failing the §8 case. Several Python breaker libraries do exactly that. **B47 does name one - `circuitbreaker ^2` is a blessed library and B37 says to use it - and an earlier revision of this paragraph said no library was selected, which mischaracterised the obligation and turned a one-library test into an open-ended survey.** What is actually open is whether `circuitbreaker ^2` evaluates half-open expiry on the call path or from a timer, which is one experiment against the blessed candidate. So this is a constraint on that choice rather than an observation about one. **If no library satisfies it, an inline breaker in `services/jobvite_client.py` is the sanctioned fallback** - a counter, a state and a timestamp checked on entry. Adopting a library and then constraining its scheduler is the worse trade, because the constraint would live in our code while the behaviour lived in theirs. Stated here so the answer is not decided by whoever happens to implement it. Neither
-line carries the URL, because the v1 `jobFeed` URL is itself a secret (§5.4) and a retry line is
+line carries the URL, because the v1 `jobFeed` URL is itself a secret (§4.1) and a retry line is
 exactly where an unredacted URL would otherwise reach a log.
 
 **`request_id` reaches the caller on every result, in `_meta` (B42).** `request-middleware.md:144`
@@ -667,6 +682,13 @@ which §7.5 establishes we can never know: the host may auto-respond with no hum
 record what we can prove - that an approval response was received and what it said - and
 **ADR-0009** records that identity is unsatisfiable **for the approver specifically, and not for
 the caller.**
+
+**The audit event also records which approval path produced the response**, in a field named
+`approval_mechanism`, drawn from a closed set: `elicitation`, `sampling`, `no_handler` - the three
+paths §7.5 establishes. The set is closed for the reason `error-contract.md`'s registry is closed:
+a value emitted into an audit record is a contract, and an open string invites a fourth spelling of
+the first three. The value names a protocol path and carries no PII. **This is *how* the answer
+arrived, not *who* gave it** - ADR-0009's boundary is untouched (ADR-0021).
 
 That distinction is load-bearing and is the kind an ADR silently swallows. Two different identities
 are in play: *who approved* is unknowable, because a host may auto-respond with no human present;
@@ -971,13 +993,35 @@ def _install_shutdown_handler() -> None:
         raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM, _term)
 
-# in main(), after mcp.run(...) inside try/except KeyboardInterrupt:
+# in main():
+status = 0
+try:
+    mcp.run(...)
+except KeyboardInterrupt:
+    logger.info("shutting down")
+except BaseException:
+    logger.exception("the server terminated abnormally")
+    status = 70          # EX_SOFTWARE
+    raise
 finally:
-    sys.stdout.flush(); sys.stderr.flush()
-    os._exit(0)   # a non-daemon AnyIO thread blocks sys.exit() on stdio
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(status)   # a non-daemon AnyIO thread blocks sys.exit() on stdio
 ```
 
 Teardown completes before `os._exit`, so skipping atexit handlers costs nothing we rely on.
+
+**The status is the one the run earned, not a constant.** `finally` runs on every exit from the
+`try`, not only on the `KeyboardInterrupt` path this section is about, so `os._exit(0)` would report
+a bound port, a misconfiguration or an escaping cancellation as a clean stop, and every supervisor
+that reads an exit status - Docker restart policies, Kubernetes `restartPolicy`, systemd
+`Restart=on-failure` - would believe it. `os._exit` still runs unconditionally, so the stdio hang
+below is still closed and nothing about the SIGTERM mitigation changes; only the constant moves.
+The `raise` never reaches a caller, because the `finally` forces the exit first: it is there so the
+traceback is not swallowed if the `finally` is ever removed, and the logging call is what actually
+records the failure. **This must be tested by the side effect** - a case that forces `mcp.run` to
+fail for a real reason and reads the process's exit status - not by asserting `70` against a
+synthetic exception (ADR-0018).
 
 **Two limits on the word "verified" here, stated because the mitigation this replaced was also
 called verified and was not.** First, **the two halves were executed separately**: the explicit
@@ -1218,7 +1262,13 @@ when a key lands; rows 1-4 are blocking.
 
 Required cases, each failing if its defence is removed:
 - the 200-with-401-body trap;
-- a secret never reaching a log record, including the `jobFeed` URL;
+- **the log stream carries records for an invocation that produced them** - required by **C5-I1**
+  (§4.1, §5.3), whose mitigation is redaction at one enforcement point and which is untestable
+  against a stream nothing proves non-empty. The positive pairing for the case below, on the same
+  construction the audit pair uses: an absence passes trivially against a server that emits no log
+  record at all, so the two are paired and neither can be satisfied by silence;
+- **a secret never reaching a log record, including the `jobFeed` URL** - asserted against the log
+  stream the case above proves non-empty, not against silence (ADR-0013);
 - **`.gitignore` covers the credential patterns and `.env.example` carries no real value** - asserted
   against the committed files, since the row this covers is about what reaches the repository rather
   than what reaches a log, and reusing the log-redaction case above would have been a test whose name
@@ -1226,7 +1276,8 @@ Required cases, each failing if its defence is removed:
 - **the audit event is emitted and carries its mandated fields** - tool name, redacted arguments,
   result status, latency, `request_id`, the resolved client id on the HTTP transport and an
   explicit attribution-unavailable marker on stdio, and on the write `approval_state` together with
-  the mechanism that produced it (§5.3). **This case is positive on purpose.** The PII case below
+  the mechanism that produced it - `approval_mechanism`, present and one of `elicitation`,
+  `sampling`, `no_handler` (§5.3). **This case is positive on purpose.** The PII case below
   asserts an absence, and an absence passes trivially against a server that emits no audit event at
   all; the two are paired so that neither can be satisfied by silence;
 - **candidate PII never reaching a log or audit record** - a distinct case from the secret test
@@ -1292,7 +1343,7 @@ Required cases, each failing if its defence is removed:
   exists because §7.4 stated the requirement and nothing could fail if it were dropped**: it was
   not a §8 bullet. **Being one is not by itself enough, and this document twice claimed otherwise before the claim was measured.** The gate resolves §11 rows to §8 cases and not the reverse, so deleting this case leaves it at exit 0 - verified, against a control where deleting a case a row DOES name is caught. GATE-2 requires every case to cite a B-number or a section, which catches a case stripped to a bare unattributed line. **It does not check that the citation names an OWNER**, and this bullet is self-immunising: its own references to §8 and §11 - the retraction prose explaining the gate's limits - satisfy the check, so deleting §7.4 and §12 item 5 from here would still pass. Measured, not reasoned. **And it does not make deletion visible.** This is the third time this passage has overstated what protects it; the protection is that §7.4, §12 item 5 and this bullet reference each other, which is weaker than a §11 row and is now stated as weak rather than as a gate. Only a §11 row naming a case does that, and no threat row models a resource leak on shutdown - so this case's protection is that §7.4, §12 item 5 and this bullet all point at each other, and that is weaker than a row and is recorded as such. Three
   of this document's stated verification gaps close only on it (the upstream defect at
-  `#4927`, the `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5 records);
+  `#4927`, the `os._exit` workaround, and the uvicorn implementation detail §12 item 5 records);
 - untrusted-content fencing, including content that tries to close its own fence;
 - an unknown non-string field being dropped rather than stringified;
 - **`create_candidate` not retrying on timeout** - §2.2 and §4.3 both rest on the write being excluded from retry by construction, and B19 and B108's disposal are discharged by it. Without this case, the one property that makes the caller-replay ceiling honest is untested;
@@ -1757,7 +1808,7 @@ asserted that placement in the same edit that failed to make it.
 | C8-S1 | No credible threat. Configuration establishes no identity | - | - | - | It supplies the material C1 authenticates with | no credible threat |
 | C8-T1 | Environment or `.env` modified by a local actor to redirect credentials or enable writes | L | H | Medium | OS file permissions. Outside the server's control, stated for completeness | accepted |
 | C8-R1 | No record of configuration changes, including `JOBVITE_ENABLE_WRITES` being flipped or TLS being declared as proxy-terminated | M | M | Medium | Log the enabled tool set, the write flag and the TLS posture once at startup. **Not currently specified** | unmitigated |
-| C8-I1 | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | **Mitigated:** pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10); `.gitignore` is committed and ignores `.env`, `*.key` and vendored source documents, and is named as a control on boundary B6. `.gitignore` now covers `*.pem` and `secrets/`, and `.env.example` is committed with empty values (B90, B91 closed) | §8: `.gitignore` covers the credential patterns and `.env.example` carries no real value |
+| C8-I1 | A real credential or a `.env` reaches the public repository. This repository has already had confidential material reach a public remote once | H | H | **Critical** | **Mitigated:** pre-commit secret scanning and a committed-file-type gate, both exceeding the standard (§10); `.gitignore` is committed and ignores `.env`, `*.key` and vendored source documents, and is named as a control on boundary B6. `.gitignore` now covers `*.pem` and `secrets/`, and `.env.example` is committed with every secret-class variable empty - `JOBVITE_API_KEY`, `JOBVITE_API_SECRET`, `JOBVITE_FEED_KEY`, `JOBVITE_FEED_SECRET`, `JOBVITE_COMPANY_ID`, `JOBVITE_HTTP_TOKENS` (B90, B91 closed) | §8: `.gitignore` covers the credential patterns and `.env.example` carries no real value |
 | C8-D1 | A required variable is unset and the server starts anyway, surfacing later as a confusing Jobvite 401 | M | L | Low | `pydantic-settings` fails at boot naming the variable, scoped to the tools actually enabled (§7.3). Mitigated | not required (Low) |
 | C8-E1 | `JOBVITE_ENABLE_WRITES` enabled unintentionally, exposing `create_candidate` | L | H | Medium | Enforced server-side, and the write still requires per-invocation approval, which the flag alone cannot satisfy (§2.2). Two orthogonal gates rather than three duplicate ones (§7.6). Mitigated in depth | not required (Medium) |
 | C8-E2 | `JOBVITE_TLS_TERMINATED_BY_PROXY=true` asserted where no proxy terminates TLS, returning the deployment to plaintext with no warning | L | H | Medium | Accepted. The server cannot verify what sits in front of it, and the alternative (trusting `X-Forwarded-Proto`) is spoofable by anyone who can reach the port. An operator assertion is the correct shape. Carried to Residual Risks | residual |

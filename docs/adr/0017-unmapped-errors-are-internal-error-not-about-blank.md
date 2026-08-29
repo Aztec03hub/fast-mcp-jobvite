@@ -1,18 +1,19 @@
 # ADR-0017: The unmapped row is `/problems/internal-error`, not `about:blank`
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md`, which is frozen, and it changes shipped behaviour in
-> `errors.py`. It should be reviewed before it is applied — unlike ADR-0012 to 0014, which are held
-> only on sequencing, this one has an argument someone might reject.
+> **Accepted and APPLIED.** This changed `DESIGN.md`, which was frozen, and it changed shipped
+> behaviour in `errors.py`. Unlike ADR-0012 to 0014, which were held only on sequencing, this one
+> carried an argument someone might reject, so it was reviewed rather than sequenced. It was
+> accepted, and U2's mutant M10 inverted exactly as predicted below.
 
 ## Context
 
 Found by **building U2**, not by reading. The design's error registry has an internal contradiction
 and, underneath it, an answer the standard already supplies.
 
-**The contradiction (D1).** `DESIGN.md:489-490` states that every failure returns a complete RFC
+**The contradiction (D1).** `DESIGN.md:495-496` states that every failure returns a complete RFC
 9457 problem object carrying *"`type`, `title`, `status`, `detail`, `instance`, `request_id`,
 `timestamp`"* — `status` is a required member. `DESIGN.md:515`'s row reads:
 

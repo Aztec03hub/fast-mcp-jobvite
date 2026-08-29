@@ -1,15 +1,16 @@
-# ADR-0019: `DESIGN.md:603` cites `§5.4`, and there is no §5.4
+# ADR-0019: `DESIGN.md:605` cites `§5.4`, and there is no §5.4
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed**, because `DESIGN.md` is frozen and this changes its text. It is the smallest change
-> any ADR here has proposed and it is still an ADR, because the alternative is an unrecorded edit to
-> a frozen document - which is the precedent that matters, not the character count.
+> **Accepted and APPLIED**, in the ADR batch. It was the smallest change any ADR here proposed and
+> it was still an ADR, because the alternative is an unrecorded edit to a frozen document - which
+> is the precedent that matters, not the character count. `check-cross-references.py` went green on
+> it and is now wired into `ci.yml`.
 
 ## Context
 
-Found by **building U3**, not by reading. `DESIGN.md:603` reads:
+Found by **building U3**, not by reading. `DESIGN.md:605` reads:
 
 > *"line carries the URL, because the v1 `jobFeed` URL is itself a secret (**§5.4**) and a retry
 > line is..."*
@@ -36,7 +37,7 @@ is stated in **§4.1 Authentication, and three credential classes** (`## 4` at `
 
 ## Decision
 
-**`DESIGN.md:603`'s `(§5.4)` becomes `(§4.1)`.**
+**`DESIGN.md:605`'s `(§5.4)` becomes `(§4.1)`.**
 
 Nothing else changes. No behaviour, no threat row, no verification case.
 

@@ -157,8 +157,9 @@ report "G. _term and the handler installation are GONE"
 python3 - "$MAIN" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = re.sub(r"    finally:\n        sys\.stdout\.flush\(\)\n        sys\.stderr\.flush\(\)\n.*?\n        os\._exit\(0\)\n",
-           "", s, count=1, flags=re.S)
+s, n = re.subn(r"    finally:\n        sys\.stdout\.flush\(\)\n        sys\.stderr\.flush\(\)\n.*?\n        os\._exit\(status\)\n",
+               "", s, count=1, flags=re.S)
+assert n == 1, "amputation H found nothing to remove; the anchor moved"
 p.write_text(s)
 PY
 report "H. the finally block (flush + os._exit) is GONE"
