@@ -163,6 +163,32 @@ jobs:
       # reference (an "RFC 9457 SS4.2.1" whose filename sat on the previous line,
       # so the checker read it as internal), in the very commit that fixed the
       # original one. Nothing else would have caught that.
+      # EVERY DECLARED SETTING IS CONSUMED BY SOMETHING. Added after the
+      # question "does anything READ this?" produced two findings in one day
+      # and no gate here asked it: DESIGN.md:373-375's outbound budget was
+      # unimplemented until U7, and `outbound_rate_limit` is STILL read by
+      # nothing - declared, typed, defaulted, documented in .env.example and
+      # covered by config tests, every one of which passes on a setting no
+      # code consumes.
+      #
+      # A declared-and-unread setting is worse than a missing one: a missing
+      # setting fails loudly at first use, while a declared one ships in
+      # .env.example, an operator sets it, and it silently does nothing -
+      # and server.json advertises it to registry consumers as a knob.
+      #
+      # WIRED GREEN. `outbound_rate_limit` is exempted with ADR-0025 as its
+      # reason, and a stale exemption - a field that becomes read - fails
+      # too, so the exemption cannot outlive its cause.
+      - name: Every Settings field is consumed by something
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-settings-are-read.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::a declared setting is read by nothing, or an exemption is stale"
+            exit 1
+          fi
+
       - name: Section cross-references resolve
         run: |
           set -uo pipefail
