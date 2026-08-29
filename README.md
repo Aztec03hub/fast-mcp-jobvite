@@ -206,6 +206,20 @@ That is correct and it is confusing, so it is written here rather than left to b
 > `JOBVITE_TOOLS`.** Both produce a server that does not list the tool, and only one of them is a
 > configuration mistake.
 
+### A request body over 1 MiB is refused as a 422, not a 413
+
+On the `http` transport a request body larger than **1 MiB** is refused before the application is
+entered, with `/problems/validation-error` at **422**. The reason it is size is in `detail`, not in
+the status line.
+
+**422 rather than the more precise 413 is deliberate.** The error registry has no 413 row, and a new
+`type` URI is a contract this project owes forever - so a row is reused and the distinction lives in
+`detail`. If you are matching on status alone, match `detail` too.
+
+**It applies to every route and only to HTTP.** The bound sits outside the router, so it covers
+anything the server mounts. There is no body on `stdio`; the separate argument-payload bound applies
+there, and the two are not duplicates.
+
 ### `create_candidate` writes to a real ATS, and what the approval does NOT prove
 
 `create_candidate` is registered only when `JOBVITE_ENABLE_WRITES=true` **and** it is named in

@@ -21,6 +21,14 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Security
 
+- **`DESIGN.md:165`'s 1 MiB request-body limit now exists**, as an ASGI middleware on the HTTP
+  transport. It refuses **before the application is entered** - measured: an 8 MiB chunked body with
+  no declared length is refused with the app handed 917,504 bytes, fewer than the cap, because the
+  chunk that crosses never reaches it. Refusals are `/problems/validation-error` **422**, not 413:
+  the error registry has no 413 row and a new `type` URI is a promise owed forever, so the reason
+  lives in `detail` (ADR-0029, ADR-0031). **HTTP only** - there is no body on stdio, where the
+  separate argument-payload bound applies; the two are not duplicates. (2026-08-29 10:32 AM CDT)
+
 - **The log redaction now installs itself from `JobviteClient`'s constructor**, on `httpx2`'s
   standard-library logger, so an embedder who never calls
   `fast_mcp_jobvite.__main__.configure_logging()` no longer receives the job feed URL's `api`, `sc`
