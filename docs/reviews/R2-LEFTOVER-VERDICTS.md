@@ -633,24 +633,62 @@ above.
 
 # What I could NOT settle
 
-1. **Whether `r4-fixes` changes any of these verdicts.** All thirteen are judged at `1fef5be` on
-   `main`. `fix/r4-findings` was at `97eb93b` in `/tmp/r4fix-work` throughout and I did not read it -
-   the brief made `src/` and `tests/` read-only and reading another agent's mid-sweep branch to
-   predict a verdict would be worse than saying so. **M-1 (`audit.py`), L-4 and L-6 are the ones at
-   risk**: R4 is sweeping `services/jobvite_client.py`, which is L-4's file. Re-check L-4 after the
-   r4-fixes merge before dispatching a fix for it.
-
-2. **Whether M-2's `input_value=` echo can leak a secret.** The three fields I reproduced are
+1. **Whether M-2's `input_value=` echo can leak a secret.** The three fields I reproduced are
    integers and a `Literal`. Every secret-class field is `SecretStr`, and pydantic renders those as
    `SecretStr('**********')` in an error - but I did not construct a case that makes a `SecretStr`
    field fail *pydantic* validation (they carry no constraints today), so I have not demonstrated it
    either way. It does not change M-2's verdict; it changes how carefully the fix must be written,
    which is why the suggested fix builds the reason list from `loc`/`msg` and not from `str(exc)`.
 
-3. **Two gates I did not run:** `scripts/check-u1-pid1-shutdown.sh` needs Docker and `actionlint`
+2. **Two gates I did not run:** `scripts/check-u1-pid1-shutdown.sh` needs Docker and `actionlint`
    needs actionlint plus shellcheck on PATH. Neither is reachable from a documentation-only change,
    so this is a statement of what the Gates table does not cover rather than a verdict I could not
    reach.
 
-Worktree `/tmp/r2-verify-work` is removed after the push; the branch `review/r2-leftovers` carries
-this report.
+Worktree removed after the push; the branch `review/r2-leftovers` carries this report.
+
+# Postscript - re-checked against `r4-fixes`, which finished after these verdicts were written
+
+The first item in the list above used to be *"whether `r4-fixes` changes any of these verdicts"*.
+`fix/r4-findings` reached `2f0ba9f` and task #36 closed while this report was being written, so it
+is now answerable and I answered it rather than leaving a settleable item parked in "could not
+settle". Read from git objects, never from a working tree:
+
+```
+$ git diff --stat 1fef5be..2f0ba9f -- src/ tests/
+ src/fast_mcp_jobvite/models/__init__.py     |   2 +-
+ src/fast_mcp_jobvite/models/fencing.py      |  79 +++++++++-
+ src/fast_mcp_jobvite/models/jobs.py         |  37 ++++-
+ src/fast_mcp_jobvite/server.py              |   2 +-
+ src/fast_mcp_jobvite/tools/__init__.py      |   2 +-
+ src/fast_mcp_jobvite/tools/jobs.py          |  20 ++-
+ src/fast_mcp_jobvite/utils/constraints.py   |  42 ++++--
+ tests/credentialed/test_search_jobs_live.py | 111 +++++++++++---
+ tests/test_constraints.py                   |  20 +++
+ tests/test_tools_jobs.py                    | 219 ++++++++++++++++++++++++++--
+ 10 files changed, 473 insertions(+), 61 deletions(-)
+```
+
+R4's sweep is entirely inside U5 - `models/`, `tools/`, `constraints.py`. **It touches none of the
+files any of these thirteen findings live in**: not `audit.py`, not `config.py`, not
+`__main__.py`, not `services/jobvite_client.py`, not `utils/redaction.py`, not `test_boot.py`, not
+`test_shutdown.py`, not `test_audit.py`, not `test_config.py`, not `test_jobvite_client.py`, and not
+`pyproject.toml`. Spot-checked at the object level anyway, because a `--stat` that omits a file is
+the same instrument reporting an absence:
+
+```
+$ git show 2f0ba9f:src/fast_mcp_jobvite/audit.py | grep -n "raise AuditWriteError" -A 3
+348:        raise AuditWriteError(                       # M-1: still no `from None`
+$ git show 2f0ba9f:src/fast_mcp_jobvite/audit.py | grep -n "inbound_request_id.lower()"
+235:        return inbound_request_id.lower()            # nit-4: unchanged
+$ git show 2f0ba9f:src/fast_mcp_jobvite/services/jobvite_client.py | grep -n "companyId credential and none is" -B 2
+540:            raise JobviteUpstreamError(              # L-4: unchanged
+$ git show 2f0ba9f:src/fast_mcp_jobvite/config.py | grep -n "registers nothing"
+261:        writes-on with `JOBVITE_TOOLS` unset registers nothing,   # nit-1: unchanged
+$ git show 2f0ba9f:tests/test_boot.py | grep -n "== 78\|!= 1"
+(no output)                                              # M-3: still no literal
+```
+
+**All thirteen verdicts hold unchanged at `2f0ba9f`.** They also hold at `main`'s current `268e019`:
+`git diff --stat 1fef5be..268e019 -- src/ tests/` is empty, both commits since my pin being
+documentation.
