@@ -629,3 +629,66 @@ def test_two_invocations_get_different_ids() -> None:
     with audit_scope("get_candidate", Transport.HTTP) as second:
         pass
     assert first.request_id != second.request_id
+
+
+def test_every_event_field_reaches_the_record() -> None:
+    """R3-L3: `to_record`'s field list is a second enumeration.
+
+    `AuditEvent` is a dataclass, so its fields are the container.
+    `to_record` names them again in two dict literals, and a field added
+    to the dataclass and not to the literals is simply ABSENT from every
+    audit record - silently. The record still validates, still parses,
+    still looks well formed, and the missing field is one nobody asked
+    for by name until an incident.
+
+    This is the same shape as R3-L1 (`TOOL_REQUIREMENTS` beside
+    `KNOWN_TOOLS`) and the same one `fix-audit-logging` cited when it
+    chose `serialize=True` over an `{extra}` format string: a hand-kept
+    list beside the thing it is supposed to describe. Nothing enumerated
+    the container - `dataclasses.fields` appeared nowhere in the suite.
+
+    `started_at` is excluded deliberately: it is the input to
+    `latency_ms()`, not a wire field.
+    """
+    import dataclasses
+
+    with audit_scope("search_jobs", Transport.HTTP, client_id="c") as event:
+        # Every optional field set to something non-None. `to_record`
+        # drops None values, so an event built with defaults would let
+        # this pass while the literals omitted half the container.
+        event.trace_id = "a" * 32
+        event.span_id = "b" * 16
+        event.approval_state = "not_applicable"
+        event.approval_mechanism = "none"
+        event.result_status = "success"
+        emitted = set(event.to_record())
+
+    declared = {f.name for f in dataclasses.fields(event)} - {"started_at"}
+    missing = declared - emitted
+    assert not missing, (
+        f"these AuditEvent fields never reach the audit record: {sorted(missing)}. "
+        "Add them to to_record, or say in a comment why they are not wire fields."
+    )
+
+
+def test_the_field_check_is_not_vacuous() -> None:
+    """The control for the test above.
+
+    If `dataclasses.fields` returned nothing, or the event carried no
+    optional values, the assertion would pass over an empty set and
+    prove nothing. Both counts are pinned here rather than in the test
+    itself, so a change that empties either one fails HERE with a clear
+    reason instead of quietly weakening the check next door.
+    """
+    import dataclasses
+
+    with audit_scope("search_jobs", Transport.HTTP) as event:
+        declared = {f.name for f in dataclasses.fields(event)}
+        assert len(declared) > 5, (
+            f"AuditEvent declares only {len(declared)} fields; the field "
+            "check next door would be nearly vacuous"
+        )
+        assert "started_at" in declared, (
+            "started_at is excluded by name in the check next door; if it "
+            "no longer exists, that exclusion is silently doing nothing"
+        )
