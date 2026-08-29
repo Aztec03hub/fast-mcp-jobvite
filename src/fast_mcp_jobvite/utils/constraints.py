@@ -79,7 +79,18 @@ FORBIDDEN_CHARACTERS: Final = re.compile(f"[{_CONTROL_CHARACTERS}{_BIDI_OVERRIDE
 #: wrong in a `re.compile`. `FORBIDDEN_CHARACTERS` below is the Python
 #: engine's copy and is a character class, which both engines spell
 #: identically.
-_NO_FORBIDDEN = f"\\A(?:(?![{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]).)*\\z"
+#: **A NEGATED CLASS, NOT A LOOKAHEAD.** R4-H2: this read
+#: `\A(?:(?![...]).)*\z`, and the Rust engine has NO look-around at
+#: all, so declaring a single `SafeText` field raised `SchemaError:
+#: look-around ... is not supported` at CLASS-CONSTRUCTION time. The
+#: rule was written down, did not compile, and had no caller, so
+#: nothing ever tried it.
+#:
+#: The comment directly above measured `\z` vs `\Z` against this same
+#: engine and then introduced a second incompatibility two lines later.
+#: A negated class is what it already recommends: "a character class,
+#: which both engines spell identically".
+_NO_FORBIDDEN = f"\\A[^{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]*\\z"
 
 #: Default ceiling for a free-form string argument. DESIGN.md:156
 #: requires an explicit `max_length` on **every** string; this is the
@@ -129,6 +140,13 @@ PositiveCount = Annotated[int, Field(ge=1)]
 # `DESIGN.md:295-297` at the frozen `c15b138` specifies this module as
 # holding "control-character and bidi rejection, AND the
 # depth/list/dict-key limits (SS2.1)". Only the first half exists.
+#
+# **This note first said the character rule "exists", which was too
+# generous.** R4-H2 found that it did not COMPILE: a
+# negative lookahead against an engine with no look-around, so a
+# single `SafeText` field raised at class construction. Written down,
+# and unusable. Fixed; `tests/test_constraints.py` now declares a model
+# of each type, which is the caller that was missing.
 # SS2.1's table is:
 #
 #     Max nesting depth   5 levels
