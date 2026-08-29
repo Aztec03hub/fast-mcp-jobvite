@@ -115,7 +115,15 @@ run_control () {
   if [ "$rc" -eq 0 ]; then
     echo "    DID NOT FIRE: the suite is still green after the mutation"
     BAD=$((BAD + 1))
-  elif printf '%s\n' "$out" | grep -q "$expect"; then
+  # NOT `printf '%s\n' "$out" | grep -q "$expect"`. Under `set -o pipefail`
+  # (line 26) that pipeline returns 141, not 0, whenever `grep -q` finds its
+  # match and exits while `printf` is still writing - so a control whose
+  # mutation breaks ENOUGH tests to fill the pipe buffer is judged "WRONG TEST
+  # FIRED" no matter what fired. Measured: the FIXTURES_DIR row below failed
+  # exactly this way with `test_fixtures_directory_resolves` present in `$out`
+  # and printed in this function's own diagnostic. A bash substring test has no
+  # pipeline and cannot SIGPIPE.
+  elif [[ "$out" == *"$expect"* ]]; then
     echo "    exit=$rc, '$expect' named in the failure -> CONTROL FIRED"
   else
     echo "    exit=$rc but '$expect' was NOT the failing test -> WRONG TEST FIRED"
@@ -190,4 +198,18 @@ run_control "make uv.lock disagree with the manifest" \
 
 echo "================================================================"
 echo "$((TOTAL - BAD))/$TOTAL controls fired."
+
+# THE ROW FLOOR. `BAD -eq 0` is satisfied by a harness with no rows at all:
+# delete every `run_control` call and this prints "0/0 controls fired." and
+# exits 0. DERIVED: this harness printed "10/11 controls fired." on the run
+# that found the SIGPIPE defect above, and "11/11" once it was fixed - eleven
+# rows either way. Lowering this number is a visible diff that has to be
+# defended.
+ROW_FLOOR=11
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "         A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
 [ "$BAD" -eq 0 ]
