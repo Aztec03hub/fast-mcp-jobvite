@@ -44,7 +44,7 @@ from typing import Annotated, Any, Final, Literal
 
 from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from ..audit import (
     AuditPhase,
@@ -67,7 +67,7 @@ from ..models.jobs import (
     JobSearchResult,
 )
 from ..services.jobvite_client import JOBFEED_PATH, JobviteClient
-from ..utils.constraints import JobviteIdentifier
+from ..utils.constraints import InboundModel, JobviteIdentifier
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
 #: (DESIGN.md:624-627). `io.modelcontextprotocol/*` is reserved, and
@@ -95,7 +95,7 @@ JOBS_PATH: Final = "/job"
 CLIENT_ROUTES: Final = (JOBS_PATH, JOBFEED_PATH)
 
 
-class SearchJobsInput(BaseModel):
+class SearchJobsInput(InboundModel):
     """Arguments for `search_jobs`.
 
     **Deliberately narrow, and the narrowness is evidence-bound rather
@@ -430,7 +430,7 @@ def _register_search_jobs(
             )
 
 
-class GetJobFeedInput(BaseModel):
+class GetJobFeedInput(InboundModel):
     """Arguments for `get_job_feed`.
 
     **Narrow on purpose, and narrower than the evidence permits.**

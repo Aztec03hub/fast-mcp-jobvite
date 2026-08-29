@@ -97,7 +97,7 @@ from ..models.candidate import (
 )
 from ..models.fencing import Fenced, FencingDecision, fencing_paths
 from ..services.jobvite_client import JobviteClient
-from ..utils.constraints import JobviteIdentifier, SafeText
+from ..utils.constraints import InboundModel, JobviteIdentifier, SafeText
 from ..utils.normalise import epoch_ms_to_date, none_to_blank, read_identifier
 from ..utils.redaction import fence_payload
 
@@ -148,7 +148,7 @@ CANDIDATE_FENCING_PATHS: Final[dict[str, Fenced]] = {
 }
 
 
-class SearchCandidatesInput(BaseModel):
+class SearchCandidatesInput(InboundModel):
     """Arguments for `search_candidates`.
 
     **DELIBERATELY EMPTY, AND THE EMPTINESS IS EVIDENCE-BOUND.**
@@ -175,7 +175,7 @@ class SearchCandidatesInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class GetCandidateInput(BaseModel):
+class GetCandidateInput(InboundModel):
     """Arguments for `get_candidate`.
 
     `candidateId` is `[INFERRED]` like everything else on this route,
@@ -211,7 +211,7 @@ CREATE_APPLICATION_KEY: Final = "application"
 CREATE_CANDIDATE_KEY: Final = "candidate"
 
 
-class CreateCandidateInput(BaseModel):
+class CreateCandidateInput(InboundModel):
     """Arguments for `create_candidate`.
 
     **THIS MODEL CARRIES CANDIDATE PII BY CONSTRUCTION** - name, email
