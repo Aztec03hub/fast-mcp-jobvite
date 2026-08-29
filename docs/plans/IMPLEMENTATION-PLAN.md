@@ -18,6 +18,21 @@ each re-ran some of these by hand and reproduced them, which is the right instin
 mechanism: it does not survive the reviewer who does not think of it, and **there is no round 8.**
 **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE-FROZEN at `c15b138`**
+
+> **THIS SHA IS LOAD-BEARING AND MUST NOT BE ADVANCED ON ITS OWN.** Every `DESIGN.md:NNN`
+> citation below is a line number **in `c15b138`**, and the design has been re-frozen since, at
+> `8a9d63c`. Measured 2026-08-29: of this document's 111 citations, 91 now name different text in
+> the current `DESIGN.md` - and all 111 remain correct against `c15b138`. **That is why this plan
+> was deliberately NOT repointed at the re-freeze**: all sixteen units U0-U15 are built, nothing
+> executes this document any more, and it is a RECORD of what was planned - the same standing as
+> a worklog, which is also left as written.
+>
+> So: read the citations below with `git show c15b138:docs/DESIGN.md`, not with the working copy.
+> **Updating the SHA in the line above without repointing all 111 citations would turn a document
+> that is honestly out of date into one that is confidently wrong**, which is strictly worse. If
+> this plan ever becomes live again - a new unit is planned - the remedy is to replace the numbers
+> with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`, not to
+> repoint them.
 where the eight-ADR batch landed - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
