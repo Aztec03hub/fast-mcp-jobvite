@@ -130,11 +130,22 @@ standards-coverage task.
 The `-u` and `-o pipefail` halves are kept and are not in question. Only `-e` is dropped, and only
 in `scripts/*.sh`.
 
-**Scope, stated by PURPOSE and not by path.** This ADR covers **any script here whose measurement is
-the exit code of a command that is expected to fail** - today the fifteen control and amputation
-harnesses in `scripts/`, and the two probes in `docs/reviews/` that this ADR and its obligation row
-are evidenced by. Any other script in this repository gets `set -euo pipefail` and is not covered
-here. This ADR is not a licence to omit `-e` generally.
+**Scope, stated by PURPOSE and not by path.** This ADR covers **anything here whose measurement is
+the exit code of a command that is expected to fail** - the control and amputation harnesses in
+`scripts/`, the two probes in `docs/reviews/` that this ADR and its obligation row are evidenced by,
+and **the `run:` blocks in `.github/workflows/ci.yml` that call them**. Anything else in this
+repository gets `set -euo pipefail` and is not covered here. This ADR is not a licence to omit `-e`
+generally.
+
+*The workflow blocks were added to this scope after it was written, and the omission is instructive.
+The first draft said "any SCRIPT here", which is a rule shaped by ARTIFACT TYPE rather than by
+purpose - the same error one level up from the directory-shaped draft this ADR already records
+below. **Measured at `2d20ed6`: `ci.yml` has 18 multi-line `run:` blocks; 16 carry
+`set -uo pipefail`, 13 capture `rc=$?` from a command expected to fail, and ZERO combine `-e` with
+`rc=$?`.** So those blocks were already following this ADR's discipline while sitting outside its
+stated scope - deviating from `bash.md:36-41` with no ADR covering them. The seventeenth block uses
+`set -euo pipefail` and captures no exit code, which is correct and stays. The eighteenth is a single
+command whose exit code IS the step's result, where a strict-mode line would add nothing.*
 
 *Scoping this by directory was the first draft, and it was wrong within the hour: it excluded
 `docs/reviews/probe-set-e-vs-harness.sh` - the probe that measures this very ADR's central claim,

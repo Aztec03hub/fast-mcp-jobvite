@@ -780,6 +780,11 @@ jobs:
       # All four are permissive or weak-copyleft-not-shipped, and no strong
       # copyleft is present in either tree. Extending the allow-list is an ADR,
       # not a CI edit. See docs/worklogs/U0-REPORT.md.
+      # The ONE run: block with no strict-mode line, and that is deliberate:
+      # it is a single command whose exit code IS the step's result, so there
+      # is nothing after a failure to guard, no pipeline and no unset
+      # variable. Recorded because an unexplained absence invites a 'fix',
+      # and because the other 17 blocks do carry one - ADR-0023 SS scope.
       - name: Licence gate
         run: |
           uv run --frozen --with pip-licenses pip-licenses \
