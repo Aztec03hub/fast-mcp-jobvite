@@ -68,6 +68,11 @@ wrong** - the tests assert that the flags this project decided on are emitted, n
 understands them. That resolves the moment task #26 puts `pip-audit` in the lock and a real
 invocation consumes the output.
 
-**And nothing consumes those flags today.** The ignore mechanism is fully built and connected to
-nothing, because no CI step runs `pip-audit` at all. That is a separate defect, tracked as #26, and
-this ADR does not close it.
+**The flags ARE consumed now, and this paragraph used to say they were not.** When this ADR was
+written the ignore mechanism was fully built and connected to nothing, because no CI step ran
+`pip-audit` at all - a separate defect tracked as #26, which this ADR did not close and which has
+since closed. `ci.yml` runs `uv run --frozen pip-audit $flags`, taking the flags from
+`scripts/check_advisories.py`, so the expiry half and the audit half are now one chain.
+
+Recorded here rather than left standing because a sentence saying a mechanism is connected to
+nothing is exactly what a reader checks before trusting it, and it had been false for some time.

@@ -103,6 +103,12 @@ read exactly like the true one.
 rather than following them; `FASTMCP-SPIKE-4.md` and `JOBVITE-API.md` are not in its target set.
 "Correctly formed and pointing at a document I did not open" is weaker than "resolves".
 
-**The gate is not wired yet, deliberately.** It is red on exactly this defect, and wiring a knowingly
-red gate trains everyone to ignore it. It goes into `ci.yml` in the same commit that applies this
-ADR - the same discipline the W505 sweep is following.
+**The gate IS wired, and this paragraph used to say it was not.** It was written before the ADR was
+applied and said "not wired yet, deliberately" - correct at the time, and left standing after the
+header of this same file recorded the opposite. `check-cross-references.py` runs at `ci.yml`'s
+"Section cross-references resolve" step, which also refuses a run that found NO references at all,
+because a checker that resolves nothing reports the same green as one that resolved everything.
+
+The reasoning that paragraph carried is worth keeping, because it is the rule and not the status:
+the gate was held back until it was green, since wiring a knowingly red gate trains everyone to
+ignore it. That is the same discipline the W505 sweep followed, and the ShellCheck hook after it.
