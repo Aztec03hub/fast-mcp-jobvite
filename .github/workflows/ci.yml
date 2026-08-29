@@ -566,6 +566,23 @@ jobs:
       # `--min-rows` here. It cannot tell whether a floor is RIGHT; only a
       # run of that harness establishes that, and no static reader can
       # distinguish a derived number from a typed one.
+      # WIRED because it was GREEN and unwired, which is a green nobody asked
+      # for - found by enumerating `docs/reviews/check-*.py` against this file:
+      # 18 checkers, 16 wired, and of the two that were not, this one had no
+      # backlog at all. The other (`check-env-vars-are-declared.py`) has one
+      # finding and stays out until #60 closes it.
+      #
+      # NOT redundant with `check-design-citation-shape.py`, which asks a
+      # NARROWER question over a NARROWER container: whether a target could be
+      # anyone's subject, across `src/ tests/ scripts/`. This one asks whether
+      # every citation in the WHOLE TREE resolves at all, and reports which ones
+      # MOVED after an edit - which is the instrument #95's re-freeze needs.
+      # Neither is sufficient: both are bounds checks, and a contracted range
+      # still resolves. Three wrong citations here were found by hand, none by
+      # a gate.
+      - name: Every DESIGN.md citation resolves to a line that exists
+        run: python3 docs/reviews/check-design-citations.py
+
       - name: Every harness is wired and has a row floor
         run: python3 docs/reviews/check-row-floors.py
 
