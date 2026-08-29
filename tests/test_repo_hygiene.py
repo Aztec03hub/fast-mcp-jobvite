@@ -213,15 +213,14 @@ def _dual_declared_defaults() -> list[str]:
                 if not isinstance(stmt, ast.AnnAssign) or stmt.value is None:
                     continue
                 for sub in ast.walk(stmt.annotation):
-                    is_field = (
-                        isinstance(sub, ast.Call)
-                        and (
-                            getattr(sub.func, "id", None)
-                            or getattr(sub.func, "attr", None)
-                        )
-                        == "Field"
+                    if not isinstance(sub, ast.Call):
+                        continue
+                    called = getattr(sub.func, "id", None) or getattr(
+                        sub.func, "attr", None
                     )
-                    if is_field and any(
+                    if called != "Field":
+                        continue
+                    if any(
                         kw.arg in ("default", "default_factory") for kw in sub.keywords
                     ):
                         rel = path.relative_to(REPO_ROOT)
