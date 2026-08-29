@@ -33,25 +33,32 @@ edit. This is the one task on the board that cannot run concurrently with anythi
 
 ## The citation surface, re-measured at `1a51107` rather than estimated
 
+**The unit is OCCURRENCES, not lines** - `grep -rno 'DESIGN\.md:[0-9]' <dir> | wc -l`. Naming it
+is not pedantry: a line can carry two citations, and counting lines instead gives `docs/reviews`
+476 rather than 519. The orchestrator re-measured this block with the line form, read the 43 as a
+real fall, and wrote a paragraph explaining a change that had not happened. Both numbers were
+correct; they answered different questions. **State the command with the number.**
+
 ```
-src               385        <- repoint
-tests             344        <- repoint
-scripts           132        <- repoint
+src               388        <- repoint
+tests             346        <- repoint
+scripts           133        <- repoint
 docs/briefs        42        <- repoint only the LIVE ones (see below)
-docs/adr           60        <- LEAVE (an ADR quotes the design it is amending)
-docs/worklogs     181        <- LEAVE (a worklog records what that unit saw)
-docs/reviews      476        <- LEAVE (a review cites the design as it stood)
+docs/adr           62        <- LEAVE (an ADR quotes the design it is amending)
+docs/worklogs     186        <- LEAVE (a worklog records what that unit saw)
+docs/reviews      519        <- LEAVE (a review cites the design as it stood)
 ```
 
-**861 to repoint, 717 to leave alone**, and the split is a judgement you should re-derive rather
+**867 to repoint, 767 to leave alone**, and the split is a judgement you should re-derive rather
 than inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this
 reason and says so; the same argument covers `docs/worklogs/` and applied ADRs.
 
-**These numbers moved between two measurements of the same brief.** They were 370 / 336 / 125 /
-170 / 519 at `9c41009`, so four went up and `docs/reviews` went DOWN by 43. **Re-measure before you
-start rather than trusting this block** - a count written into a document decays exactly this way,
-and this project has watched a retyped constant rot in a brief, two obligation rows, a CI comment
-and three harness floors.
+The four repointable directories grew between `9c41009` and `1a51107` (370/336/125 and 170), and
+`docs/reviews` did not move at all - which is what you would expect from a directory of records
+nobody edits, and is a small check that the split above is drawn in the right place. **Re-measure
+before you start**; a count written into a document decays exactly this way, and this project has
+watched a retyped constant rot in a brief, two obligation rows, a CI comment and three harness
+floors.
 
 **`docs/briefs/` splits INSIDE itself, which is why its 42 is not 42.** A brief is an instruction
 while its task is open - a stale line number then sends an agent to the wrong text. Once the unit is
