@@ -703,8 +703,10 @@ name = "fast-mcp-jobvite"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "defusedxml" },
     { name = "fastmcp" },
     { name = "fastmcp-slim" },
+    { name = "httpx2" },
     { name = "loguru" },
     { name = "mcp" },
 ]
@@ -723,8 +725,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "defusedxml", specifier = "==0.7.1" },
     { name = "fastmcp", specifier = "==4.0.0b4" },
     { name = "fastmcp-slim", specifier = "==4.0.0b4" },
+    { name = "httpx2", specifier = "==2.12.0" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "mcp", specifier = "==2.1.1" },
 ]

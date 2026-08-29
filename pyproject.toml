@@ -22,6 +22,24 @@ dependencies = [
   # covers it, so a stdlib-logging seam written instead of this WOULD BE the
   # forbidden module. Threat row C7 (:1741) names it as a component.
   "loguru==0.7.3",
+  # U4's, added under the same serialised dependency slot (collision 10). Both
+  # were ALREADY resolved transitively in uv.lock at these exact versions, so
+  # `uv lock` added only the direct entries and moved no version.
+  #
+  # httpx2 is ADR-0007's decision and the client FastMCP itself installs: fastmcp
+  # 4.0.0b4 does not install `httpx` at all. Naming it directly rather than
+  # relying on the transitive is deliberate - the Jobvite client imports it, and a
+  # module that imports a package nobody declared breaks the day the intermediate
+  # drops it. It also ships MockTransport in the box, which is what lets the
+  # credential-free test strategy add NO third-party mocking library
+  # (DESIGN.md:1308-1309).
+  "httpx2==2.12.0",
+  # DESIGN.md:331-334 makes HR-XML a HARDENED FALLBACK rather than a handled
+  # case: it appears on /v1/candidate, which we do not call, and if XML ever
+  # arrives it is parsed with defusedxml and treated as an error body. Entity
+  # expansion on attacker-reachable input is not a risk worth taking for a route
+  # that should never respond to us.
+  "defusedxml==0.7.1",
 ]
 
 # U1's key, and only this key (IMPLEMENTATION-PLAN.md:1273). U0 deliberately
@@ -204,3 +222,19 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests"]
 exclude = ["^docs/"]
+
+# defusedxml ships no type information (no py.typed, no bundled stubs), so under
+# `strict = true` its three imports in services/jobvite_client.py are hard errors.
+#
+# This is an OVERRIDE rather than a `types-defusedxml` dev dependency on purpose.
+# U4's dependency slot was granted for two runtime packages and collision 10
+# serialises edits to uv.lock across units; adding a stub package would resolve a
+# new distribution into the lock for a typing convenience, which is a larger
+# footprint than the problem. The narrow cost is recorded rather than hidden: the
+# `fromstring` result is `Any` inside `_raise_from_markup`, so the element walk
+# there is unchecked. Every value taken off it is re-typed explicitly at the call
+# site, and the entity-bomb and well-formed-XML cases in
+# tests/test_jobvite_client.py cover the branch behaviourally.
+[[tool.mypy.overrides]]
+module = ["defusedxml.*"]
+ignore_missing_imports = true

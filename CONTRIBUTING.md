@@ -93,6 +93,8 @@ bash scripts/check-u15-gate-amputation.sh  # survivors are the OUTPUT, not a fai
 bash scripts/check-u11-advisory-controls.sh
 bash scripts/check-u3-audit-controls.sh    # U3 mutation: every row must be killed
 bash scripts/check-u3-audit-amputation.sh  # U3 amputation: survivors are the OUTPUT
+bash scripts/check-u4-client-controls.sh   # U4 mutation: every row must be killed
+bash scripts/check-u4-client-amputation.sh # U4 amputation: survivors are the OUTPUT
 python3 scripts/check-committed-file-types.py --all
 uv run --frozen python scripts/check_advisories.py        # the expiry half
 uv run --frozen pip-audit $(uv run --frozen python scripts/check_advisories.py)
