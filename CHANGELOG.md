@@ -9,11 +9,31 @@ Timestamps are America/Chicago.
 
 ## [Unreleased]
 
-No release yet. **The server runs.** `fast-mcp-jobvite` boots on stdio and HTTP, exposes
-`search_jobs`, and its Quickstart is executed by CI on every merge. Entries below record both the
-design decisions the implementation was built against and the units built so far.
+No release yet. **The server runs.** `fast-mcp-jobvite` boots on stdio and HTTP and exposes four
+read tools - `search_jobs`, `get_job_feed`, `search_candidates`, `get_candidate` - plus
+`create_candidate`, which is registered only when writes are enabled AND the tool is named, and
+which pauses for an approval the host must answer. Its Quickstart is executed by CI on every merge.
+Entries below record both the design decisions the implementation was built against and the units
+built so far.
+
+**Nothing here proves a human approved anything.** The approval is answered by the host, and this
+server cannot tell a person from a handler - see the README's disclosures.
+
+### Security
+
+- **The log redaction now installs itself from `JobviteClient`'s constructor**, on `httpx2`'s
+  standard-library logger, so an embedder who never calls
+  `fast_mcp_jobvite.__main__.configure_logging()` no longer receives the job feed URL's `api`, `sc`
+  and `companyId` in the clear. **The shipped server was never exposed** - `configure_logging()`
+  runs on every shipped path - and this closes an *embedder's* exposure. The install is idempotent:
+  the client is rebuilt once per invocation, so a filter appended per construction would grow
+  without bound. ADR-0026. (2026-08-29 10:32 AM CDT)
 
 ### Added
+
+- `JobviteClient(install_log_redaction=False)` opts out of that side effect for an embedder who
+  wants their logging configuration untouched. **A constructor argument, never a setting** - a
+  setting nothing reads is what ADR-0025 is about. (2026-08-29 10:32 AM CDT)
 
 - **The three structural limits `DESIGN.md:162-164` names and nothing enforced** - nesting depth 5,
   1,000 list items, 100 dict keys - plus a 1 MiB bound on the serialised argument payload, in
