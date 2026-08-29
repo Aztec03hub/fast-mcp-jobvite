@@ -379,6 +379,36 @@ def test_an_empty_value_is_treated_as_unset(clean_env: pytest.MonkeyPatch) -> No
     assert "JOBVITE_API_KEY" in str(excinfo.value)
 
 
+@pytest.mark.parametrize("blank", [" ", "   ", "\t", "\n", " \t \n "])
+def test_a_whitespace_only_value_is_also_treated_as_unset(
+    clean_env: pytest.MonkeyPatch, blank: str
+) -> None:
+    """A whitespace-only value is absent, which only half a test held.
+
+    `_empty_is_unset` promises "empty AND whitespace-only" and only the first
+    half was exercised.
+
+    **This was a surviving mutation.** Deleting `.strip()` from the validator
+    left the whole suite green, because every existing case uses `""` - which
+    is falsy with or without the strip. A credential of `" "` would then be a
+    PRESENT value that satisfies the required-variable check and fails at
+    Jobvite as the confusing 401 the rule exists to prevent, which is the
+    empty-string defect wearing a space.
+
+    A whitespace-only value is not exotic: it is what a `.env` line with a
+    trailing space after the `=` produces, and what a copy-paste out of a
+    terminal or a spreadsheet produces routinely.
+    """
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    clean_env.setenv("JOBVITE_API_KEY", blank)
+    clean_env.setenv("JOBVITE_API_SECRET", "s")
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings()
+    assert "JOBVITE_API_KEY" in str(excinfo.value), (
+        f"a whitespace-only credential ({blank!r}) was accepted as present"
+    )
+
+
 def test_the_whole_committed_template_loads(clean_env: pytest.MonkeyPatch) -> None:
     """Every line of `.env.example` parses, and the result still refuses.
 
