@@ -33,10 +33,10 @@ No shared file was touched: `pyproject.toml`, `.github/`, `docs/plans/`, `tests/
   `ResourceNotFoundError` (404), `DuplicateCandidateError` (409), `ScopeDeniedError` (403),
   and anything else -> `about:blank`.
 - **`JobviteUpstreamError` keeps Jobvite's status and message** on the instance (for the audit
-  event) and reproduces both in `detail` (`DESIGN.md:530-532`). `upstream_status=None` is a first
+  event) and reproduces both in `detail` (`DESIGN.md:532-534`). `upstream_status=None` is a first
   class case: the plain-text and Tomcat-HTML error encodings (`DESIGN.md:345-347`) carry no status.
 - **`build_problem` and `problem_from_exception` return; they never raise a problem object**
-  (`DESIGN.md:534-538`). The one `raise` in the module is a `ValueError` when an extension member
+  (`DESIGN.md:536-540`). The one `raise` in the module is a `ValueError` when an extension member
   would shadow one of the seven - a call-site programming error, and letting it silently overwrite
   `status` would reintroduce exactly the defect `DESIGN.md:502` corrects.
 - **An unmapped exception's message never reaches the caller.** `detail` names the exception class
@@ -257,7 +257,7 @@ present, extensions are additive and may not shadow a required member. This is t
 
 ### N1 (scope, needs the team lead's ruling): `request_id_scope` is not in the design
 
-`DESIGN.md:602-604` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
+`DESIGN.md:604-606` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
 `utils/correlation.py` is described as holding *"a single `ContextVar[str | None]` named
 `request_id_var`"* - which it still does; there is exactly one `ContextVar(` in the file, asserted
 by `test_correlation_declares_exactly_one_contextvar`.
@@ -297,9 +297,9 @@ standards file hits the same wall.
   read the file by hand at `architecture/error-contract.md:96-108` and transcribed seven rows; a
   transcription error would pass every test in this suite.
 - **The envelope assertion proves nothing today.** See V1.
-- **Nothing here is asserted on the wire.** `DESIGN.md:613-614` requires the problem object's
+- **Nothing here is asserted on the wire.** `DESIGN.md:615-616` requires the problem object's
   `request_id` to match the audit event's id **on the wire**; that is U5's and needs a server.
-- **The 422 row's reachability is unexercised.** `DESIGN.md:561` records it is unreachable on the
+- **The 422 row's reachability is unexercised.** `DESIGN.md:563` records it is unreachable on the
   pre-dispatch path and serves in-body validation only. Nothing in the tree yet produces either,
   so the class exists and no caller raises it.
 - **Timestamp format vs consumers.** `_timestamp()` emits microseconds (`...T14:32:00.123456Z`),

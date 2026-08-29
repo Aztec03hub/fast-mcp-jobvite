@@ -34,27 +34,27 @@ by opening the line and reading its subject:
 | Cited | Verdict |
 |---|---|
 | `DESIGN.md:332-333` - the invariant | **Correct, verbatim.** "a response is successful only if the body carries no `status.code >= 400` **and** the HTTP status is below 400. Both, every call." |
-| `DESIGN.md:1356-1357` - MockTransport | **Correct.** `:1308` is the `MockTransport` sentence. |
+| `DESIGN.md:1358-1359` - MockTransport | **Correct.** `:1308` is the `MockTransport` sentence. |
 | `DESIGN.md:311-316` - v2 headers, jobFeed exception | **Correct.** |
 | `DESIGN.md:337-340` - HR-XML hardened fallback | **Correct.** |
 | §8 case **#1** = the 200-with-401-body trap | **Correct** - it is the first bullet of the required-cases list. |
 | §8 case **#2** = a secret never reaching a log record | **Correct** - the second bullet. |
 | §9 hazard **7** = route-level 404s | **Correct.** |
-| `DESIGN.md:1413-1418` - the three pins | **Off by one at the start.** `:1365` is the ```` ```toml ```` fence; the block is `1366-1370` and the three pins are at **`1367-1369`**. Minor, and it still resolves. |
+| `DESIGN.md:1415-1420` - the three pins | **Off by one at the start.** `:1365` is the ```` ```toml ```` fence; the block is `1366-1370` and the three pins are at **`1367-1369`**. Minor, and it still resolves. |
 | "the recorded tier is exactly five files" | **Correct, and now asserted.** `git ls-files` shows exactly five `error_*` fixtures. `test_the_recorded_tier_is_exactly_these_five_files` closes the set so a sixth cannot arrive unnoticed. |
 
 ### A contracted range that still resolves - FINDING C1
 
 Two committed citations for the three pins point at ranges that **do not contain them**:
 
-- `pyproject.toml` comment: *"Verbatim from DESIGN.md:1406-1415"*
-- `tests/test_manifest.py` docstring: *"they are DESIGN.md:1406-1410"*
+- `pyproject.toml` comment: *"Verbatim from DESIGN.md:1408-1417"*
+- `tests/test_manifest.py` docstring: *"they are DESIGN.md:1408-1412"*
 
-The pins are at `DESIGN.md:1415-1417`. `1358-1362` **ends four lines before the block begins** - it
+The pins are at `DESIGN.md:1417-1419`. `1358-1362` **ends four lines before the block begins** - it
 covers the prose paragraph about the resolve, not the pins. Both ranges still "resolve" to
 plausible-looking text, which is the sharpest form of this failure. **I did not fix either**: they
 are outside U4's subject and belong with the anchor-scheme work on task #30. **Filed as task
-#34**, which also records a third contracted variant of the same anchor: `test_removing_fastmcp_slim_breaks_the_resolve`'s own assertion message cites `DESIGN.md:1406-1408`.
+#34**, which also records a third contracted variant of the same anchor: `test_removing_fastmcp_slim_breaks_the_resolve`'s own assertion message cites `DESIGN.md:1408-1410`.
 
 ---
 
@@ -251,7 +251,7 @@ check-plan-measurements                             exit=0
 check-obligations                                   exit=1     <- SIX ANCHORS MOVED, see below
 ```
 
-`check-cross-references.py` exits 1 on `DESIGN.md:603`, held for ADR-0019. Confirmed to be that
+`check-cross-references.py` exits 1 on `DESIGN.md:605`, held for ADR-0019. Confirmed to be that
 one failure and nothing else; not reported as a problem and not touched.
 
 **Suite: 294 passed, 2 deselected, 0 skipped**, POST-REBASE onto `origin/main` at **`a51ffc0`**.

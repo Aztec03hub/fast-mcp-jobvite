@@ -1,6 +1,6 @@
 """§8 #18: lifespan teardown runs on SIGTERM, on BOTH transports.
 
-DESIGN.md:1337-1343. Three of the design's stated verification gaps close
+DESIGN.md:1339-1345. Three of the design's stated verification gaps close
 only on this case: the upstream defect at PrefectHQ/fastmcp#4927, the
 `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5
 records.
@@ -9,7 +9,7 @@ records.
 that dies uncleanly can still exit 0, so an exit-code assertion would pass
 against exactly the failure this case exists to catch.
 
-**Both transports, because they fail differently** (DESIGN.md:1342-1343).
+**Both transports, because they fail differently** (DESIGN.md:1344-1345).
 The HTTP arm passes on teardown alone; **only the stdio arm exercises the
 `os._exit(0)` half**, where teardown runs but the process does not die
 because a non-daemon AnyIO worker thread blocks interpreter shutdown. A
@@ -69,7 +69,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
     assert "opened" in marker.read_text()
     assert "closed" not in marker.read_text()
 
-    # DESIGN.md:1339-1341: resolve the INTERPRETER via /proc/<pid>/cmdline
+    # DESIGN.md:1341-1343: resolve the INTERPRETER via /proc/<pid>/cmdline
     # rather than trusting that the pid we hold is the process we signalled.
     assert interpreter_of(proc.pid) == sys.executable
 
@@ -94,7 +94,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
 def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
     """The stdio arm's distinctive failure: teardown runs, process survives.
 
-    DESIGN.md:979-981 records that on stdio a non-daemon AnyIO worker thread
+    DESIGN.md:981-983 records that on stdio a non-daemon AnyIO worker thread
     blocks interpreter shutdown, so even an explicit `sys.exit(0)` never
     completes.
 
@@ -134,7 +134,7 @@ def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
 def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     """The arms above run `main()`, not a copy of it written in a test.
 
-    DESIGN.md:984-1023 is explicit that the mitigation this replaced was also
+    DESIGN.md:986-1025 is explicit that the mitigation this replaced was also
     called verified and was not. A shutdown case that reimplements the
     handler and the `finally` proves only that the test author can write
     them - so this asserts the entry script imports the shipped `main`, and
@@ -154,7 +154,7 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     assert "signal.signal(signal.SIGTERM, _term)" in source
     assert "os._exit(status)" in source
     # The forced exit must be in a `finally`, not on the success path only:
-    # DESIGN.md:994-1008 places it there so teardown completes first.
+    # DESIGN.md:996-1010 places it there so teardown completes first.
     finally_block = source.split("finally:")[-1]
     assert "os._exit(status)" in finally_block
     # ADR-0018: the constant is the defect, not the call. A crash must not
@@ -167,7 +167,7 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
 
 
 def test_the_handler_does_not_read_ambient_state() -> None:
-    """DESIGN.md:967-973: `getsignal(SIGINT)` is the defect, not the fix.
+    """DESIGN.md:969-975: `getsignal(SIGINT)` is the defect, not the fix.
 
     A backgrounded process inherits `SIGINT = SIG_IGN`, so the rejected
     one-liner installs "ignore SIGTERM" - in a container the process then

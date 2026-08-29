@@ -10,9 +10,14 @@ It refuses to guess:
 
   - It ignores BROKEN lines entirely. Those are citations whose target line
     CHANGED, and only a human re-reading the subject can repoint them.
+  - It ignores any line carrying the marker `REPOINT-EXEMPT`. A script that
+    WRITES an example citation - a regex test string, a docstring illustrating
+    the two forms - is not CITING anything, and repointing it corrupts the
+    example silently. Measured: the first pass of this batch shifted three of
+    `check-design-citations.py`'s own examples.
   - It keys on (file, line-the-citation-sits-on, old-range), never on a naive
     string replacement, because a single line can carry several citations and
-    `DESIGN.md:151` is a prefix of `DESIGN.md:1510`.
+    `DESIGN.md:<n>` can be a prefix of `DESIGN.md:<nn>`.
   - It asserts it parsed a non-zero number of MOVED lines, and fails loudly if
     a citation the report named is not where the report said it was.
 
@@ -55,6 +60,12 @@ def parse(text: str) -> dict[tuple[str, int], dict[tuple[int, int], tuple[int, i
         m = _MOVED.match(line)
         if not m:
             continue
+        cited_in = pathlib.Path(REPO_ROOT / m["file"])
+        try:
+            if "REPOINT-EXEMPT" in cited_in.read_text().splitlines()[int(m["lineno"]) - 1]:
+                continue
+        except (OSError, IndexError, UnicodeDecodeError):
+            pass
         old_s = int(m["os"])
         old_e = int(m["oe"]) if m["oe"] else old_s
         new_s = int(m["ns"])

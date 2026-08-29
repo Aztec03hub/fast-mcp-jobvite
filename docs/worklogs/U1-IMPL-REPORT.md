@@ -98,7 +98,7 @@ five-row matrix.
 **B75 is not a repoint and I want it read.** That row was `CONTRADICTED` - three commented-out CI
 blocks with no ADR excusing them. U11 enabled the advisory one; U1 enables the other two. **No
 commented-out step remains**, so the row is now `MET` and there is nothing left for an ADR to
-excuse. What it does **not** close is `DESIGN.md:1491-1494`'s `UNVERIFIED` marker on the drift diff
+excuse. What it does **not** close is `DESIGN.md:1493-1496`'s `UNVERIFIED` marker on the drift diff
 itself, and the row now says so.
 
 **`config.py`.** `pydantic-settings`, `SecretStr` on all five credential variables **and on
@@ -130,7 +130,7 @@ one would be constructed at import time, before any refusal could be reported.
 **`build_server(..., extra_lifespan=)` is not a test hook.** §8 #18 requires the teardown **side
 effect** to be observed, and U1 opens no resource. Without a composition point the case would have
 to reimplement `main()`'s handler and `finally` and assert against its own copy - which is exactly
-the mistake `DESIGN.md:990-1023` records about the mitigation this one replaced. The test supplies
+the mistake `DESIGN.md:992-1025` records about the mitigation this one replaced. The test supplies
 the resource; the shipped code supplies the mechanism. U4's pool and U9's HTTP resources are the
 next two users.
 
@@ -179,7 +179,7 @@ exit code**. The interpreter is resolved from `/proc/<pid>/cmdline` and compared
 | stdio, `kill -TERM` | yes | 0.01 s |
 | http, `kill -TERM` | yes | 0.16 s |
 
-**Both of `DESIGN.md:1024-1032`'s inherited limits are closed, and I ran the second rather than
+**Both of `DESIGN.md:1026-1034`'s inherited limits are closed, and I ran the second rather than
 reasoning about it.**
 
 1. **"The composed snippet has never been run end to end on HTTP."** Now run. The handler and the
@@ -211,7 +211,7 @@ Docker daemon into CI for one arm is a required check that goes red for reasons 
 `scripts/check-u1-pid1-shutdown.sh` - **prose about a measurement decays into a claim about one**,
 and I would rather commit the script.
 
-**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1342-1343` says. Mutant M12
+**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1344-1345` says. Mutant M12
 removes it and `test_only_stdio_exercises_the_forced_exit` goes red; the HTTP arm stays green
 against the same mutant. A single-transport test would have shipped it.
 
@@ -384,7 +384,7 @@ config, which is U0's key to add.
 
 **F1 (Medium, ADR-0018 ACCEPTED and APPLIED). `os._exit(0)` in the `finally` reported a crash as a
 clean stop.**
-`DESIGN.md:990-1008` puts the forced exit in a `finally`, which runs on *every* exit from the `try`,
+`DESIGN.md:992-1010` puts the forced exit in a `finally`, which runs on *every* exit from the `try`,
 not only the `KeyboardInterrupt` path the prose is about. A port already bound, an unhandled
 exception, an escaping cancellation - all exit **0**. Every supervisor that will ever watch this
 server reads the exit status, and `0` means *finished normally, do not restart, do not alarm*. §8
@@ -398,7 +398,7 @@ place. **Still not discharged by side effect** - nothing that can crash `mcp.run
 case forces a real failure and reads the process's exit status. U9's HTTP hardening is where a
 bound port becomes reachable.
 
-**F2 (Low, citation). `DESIGN.md:938-943` is short by one line** and omits the `http` transport row
+**F2 (Low, citation). `DESIGN.md:940-945` is short by one line** and omits the `http` transport row
 at `:924`. Copied into the brief, the task description and `IMPLEMENTATION-PLAN.md:480`. Details in
 §2.
 
@@ -409,7 +409,7 @@ crash, not a refusal.** The template ships `JOBVITE_PAGINATION_START_BASE=` empt
 `JOBVITE_API_KEY=` empty too. Without special handling, pydantic sees a *present* empty string:
 the int field is a parse error at a layer that names no variable, and the credential fields
 **satisfy the required-variable check** and then fail at Jobvite as the confusing 401 that
-`DESIGN.md:911-915` exists to prevent. `config.py` treats an empty or whitespace-only value as
+`DESIGN.md:913-917` exists to prevent. `config.py` treats an empty or whitespace-only value as
 absent, `test_the_whole_committed_template_loads` loads every line of the committed template, and
 mutant M9 kills the arm. Recorded as a finding because the design specifies the empty template and
 the fail-fast rule in two places and never says how they meet.
@@ -427,7 +427,7 @@ cost twenty-two minutes. Interlock in the test plus a hard `timeout 300` per amp
 
 **F7 (N1, resolved). `utils/correlation.py::request_id_scope` had no caller; my decision was KEEP,
 and U3 has since made it moot.** N1 asks whether U1 should call it or it should be deleted.
-Neither: its own docstring cites `DESIGN.md:602-604`, which requires **`audit.py`** to set the var
+Neither: its own docstring cites `DESIGN.md:604-606`, which requires **`audit.py`** to set the var
 in the same statement that mints the id and reset it in a `finally`. U1 mints no `request_id` - it
 runs before any invocation exists - so calling it here would be inventing an id with nothing to
 correlate. **U3 landed while I was building (task #27, merged at `1b34fe0`), and `audit.py` is now
@@ -447,7 +447,7 @@ Things I could not settle, not things I did not try.
   `server.py:create_server`, with the minimum environment that passes the refusals. I confirmed
   `fastmcp inspect --help` requires a SERVER-SPEC and that a factory is the right shape, and I did
   **not** execute the step end to end. The **capability-drift diff itself remains UNVERIFIED** -
-  `DESIGN.md:1491-1494` carries that marker and standing the step up does not remove it. A diff that
+  `DESIGN.md:1493-1496` carries that marker and standing the step up does not remove it. A diff that
   has never seen a real capability change has only ever compared a build to itself.
 - **Whether `JOBVITE_MAX_RESULTS=50` or `JOBVITE_OUTBOUND_RATE_LIMIT=6` are right.** They are
   defaults, the second is an explicit guess, and only a live tenant settles either. I did not

@@ -18,7 +18,7 @@ somebody actually executed against happened to name.*
 > another agent owns `.github/` and `CONTRIBUTING.md` right now and those files could still change.
 >
 > Line numbers here were re-derived at HEAD. Several of the resweep's own anchors have drifted since
-> revision 4 - its `DESIGN.md:1112-1115` for the README deferral is now **`DESIGN.md:1531-1532`**.
+> revision 4 - its `DESIGN.md:1114-1117` for the README deferral is now **`DESIGN.md:1533-1534`**.
 
 ---
 
@@ -99,7 +99,7 @@ a regression.
 | **B74** | No `TODO` without a ticket reference | **ABSENT** | No `TODO` in any code file and no CI check. Control: `git grep -n '\bTODO\b'` returns 5 hits, all research prose, so the search works. Inherits B73's prefix problem and nothing connects the two | No |
 | **B75** | No commented-out code blocks | **CONTRADICTED** | Three commented-out step blocks at `.github/workflows/ci.yml:297-298, 307-308, 314-315`, verified against `git show HEAD:` so this is committed state. Ruff's `ERA` rule is **not selected** - control: `"ANN"` matches twice in the same file, `ERA` zero times. No ADR | No |
 | **B76** | `.github/workflows/` is a protected path agents do not auto-modify | **ABSENT** | Zero hits for `Always Protected` / `auto-modify` / `protected path` outside the audit corpus itself. Controls: the same grep hits `docs/research/STANDARDS.md:523` and `docs/reviews/CONFORMANCE-B1-B106.md:278`, so pattern and walk are live; `grep -c 'the'` returns 905 / 760 / 27 on `DESIGN.md` / the plan / `CONTRIBUTING.md`, so those paths resolve | No |
-| **B77** | README has all fourteen sections, exact headings | **SUPERSEDED (deferred, reason recorded)** | No root `README.md` (`git ls-files` shows `docs/README.md` only). Reason at `DESIGN.md:1531-1532` - *"**The README is not written yet, deliberately**"*. Scheduled as **U13** (`IMPLEMENTATION-PLAN.md:992-994`) | Yes - via §10.1 and U13, by subject not by number |
+| **B77** | README has all fourteen sections, exact headings | **SUPERSEDED (deferred, reason recorded)** | No root `README.md` (`git ls-files` shows `docs/README.md` only). Reason at `DESIGN.md:1533-1534` - *"**The README is not written yet, deliberately**"*. Scheduled as **U13** (`IMPLEMENTATION-PLAN.md:992-994`) | Yes - via §10.1 and U13, by subject not by number |
 | **B78** | Configuration table lists every env var | **SUPERSEDED (deferred with B77)** | U13 makes the table *"**checked against `.env.example`**"* (`IMPLEMENTATION-PLAN.md:996`), removing the hand-kept enumeration the resweep found wrong | Yes, by subject |
 | **B79** | README ≤ 500 lines; overflow to `docs/` | **ABSENT** | Zero hits for `500 lines` / `Length cap` in `DESIGN.md`, the plan or `CONTRIBUTING.md`. Control: those three return 905 / 760 / 27 hits for `the`. U13 loads the README with 14 sections, a 15-variable table and six behaviours and never mentions the cap | No |
 | **B81** | Badges point at live sources | **SUPERSEDED (deferred, reason recorded)** | `IMPLEMENTATION-PLAN.md:1020-1023` - *"**A CI status badge cannot be live until CI exists**"*, with `readme-standard.md:70` cited and the deferral distinguished from an excuse | Yes, by subject |

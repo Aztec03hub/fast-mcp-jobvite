@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every `§n.m` pointer in a document resolves to a heading that exists in it.
 
-**Why this exists.** `DESIGN.md:603` cited `§5.4`. Section 5 runs 5.1, 5.2, 5.3 and then
+**Why this exists.** `DESIGN.md:605` cited `§5.4`. Section 5 runs 5.1, 5.2, 5.3 and then
 section 6 begins, so the pointer resolved to nothing. It was found by an implementer who
 happened to follow it while building U3 - seven review rounds, three gate scripts and a
 frozen-object freeze had all passed over it, because **no gate reads cross-references.**

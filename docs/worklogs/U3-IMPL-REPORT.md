@@ -32,7 +32,7 @@ All were correct. Two citations *inside the design* were not - see §6.
 
 ### §8 #4 (positive) and #5 (absence), as a pair - **PASS**
 
-`DESIGN.md:1277-1280` requires the pairing. Implemented as the plan specifies: **#5 asserts against
+`DESIGN.md:1279-1282` requires the pairing. Implemented as the plan specifies: **#5 asserts against
 the record #4 proves exists, inside the same test**, not against a stream some other test blessed.
 
 | Test | Asserts |
@@ -96,12 +96,12 @@ and M3 (emit `None` instead of omitting) are both killed by arm 2.
 The third branch's **shape** is asserted, not just its existence: `is_error` is never set,
 the payload keeps its own keys, and **none of the seven required problem members appears** - the
 test enumerates `type`, `title`, `status`, `detail`, `instance`, `timestamp` and asserts each is
-absent, because `DESIGN.md:718-725` says the failure mode is returning a problem object.
+absent, because `DESIGN.md:720-727` says the failure mode is returning a problem object.
 `test_arm3_the_warning_tells_the_caller_not_to_retry` asserts the warning text says so, since a
 retry is what emails a second live human and preventing that is the branch's whole reason.
 `test_a_successful_audit_adds_no_warnings_key_at_all` is the paired positive: no failure, no key.
 
-**The warning goes to stderr, not to the audit stream that just failed** (`DESIGN.md:715-716`) -
+**The warning goes to stderr, not to the audit stream that just failed** (`DESIGN.md:717-718`) -
 amputation A10 deleted the stderr write and killed three tests.
 
 ### The stdio arm - marker, not `"global"` - **PASS**
@@ -195,7 +195,7 @@ attribute nodes anywhere in the module. An AST walk sees code and cannot see pro
 
 - **A4 leaves `test_case17_arm2` (trace absent) passing.** Correct and expected: with the
   `traceparent` never read, the fields are absent, which is what arm 2 asserts. **This is precisely
-  why arm 2 alone is not the case** - it is the single-arm test `DESIGN.md:1335-1340` warns about,
+  why arm 2 alone is not the case** - it is the single-arm test `DESIGN.md:1337-1342` warns about,
   and arm 1 is what dies.
 - **A7 leaves both `test_the_scope_resets_request_id_var_*` passing.** Same shape: with the var
   never bound it reads `None` on the way out, which is what those tests assert. They are paired
@@ -215,7 +215,7 @@ attribute nodes anywhere in the module. An AST walk sees code and cannot see pro
 with request_id_scope(resolve_request_id(inbound_request_id)) as request_id:
 ```
 
-`DESIGN.md:602-604` requires `audit.py` to set the var *"in the same statement that mints the id"*
+`DESIGN.md:604-606` requires `audit.py` to set the var *"in the same statement that mints the id"*
 and to reset it *"in a `finally`"*. Calling `request_id_scope` makes the first requirement
 literally true of one line, and satisfies the second **in shipped code in `correlation.py`** rather
 than in a `try/finally` restated at each future call site - `correlation.py`'s own docstring gives
@@ -233,7 +233,7 @@ and amputation A7 (never bind at all) both go red, via the AST test described ab
 
 ## 6. Design defects found by building
 
-### D1 - `DESIGN.md:603` cites `§5.4`, which does not exist
+### D1 - `DESIGN.md:605` cites `§5.4`, which does not exist
 
 Reported to the lead early; **already filed as ADR-0019 by the lead**, so I did not duplicate it.
 §5 runs 5.1 (`:487`), 5.2 (`:555`), 5.3 (`:567`), then §6 at `:714`. The subject cited - the v1
@@ -241,7 +241,7 @@ Reported to the lead early; **already filed as ADR-0019 by the lead**, so I did 
 
 ### D2 - the approval "mechanism" is required by two rows and defined nowhere → **ADR-0021 (Proposed)**
 
-`DESIGN.md:1275` (§8's audit-event case) and `DESIGN.md:1753` (threat row **C4-R1**, rated
+`DESIGN.md:1277` (§8's audit-event case) and `DESIGN.md:1755` (threat row **C4-R1**, rated
 **High**) both require the event to carry *"the mechanism that produced"* `approval_state`, and both
 cite **§5.3**. Grepping `mechanism` across §5.3's entire range (`:567-713`) returns **one** hit,
 `:596`, which is about the `ContextVar`. §5.3's approval paragraph (`:663-669`) settles *what* is
@@ -274,7 +274,7 @@ Filed as a task rather than an ADR; neither file is mine.
 ## 7. Implementation notes worth carrying forward
 
 **`redact_arguments` is a fail-closed allow-list, not a deny-list of PII key names.** A deny-list
-fails *open* on the argument nobody thought of, which is the direction `DESIGN.md:1785` (C6-I2)
+fails *open* on the argument nobody thought of, which is the direction `DESIGN.md:1787` (C6-I2)
 already rejects for output fields. An unlisted key's value becomes `[REDACTED:<type>]` - the type
 is not sensitive, and keeping it is what lets the audit event answer *"was a résumé body supplied
 on this call"* without answering *"what did it say"*. `query` is deliberately not on the list: a
@@ -392,7 +392,7 @@ Rebased onto `origin/main` at `00bb4f4` and the full gate re-run after the rebas
 
 Things I could not settle, not things I did not try.
 
-- **That a real MCP host puts a `traceparent` in `_meta`.** `DESIGN.md:654-660` cites
+- **That a real MCP host puts a `traceparent` in `_meta`.** `DESIGN.md:656-662` cites
   `mcp/shared/jsonrpc_dispatcher.py:390` and `fastmcp/server/telemetry.py:95`, and `:651-653`
   already records that *"whether a given host injects at all is unverified"*. I read from
   `ctx.request_context.meta` as the design instructs and tested against the **wire contract** - a

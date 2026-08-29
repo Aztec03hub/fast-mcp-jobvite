@@ -1,5 +1,5 @@
-# Commit-time gates. DESIGN.md:1624-1634, and the stated mitigation for threat
-# row C8-I1 (DESIGN.md:1808), which is rated CRITICAL.
+# Commit-time gates. DESIGN.md:1626-1636, and the stated mitigation for threat
+# row C8-I1 (DESIGN.md:1810), which is rated CRITICAL.
 #
 # WHY BOTH, and why neither is redundant with CI:
 #   - Secret scanning runs HERE and not only in CI because on a public remote a
@@ -10,7 +10,7 @@
 #     secret scanner cleanly. The two gates see different things and neither
 #     substitutes for the other.
 #
-# STATED CEILING, so this is not over-trusted (DESIGN.md:1632-1634): the
+# STATED CEILING, so this is not over-trusted (DESIGN.md:1634-1636): the
 # file-type gate stops a FILE of the wrong type. It does nothing about
 # confidential prose pasted into Markdown, which is the incident we actually
 # had. Review and JOBVITE-API.md section 0.2 cover that, not this file.
@@ -73,7 +73,7 @@ repos:
         #     not this unit's file to satisfy a tool;
         #   - the baseline records file, line and a HASH of each accepted
         #     string, so it shows up in the diff, and a changed line re-fires.
-        # That is the same shape DESIGN.md:1630-1631 requires of the file-type
+        # That is the same shape DESIGN.md:1632-1633 requires of the file-type
         # gate's override: an exception a reviewer can see.
         #
         # Both entries were audited and carry is_secret=false. Regenerate with
@@ -81,7 +81,7 @@ repos:
         # and audit every ADDED entry before staging it.
         #
         # .env is gitignored and must never reach the index; .env.example
-        # carries no credential (DESIGN.md:1269) and is scanned like anything
+        # carries no credential (DESIGN.md:1271) and is scanned like anything
         # else rather than excluded, so a real value pasted into it is caught.
         args: ['--baseline', '.secrets.baseline']
         exclude: ^(uv\.lock|docs/research/fixtures/)

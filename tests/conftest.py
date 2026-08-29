@@ -8,7 +8,7 @@ real recorded Jobvite transport, and a second copy of a byte-exact ground truth
 can drift from the first silently.
 
 A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1256-1258).
+self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260).
 """
 
 from __future__ import annotations

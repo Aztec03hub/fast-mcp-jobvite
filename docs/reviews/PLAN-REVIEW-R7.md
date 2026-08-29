@@ -144,7 +144,7 @@ handled. **The shape of the red is the trap, again**: the failure message reads 
 are not reachable from `testpaths`, so they never run and the suite is green without them"*, which is
 a false diagnosis of a correctly-placed file, and the cheapest green is to add the new directory to
 `_SKIP_DIRS` at `:40-48` — which deletes the guard's coverage of the whole credentialed subtree, the
-one subtree `DESIGN.md:1242-1247` exists to keep from rotting.
+one subtree `DESIGN.md:1244-1249` exists to keep from rotting.
 
 **Why this is the same species as collision 10 and not a repeat of it.** Collision 10 is a unit
 against an assertion over `[project] dependencies`. This is a unit against an assertion over *the set

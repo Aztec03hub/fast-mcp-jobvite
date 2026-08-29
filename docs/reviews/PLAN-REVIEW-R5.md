@@ -202,11 +202,11 @@ comment, which currently reads as a build obligation.
 `grep -oE 'C[0-9]+-[A-Z][0-9]+'` over the plan returns 25 distinct ids. `C7-I2` is not among them -
 it appears nowhere in the document at all. In the frozen design it is a live row:
 
-- `DESIGN.md:1797` - *"Full tracebacks reach the server log ... asserts a boundary without naming a
+- `DESIGN.md:1799` - *"Full tracebacks reach the server log ... asserts a boundary without naming a
   control: no retention, access-control or destination is specified"*, disposition `residual`.
-- `DESIGN.md:1878-1879` - *"**Mitigate before production release** (inherent Medium, unmitigated):
+- `DESIGN.md:1880-1881` - *"**Mitigate before production release** (inherent Medium, unmitigated):
   C3-I1 and C6-D1 ... **C7-I2 log-stream handling**, and C8-R1 configuration-change logging."*
-- `DESIGN.md:1916` - a Residual Risk row: *"Accepted only until C7-I2's action is taken. If the log
+- `DESIGN.md:1918` - a Residual Risk row: *"Accepted only until C7-I2's action is taken. If the log
   destination is a developer's local disk this is minor; if it is shipped anywhere it is not, and
   nothing currently says which."*
 
@@ -214,7 +214,7 @@ The plan carries the other three members of that list by name and with care - C3
 U6 and Q1; C8-R1 in Q3, which explicitly declines to specify a mitigation and says so. C7-I2 is the
 one that was dropped rather than declined, so a reader gets three tracked rows and no signal that a
 fourth exists. It does not block implementation - the design's *"must mitigate before implementation
-proceeds"* table at `DESIGN.md:1843` is genuinely empty, which I verified - but the enumeration at
+proceeds"* table at `DESIGN.md:1845` is genuinely empty, which I verified - but the enumeration at
 `:1399` claims completeness it does not have.
 
 **Suggested fix (MY SUGGESTION - verify before adopting):** add `C7-I2` to the list at `:1399` and
@@ -243,7 +243,7 @@ file. This is collision 7's shape one unit later - which is the fix-one-miss-the
 plan names three times about itself.
 
 It is Medium rather than High because the design mandates only commit-time
-(`DESIGN.md:1624-1634`), so the CI step is a choice, not an obligation - but it is a choice the build
+(`DESIGN.md:1626-1636`), so the CI step is a choice, not an obligation - but it is a choice the build
 has already made.
 
 **Suggested fix (MY SUGGESTION - verify before adopting):** replace the sentence at `:927-928` with:
@@ -302,7 +302,7 @@ against the plan's §1 table:
   C5-R1 `:1724`, C6-D1 `:1738`, C7-T1 `:1746`, C8-R1 `:1759`, C8-I1 `:1760`, C9-T1 `:1770`.
   **8/8 correct.** The revision-history cite `:1816` and the production-release list `:1830` also
   resolve to their stated subjects.
-- The header's *"empty must-mitigate table (`DESIGN.md:1843`)"* is **correct and I tried to break
+- The header's *"empty must-mitigate table (`DESIGN.md:1845`)"* is **correct and I tried to break
   it**: `:1791-1795` is the *"Must mitigate before implementation proceeds"* table and its single row
   reads `*(none)*`. The *production-release* list at `:1830` is non-empty, which is a different list,
   and the plan does not conflate them.
@@ -333,9 +333,9 @@ where only `fail_under = 80` is - that is M1's subject, not a separate finding.
 specifies, in the plan's own order - allowlist-from-the-index at rule 0, extension denylist,
 allowlist-first, magic number, NUL backstop, fail-closed with `exit 2` for the gate's own errors -
 without having read the design section. **The ceiling is carried, not dropped**: the script's
-docstring states *"WHAT IT DOES NOT DO, from the design's own admission at DESIGN.md:1632-1634: it
+docstring states *"WHAT IT DOES NOT DO, from the design's own admission at DESIGN.md:1634-1636: it
 stops a FILE of the wrong type ... It does nothing about confidential prose pasted into Markdown"*,
-which matches `DESIGN.md:1632-1634` verbatim in substance. That is the strongest available evidence
+which matches `DESIGN.md:1634-1636` verbatim in substance. That is the strongest available evidence
 that U15's section is buildable in isolation: it already was.
 
 **Not defects, checked and dismissed.** `.gitignore` has one writer (U0) and no later unit needs it.
@@ -372,7 +372,7 @@ best findings there, in about ten minutes, with no cleverness.** H1 is `COMPLIAN
 literally and then confirmed at source in the corpus. M1's resolution is §2.3 read literally. I did
 not read §1.2, §1.5, §1.6, §3.1, §5, §6 or §7 - and §3.1 alone specifies the README's required
 sections in exact order, which is U13's entire deliverable and which the plan currently specifies
-from `DESIGN.md:1531-1538` and `readme-standard.md` cites it has not verified.
+from `DESIGN.md:1533-1540` and `readme-standard.md` cites it has not verified.
 
 **Why five rounds missed it, which is the part worth carrying.** Every round has reviewed the plan
 against `DESIGN.md`, because `DESIGN.md` is authority and the plan says so in its second paragraph.

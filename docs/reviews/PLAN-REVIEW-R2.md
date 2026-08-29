@@ -48,7 +48,7 @@ assert a literal count (§0, §2 U0) is correct and I would not change it.
 ## Part 1 - Are the twenty round-1 findings actually fixed?
 
 I re-derived the §8 case list from `DESIGN.md` at HEAD myself rather than reading the plan's
-table: every top-level bullet between `DESIGN.md:1226` (*"Required cases"*) and `:1273`
+table: every top-level bullet between `DESIGN.md:1228` (*"Required cases"*) and `:1273`
 (*"Transport substitution uses"*).
 
 **25 cases. Every one of the plan's 25 line anchors in §1 is correct.** I checked each anchor
@@ -118,12 +118,12 @@ three times each.**
 
 | Plan says | Cites | Actually at that line | True line |
 |---|---|---|---|
-| C3-I1 | `DESIGN.md:1688` | **C2-I1** (`include_payloads` flipped to True) | **`:1654`** |
+| C3-I1 | `DESIGN.md:1690` | **C2-I1** (`include_payloads` flipped to True) | **`:1654`** |
 | C6-D1 | `:1683` | **C5-R1** (retries/breaker not logged) | **`:1697`** |
 
 At `IMPLEMENTATION-PLAN.md:319`, `:512` and `:1095`.
 
-Both are off by exactly -14, and I traced why: **at `9d65cc0`, `DESIGN.md:1688` really was
+Both are off by exactly -14, and I traced why: **at `9d65cc0`, `DESIGN.md:1690` really was
 C3-I1** (`git show 9d65cc0:docs/DESIGN.md | sed -n 1640p`). These are draft-2 anchors carried
 forward untouched. This is round 1's M2 - *"the §10/§10.1/§11 repoint is still outstanding"* -
 applied to §10 and §10.1 and **not** to §11.
@@ -140,10 +140,10 @@ Why this is HIGH rather than a typo:
 3. It falsifies the one guarantee the plan asks implementation agents to trust.
 
 **The underlying claim is true.** I verified C3-I1 at `:1654` and C6-D1 at `:1697`: both read
-`unmitigated (B15)`, and `DESIGN.md:1837` lists both on the mitigate-before-production-release
+`unmitigated (B15)`, and `DESIGN.md:1839` lists both on the mitigate-before-production-release
 list. Only the anchors are wrong.
 
-**Suggested fix (mine, verify before adopting):** replace `DESIGN.md:1688` → `DESIGN.md:1702`
+**Suggested fix (mine, verify before adopting):** replace `DESIGN.md:1690` → `DESIGN.md:1704`
 and `:1683` → `:1697` at plan lines 319, 512 and 1095. Then re-run the text-identity repoint
 over §11 specifically, since the sweep that produced the header's claim demonstrably did not
 cover the threat table - and state in the header that §11 anchors were included, because that
@@ -221,7 +221,7 @@ appear), #5 passes (no PII is emitted), #20 passes (no field is stringified). #1
 cases and the normalisation arm do exercise real data, so the unit is not fully vacuous - but
 the three arms carrying the unit's two Criticals (C6-I1, C6-S1) are the vacuous ones.
 
-The blanket rule at `DESIGN.md:1332-1333` is exactly this, and draft 3 applied it correctly to
+The blanket rule at `DESIGN.md:1334-1335` is exactly this, and draft 3 applied it correctly to
 U10 (`:698-702`) and U14 (`:816-819`). U8 did not get the same pass.
 
 **Suggested fix (mine, verify before adopting):** add to U8's list - *"Positive control: a
@@ -236,7 +236,7 @@ U3 verifies #2 as *"a secret never reaches a log record, including the whole `jo
 (`:369`). Against a logger that is misconfigured and emits nothing, this passes.
 
 The design anticipated this failure mode for the audit stream and solved it by pairing #4
-(positive, *"positive on purpose"*) with #5 (absence) - `DESIGN.md:1236-1239`. **#2 has no such
+(positive, *"positive on purpose"*) with #5 (absence) - `DESIGN.md:1238-1241`. **#2 has no such
 pair, and #4 does not supply one**: #4 proves the *audit event* exists, which is a different
 stream from the `loguru` log records #2 is about. The plan's own list of cases carrying the
 blanket control (`:113-115`) does not include #2.
@@ -247,7 +247,7 @@ U7's #13 does prove retry log lines exist, but that is four units later.
 against a log stream proven non-empty: the same call emits a log record carrying the request's
 non-secret attributes, and the `sc=` value is absent from it."* This is a plan change, not a
 design change; if you would rather it be a design change, it is the natural companion to
-`DESIGN.md:1236-1239` and worth raising as a Q6.
+`DESIGN.md:1238-1241` and worth raising as a Q6.
 
 ### M3 - "Nine of the fifteen variables carry a value" is false; seven do
 

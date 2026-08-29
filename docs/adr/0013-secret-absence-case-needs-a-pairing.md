@@ -10,7 +10,7 @@
 
 ## Context
 
-§8 case **#2** (`DESIGN.md:1221`) reads, in full:
+§8 case **#2** (`DESIGN.md:1223`) reads, in full:
 
 > *"a secret never reaching a log record, including the `jobFeed` URL;"*
 

@@ -2,7 +2,7 @@
 
 Three arms, and the third is the one that earns the case its keep:
 
-1. `mcp` is present in `[project].dependencies` with an `==` pin. DESIGN.md:1400-1404
+1. `mcp` is present in `[project].dependencies` with an `==` pin. DESIGN.md:1402-1406
    pins it explicitly rather than relying on `fastmcp` to hold it, because the
    `ResponseLimiting` regression arrived through the transitive SDK with zero change
    to the code that broke.
@@ -59,7 +59,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
     deciding to add it should fail here. Adding one is meant to cost a deliberate edit.
 
     **Widen this set by APPENDING. Never relax it to a subset check**, and never remove
-    or reorder the three pins - they are DESIGN.md:1415-1417, and
+    or reorder the three pins - they are DESIGN.md:1417-1419, and
     `test_removing_fastmcp_slim_breaks_the_resolve` below is the control that proves
     the second of them load-bearing.
     """
@@ -72,7 +72,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         "loguru==0.7.3",
         # U4's, APPENDED under the same slot - the set stays CLOSED. httpx2 is
         # ADR-0007's client (fastmcp 4.0.0b4 installs no `httpx` at all) and ships
-        # the MockTransport DESIGN.md:1356-1357 rests the credential-free test
+        # the MockTransport DESIGN.md:1358-1359 rests the credential-free test
         # strategy on; defusedxml parses the HR-XML hardened fallback of
         # DESIGN.md:337-340. Both were already resolved transitively at these exact
         # versions, so `uv lock` added four lines and moved nothing.
@@ -86,7 +86,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
 
 
 def test_prerelease_is_explicit() -> None:
-    """`--prerelease=allow` is global in uv; `explicit` confines it (DESIGN.md:1429)."""
+    """`--prerelease=allow` is global in uv; `explicit` confines it (DESIGN.md:1431)."""
     with PYPROJECT.open("rb") as fh:
         assert tomllib.load(fh)["tool"]["uv"]["prerelease"] == "explicit"
 
@@ -120,7 +120,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
 
     Marked `network` and deselected from the default offline suite: it performs a
     real resolve. CI runs it as its own step. It is excluded by SELECTION, never
-    by skipif - a skip is a green that tested nothing (DESIGN.md:1227-1230).
+    by skipif - a skip is a green that tested nothing (DESIGN.md:1229-1232).
     """
     manifest = PYPROJECT.read_text()
     mutated = "\n".join(
@@ -136,7 +136,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     combined = proc.stdout + proc.stderr
     assert proc.returncode != 0, (
         "removing the fastmcp-slim pin STILL resolved. Either uv's behaviour changed "
-        "or the pin is no longer load-bearing; DESIGN.md:1415-1417 needs an ADR "
+        "or the pin is no longer load-bearing; DESIGN.md:1417-1419 needs an ADR "
         f"before the line is touched. Output:\n{combined}"
     )
     assert "fastmcp-slim" in combined, (
@@ -149,7 +149,7 @@ def test_the_unmutated_manifest_still_resolves(tmp_path: pathlib.Path) -> None:
     """Positive control for the arm above.
 
     A refusal-path test is not a guard unless the happy path still succeeds
-    (DESIGN.md:1367-1369). Without this, a `uv` that failed on EVERYTHING - a
+    (DESIGN.md:1369-1371). Without this, a `uv` that failed on EVERYTHING - a
     broken binary, no network, a bad cache - would make the control above pass.
     """
     (tmp_path / "src" / "fast_mcp_jobvite").mkdir(parents=True)

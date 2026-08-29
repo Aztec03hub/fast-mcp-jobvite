@@ -186,7 +186,7 @@ def _envelope_status_code(payload: Mapping[str, Any]) -> int | None:
 def _envelope_message(payload: Mapping[str, Any]) -> str:
     """Join Jobvite's own `status.messages` into one line for `detail`.
 
-    Jobvite's message is preserved rather than discarded - DESIGN.md:530-532 puts
+    Jobvite's message is preserved rather than discarded - DESIGN.md:532-534 puts
     it in `detail` - but it never reaches the problem object's `status`, which
     comes from the registry (`errors.py`).
     """
@@ -344,7 +344,7 @@ class JobviteClient:
                 Required only for `jobFeed`, so it is optional here and the
                 failure for a missing one is raised at the call.
             transport: Substituted in tests with `httpx2.MockTransport`
-                (DESIGN.md:1356-1357, ADR-0007). `None` in production.
+                (DESIGN.md:1358-1359, ADR-0007). `None` in production.
             timeout: Explicit and per-phase (DESIGN.md:346). **No SDK default and
                 no single scalar**: `httpx2`'s own default is a 5-second scalar,
                 which is a resilience decision made by a library rather than by

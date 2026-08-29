@@ -3,11 +3,13 @@
 after an edit, says which ones moved.
 
 **Why this exists, and why now.** Three citations to `DESIGN.md` have been found
-pointing at the wrong lines, none of them by a gate:
+pointing at the wrong lines, none of them by a gate. The line numbers below are
+the ones in the object frozen at `135c3ac`, where the defects were found. A
+record of where a defect WAS does not move, so each carries the marker:
 
-  - `DESIGN.md:603` cites a section that does not exist (ADR-0019).
-  - `DESIGN.md:938-943` is contracted by one line and drops the `http` transport
-    row that §7.2 leans on - found by U1, in a brief I wrote.
+  - `DESIGN.md:603` cited a section that does not exist. ADR-0019. REPOINT-EXEMPT
+  - `DESIGN.md:918-923` was contracted by one line. REPOINT-EXEMPT. It dropped
+    the `http` transport row §7.2 leans on - found by U1, in a brief I wrote.
   - Three separate citations of the three runtime pins pointed nine lines above
     them, at the prose paragraph about the resolve - found by U4.
 
@@ -60,7 +62,9 @@ import sys
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DESIGN = REPO_ROOT / "docs" / "DESIGN.md"
 
-# `DESIGN.md:603`, `DESIGN.md:938-944`. The filename is required so this does not
+# Examples, REPOINT-EXEMPT: `DESIGN.md:603`, `DESIGN.md:918-924` - these are what
+# the pattern MATCHES, not citations of anything, so they must not move.
+# The filename is required so this does not
 # match a bare number, and `docs/DESIGN.md:` forms are caught by the same pattern.
 _CITATION = re.compile(r"DESIGN\.md:(\d+)(?:-(\d+))?")
 
@@ -209,7 +213,7 @@ def controls() -> int:
         print("  CONTROL a changed line maps to None -> DID NOT FIRE")
 
     total += 1
-    if _CITATION.findall("see DESIGN.md:938-944 and DESIGN.md:603"):
+    if _CITATION.findall("see DESIGN.md:918-924 and DESIGN.md:603"):  # REPOINT-EXEMPT
         fired += 1
         print("  CONTROL the pattern reads both forms -> FIRED")
     else:

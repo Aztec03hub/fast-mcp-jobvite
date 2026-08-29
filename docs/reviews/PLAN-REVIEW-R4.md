@@ -128,17 +128,17 @@ first two agents to land will find out by conflict.
 ## H3 - The two commit-time gates are a Critical row's stated mitigation, U0 declined them, and no unit now owns them
 
 `IMPLEMENTATION-PLAN.md:255-256` lists under U0: *"Pre-commit: secret scanning and the
-committed-file-type gate (`DESIGN.md:1624-1634`)"*. `DESIGN.md:1624` is subject-correct - *"Two
+committed-file-type gate (`DESIGN.md:1626-1636`)"*. `DESIGN.md:1626` is subject-correct - *"Two
 commit-time gates, both exceeding the standard deliberately"*.
 
 **U0 did not build them.** `U0-REPORT.md` §5: *"Not built: the two commit-time gates of
-`DESIGN.md:1621-1634`... I judged it a unit of its own rather than a corner of this one. Flagging
+`DESIGN.md:1623-1636`... I judged it a unit of its own rather than a corner of this one. Flagging
 it rather than pretending U0 is complete without it. If it should be in U0, say so and I will build
 it next."* There is no `.pre-commit-config.yaml` in the tree. U0 is committed (`b53886e`) and the
 task board marks U0 completed.
 
 That question was asked and has not been answered, and the plan still reads as though U0 covers it.
-It is not cosmetic: **`DESIGN.md:1808` is C8-I1, a Critical row, and its mitigation text is
+It is not cosmetic: **`DESIGN.md:1810` is C8-I1, a Critical row, and its mitigation text is
 literally *"pre-commit secret scanning and a committed-file-type gate, both exceeding the standard
 (§10)"***. The plan's §8 says C8-I1 is *"covered in substance by #3 in U0"* - #3 covers the
 `.gitignore`/`.env.example` half only. The pre-commit half of a Critical row's mitigation is now
@@ -153,7 +153,7 @@ U0 only, parallelisable throughout beside U11, owning `.pre-commit-config.yaml` 
 `scripts/check_committed_file_types.py`; strike the pre-commit sentence from U0's build list and
 replace it with a pointer to U15; and add U15 to §3's diagram on the U11 branch. Verification:
 the file-type gate is allowlist-first and fail-closed per `:1581-1583`, so it needs a positive
-control (an ordinary `.py` commits) beside each refusal arm, and `DESIGN.md:1632-1634`'s stated
+control (an ordinary `.py` commits) beside each refusal arm, and `DESIGN.md:1634-1636`'s stated
 limit - it does nothing about confidential prose in Markdown - must be carried into U15 so a green
 gate is not read as covering the incident it was named for. U0's agent has offered to build it; the
 cheaper answer may be to say yes rather than to open a unit, but **either answer must be written
@@ -274,7 +274,7 @@ describes what exists.
    that create those modules, and the CI coverage step is off until U1.
 2. The **`network` marker** does not appear in the plan at all. `pyproject.toml:78-84` declares two
    selection markers, not one, and `ci.yml:174-175` runs the network arm as its own step - because
-   §8 #11's negative arm performs a real resolve and `DESIGN.md:1227` requires the default suite to
+   §8 #11's negative arm performs a real resolve and `DESIGN.md:1229` requires the default suite to
    run with no network. §1's *"Zero skips"* paragraph (`:212-218`) describes a single credentialed
    marker.
 3. `[project.scripts]` and `readme` were deliberately omitted from the manifest and belong to U1 and
@@ -352,7 +352,7 @@ list of files two units must touch, and they are almost disjoint sets.** Both Hi
 instances of this and I would not have found either by reading §4 more carefully.
 
 **(b) Contact with a real toolchain falsified a Critical row in the frozen design and an
-allow-list in the standards corpus, on day one, in the smallest unit.** D1 found `DESIGN.md:1808`
+allow-list in the standards corpus, on day one, in the smallest unit.** D1 found `DESIGN.md:1810`
 (C8-I1, Critical) asserting `.env.example` has *"empty values"* when seven of fifteen carry one -
 which is now ADR-0014. D3 found `quality-gates.md`'s five-id allow-list unrunnable against a clean
 tree. **Neither was findable by reading, and both needed an ADR rather than an edit.** U0 was the

@@ -521,8 +521,10 @@ own. Both were wrong:
 | Anything unmapped, including an unhandled exception in a tool body | `/problems/internal-error`, *"Internal Server Error"* | 500 |
 
 **`about:blank` keeps its actual scope** and no other: an unmapped **HTTP status received from
-Jobvite**, where we genuinely have no type for what the upstream returned (`error-contract.md:115`,
-RFC 9457 §4.2.1). It is not the answer for an unhandled exception in our own tool body, which the
+Jobvite**, where we genuinely have no type for what the upstream returned
+(`error-contract.md:115`, RFC 9457 §4.2.1 - an external reference, and the filename is on this line
+so `check-cross-references.py` reads it as one). It is not the answer for an unhandled exception in
+our own tool body, which the
 registry already names `/problems/internal-error`. Every problem object therefore carries a
 `status`, without exception, which is what makes the seven-member requirement above checkable
 (ADR-0017).

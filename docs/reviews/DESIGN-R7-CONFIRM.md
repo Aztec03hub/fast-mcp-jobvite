@@ -17,7 +17,7 @@ Tally: **0 CRITICAL / 0 HIGH / 1 MEDIUM / 5 LOW / 2 NIT.**
 The freeze rule is 0C/0H/0M from a review round **and** §11's must-mitigate table empty. **The second
 condition holds; the first does not.**
 
-- **The must-mitigate table is empty and stays empty.** `DESIGN.md:1694` carries a single `*(none)*`
+- **The must-mitigate table is empty and stays empty.** `DESIGN.md:1696` carries a single `*(none)*`
   placeholder, `check-coupling.py` independently reports every unmitigated Critical/High row disposed
   of, and C4-S1 is the only unmitigated one. I examined whether C5-E1 must drop back to unmitigated
   and concluded it must not - reasoning in M-1 below. That conclusion is mine, reached against the
@@ -136,7 +136,7 @@ is the honest pairing, and it is the one M-1 was supposed to produce.
 **Is the removal ledger honest?** Yes, and this is the answer I most expected to go the other way.
 The claim at `:1669-1672` that the original total is not reconstructible **holds**, though not for
 the reason the document gives. Two reconstructions exist and they disagree:
-- The retired prose (`86f87ca:docs/DESIGN.md:1047`, "**Down from seven to five**") asserts **seven**,
+- The retired prose (`86f87ca:docs/DESIGN.md:1049`, "**Down from seven to five**") asserts **seven**,
   and its own arithmetic is the broken one H-1 removed - four removals from seven concluding five.
 - The current ledger at `:1661-1667` names **nine** removed rows (3 + 1 + 2 + 1 + 2) above a table
   that is now empty, which implies **nine**.
@@ -155,7 +155,7 @@ Every suggested fix below is **my suggestion, to be verified before adoption**, 
 
 ### M-1 - §7.2 states, in the present tense, that a file which does not exist already carries C5-E1's mitigation
 
-`DESIGN.md:791-792`, `:1157-1161`, `:1354-1358`, `:1581`.
+`DESIGN.md:793-794`, `:1157-1161`, `:1354-1358`, `:1581`.
 
 **Provenance, stated because it matters to how this was checked.** The team lead found this in his
 own edit and handed it to me as an observation with an explicit instruction to verify it
@@ -238,7 +238,7 @@ If that fix is applied, my verdict is **FREEZE**, with no further round needed.
 
 ### M-2 - "No ambient authority" is required by two binding standards and disposed nowhere
 
-`ai/agent-guardrails.md:54-56`, `ai/tool-calling.md:108-111`; `DESIGN.md:767-781`; `ADR-0005:22`.
+`ai/agent-guardrails.md:54-56`, `ai/tool-calling.md:108-111`; `DESIGN.md:769-783`; `ADR-0005:22`.
 
 Referred to me after this report was first written. Verified independently, from the standards and
 the repository, not from the referral.
@@ -307,7 +307,7 @@ property would be the same over-read this document has corrected twice.
 
 ### M-3 - The caller-replay clause names a remedy nobody evaluated, and DESIGN.md still does not dispose of it
 
-`backend/resilience.md:146-151`; `DESIGN.md:1650` (C4-D2), `:1874`; `STANDARDS.md:605-621` (B108).
+`backend/resilience.md:146-151`; `DESIGN.md:1652` (C4-D2), `:1874`; `STANDARDS.md:605-621` (B108).
 
 Referred to me as F10 and rated above F1 by the referrer. Verified independently. **I rate it the
 same as F1 - Medium - and I explain below why I do not rate it higher, because I was asked not to
@@ -327,7 +327,7 @@ retried (§4.3). The residue is **caller** replay, which never-auto-retrying doe
 idempotency covers the residue"* - does not survive reading B19's own verdict.
 
 **The exposure is the project's worst harm, and its rated mitigation is a hypothesis.** C4-D2
-(`DESIGN.md:1650`) is a duplicate candidate and **a second email to a live person** - the same harm
+(`DESIGN.md:1652`) is a duplicate candidate and **a second email to a live person** - the same harm
 §5.3's audit-failure branch is built to avoid. Its treatment is "Never retried (§4.3); a `409` is
 surfaced as `/problems/conflict`... **Detection, not prevention**", and the row itself concedes the
 `409` shape is **inferred rather than observed**. So the accepted residual rests on detection that
@@ -354,7 +354,7 @@ freeze only an ADR can revisit it.
 2. **Point C4-D2 at it.** The row should cite the clause and the disposal rather than stopping at
    "Detection, not prevention", so a reader auditing the residual can see the remedy was considered.
    I am **not** proposing a re-rating: L=M × I=M yields Medium by the matrix and that is unchanged.
-3. **Fix `DESIGN.md:1922`, which is now stale in an unfortunate direction.** It reads
+3. **Fix `DESIGN.md:1924`, which is now stale in an unfortunate direction.** It reads
    "`devops/docker.md` and `backend/idempotency.md` are the two most likely to have gone live" -
    still future-tense about a condition that **has** now tripped. The document predicted this exact
    failure and the prediction outlived its own event. Suggested: "`backend/idempotency.md` **did** go
@@ -371,7 +371,7 @@ can be done. I have not designed this and I am not asking for it to be built.
 
 ### L-1 - The "not reconstructible" sentence invites the next editor to reconstruct it
 
-`DESIGN.md:1717-1720`.
+`DESIGN.md:1719-1722`.
 
 > **The original total is not reconstructible from this document and is deliberately not asserted
 > here.** The prose it came from did not reconcile - it named four removals from *"seven"* and
@@ -393,7 +393,7 @@ subtraction away, in the section whose count has now been re-broken four times.
 
 ### L-2 - "No sentence in this section states a total" is false of §11 as written
 
-`DESIGN.md:1696`: **"This table is the count. No sentence in this section states a total."**
+`DESIGN.md:1698`: **"This table is the count. No sentence in this section states a total."**
 
 §11 states several totals: `:1447` "Four of the six triggers at `:120-127` fire", `:1452` "Four
 conventions", `:1458` "An earlier revision left six ids colliding", `:1650` "the total was stated in
@@ -407,7 +407,7 @@ need charitable reading.
 
 ### L-3 - The production-release list reads its departed rows as members
 
-`DESIGN.md:1726-1730`:
+`DESIGN.md:1728-1732`:
 
 > **Mitigate before production release** (inherent Medium, unmitigated): C3-I1 and C6-D1 the
 > undocumented result cap (B15), C7-I2 log-stream handling, C8-R1 configuration-change logging, and
@@ -432,7 +432,7 @@ departures in one sentence, which read as a single group".
 
 ### L-4 - "C4-S1 is the one such row" now survives on a single unstated word
 
-`DESIGN.md:1682-1687` states the selection rule, then: "**C4-S1 is the one such row.**"
+`DESIGN.md:1684-1689` states the selection rule, then: "**C4-S1 is the one such row.**"
 
 M-1 then added C5-E1 to Residual Risks at `:1714`, at **High**, with "**No server-side remedy
 exists.**" A reader who asks the rule's own question - which Critical/High rows have no server-side
@@ -468,7 +468,7 @@ leave `:1737`'s "Items 1 to 4" sentence to be reworded to include it:
 
 ### N-1 - Broken nested bold in the audit-PII sentence (the L-2 rewrite)
 
-`DESIGN.md:652`, raw:
+`DESIGN.md:654`, raw:
 
 ```
 **Candidate PII reaches the audit *path* by construction - the arguments to redact are the candidate's own fields - and **what is emitted carries none of it in the clear****, because ...

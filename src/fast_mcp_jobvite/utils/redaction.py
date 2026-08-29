@@ -23,11 +23,11 @@ the case and leave two credentials in the log line, so the case is the floor
 here and not the specification.
 
 **Arguments are redacted by allow-list, and the direction is deliberate.**
-DESIGN.md:1790 rates C7-I1 - candidate PII written to logs in the clear -
+DESIGN.md:1792 rates C7-I1 - candidate PII written to logs in the clear -
 **Critical**, and `ai/tool-calling.md:171-172` requires the audit event to carry
 "validated arguments (PII redacted)". A deny-list of known PII key names fails
 *open*: the argument nobody thought of is emitted in the clear, which is the
-failure mode DESIGN.md:1785 (C6-I2) already rejects for output fields in favour
+failure mode DESIGN.md:1787 (C6-I2) already rejects for output fields in favour
 of "path-keyed allow-list fails closed: an unlisted field is dropped until
 someone adds it deliberately". The same reasoning applies with more force on
 the audit path, because `create_candidate`'s arguments **are** the candidate.
@@ -217,7 +217,7 @@ def _redacted_value(value: JsonValue) -> str:
           -> {"secretBlob": {"job_id": "...", "email": "[REDACTED:str]"}}
 
     The `job_id` survived because `job_id` is allow-listed, even though nothing
-    had allowed `secretBlob`. DESIGN.md:1785 calls C6-I2's mechanism a
+    had allowed `secretBlob`. DESIGN.md:1787 calls C6-I2's mechanism a
     **path-keyed** allow-list for exactly this reason: membership has to be
     judged on the path, not on the leaf name in isolation.
 

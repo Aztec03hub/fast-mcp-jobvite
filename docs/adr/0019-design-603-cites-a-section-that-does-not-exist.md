@@ -1,4 +1,4 @@
-# ADR-0019: `DESIGN.md:603` cites `§5.4`, and there is no §5.4
+# ADR-0019: `DESIGN.md:605` cites `§5.4`, and there is no §5.4
 
 **Status:** Accepted
 **Type:** Design change
@@ -10,7 +10,7 @@
 
 ## Context
 
-Found by **building U3**, not by reading. `DESIGN.md:603` reads:
+Found by **building U3**, not by reading. `DESIGN.md:605` reads:
 
 > *"line carries the URL, because the v1 `jobFeed` URL is itself a secret (**§5.4**) and a retry
 > line is..."*
@@ -37,7 +37,7 @@ is stated in **§4.1 Authentication, and three credential classes** (`## 4` at `
 
 ## Decision
 
-**`DESIGN.md:603`'s `(§5.4)` becomes `(§4.1)`.**
+**`DESIGN.md:605`'s `(§5.4)` becomes `(§4.1)`.**
 
 Nothing else changes. No behaviour, no threat row, no verification case.
 

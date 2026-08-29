@@ -1,16 +1,16 @@
-"""The exception hierarchy and RFC 9457 problem construction (DESIGN.md:491-538).
+"""The exception hierarchy and RFC 9457 problem construction (DESIGN.md:491-540).
 
 Two rules govern everything in this module, and both were corrections to an
 earlier revision of the design rather than defaults:
 
 **`type` and `status` come from the registry at `error-contract.md:96-108`, never
-from Jobvite** (DESIGN.md:502-532). A Jobvite `401` reaching the caller as `401`
+from Jobvite** (DESIGN.md:502-534). A Jobvite `401` reaching the caller as `401`
 tells them *their* credential failed, when the credential that failed is the one
 *this server* holds and the caller cannot touch. The registry's answer is
 `/problems/external-service-error` **502**. Validation is **422**, not 400.
 Jobvite's own status and message are not discarded: they go in `detail`.
 
-**Problem objects are returned, never raised** (DESIGN.md:534-538). That is the
+**Problem objects are returned, never raised** (DESIGN.md:536-540). That is the
 property that makes them the one error shape no configuration can distort - being
 returned, they are untouched by `ErrorHandlingMiddleware`, by `transform_errors`
 and by `mask_error_details`. Nothing in this module raises a problem object.
@@ -123,7 +123,7 @@ class JobviteUpstreamError(FastMcpJobviteError):
     """Any Jobvite failure, **including its 4xx** (DESIGN.md:515).
 
     Jobvite's own status and message are preserved on the instance and reproduced
-    in `detail` (DESIGN.md:530-532). They are never allowed to reach `status`.
+    in `detail` (DESIGN.md:532-534). They are never allowed to reach `status`.
     """
 
     kind = EXTERNAL_SERVICE_ERROR
@@ -156,7 +156,7 @@ class JobviteUnavailableError(FastMcpJobviteError):
 class ValidationError(FastMcpJobviteError):
     """A validation failure detected **inside** the tool body.
 
-    Not the pre-dispatch path. DESIGN.md:546-566 records that FastMCP rejects bad
+    Not the pre-dispatch path. DESIGN.md:548-568 records that FastMCP rejects bad
     arguments before the body runs, so no pre-dispatch rejection can *return*
     anything and none carries a problem object. This row serves the other half:
     a semantically invalid argument combination, or a validation error Jobvite
@@ -173,7 +173,7 @@ class ResourceNotFoundError(FastMcpJobviteError):
 
 
 class DuplicateCandidateError(FastMcpJobviteError):
-    """A duplicate candidate on create (DESIGN.md:519, DESIGN.md:875)."""
+    """A duplicate candidate on create (DESIGN.md:519, DESIGN.md:877)."""
 
     kind = CONFLICT
 
@@ -205,14 +205,14 @@ def build_problem(
 
     `request_id` is required rather than read from `request_id_var`. The var is a
     correlation carrier for code that never sees the invocation
-    (DESIGN.md:599-604); reading it here would let a caller that forgot to set it
+    (DESIGN.md:601-606); reading it here would let a caller that forgot to set it
     produce a problem object with `None` where a required member belongs.
 
     Args:
         kind: The registry row. Never derived from an upstream status.
         detail: The occurrence-specific explanation.
         request_id: The UUIDv4 minted by `audit.py` for this invocation
-            (DESIGN.md:593-595).
+            (DESIGN.md:595-597).
         **extensions: RFC 9457 extension members, e.g. the `retry_after` hint
             DESIGN.md:358 attaches to a 503, or `errors` for a 422
             (`error-contract.md:86`). They may not shadow a required member.
@@ -253,7 +253,8 @@ def problem_from_exception(
     An exception outside this module's hierarchy is `/problems/internal-error`,
     500 (DESIGN.md:521, ADR-0017): it is a bug in our own code, the registry
     names it, and `about:blank` is RFC 9457's way of saying *no additional
-    semantics* when we have semantics. Its `detail` names the exception class rather than its
+    semantics* when we have semantics. Its `detail` names the exception class
+    rather than its
     message: an arbitrary exception's `str()` can carry a URL, a credential
     fragment or an upstream body, and this value reaches the caller.
 

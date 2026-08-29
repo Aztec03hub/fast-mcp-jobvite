@@ -255,7 +255,7 @@ gates, deliberately not three"*:
 - **DESIGN.md:118** - the §2.2 heading itself still reads *"`create_candidate` is guarded three
   ways"*, contradicting its own first paragraph four lines later.
 - **DESIGN.md:373** - §5.3, *"`create_candidate` is gated three ways and emails a live human"*.
-- **DESIGN.md:773** - §9.6, *"All three gates stop..."*.
+- **DESIGN.md:775** - §9.6, *"All three gates stop..."*.
 
 Each is a one-word fix. Flagging them together because the pattern is the one the standing rule
 targets: the reversal was written in one place and the claims it falsified were left standing

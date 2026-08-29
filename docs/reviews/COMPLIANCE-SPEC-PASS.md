@@ -119,7 +119,7 @@ comparing two documents to each other can confirm consistency and can never find
 | 2.2.10 | `[tool.ruff.lint.pydocstyle] convention = "google"` | **MISSING** | F-4 (moot while `D` is unselected, but it is the same fix) |
 | 2.2.11 | `per-file-ignores` for `tests/*` | MET | `pyproject.toml:136-137` (`S101`, plus `S603`/`S607` for the subprocess harnesses) |
 | 2.2.12 | pytest `asyncio_mode`, loop scope, `testpaths`, `python_files`, `python_classes`, `python_functions` | **MET BY ACCIDENT** | A-3 below |
-| 2.2.13 | pytest `addopts` incl. `--strict-markers` | MET | `pyproject.toml:70-76`; rationale at `:61-69`, `DESIGN.md:1235-1240` |
+| 2.2.13 | pytest `addopts` incl. `--strict-markers` | MET | `pyproject.toml:70-76`; rationale at `:61-69`, `DESIGN.md:1237-1242` |
 | 2.2.14 | pytest `markers` declared | MET | `pyproject.toml:78-84` |
 | 2.2.15 | `filterwarnings = ["ignore::DeprecationWarning"]` | **MET BY ACCIDENT** | A-4 below |
 | 2.2.16 | `[tool.coverage.run]` source / `branch = true` / omit | MET | `pyproject.toml:105-111` |
@@ -131,7 +131,7 @@ comparing two documents to each other can confirm consistency and can never find
 
 | # | File | Class | Evidence |
 |---|---|---|---|
-| 3.0.1 | `README.md` | SCHEDULED | Absent from the tree; deliberately withheld to U13 — `DESIGN.md:1531-1538`, `IMPLEMENTATION-PLAN.md:992-1010` |
+| 3.0.1 | `README.md` | SCHEDULED | Absent from the tree; deliberately withheld to U13 — `DESIGN.md:1533-1540`, `IMPLEMENTATION-PLAN.md:992-1010` |
 | 3.0.2 | `CHANGELOG.md` | **MET BY ACCIDENT** | A-5 below |
 | 3.0.3 | `LICENSE` | SUPERSEDED | Apache-2.0, not the spec's MIT (ruling G2). Superseded by D7/D13, `docs/DECISIONS.md:183-215` — a reasoned, Phil-authorised reversal. `NOTICE` present. |
 | 3.0.4 | **`CONTRIBUTING.md` or inlined rules** (`readme-standard.md:56`) | **MISSING** | F-6 |
@@ -142,7 +142,7 @@ comparing two documents to each other can confirm consistency and can never find
 | 3.0.9 | `.env.example` | MET | `.env.example:1-90`; asserted by `tests/test_repo_hygiene.py:78-108` |
 | 3.0.10 | `.gitignore` covers `.env`, `.env.local`, `.env.*.local`, `*.pem`, `*.key`, `secrets/` | MET | `.gitignore:13-16,32-33`; **guarded** by `tests/test_repo_hygiene.py:111-131`, which also forbids any negation but `!.env.example` |
 | 3.1.1 | README's 14 sections, exact headings, exact order | SCHEDULED | `IMPLEMENTATION-PLAN.md:992-997` requires all fourteen with headings matching exactly |
-| 3.1.2 | README ≤500 lines; every env var in the Configuration table | SCHEDULED | `IMPLEMENTATION-PLAN.md:995-996` (table derived from `.env.example`, not hand-maintained); `DESIGN.md:1555` |
+| 3.1.2 | README ≤500 lines; every env var in the Configuration table | SCHEDULED | `IMPLEMENTATION-PLAN.md:995-996` (table derived from `.env.example`, not hand-maintained); `DESIGN.md:1557` |
 | 3.1.3 | Live CI badge | SCHEDULED | `IMPLEMENTATION-PLAN.md:1021-1025` — legitimate from U0 onward |
 | 3.2.1 | Keep a Changelog 1.1.0, `## [Unreleased]`, subsections, no internal-only entries | MET (see A-5 for the recording gap) | `CHANGELOG.md:5`, `:10` |
 
@@ -159,10 +159,10 @@ comparing two documents to each other can confirm consistency and can never find
 
 | # | Obligation | Class | Evidence |
 |---|---|---|---|
-| 5.1 | Structure carried by `ToolResult(structured_content=…, is_error=True)`, not `ToolError` | MET (design) | `DESIGN.md:537`; ADR-0003 |
+| 5.1 | Structure carried by `ToolResult(structured_content=…, is_error=True)`, not `ToolError` | MET (design) | `DESIGN.md:539`; ADR-0003 |
 | 5.2 | B1–B8 clause set; B3 irreconcilable | MET | **ADR-0003 (Accepted)** — `application/problem+json` cannot be set on an MCP tool error |
 | 5.3 | An ADR exists for the transport conflict | MET | `docs/adr/0003-problem-json-on-mcp-transport.md:3` |
-| 5.4 | `mask_error_details=True` set explicitly at construction | SCHEDULED | `DESIGN.md:727`; `IMPLEMENTATION-PLAN.md:380` (U1); `docs/DECISIONS.md` D16 |
+| 5.4 | `mask_error_details=True` set explicitly at construction | SCHEDULED | `DESIGN.md:729`; `IMPLEMENTATION-PLAN.md:380` (U1); `docs/DECISIONS.md` D16 |
 
 ## §6 — Do-not-copy list (`fast-mcp-jira` anti-patterns)
 
@@ -341,7 +341,7 @@ also carry it. This is now task #17.
 
 **Do not dismiss it by pointing at the `--collect-only` step.** `CONFORMANCE-B1-B106.md:255`
 already anticipated exactly that move and answered it: the credentialed-collect step
-(`ci.yml:187-201`, `DESIGN.md:905-908`) proves the *excluded* suite still **imports**. The guard
+(`ci.yml:187-201`, `DESIGN.md:907-910`) proves the *excluded* suite still **imports**. The guard
 proves no `test_*.py` is **unreachable from `testpaths` at all**. Different failure modes — *"The
 standard's failure mode is a test file nobody runs; §8's failure mode is a test file that rots.
 Both are real; only the second is designed for."* The corpus also notes the compounding: §8

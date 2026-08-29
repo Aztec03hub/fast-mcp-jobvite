@@ -16,7 +16,7 @@ deletions, 4 commits: `f5c63e7`, `90b0504`, `f62733d`, `9d65cc0`).
 | NIT | 1 |
 
 The freeze rule is 0C/0H/0M **and** §11's must-mitigate table empty. The table **is** empty
-(`docs/DESIGN.md:1788`, `*(none)*`), so the second condition holds. The first does not: this round
+(`docs/DESIGN.md:1790`, `*(none)*`), so the second condition holds. The first does not: this round
 returns 2 HIGH and 2 MEDIUM.
 
 Both HIGHs are the same shape and it is the shape the brief predicted: **four locally sound edits,
@@ -87,7 +87,7 @@ Every suggested fix below is **MY SUGGESTION, to be verified before adoption.** 
 
 ## H1 - HIGH. C5-E1's Mitigation cell still asserts the README states the requirement, in the same row whose Test cell was fixed to say it does not
 
-**Where:** `docs/DESIGN.md:1720`, the C5-E1 row of §11.
+**Where:** `docs/DESIGN.md:1722`, the C5-E1 row of §11.
 
 `f5c63e7` exists to remove the claim that a nonexistent README states the read-only-key requirement.
 It corrected §7.2 (`828-835`) and it corrected C5-E1's **Test** cell, which now reads *"in the
@@ -118,7 +118,7 @@ repeated after the fix rather than trusted from this review.
 
 ## H2 - HIGH. Two §11 rows and a §11 closing list still say the result-cap default is undocumented, which §12 in this same delta made false
 
-**Where:** `docs/DESIGN.md:1688` (C3-I1), `:1683` (C6-D1), `:1775-1776` (the "Mitigate before
+**Where:** `docs/DESIGN.md:1690` (C3-I1), `:1683` (C6-D1), `:1775-1776` (the "Mitigate before
 production release" list).
 
 `9d65cc0` names `JOBVITE_MAX_RESULTS`, defaults it to 50, puts it in `.env.example` (verified at
@@ -162,7 +162,7 @@ a wording change adjacent to them is exactly where a selector silently stops mat
 
 ## M1 - MEDIUM. The CI disclaimer's selector is narrower than the defect it disclaims, and the sentence 13 lines below it was not corrected
 
-**Where:** `docs/DESIGN.md:1417-1423` (the disclaimer), `:1390` (the uncorrected sibling), plus
+**Where:** `docs/DESIGN.md:1419-1425` (the disclaimer), `:1390` (the uncorrected sibling), plus
 `:944`, `:1139`, `:1205`, `:1513`.
 
 The disclaimer is exactly right about the fact and it is well placed as a single statement. Its
@@ -200,7 +200,7 @@ disclaimer that names one string is to leave every sentence not matching that st
 
 ## M2 - MEDIUM. The two new expiring disposals are not enrolled in the only procedure that re-tests expiring claims
 
-**Where:** `docs/DESIGN.md:833-837` (B107's ceiling), `:246-248` (B108's ceiling), `:1934-1937`
+**Where:** `docs/DESIGN.md:835-839` (B107's ceiling), `:246-248` (B108's ceiling), `:1934-1937`
 (§13's re-test step).
 
 Both new disposals expire on a condition, and both say so - which is the right instinct, and B107's
@@ -251,7 +251,7 @@ The two triggers are also not equally observable, which the brief asked about:
 
 ## L1 - LOW. "582 lines away" was wrong when it was written and is more wrong now
 
-**Where:** `docs/DESIGN.md:852`.
+**Where:** `docs/DESIGN.md:854`.
 
 > it asserted the README stated this while §10.1, **582 lines away**, deliberately withholds the
 > README
@@ -275,7 +275,7 @@ nobody to have noticed - without minting a number that will be wrong again by th
 
 ## NIT1 - Two consecutive blank lines at the end of the B107 paragraph
 
-**Where:** `docs/DESIGN.md:838-839`.
+**Where:** `docs/DESIGN.md:840-841`.
 
 `90b0504` left a doubled blank line between the end of the B107 block and *"**The outbound Jobvite
 credential is a separate question...**"*. Cosmetic, invisible in rendered Markdown, and the only such

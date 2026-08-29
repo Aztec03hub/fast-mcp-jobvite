@@ -159,7 +159,7 @@ subjects **from the rows the existing controls did not use.**
 
 ### H2. §11 convention 3 says "Machine-checked" and no machine checks it. The one committed gate explicitly disclaims the check.
 
-`DESIGN.md:1203-1206`, verbatim:
+`DESIGN.md:1205-1208`, verbatim:
 
 > "3. **Ratings are computed from the matrix at `:78-82`, not chosen.** Likelihood and Impact are
 >    judged against `:62-74`; the Risk cell is whatever the matrix yields. Machine-checked: every
@@ -201,7 +201,7 @@ worst blind spot.**
 > "- **One mechanism designed here has never been executed**: the capability-drift diff (§10), which
 >   is marked at its point of use and carried in §11's Residual Risks."
 
-`DESIGN.md:1461-1466`:
+`DESIGN.md:1463-1468`:
 
 > "Two items are different in kind, because they are reasoned claims sitting inside sections whose
 > neighbouring results *were* executed, and so borrow credibility nobody granted them: the
@@ -284,7 +284,7 @@ already specifies).
 
 ## MINOR
 
-**m1. §6.2 miscounts what the corpus's `optional` files are.** `DESIGN.md:540-542`:
+**m1. §6.2 miscounts what the corpus's `optional` files are.** `DESIGN.md:542-544`:
 
 > "corpus-wide the only `optional` files are twelve README indexes, and no substantive standard is
 > optional."
@@ -295,7 +295,7 @@ indexes. The twelfth is `architecture/adr/ADR-000-template-example.md`** (`:8` r
 standard is optional - survives, since a template example is not a substantive standard. Fix the
 noun, keep the conclusion.
 
-**m2. `DESIGN.md:794` cites `§20.2` with no document named.** Every other bare `§N` in this document
+**m2. `DESIGN.md:796` cites `§20.2` with no document named.** Every other bare `§N` in this document
 means a section of this document, whose numbering stops at §13. `§20.2` is
 `FASTMCP-SPIKE-4.md:2007`, *"MRTR is REFUTED on the handshake era"* - the content is correct and
 supports the sentence. Compare `:1136`, which does it right: *"`JOBVITE-API.md` §0.2"*. Name the file.
@@ -447,14 +447,14 @@ mechanism that should exist, not an argument that it should not.
 | # | Finding | Section | Disposition | Why |
 |---|---|---|---|---|
 | H1 | `no credible threat` lets any row at any severity drop its §8 case; 19/19 §8-naming rows escape, all four Criticals included | `check-coupling.py` check 3 + `NOT_MITIGATED_RE`, against §11 convention 4 | **SURVIVES - freeze blocker** | Demonstrated by 152 executed mutations, not argued. Same class as FIX-8, worse instance. The freeze rule hands the coupling guarantee to this gate |
-| H2 | §11 convention 3 claims "Machine-checked"; no machine checks ratings, and the gate disclaims it in writing | `DESIGN.md:1205` vs `check-coupling.py` docstring | **SURVIVES** | The arithmetic is right (verified 49/49) but the claim has no check, which is the exact failure §11 retired a sentence for eight lines below. Also the missing check is the one that closes the gate's declared rating hole |
+| H2 | §11 convention 3 claims "Machine-checked"; no machine checks ratings, and the gate disclaims it in writing | `DESIGN.md:1207` vs `check-coupling.py` docstring | **SURVIVES** | The arithmetic is right (verified 49/49) but the claim has no check, which is the exact failure §11 retired a sentence for eight lines below. Also the missing check is the one that closes the gate's declared rating hole |
 | H3 | §1.1 says one unexecuted mechanism, §12 says two; the second (circuit breaker) has no marker, no Residual Risks row, and carries C5-D1's mitigation | `DESIGN.md:34` vs `:1413-1418`, `:277-280`, `:1276` | **SURVIVES** | A contradiction inside the paragraph that tells a reviewer how to read "verified" everywhere else |
 | H4 | Freeze rule contradicts §13's freeze procedure, cannot see the open conformance sweep, and permits freezing with three inherent Critical/High rows unmitigated | `DESIGN.md:17-19` vs `:1456-1460`, `:1338-1344`; `threat-modeling.md:86` | **SURVIVES** | (a) and (c) accepted outright; (b) accepted as a sequencing constraint that must be written into §1's rule text, not left in a review |
-| m1 | "twelve README indexes" - twelve optional files, eleven READMEs, one is an ADR template example | `DESIGN.md:540-542` | **SURVIVES** | False and checkable. Conclusion survives, noun does not |
-| m2 | Bare `§20.2` is a cross-reference into `FASTMCP-SPIKE-4.md` with no document named | `DESIGN.md:794` | **SURVIVES** | Content correct, citation unresolvable within this document |
+| m1 | "twelve README indexes" - twelve optional files, eleven READMEs, one is an ADR template example | `DESIGN.md:542-544` | **SURVIVES** | False and checkable. Conclusion survives, noun does not |
+| m2 | Bare `§20.2` is a cross-reference into `FASTMCP-SPIKE-4.md` with no document named | `DESIGN.md:796` | **SURVIVES** | Content correct, citation unresolvable within this document |
 | m3 | `agent-guardrails.md:121-123` cited as naming `approval_state` explicitly; the token is at `:129` | `DESIGN.md` §5.3 | **SURVIVES** | Obligation lands, field name does not |
 | m4 | Emphasis added inside a verbatim quotation | `DESIGN.md` §2.2 | **SURVIVES** | Convention violation, no factual error |
-| m5 | Medium production-release list unchecked while the Critical/High roster is checked exactly | `check-coupling.py` check 6 vs `DESIGN.md:1396-1400` | **SURVIVES** | Verified correct today; recorded as an asymmetry to close with H1's gate work |
+| m5 | Medium production-release list unchecked while the Critical/High roster is checked exactly | `check-coupling.py` check 6 vs `DESIGN.md:1398-1402` | **SURVIVES** | Verified correct today; recorded as an asymmetry to close with H1's gate work |
 | - | Gate author's concern 1: "`no credible threat` is the only legitimate no-token state" | - | **REJECTED** | `residual`, `accepted`, `unmitigated` are all legal no-token states and eight rows use them. The sign is inverted: `no credible threat` is *missing* from `NOT_MITIGATED_RE`, which is H1 |
 | - | Gate author's concern 2: control subjects chosen from the covered set | - | **VALIDATED** | Measured. 21 hand-picked controls, 0 found the hole; 152 subject-free mutations, 19 escapes |
 | - | Orchestrator doubt 1: eight hand-tokenised rows verified by ad-hoc script | - | **CLOSED** | The committed gate now checks that population both ways on every run; 60 rows, 0 violations, re-executed this round |

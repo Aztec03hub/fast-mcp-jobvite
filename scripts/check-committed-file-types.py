@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Committed-file-type gate. DESIGN.md:1627-1634.
+"""Committed-file-type gate. DESIGN.md:1629-1636.
 
 WHY THIS EXISTS, stated because a control nobody understands gets disabled the
 first time it is inconvenient: a CONFIDENTIAL vendor PDF and an unlicensed RAML
@@ -11,7 +11,7 @@ A secret scanner cannot see either file. A PDF has no high-entropy token and
 matches no credential regex, so it passes every secret scanner cleanly. This
 gate is the other half.
 
-WHAT IT DOES NOT DO, from the design's own admission at DESIGN.md:1632-1634:
+WHAT IT DOES NOT DO, from the design's own admission at DESIGN.md:1634-1636:
 it stops a FILE of the wrong type entering the repository. It does nothing
 about confidential prose pasted into Markdown. Of the two files that actually
 leaked here, the `.raml` is refused by rule 2 (unknown extension) and the
@@ -23,7 +23,7 @@ THE FIVE RULES, in the order they are applied to each staged file:
   0. EXCEPTION. A path listed in `.file-type-allowlist` is skipped. The
      allowlist is read FROM THE INDEX, not the working tree, so an exception
      is usable only once it is staged - i.e. only when it appears in the same
-     commit's diff, where a reviewer sees it (DESIGN.md:1630-1631).
+     commit's diff, where a reviewer sees it (DESIGN.md:1632-1633).
   1. EXTENSION DENYLIST. The incident classes, refused by name so the message
      says what happened rather than "unknown type".
   2. ALLOWLIST-FIRST. Anything whose extension or basename is not on the
@@ -274,7 +274,7 @@ def main(argv: list[str]) -> int:
 
     if refusals:
         print("")
-        print("COMMIT REFUSED by the committed-file-type gate (DESIGN.md:1627-1634).")
+        print("COMMIT REFUSED by the committed-file-type gate (DESIGN.md:1629-1636).")
         print("A CONFIDENTIAL vendor PDF and an unlicensed RAML reached public remotes")
         print("on this project once already. History rewriting did not close it.")
         print("")

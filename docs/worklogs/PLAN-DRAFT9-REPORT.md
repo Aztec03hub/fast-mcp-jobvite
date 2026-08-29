@@ -287,7 +287,7 @@ That is now §10.3's fifth bullet on what the gates do not cover.
 failures, not the one its commit message names:
 
 ```
-FAIL: docs/DESIGN.md:603: §5.4 does not exist in this document          <- ADR-0019, known, not mine
+FAIL: docs/DESIGN.md:605: §5.4 does not exist in this document          <- ADR-0019, known, not mine
 FAIL: docs/plans/IMPLEMENTATION-PLAN.md:1150: §16.3 does not exist in this document
 ```
 
@@ -297,7 +297,7 @@ project has now found nine times: *"this is the §16.3 lesson the spike records 
 cites a section of `FASTMCP-SPIKE-4.md` with no document named, so it reads as a reference to the
 plan's own §16.3, which does not exist. **Fixed by naming the subject**, after verifying it exists:
 `FASTMCP-SPIKE-4.md:1431` is `### 16.3 Positive-control failure I hit first, and why it is recorded`.
-The plan now reports **164 references, 0 unresolved**. The remaining `DESIGN.md:603` failure is
+The plan now reports **164 references, 0 unresolved**. The remaining `DESIGN.md:605` failure is
 ADR-0019's, in a file that is not mine.
 
 *Worth noting for its own sake: a gate that landed after I was briefed found a defect in the

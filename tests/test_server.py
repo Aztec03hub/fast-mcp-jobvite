@@ -1,6 +1,6 @@
-"""The `FastMCP` instance and lifespan composition (DESIGN.md:956-958).
+"""The `FastMCP` instance and lifespan composition (DESIGN.md:958-960).
 
-DESIGN.md:957-958 states "startup in order, teardown in strict reverse,
+DESIGN.md:959-960 states "startup in order, teardown in strict reverse,
 verified". That property had no test, and its two halves fail differently:
 an out-of-order startup is usually visible, an out-of-order teardown is
 usually not.
@@ -70,7 +70,7 @@ def test_mask_error_details_is_set_explicitly() -> None:
 
 
 async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> None:
-    """DESIGN.md:957-958, which had no test before this one.
+    """DESIGN.md:959-960, which had no test before this one.
 
     Two composed lifespans, not one: with a single extra the sequence is
     up-then-down whatever the operator does, so a one-lifespan arm cannot
@@ -157,7 +157,7 @@ def test_main_returns_the_refusal_status_without_serving(
 
 
 async def test_the_server_registers_no_tool_yet() -> None:
-    """U1 owns the enable GATE, not the tools (DESIGN.md:917-934).
+    """U1 owns the enable GATE, not the tools (DESIGN.md:919-936).
 
     A tool registered here would mean U1 had written outside the files §4's
     table gives it. The gate itself is asserted in `test_config.py`.

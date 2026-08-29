@@ -1,4 +1,4 @@
-"""U2: the error contract (DESIGN.md:491-538, IMPLEMENTATION-PLAN.md:447-470).
+"""U2: the error contract (DESIGN.md:491-540, IMPLEMENTATION-PLAN.md:447-470).
 
 The table below is the design's registry table (DESIGN.md:513-521) restated as
 data, so a change to either side shows up as a diff here rather than as a
@@ -96,7 +96,7 @@ def test_a_jobvite_401_is_a_502_and_not_a_401() -> None:
 
 
 def test_validation_is_422_and_not_400() -> None:
-    """DESIGN.md:532: validation is 422 per the registry, not 400."""
+    """DESIGN.md:534: validation is 422 per the registry, not 400."""
     problem = errors.problem_from_exception(errors.ValidationError("bad range"), RID)
     assert problem["status"] == 422
     assert problem["status"] != 400
@@ -137,12 +137,12 @@ def test_timestamp_is_iso_8601_utc() -> None:
 
 
 def test_jobvites_own_status_and_message_are_in_detail_and_not_discarded() -> None:
-    """DESIGN.md:530-532."""
+    """DESIGN.md:532-534."""
     exc = errors.JobviteUpstreamError(401, "Invalid API key or company id")
     problem = errors.problem_from_exception(exc, RID)
     assert "401" in problem["detail"]
     assert "Invalid API key or company id" in problem["detail"]
-    # Preserved on the exception too, for the audit event (DESIGN.md:530-531).
+    # Preserved on the exception too, for the audit event (DESIGN.md:532-533).
     assert exc.upstream_status == 401
     assert exc.upstream_message == "Invalid API key or company id"
 
@@ -166,7 +166,7 @@ def test_an_unmapped_exception_does_not_leak_its_message_to_the_caller() -> None
 
 
 def test_a_problem_object_is_returned_never_raised() -> None:
-    """DESIGN.md:534-538 - being returned is what no configuration can distort.
+    """DESIGN.md:536-540 - being returned is what no configuration can distort.
 
     Two arms, because the first alone passes on a function that returns None.
     """

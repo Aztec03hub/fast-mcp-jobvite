@@ -141,7 +141,7 @@ mechanically re-derive rather than hand-edit, given the document's own thesis - 
 ```
 
 Two of them are the Q1 answer the plan celebrates at `:239-245` and `:911-916`. The design's actual
-wording (`DESIGN.md:1218`) is *"`.env.example` carries **no real value**"* - no real credential,
+wording (`DESIGN.md:1220`) is *"`.env.example` carries **no real value**"* - no real credential,
 not no value at all. The plan tightened the case into something the repository already violates.
 
 **Why High.** U0 is the first unit. Its test either fails on the committed tree, or an agent
@@ -168,7 +168,7 @@ committed file today but the list is the load-bearing half of the assertion.
 DESIGN.md:           the same 12 (grep -oE "JOBVITE_[A-Z_]+" docs/DESIGN.md | sort -u)
 ```
 
-`DESIGN.md:768-769` says *"HTTP binds `127.0.0.1` unless told otherwise"* and `:774` says *"HTTP
+`DESIGN.md:770-771` says *"HTTP binds `127.0.0.1` unless told otherwise"* and `:774` says *"HTTP
 auth uses `StaticTokenVerifier` built from environment at startup"* - neither names the variable
 that does the telling or holds the tokens.
 
@@ -201,7 +201,7 @@ adopt it; naming them is the design's call, which is the entire lesson of B15.
 
 **Evidence.** `DESIGN.md:43-45` names exactly two mechanisms that *"sit among executed results and
 borrow their credibility"*: the capability-drift diff (§10) and the circuit breaker (§4.3).
-`DESIGN.md:1905` records the diff as marked `UNVERIFIED:` at its point of use; `:1819` carries it as
+`DESIGN.md:1907` records the diff as marked `UNVERIFIED:` at its point of use; `:1819` carries it as
 a Residual Risk; C9-T1 is one of the 17 Critical/High rows.
 
 The plan preserves the ceiling for one of the pair and drops it for the other. The circuit breaker
@@ -293,7 +293,7 @@ the defect on the next commit.
 `IMPLEMENTATION-PLAN.md:953-959` offers, as a hypothesis, *"add a check that every §8 required case
 is either named by at least one §11 row or carries an explicit exemption marker"*. That check exists
 at HEAD. `git diff 9d65cc0 HEAD -- docs/reviews/check-coupling.py` shows a 35-line block labelled
-`2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2)`, and `DESIGN.md:1294-1295` now carries the measured
+`2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2)`, and `DESIGN.md:1296-1297` now carries the measured
 residual in the case #18 bullet itself, including the conclusion the plan reached independently:
 *"GATE-2 now requires every case to name its owner… **it does not make deletion visible.**"*
 
@@ -304,7 +304,7 @@ credit. But as it stands, an agent reading §9 files work that is done.
 in place rather than appending to it: keep the two-arm mutation table as the measurement, then
 replace the suggested-fix paragraph with *"**Landed at `cc94459`.** `check-coupling.py` now carries
 `2a-ter (GATE-2)`, requiring every §8 case to be named by a §11 row or to cite a B-number or section
-as its owner; `DESIGN.md:1294-1295` records the same measured residual, that GATE-2 stops a case's
+as its owner; `DESIGN.md:1296-1297` records the same measured residual, that GATE-2 stops a case's
 justification being stripped but does not make its deletion visible. The seven orphans this section
 enumerated are the population that check now addresses. Nothing remains open here."* Re-derive the
 orphan count against HEAD before publishing that sentence - I did not re-run the extraction.
@@ -327,8 +327,8 @@ not repoint drift:
 
 | Plan line | Cites | Actually at that line (`9d65cc0`) | Correct cite |
 |---|---|---|---|
-| `:345` | `DESIGN.md:1303-1304` for `MockTransport` | §8 bullets #23 and #24 | `:1262-1263` |
-| `:750` | `DESIGN.md:1310-1312` for `utils/redaction.py` holding both halves | the `MockTransport` paragraph | `:1269-1271` |
+| `:345` | `DESIGN.md:1305-1306` for `MockTransport` | §8 bullets #23 and #24 | `:1262-1263` |
+| `:750` | `DESIGN.md:1312-1314` for `utils/redaction.py` holding both halves | the `MockTransport` paragraph | `:1269-1271` |
 
 The plan's own §1 table cites `:1255` and `:1256` correctly for cases #23 and #24, so the document
 contradicts itself about what lives at those lines.
@@ -347,7 +347,7 @@ byte-exact"* followed by four names plus the two malformed.
 
 The two malformed files are not captures. `malformed_not_json.txt` is the single line
 `this is not JSON at all`; `malformed_truncated.json` is `{"candidates": [ {"eId": "TESTCND1", ` -
-a placeholder id in the same style as the synthetic fixtures. `DESIGN.md:1204` defines Recorded as
+a placeholder id in the same style as the synthetic fixtures. `DESIGN.md:1206` defines Recorded as
 *"byte-exact captures of **real Jobvite error transport**"*. These are invented.
 
 **Why it matters beyond arithmetic.** Putting two invented files in the ground-truth tier is the
@@ -398,7 +398,7 @@ re-implementing U5's reporting string."*
 
 ### M7 - §8 #16's error arm is scheduled in no unit
 
-`DESIGN.md:1279` requires `request_id` on every result across **four arms**: successful read,
+`DESIGN.md:1281` requires `request_id` on every result across **four arms**: successful read,
 successful write, audit-failure warning branch, and error - which the plan's own §1 table records at
 `:92`. U5 (`:382`) takes the read arm. U10 (`:580`) takes *"write arms: `request_id` on the wire for
 a successful write **and** for the audit-failure warning branch"*. The **error** arm is claimed
@@ -409,12 +409,12 @@ nowhere. U5's adjacent bullet asserts that a 200-with-401 body returns `/problem
 the **error arm** of the same case - the `error_auth_200_body401.json` call above returns a problem
 object whose `request_id` member matches the audit event's id, asserted **on the wire result**, so
 all four arms of #16 have an owner: read and error here, write and audit-failure-warning in U10."*
-Check against `DESIGN.md:598-603` that the error half is carried by the problem object's own
+Check against `DESIGN.md:600-605` that the error half is carried by the problem object's own
 `request_id` member rather than by `_meta`; the design distinguishes them and my sentence assumes it.
 
 ### M8 - The blanket positive-control rule is stated in §1 and then not carried into four units' verification lists
 
-`:103-105` correctly derives that `DESIGN.md:1321-1322` requires a paired positive control for
+`:103-105` correctly derives that `DESIGN.md:1323-1324` requires a paired positive control for
 cases #1, #7, #8, #9, #10, #12, #15, #21, #22, #23 and #25 *"not only where the bullet says so"*.
 Checking each against the unit that owns it: #1 (U4) ✓, #8 (U14) ✓, #10 (U1) ✓, #12 (U0) ✓,
 #15 (U11) ✓, #21 (U7 - the row counter serves) ✓, #23 (U7) ✓. Missing:
@@ -430,10 +430,10 @@ rule is named for: four arms that all assert "the row count did not move" pass p
 `create_candidate` that is broken and never writes at all.
 
 **Suggested fix (my suggestion, verify before adopting - cheap).** Add to U10 `:572`: *"Positive
-control, required by `DESIGN.md:1321-1322` and load-bearing here: an **approved** write moves the
+control, required by `DESIGN.md:1323-1324` and load-bearing here: an **approved** write moves the
 row counter by one. Without it, four refusal arms asserting the count did not move all pass against
 a write that never works."* Add to U14 `:679`: *"#7 and #9 each carry the blanket positive control
-of `DESIGN.md:1321-1322` - a well-formed argument passes schema validation, and a payload just
+of `DESIGN.md:1323-1324` - a well-formed argument passes schema validation, and a payload just
 inside each of the four structural limits is accepted."*
 
 ### M9 - U0's CI invokes a script U11 builds, and U11 depends on U0
@@ -460,7 +460,7 @@ Several are covered in substance by a §8 case the plan does schedule (C8-I1 by 
 #22's accept-carrying-false arm in U10). Two are not:
 - **C9-T1** is the capability-drift diff - see H3.
 - **C5-E1** is the read-only-key High residual. U13 schedules the README sentence and §8 #14 asserts
-  its presence, but the *ceiling* - `DESIGN.md:1725-ish`, *"whether Jobvite issues read-only keys at
+  its presence, but the *ceiling* - `DESIGN.md:1727-ish`, *"whether Jobvite issues read-only keys at
   all is unknown, so if the answer is no the residual stands"* - is carried nowhere in the plan. It
   reads as discharged by writing a sentence.
 
@@ -478,7 +478,7 @@ HEAD before publishing - I extracted it by grep and it should be confirmed row b
 
 `IMPLEMENTATION-PLAN.md:469` and `:813` carry the design's claim that *"no library is selected yet
 (B47)"* and that the survey runs *"against libraries nobody has surveyed"*. The plan is faithfully
-repeating `DESIGN.md:594`, so the plan is not wrong relative to its authority. But B47 itself reads
+repeating `DESIGN.md:596`, so the plan is not wrong relative to its authority. But B47 itself reads
 (`docs/research/STANDARDS.md:374`, and `docs/reviews/CONFORMANCE-B1-B106.md:239`):
 
 > **B47. Blessed libraries: Pydantic `>=2.10`, `httpx`, `tenacity ^9` + `circuitbreaker ^2`, `uv`,
@@ -496,10 +496,10 @@ the right place for this to surface.
 **Suggested fix (my suggestion, verify before adopting - cheap for the plan, a design change for the
 root).** In U7 at `:478`, replace *"survey candidate libraries against the timer constraint"* with:
 *"apply the rejection test to **`circuitbreaker ^2` first**, which B47's blessed-library list names
-(`STANDARDS.md:374`) - `DESIGN.md:594` says no library is selected, but the standards register does
+(`STANDARDS.md:374`) - `DESIGN.md:596` says no library is selected, but the standards register does
 name one, and testing the blessed candidate before surveying alternatives is both cheaper and what
 B47 requires. If it evaluates transitions from a background timer, it is rejected on the record and
-the inline breaker is taken with evidence."* And raise it in §9 as a design question: `DESIGN.md:594`
+the inline breaker is taken with evidence."* And raise it in §9 as a design question: `DESIGN.md:596`
 characterises B47 as leaving the library unselected, and it does not. I checked B47's text at
 `STANDARDS.md:374` directly; confirm the `^2` version constraint is still current before the plan
 quotes it.
@@ -514,7 +514,7 @@ quotes it.
 until CI exists** (`:70` forbids a static badge…)"*. The nearest antecedent is
 `CREDENTIAL-CHECKLIST.md`, whose line 70 is blank (line 71 begins *"Row 9 - run it last"*). The rule
 is `readme-standard.md:70` - *"**Badges are live**: each badge MUST point at a live source. Static
-SVGs that no longer reflect reality are forbidden."* The design gets this right at `DESIGN.md:1568`,
+SVGs that no longer reflect reality are forbidden."* The design gets this right at `DESIGN.md:1570`,
 where `:70` sits in a paragraph whose antecedent *is* `readme-standard.md`; the plan copied the bare
 form across an antecedent change.
 
@@ -550,7 +550,7 @@ sees two units with no prerequisites at all.
 Recording this so the findings above are not read as a verdict on the whole document.
 
 - **The §8 count.** I re-derived the 25 bullets independently against HEAD by extracting top-level
-  bullets between the *"Required cases"* header (`DESIGN.md:1215`) and the *"Transport substitution
+  bullets between the *"Required cases"* header (`DESIGN.md:1217`) and the *"Transport substitution
   uses"* paragraph (`:1262`). Twenty-five, and every line anchor in the plan's §1 table matches.
   The mechanical re-derivation was the right call and it produced the right answer.
 - **Case coverage.** All 25 cases are scheduled to a unit under the §1 table's numbering. Nothing is
