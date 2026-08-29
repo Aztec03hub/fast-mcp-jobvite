@@ -233,12 +233,26 @@ Four limits, stated because none of them is fixable here:
 
 ### Embedding the server rather than running it
 
-`fast_mcp_jobvite.__main__` installs the log redaction at import. **An embedder that imports
-`fast_mcp_jobvite.server` and calls `build_server` directly does not get it**, and the HTTP client
-library logs each request URL through the standard library - which on the job-feed route carries the
-API key, secret and company id. Until [ADR-0026](./docs/adr/0026-log-redaction-is-a-property-of-the-entry-point-not-the-client.md)
-is decided, **an embedder must call `configure_logging()` itself**. This is a measured leak, not a
-theoretical one: `docs/reviews/probe-u12-f2-embedder-leak.py` reproduces it.
+The HTTP client library logs each request URL through the standard library, and on the job-feed
+route that URL structurally carries the API key, secret and company id.
+`fast_mcp_jobvite.__main__` redacts it at import, so **the shipped server has never been exposed** -
+but an embedder who imports `fast_mcp_jobvite.server`, or constructs `JobviteClient` directly, never
+runs that.
+
+So **`JobviteClient` installs the redaction itself**, on `httpx2`'s logger, per
+[ADR-0026](./docs/adr/0026-log-redaction-is-a-property-of-the-entry-point-not-the-client.md).
+You need call nothing. Two things worth knowing before you embed it:
+
+- **It touches your logging configuration from a constructor**, which you are entitled to object to.
+  Pass `JobviteClient(..., install_log_redaction=False)` and it will not - a constructor argument,
+  never a setting. The default installs because a credential leak is a worse default than a
+  surprising side effect; opting out makes the exposure a choice you made.
+- **The install is idempotent.** A client is built once per invocation, so a filter appended per
+  construction would stack one per tool call forever. Build a thousand and there is still one.
+
+Not a theoretical guarantee: `docs/reviews/probe-u12-f2-embedder-leak.py` measures it on a handler
+that is not ours, with a control arm that opts out and must still read the credentials in the clear,
+and the test suite runs it.
 
 What exists:
 
