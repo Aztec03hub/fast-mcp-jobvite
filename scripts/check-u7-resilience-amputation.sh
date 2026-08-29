@@ -291,6 +291,34 @@ amputate "A16 Retry-After parsing is deleted and always returns None" \
     if True:
         return None'
 
+# ===========================================================================
+# THE SCAN'S BOUNDS. `scan()` had NO bound at all before this unit, so
+# these two rows restore the state R5-H2 measured - and the suite's own
+# handlers abort at SCAN_PROBE_ABORT so a row cannot hang the gate.
+# ===========================================================================
+
+amputate "A17 the zero-progress break is deleted (R5-H2 reopens)" \
+  "$CLIENT" \
+  '            if len(seen) + unidentified == progress_before:
+                stalled = True' \
+  '            if False:
+                stalled = True'
+
+amputate "A18 the record ceiling is deleted" \
+  "$CLIENT" \
+  '            if len(items) >= MAX_SCAN_RECORDS:
+                ceiling_hit = True' \
+  '            if False:
+                ceiling_hit = True'
+
+amputate "A19 neither bound makes the result incomplete" \
+  "$CLIENT" \
+  '            or stalled
+            or ceiling_hit
+        )' \
+  '            or False
+        )'
+
 echo "ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
 echo "VACUOUS ROWS: $VACUOUS"
 echo "TOTAL SURVIVING ASSERTIONS ACROSS ALL ROWS: $TOTAL_SURVIVORS"

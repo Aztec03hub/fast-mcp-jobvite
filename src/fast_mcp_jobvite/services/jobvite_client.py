@@ -464,6 +464,37 @@ JOBFEED_PAGE_CAP: Final = 1000
 #: and NOT a measurement of anything.
 DEFAULT_MAX_RESULTS: Final = 50
 
+#: THE SCAN'S RECORD CEILING, and it is in RECORDS rather than in pages
+#: DELIBERATELY (ADR-0024, Proposed; R5-H2).
+#:
+#: **ADR-0024 proposes a `MAX_PAGES` and requires that "any bound
+#: must be
+#: sane at both 50 and 500 records per page". A ceiling in PAGES cannot
+#: satisfy its own requirement.** The reviewer's suggested `MAX_PAGES =
+#: 10_000` admits 500,000 records at the 50-record page size and
+#: 5,000,000 at the 500-record one - a tenfold difference in the
+#: resource
+#: actually at risk, decided by a knob the ceiling cannot see. A ceiling
+#: in RECORDS is sane at both page sizes by construction, because
+#: records
+#: are what memory is spent on. `scripts/probe-scan-bounds.py` is the
+#: measurement; the report argues it as an amendment to the ADR's
+#: mechanism 2, not as a rejection of it.
+#:
+#: **It is NOT `total` and does not read `total`** (DESIGN.md:486-487),
+#: so the clause that "`total` is reported and never trusted as a loop
+#: condition" is intact. It is a constant of ours.
+#:
+#: 100,000 IS A CHOICE AND NOT A MEASUREMENT. It sits above the largest
+#: scan the outbound budget could ever complete - at the 6/min figure
+#: DESIGN.md:1576-1583 records as a GUESS, 100,000 records is 2,000
+#: pages
+#: and about five and a half hours against a 60-second budget - so
+#: it can
+#: only ever fire on a server that is misbehaving, never on a legitimate
+#: scan the rest of the machinery would have allowed to finish.
+MAX_SCAN_RECORDS: Final = 100_000
+
 #: Where every scan starts (DESIGN.md:455). Named rather than inlined
 #: so a future edit is a visible one-line diff with this comment
 #: attached, instead of a `0` quietly becoming a `1` inside a call.
@@ -1872,6 +1903,12 @@ class JobviteClient:
         unidentified = 0
         short_page = False
         capped = False
+        #: ADR-0024's two bounds. Kept apart from `short_page` because
+        #: neither IS one - a scan that stopped on either did not reach
+        #: the end of the resource, and `_check_completeness` must not
+        #: read them as though it had.
+        stalled = False
+        ceiling_hit = False
 
         while True:
             payload = await self.request(
@@ -1890,6 +1927,12 @@ class JobviteClient:
                 if isinstance(raw, list)
                 else []
             )
+
+            # PROGRESS IS MEASURED BEFORE THE PAGE IS CONSUMED, and
+            # `unidentified` is counted alongside `seen` because an
+            # id-less record IS a record the caller receives - a page of
+            # them is progress, not stalling (DESIGN.md:465-468).
+            progress_before = len(seen) + unidentified
 
             for item in page:
                 ident = item.get(id_key)
@@ -1923,18 +1966,97 @@ class JobviteClient:
                 capped = True
                 break
 
+            # ====================================================
+            # THE ZERO-PROGRESS BREAK (ADR-0024 mechanism 1, R5-H2).
+            #
+            # Reached only on a FULL page, because the short-page exit
+            # is above it. So it fires exactly when the server answered
+            # a complete page that added NOTHING. On healthy paging that
+            # cannot happen: a full page of records the caller has not
+            # seen is progress by definition, and a page that is
+            # genuinely the last one is short.
+            #
+            # THIS IS THE ONE THAT TERMINATES THE LOOP rather than
+            # capping it. R5 measured the unfixed shape and aborted its
+            # own probe at 200 requests. `scripts/probe-scan-bounds.py`
+            # re-measured it here, against a client that HAS the
+            # outbound budget, and had to abort at 2,000 - including on
+            # a run with a two-SECOND budget, because the budget bounds
+            # wall clock and a fast server answers thousands of requests
+            # inside it. That is the evidence for ADR-0024's "the budget
+            # is a mitigation, not a fix", and it is stronger than the
+            # ADR states: the budget did not fire at all.
+            #
+            # `incomplete` rather than an exception, because the records
+            # already collected are REAL. A caller holding 50 records
+            # and `incomplete=True` is better served than one holding a
+            # 503 and nothing, which is what the budget would eventually
+            # have handed it.
+            # ====================================================
+            if len(seen) + unidentified == progress_before:
+                stalled = True
+                logger.warning(
+                    "jobvite scan: a full page added no records; the server "
+                    "is not advancing",
+                    route=redact_url(f"{V2_BASE_URL}{path}"),
+                    pages=pages,
+                    records=len(items),
+                    request_id=request_id_var.get(),
+                )
+                break
+
+            # ====================================================
+            # THE RECORD CEILING (ADR-0024 mechanism 2, AMENDED to
+            # count records rather than pages - see MAX_SCAN_RECORDS).
+            #
+            # NEITHER MECHANISM SUBSTITUTES FOR THE OTHER, and the probe
+            # shows why instead of the ADR asserting it. A server that
+            # IGNORES `start` repeats one page: its record count never
+            # grows, and the break above catches it. A server that
+            # HONOURS `start` and never runs out returns a full page of
+            # NEW records every time: the zero-progress break can never
+            # fire, and the only thing at risk is memory. R5's fake
+            # produces the first shape only, which is why the second
+            # needed a probe of its own.
+            # ====================================================
+            if len(items) >= MAX_SCAN_RECORDS:
+                ceiling_hit = True
+                logger.warning(
+                    "jobvite scan: the record ceiling was reached without a short page",
+                    route=redact_url(f"{V2_BASE_URL}{path}"),
+                    pages=pages,
+                    records=len(items),
+                    ceiling=MAX_SCAN_RECORDS,
+                    request_id=request_id_var.get(),
+                )
+                break
+
             start += count
 
         if not exhaustive and len(items) > effective_limit:
             capped = True
             items = items[:effective_limit]
 
-        incomplete = self._check_completeness(
-            path=path,
-            exhaustive=exhaustive,
-            short_page=short_page,
-            unique=len(seen) + unidentified,
-            total=total,
+        # EITHER BOUND MAKES THE RESULT INCOMPLETE ON ITS OWN, and the
+        # `or` is what makes that true regardless of `total`.
+        # `_check_completeness` is armed only by a SHORT PAGE and only
+        # when the envelope carried an integer `total` - both correct
+        # for
+        # what it checks, and both reasons it cannot see these two. A
+        # scan
+        # that stopped because the server stopped advancing is
+        # incomplete
+        # whether or not `total` was reported at all.
+        incomplete = (
+            self._check_completeness(
+                path=path,
+                exhaustive=exhaustive,
+                short_page=short_page,
+                unique=len(seen) + unidentified,
+                total=total,
+            )
+            or stalled
+            or ceiling_hit
         )
 
         return ScanResult(

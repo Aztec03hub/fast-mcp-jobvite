@@ -35,6 +35,7 @@ quantity the spike counted.
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 import sys
 from collections.abc import Awaitable, Callable
@@ -931,6 +932,336 @@ async def test_no_retry_line_carries_a_url() -> None:
     assert retries[0]["request_id"] == RID_A
     assert retries[0]["error_type"] == "_RetryableUpstream"
     assert "elapsed" in retries[0]
+
+
+# ======================================================================
+# THE SCAN'S BOUNDS - R5-H2 and ADR-0024 (Proposed).
+#
+# `scan()` had NO bound of any kind. R5 measured it against a server
+# that ignores `start` and aborted its own probe at 200 requests.
+# `DESIGN.md:486-487` removed `total` as a loop condition and named no
+# replacement, so U6 implemented it faithfully and unbounded at once.
+#
+# **THE OUTBOUND BUDGET DOES NOT FIX IT, and that is measured rather
+# than argued.** `scripts/probe-scan-bounds.py` ran the same shape
+# against a client that HAS the budget and had to abort at 2,000
+# requests - including on a run with a two-SECOND budget, because the
+# budget bounds WALL CLOCK and a fast server answers thousands of
+# requests inside it. ADR-0024 says the budget is "a mitigation, not a
+# fix"; the measurement is stronger than that, because the budget did
+# not fire at all.
+#
+# THE TWO SERVERS FAIL IN OPPOSITE DIRECTIONS and each defeats the
+# other's bound, which is why both mechanisms exist:
+#
+#   non-advancing    ignores `start`, repeats one page. Records never
+#                    grow, so a RECORD CEILING can never fire.
+#   advancing-for-   honours `start`, never runs out. Every page is
+#   ever             full of NEW records, so a ZERO-PROGRESS BREAK can
+#                    never fire.
+#
+# R5's fake produces the first only. The second needed a probe of its
+# own, and it is what confirms ADR-0024's "neither mechanism
+# substitutes for the other" instead of taking it on trust.
+# ======================================================================
+
+#: Every scan handler below refuses to answer more than this. **It is
+#: the test's own abort, not a bound under test**: without it, a case
+#: run against a tree whose bound has been amputated hangs the harness
+#: instead of reporting, and a row that hangs CI is not a measurement.
+#: Reaching it fails the case loudly.
+SCAN_PROBE_ABORT = 400
+
+
+class _ScanProbeAbort(Exception):  # noqa: N818 - a test signal, not an error
+    """The handler's own ceiling was hit; the bound did not fire."""
+
+
+def non_advancing_server(page_size: int) -> tuple[Handler, list[int]]:
+    """A server that IGNORES `start` and repeats one full page forever.
+
+    This is R5-H2's fake. Every page is full, so the short-page exit
+    never fires, and every record is already in `seen`, so the scan
+    makes no progress whatsoever.
+
+    Args:
+        page_size: Records per page.
+
+    Returns:
+        The handler and a one-element list holding the request count.
+    """
+    count = [0]
+
+    def handler(_request: httpx2.Request) -> httpx2.Response:
+        count[0] += 1
+        if count[0] > SCAN_PROBE_ABORT:
+            raise _ScanProbeAbort
+        body = {"requisitions": [{"eId": f"E{i}"} for i in range(page_size)]}
+        return httpx2.Response(200, content=json.dumps(body).encode())
+
+    return handler, count
+
+
+def endless_server(page_size: int) -> tuple[Handler, list[int]]:
+    """A server that HONOURS `start` and never runs out of records.
+
+    Every page is full and every record is NEW, so the zero-progress
+    break cannot fire and the only thing at risk is memory.
+
+    Args:
+        page_size: Records per page.
+
+    Returns:
+        The handler and a one-element list holding the request count.
+    """
+    count = [0]
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        count[0] += 1
+        if count[0] > SCAN_PROBE_ABORT:
+            raise _ScanProbeAbort
+        start = int(request.url.params.get("start", "0"))
+        body = {"requisitions": [{"eId": f"E{start + i}"} for i in range(page_size)]}
+        return httpx2.Response(200, content=json.dumps(body).encode())
+
+    return handler, count
+
+
+async def test_a_server_that_ignores_start_is_bounded_after_one_wasted_page() -> None:
+    """R5-H2's exact shape, bounded by the zero-progress break.
+
+    The unfixed loop ran until R5 aborted it at 200 requests and until
+    `scripts/probe-scan-bounds.py` aborted it at 2,000. The assertion is
+    the REQUEST COUNT at the transport, because "bounded" is a claim
+    about how many calls Jobvite receives and nothing else measures it.
+
+    **Two requests, not one.** The first page is legitimate and its
+    records are kept; the second is what proves the server is not
+    advancing. Detecting it in one would mean refusing to page at all.
+    """
+    handler, count = non_advancing_server(50)
+    c = client(handler, max_results=50)
+    try:
+        result = await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+
+    assert count[0] == 2, f"the scan issued {count[0]} requests"
+    # THE RECORDS ARE KEPT. A bound that threw them away would leave the
+    # caller with nothing, which is exactly what the outbound budget
+    # eventually hands it.
+    assert len(result.items) == 50
+    assert result.incomplete is True
+
+
+async def test_a_server_that_never_runs_out_is_bounded_by_the_record_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shape R5's fake cannot produce (ADR-0024 mechanism 2).
+
+    Every page is full of NEW records, so the zero-progress break can
+    never fire. Without the ceiling this scan consumes memory until the
+    process dies; the test's own abort would fire first and fail loudly.
+
+    The ceiling is lowered so the case is cheap. What is under test is
+    that a ceiling EXISTS and stops the loop, not that 100,000 is the
+    right number, which it is not claimed to be - see
+    `MAX_SCAN_RECORDS`.
+    """
+    monkeypatch.setattr(jc, "MAX_SCAN_RECORDS", 1_000)
+    handler, count = endless_server(50)
+    c = client(handler, max_results=50)
+    try:
+        result = await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+
+    assert count[0] == 20, f"the scan issued {count[0]} requests"
+    assert len(result.items) == 1_000
+    assert result.incomplete is True
+
+
+async def test_the_record_ceiling_holds_at_both_50_and_500_per_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The amendment to ADR-0024's mechanism 2, as a measurement.
+
+    The ADR requires that "any bound must be sane at both 50 and 500
+    records per page" and then proposes `MAX_PAGES = 10_000`, which
+    **cannot satisfy its own requirement**: 10,000 pages admits 500,000
+    records at 50 per page and 5,000,000 at 500 - a tenfold difference
+    in the resource actually at risk, decided by a knob the ceiling
+    cannot see.
+
+    A ceiling in RECORDS satisfies it by construction, and this case is
+    the proof: the two page sizes differ tenfold in REQUESTS and are
+    IDENTICAL in records held. Asserting both halves is the point -
+    equal records alone would also pass against a bound that ignored
+    the page size entirely and always returned nothing.
+    """
+    monkeypatch.setattr(jc, "MAX_SCAN_RECORDS", 1_000)
+    held: dict[int, tuple[int, int]] = {}
+    for page_size in (50, 500):
+        handler, count = endless_server(page_size)
+        c = client(handler, max_results=page_size)
+        try:
+            result = await c.scan(JOBS_PATH, items_key="requisitions")
+        finally:
+            await c.aclose()
+        held[page_size] = (count[0], len(result.items))
+
+    assert held[50][1] == held[500][1] == 1_000, (
+        f"the ceiling admitted different record counts per page size: {held}"
+    )
+    assert held[50][0] == 20
+    assert held[500][0] == 2
+
+
+async def test_neither_bound_substitutes_for_the_other(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0024 asserts this; here it stops being an assertion.
+
+    Each server defeats the other server's bound, with ONE condition on
+    the ceiling that this case had to be corrected to state.
+
+    * A non-advancing server's record count stops growing after page
+      one, so **any ceiling larger than a single page can never fire on
+      it** - only the zero-progress break can stop it.
+    * An endless server never repeats a record, so the zero-progress
+      break can never fire on it - only the ceiling can stop it.
+
+    **The first arm was written as "the ceiling can never fire on a
+    non-advancing server" with the ceiling set to 1, and it FAILED:
+    page one legitimately adds 50 records, so a ceiling of 1 fires on
+    page one, before the break can see a second page.** The claim is
+    therefore conditional, the condition is "larger than one page", and
+    every plausible ceiling satisfies it - `MAX_SCAN_RECORDS` is 100,000
+    against a page size of at most 500. The corrected arm uses 100
+    against a 50-record page, which is the smallest ceiling that meets
+    the condition and so the sharpest test of it.
+    """
+    # Arm 1: ceiling of 100, page size 50. The non-advancing server can
+    # never reach 100 records, so if the scan stops, only the break did
+    # it.
+    monkeypatch.setattr(jc, "MAX_SCAN_RECORDS", 100)
+    handler, count = non_advancing_server(50)
+    c = client(handler, max_results=50)
+    try:
+        stalled = await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+    assert count[0] == 2
+    assert len(stalled.items) == 50, (
+        "the record ceiling fired on a non-advancing scan; with a ceiling "
+        "above one page it cannot, because the record count never grows"
+    )
+
+    # Arm 2: the endless server, the SAME ceiling. Nothing repeats, so
+    # the break cannot fire and the ceiling is what stops it - after
+    # two pages rather than after two requests, which is the tell that
+    # a different mechanism ran.
+    handler2, count2 = endless_server(50)
+    c2 = client(handler2, max_results=50)
+    try:
+        endless = await c2.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c2.aclose()
+    assert count2[0] == 2
+    assert len(endless.items) == 100
+    assert endless.incomplete is True
+
+
+async def test_neither_bound_fires_on_healthy_paging() -> None:
+    """The POSITIVE CONTROL for every bound case above.
+
+    Without it, all four are satisfied by a scan that always stops
+    immediately.
+
+    A well-behaved server advances and ends on a short page. Neither
+    bound may fire, `incomplete` must be `False`, and every record must
+    arrive. A zero-progress break that fired here would break every
+    real scan, and it is the failure mode a bound like this has.
+    """
+    pages = [
+        {"requisitions": [{"eId": f"E{i}"} for i in range(50)]},
+        {"requisitions": [{"eId": f"E{50 + i}"} for i in range(50)]},
+        {"requisitions": [{"eId": "E100"}], "total": 101},
+    ]
+    seen = [0]
+
+    def handler(_request: httpx2.Request) -> httpx2.Response:
+        body = pages[min(seen[0], len(pages) - 1)]
+        seen[0] += 1
+        return httpx2.Response(200, content=json.dumps(body).encode())
+
+    c = client(handler, max_results=50)
+    try:
+        result = await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+
+    assert seen[0] == 3
+    assert len(result.items) == 101
+    assert result.incomplete is False
+
+
+async def test_a_fully_duplicate_page_is_still_not_a_short_page() -> None:
+    """The interaction U6 warned about, kept true by the new break.
+
+    DESIGN.md:465-468's clamping hypothesis means a boundary record
+    arrives twice, and U6's comment at the short-page exit says a
+    "fully duplicate full-length page is not a short page, and stopping
+    on it would end a scan early". The zero-progress break stops on
+    exactly that page - which is correct, because under clamping a FULL
+    page of nothing but duplicates means the server has stopped
+    advancing - but a page that is only PARTLY duplicated must not stop
+    it. This is that case: one duplicate, 49 new, the scan continues.
+    """
+    calls = [0]
+
+    def handler(_request: httpx2.Request) -> httpx2.Response:
+        calls[0] += 1
+        if calls[0] == 1:
+            body: dict[str, Any] = {
+                "requisitions": [{"eId": f"E{i}"} for i in range(50)]
+            }
+        elif calls[0] == 2:
+            # Overlaps by one: E49 again, then 49 new.
+            body = {"requisitions": [{"eId": f"E{49 + i}"} for i in range(50)]}
+        else:
+            body = {"requisitions": [{"eId": "E99"}]}
+        return httpx2.Response(200, content=json.dumps(body).encode())
+
+    c = client(handler, max_results=50)
+    try:
+        result = await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+
+    assert calls[0] == 3, "a partly-duplicated page stopped the scan"
+    assert result.duplicates_dropped == 1
+
+
+def test_the_scan_bounds_probe_still_reproduces_its_measurements() -> None:
+    """`scripts/probe-scan-bounds.py`, run rather than cited.
+
+    The probe is the artefact behind this section's claims - that the
+    budget does not bound a non-advancing scan, and that a record
+    ceiling holds the record count equal across page sizes while a page
+    ceiling would not. Prose about a measurement decays into a claim
+    about one, so it runs here and asserts its own expectations.
+    """
+    probe = REPO_ROOT / "scripts" / "probe-scan-bounds.py"
+    assert probe.is_file(), f"the probe is missing at {probe}"
+    result = subprocess.run(  # noqa: S603 - a committed script, no shell
+        [sys.executable, str(probe), "--assert"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ======================================================================
