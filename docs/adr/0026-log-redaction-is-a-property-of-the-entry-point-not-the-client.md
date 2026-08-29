@@ -1,6 +1,6 @@
 # ADR-0026: log redaction is a property of the entry point, and the client carries the credential
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29) - option 1, with a constraint the ADR does not state
 **Type:** Design change
 
 > `httpx2` logs the whole `jobFeed` URL - `api`, `sc` and `companyId` - through the standard library
@@ -90,3 +90,53 @@ same leak exists for `search_jobs`' v2 route in any embedder, minus the query-st
 **Not that (3) is dishonest.** If the project decides an embedder owns its own logging, that is a
 defensible position - but it must then be stated in the README's deployment section as a
 **requirement**, not a note, and C5-I1's residual must record that the guarantee has a precondition.
+
+## Ruling, 2026-08-29 - option (1), and it must be IDEMPOTENT
+
+**Accepted: `JobviteClient` installs the filter, with an opt-out keyword defaulting to installing.**
+A credential leak is a worse default than a surprising side effect, and an embedder who wants their
+logging untouched can say so in the constructor - which makes the exposure a choice they made rather
+than one they did not know about. The ADR's reasoning for preferring (1) over (3) holds: a documented
+obligation enforced by nobody is the same shape as a setting nothing reads, and this project has
+found three of those this week.
+
+The opt-out is a **constructor keyword and never a `Settings` field**, exactly as the ADR says.
+ADR-0025 is about a setting nothing reads and this would be a second one.
+
+### THE CONSTRAINT THE ADR DOES NOT STATE, AND IT IS A DEFECT IF MISSED
+
+**The filter must be installed idempotently, and the ADR nowhere says so.**
+
+`JobviteClient` is constructed **once per invocation** - this is written down in the tree, at
+`jobvite_client.py:994`, as the reason the breaker is module-level rather than per-instance:
+
+> *"a per-instance breaker would forget everything each time a client was rebuilt - which is once per
+> invocation in the shapes `tools/` uses."*
+
+Three call sites construct one: `tools/jobs.py:330`, `tools/jobs.py:642`, `tools/candidates.py:575`.
+
+A `logging.Filter` appended to the `httpx` logger in `__init__` therefore stacks **one filter per
+tool call, forever**, in a long-running server. Every record then walks a list that grows without
+bound. That is a slow leak in the code path added to prevent a leak, and it would be invisible in
+tests, which construct a handful of clients and exit.
+
+**So: check for an existing filter of our type before adding one, and prove the idempotence.** The
+test is not "the filter is installed" - that passes on the first call and says nothing. Construct N
+clients, assert the filter count on the `httpx` logger is 1, and amputate the idempotence check to
+confirm the assertion goes red.
+
+### On inverting the probe
+
+`probe-u12-f2-embedder-leak.py` currently demonstrates the defect and exits 0 when it leaks. Once
+this lands, **invert it into an assertion and wire it** - and give it the same treatment the
+half-open probe got at `3ef01f5`: every arm derived from the same predicate the gate uses, plus a
+positive control proving the arm can read a leak when one is present. A probe that can only pass is
+indistinguishable from one that cannot fail.
+
+### What the ruling does not change
+
+**The shipped server was never exposed.** `configure_logging()` runs at `__main__` module scope on
+every shipped path, and U12's C5-I1 arm asserts the redaction fires there, including on httpx2's own
+record, asserted PRESENT rather than merely absent. This closes an EMBEDDER's exposure, and the
+README's disclosure that an embedder must call `configure_logging()` stays accurate until the code
+lands - **rewrite it in place when it does, do not append a correction.**
