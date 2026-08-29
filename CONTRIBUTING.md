@@ -139,7 +139,10 @@ python3 docs/reviews/check-resweep-verdicts.py  # the resweep's tally checks its
 
 ```bash
 bash scripts/check-u1-pid1-shutdown.sh    # needs Docker; exits 2 if unavailable
+python3 docs/reviews/check-clause-citations.py  # needs the standards repo; exits 2 if absent
 ```
+
+**`check-clause-citations.py` resolves the CLAUSE column** - the half of every obligation row that says why the obligation is real. `check-obligations.py` verifies the artifact and says nothing about the clause. It cannot be a CI gate: it reads the `evolv-coder-standards` sibling checkout, which CI does not have. It proves each citation RESOLVES and explicitly does NOT prove the cited line says what the row claims - read the text it prints.
 
 This puts the interpreter at **PID 1** in a container with no `--init` and sends a real SIGTERM via
 `docker stop -t 15`, on both transports, closing the second of `DESIGN.md`'s two inherited limits on

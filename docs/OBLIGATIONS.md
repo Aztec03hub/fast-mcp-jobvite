@@ -37,6 +37,31 @@ any duplicate would also have satisfied.
 `file:line` is still parsed, for a subject that genuinely cannot be made unique. Nothing uses it
 today, and a row that reverts to one is a row that reintroduces the drift.
 
+**The CLAUSE column is a different half, and it is weaker.** The artifact column says what
+discharges an obligation; the clause column says why the obligation is real. Until
+`docs/reviews/check-clause-citations.py`, nothing verified it at all - and it cites `file:line` into
+a **sibling checkout this project neither controls nor pins**, so a standards edit silently repoints
+every row at once.
+
+That script resolves all 22 and **exits 2, never 0, when the standards repo is absent** - it cannot
+be a CI gate, because CI does not have that repo. It is listed in `CONTRIBUTING.md` under the
+measurements a human runs, beside the PID-1 harness, which has exactly the same shape.
+
+**It proves each citation RESOLVES. It does not prove the line says what the row claims**, and those
+are different things - nine wrong-subject citations have been found here, four of them inside the ADR
+documenting that defect class.
+
+**A hand check of all 22 found two weak anchors.** Neither is wrong about its obligation; both point
+at text that is not normative:
+
+- **B53** cites `architecture/security.md:418`, which is `# .env.example (commit this)` - a comment
+  inside an example block.
+- **B102** cites `devops/development-workflow.md:192`, which is a line of an **ASCII box diagram**.
+  A diagram is not a requirement.
+
+They are recorded rather than repointed because choosing a better line is a judgement about someone
+else's document, and a citation moved without reading its neighbourhood is how ranges contract.
+
 **Two controls guard the scheme.** `_c_duplicate_subject` proves ambiguity is caught. And
 `_n_move_subject` is a NEGATIVE control - shifting a cited file by five lines must leave the map
 **green**. Without it the scheme's central claim would be untested, and every other control would
