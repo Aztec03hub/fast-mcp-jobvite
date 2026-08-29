@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.server.lifespan import Lifespan, lifespan
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
 
 from fast_mcp_jobvite.__main__ import EXIT_CONFIGURATION_REFUSED, main
 from fast_mcp_jobvite.config import READ_TOOLS, Settings, load_settings
@@ -26,6 +26,7 @@ from fast_mcp_jobvite.server import (
     create_server,
     make_base_lifespan,
 )
+from tests.test_arguments_sweep import INPUT_MODELS
 
 V2 = {"JOBVITE_API_KEY": "k", "JOBVITE_API_SECRET": "s"}
 
@@ -274,6 +275,22 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
     it is a live NO-OP: measured, all five input models are flat, every
     field a bounded scalar, so there is nothing for it to inline.
 
+    **The population is `test_arguments_sweep.INPUT_MODELS`, the ONE
+    enumeration of the inbound surface (#90).** This file used to
+    discover its own with `pkgutil` over `tools/` plus an
+    `endswith("Input")` name filter - a second discovery of one set,
+    and a name filter of the kind the sweep refuses by excluding output
+    models on their `output_schema=` USE.
+
+    **The swept set is a SUPERSET of what this claim is about, and that
+    is deliberate.** ADR-0032 concerns what `DereferenceRefsMiddleware`
+    rewrites, which is the published TOOL schema path; `ApprovalAnswer`
+    reaches the host through `requested_schema=` and never through a
+    tool schema. Asserting over the superset can raise a false alarm -
+    and a false alarm here sends a reader to re-read ADR-0032's C2 row,
+    which is the correct outcome. One shared container beats a
+    correctly-scoped second one.
+
     **This reads the MODELS, which is the pre-middleware side, and the
     first version of this test read the published schemas instead - a
     control that could not fail.** The published side has no `$ref` by
@@ -297,7 +314,7 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
     against a middleware that now rewrites what every caller sees.
     Nesting a model is fine; discovering it afterwards is not.
     """
-    models = _input_models()
+    models = [(m.__name__, m) for m in INPUT_MODELS]
     assert len(models) >= 5, (
         f"found {len(models)} input models; the discovery is broken and a "
         "green here would mean nothing"
@@ -311,52 +328,3 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
         f"{offenders} now nest, so DereferenceRefsMiddleware is no longer a "
         "no-op. Re-read ADR-0032's C2 row rather than updating this test."
     )
-
-
-def _input_models() -> list[tuple[str, type[BaseModel]]]:
-    """Every `*Input` model under `tools/`, discovered not listed.
-
-    **The element type is `type[BaseModel]`, not bare `type`, and mypy
-    was RED on that for two commits.** A bare `type` has no
-    `model_json_schema`, so the type gate failed on the one line that
-    calls it - the annotation was the defect, not the call. It went
-    unseen because the gate being run was `mypy src` while ci.yml:422
-    runs bare `mypy`: a strict subset, reporting success for the files
-    it looked at.
-
-    **SCOPED DELIBERATELY, and the scope is narrower than "the inbound
-    surface" - do not widen it without reading this.** ADR-0032's claim
-    is about what `DereferenceRefsMiddleware` rewrites, which is the
-    TOOL schema path. `ApprovalAnswer` lives outside `tools/` and its
-    schema reaches the host through `requested_schema=`, never through a
-    published tool schema, so it is correctly absent here even though it
-    IS an inbound model - route C of the sweep is what covers it.
-
-    **The `endswith("Input")` filter is still a name filter, which is
-    the shape this project refuses elsewhere** - the sweep excludes
-    output models by their `output_schema=` USE, precisely so that a
-    naming convention is not load-bearing. It is tolerable here only
-    because the property under test is about a published tool's schema
-    and every such model is reachable from a `@server.tool` signature.
-
-    Task #90: once the sweep's own enumeration covers this population,
-    import it from there and delete this. Two independent discoveries of
-    one set is the two-lists defect at file scale.
-    """
-    import importlib
-    import pkgutil
-
-    import fast_mcp_jobvite.tools as tools_pkg
-
-    found: list[tuple[str, type[BaseModel]]] = []
-    for info in pkgutil.iter_modules(tools_pkg.__path__):
-        module = importlib.import_module(f"{tools_pkg.__name__}.{info.name}")
-        for attr in dir(module):
-            obj = getattr(module, attr)
-            if (
-                isinstance(obj, type)
-                and issubclass(obj, BaseModel)
-                and attr.endswith("Input")
-            ):
-                found.append((attr, obj))
-    return found
