@@ -7,10 +7,34 @@ have two return schemas. A single tool returning "a page that sometimes
 holds one" would make every caller unwrap a list to reach a record it
 asked for by id.
 
-**`create_candidate` is U10's and shares this file.** Nothing here
-anticipates the write, and nothing here may ever call a non-GET method:
-the write is gated behind an explicit opt-in and an approval guard that
-do not exist yet.
+**`create_candidate` IS THE THIRD TOOL AND IT SHARES THIS FILE.** The
+two reads above may never call a non-GET method; the write does, and it
+is gated behind an explicit deploy-time opt-in **and** a per-invocation
+approval guard (`approval.py`, DESIGN.md:207-238).
+
+**THIS IS THE ONLY TOOL WHOSE FAILURE MODE EMAILS A LIVING PERSON.**
+Everything else in this file returns wrong data. `create_candidate`
+creates a real record in a real ATS with no sandbox, and with
+`send_email` true it mails a human being. Two consequences run through
+every line of it:
+
+- **A retried write emails a SECOND live human.** The exclusion is in
+  `services/jobvite_client.py`'s `RETRYABLE_METHODS`, which admits
+  `GET` and `HEAD` only, so a `POST` cannot be retried **by
+  construction** rather than by configuration (DESIGN.md:350). There is
+  no setting that turns it back on and none may be added.
+- **An authorised write can still be made twice** - a model retrying
+  after a timeout, or a caller approving twice. That is **C4-D2**, and
+  the idempotency-key remedy the standard names **cannot be built**:
+  nothing establishes that Jobvite accepts a dedupe key on this endpoint
+  (DESIGN.md:245-258). A `409` is surfaced as `/problems/conflict` with
+  the duplicate named in `detail` - **detection, not prevention** - and
+  even that shape is `[INFERRED]` rather than observed.
+
+**What the guard establishes, exactly:** the server requires an approval
+response from the host and refuses to write without one. **Never that a
+human approved.** C4-S1 is a High residual, not mitigable server-side
+(DESIGN.md:1754, ADR-0009).
 
 **This is the candidate PII data class** (DESIGN.md:137), which is the
 step up from `tools/jobs.py`. It is the first tool surface where §6.1's
@@ -39,12 +63,29 @@ from collections.abc import Callable
 from typing import Annotated, Any, Final
 
 from fastmcp import Context, FastMCP
-from fastmcp.tools.base import ToolResult
+from fastmcp.tools.base import InputRequiredToolResult, ToolResult
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..audit import AuditPhase, Transport, audit_scope, emit
-from ..config import GET_CANDIDATE, SEARCH_CANDIDATES, Settings
-from ..errors import problem_from_exception
+from ..approval import (
+    ApprovalPending,
+    ApprovalState,
+    build_approval_message,
+    resolve_approval,
+)
+from ..audit import (
+    AuditPhase,
+    Transport,
+    attach_audit_warnings,
+    audit_scope,
+    emit,
+)
+from ..config import CREATE_CANDIDATE, GET_CANDIDATE, SEARCH_CANDIDATES, Settings
+from ..errors import (
+    ApprovalRefusedError,
+    DuplicateCandidateError,
+    JobviteUpstreamError,
+    problem_from_exception,
+)
 from ..models.candidate import (
     CANDIDATES_ENVELOPE_KEY,
     TOTAL_ENVELOPE_KEY,
@@ -56,8 +97,8 @@ from ..models.candidate import (
 )
 from ..models.fencing import Fenced, FencingDecision, fencing_paths
 from ..services.jobvite_client import JobviteClient
-from ..utils.constraints import JobviteIdentifier
-from ..utils.normalise import epoch_ms_to_date
+from ..utils.constraints import JobviteIdentifier, SafeText
+from ..utils.normalise import epoch_ms_to_date, none_to_blank, read_identifier
 from ..utils.redaction import fence_payload
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
@@ -152,6 +193,204 @@ class GetCandidateInput(BaseModel):
         JobviteIdentifier,
         Field(description="The candidate's Jobvite `eId`."),
     ]
+
+
+#: The status Jobvite is `[INFERRED]` to return on a duplicate create
+#: (`JOBVITE-CONTRACT.md:260`, DESIGN.md:1390-1393). Named so the
+#: mapping to `/problems/conflict` is one comparison against one
+#: constant rather than a magic number beside a status test.
+DUPLICATE_CANDIDATE_STATUS: Final = 409
+
+#: The `201` envelope's outer key (`JOBVITE-CONTRACT.md:575-583`).
+#: **The write response spells the identifier `EId` where every read
+#: spells it `eId`** - §9 hazard 1, Jobvite's asymmetry and not ours -
+#: so both ids below are read through `read_identifier`, which accepts
+#: either spelling. A test pins the asymmetry so a later tidy-up cannot
+#: turn it into a bug.
+CREATE_APPLICATION_KEY: Final = "application"
+CREATE_CANDIDATE_KEY: Final = "candidate"
+
+
+class CreateCandidateInput(BaseModel):
+    """Arguments for `create_candidate`.
+
+    **THIS MODEL CARRIES CANDIDATE PII BY CONSTRUCTION** - name, email
+    and phone are what it is for (DESIGN.md:1689). Every string is
+    `SafeText`, which bounds the length and rejects control characters
+    and bidi overrides before dispatch (§2.1, B25).
+
+    **`send_email` DEFAULTS TO `false`, and the default is the whole
+    point** (DESIGN.md:239): it mails a live human, so the dangerous
+    value is never the one reached by omission. It is also an argument
+    like any other and is disclosed in the approval request by name
+    (DESIGN.md:1061-1071).
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    first_name: Annotated[
+        SafeText,
+        Field(description="The candidate's given name."),
+    ]
+    last_name: Annotated[
+        SafeText,
+        Field(description="The candidate's family name."),
+    ]
+    email: Annotated[
+        SafeText,
+        Field(description="The candidate's email address."),
+    ]
+    job_eid: Annotated[
+        JobviteIdentifier,
+        Field(description="The `eId` of the job this application attaches to."),
+    ]
+    # THE DEFAULT IS DECLARED ONCE, AS THE ASSIGNMENT, AND THIS IS A
+    # MEASURED CORRECTION. These three fields carried `Field(default=X)`
+    # AND a trailing `= X`; pydantic takes the assignment, so the
+    # `Field` copy was inert. U10's M9 mutation flipped the inert one to
+    # `True` and the send_email default test passed against it - a
+    # surviving row on the one field in this server that decides whether
+    # a live person is emailed. Two declarations of one default is the
+    # two-lists defect at the width of a single field.
+    mobile: Annotated[
+        SafeText | None,
+        Field(description="The candidate's mobile number."),
+    ] = None
+    source: Annotated[
+        SafeText | None,
+        Field(description="Free-text name of the application source."),
+    ] = None
+    send_email: Annotated[
+        bool,
+        Field(
+            description=(
+                "Ask Jobvite to EMAIL THIS PERSON. Defaults to false. "
+                "Setting it true sends mail to a real human being."
+            ),
+        ),
+    ] = False
+
+
+class CreateCandidateResult(BaseModel):
+    """What the caller gets back from an approved write.
+
+    Deliberately small: the two identifiers Jobvite minted, and nothing
+    echoed back. Echoing the submitted PII would put candidate data in a
+    second place for no gain, and the caller already has it.
+
+    `warnings` is **always present, never omitted**. The schema is
+    built in serialisation mode with `extra="forbid"`, so a key absent
+    from the schema is rejected by the client's own validator - and the
+    post-write audit-failure branch has to be able to add one
+    (DESIGN.md:721-727). A field that only sometimes exists would make
+    that branch the one shape the schema refuses.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    candidate_eid: str | None = None
+    application_eid: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+def build_create_body(params: CreateCandidateInput) -> dict[str, Any]:
+    """Build the `POST /api/v2/candidate` body.
+
+    `JOBVITE-CONTRACT.md:269-300`. Every field on that route is
+    `[INFERRED]`; checklist row 10 is the one write in a customer-agreed
+    window that replaces the inference with an observation.
+
+    **`none_to_blank` is the REQUEST direction of the `""`/null
+    unification** (§9 hazard 4): Jobvite's own fields use `""` where a
+    null belongs, so a body we send uses the vendor's spelling rather
+    than ours.
+
+    Args:
+        params: The validated arguments.
+
+    Returns:
+        The JSON body, nested exactly as the contract records it.
+    """
+    return {
+        "candidate": {
+            "firstName": params.first_name,
+            "lastName": params.last_name,
+            "email": params.email,
+            "mobile": none_to_blank(params.mobile),
+            # THE FLAG THAT EMAILS A LIVING PERSON. It is forwarded as
+            # the caller sent it and is never defaulted here - the
+            # default lives on the input model, where the schema shows
+            # it to the caller, and a second default in this function
+            # would be a place for the two to disagree.
+            "sendEmail": params.send_email,
+            "application": {
+                "jobEId": params.job_eid,
+                "sourceType": "CareerSite",
+                "source": none_to_blank(params.source),
+            },
+        }
+    }
+
+
+def build_create_result(payload: dict[str, Any]) -> CreateCandidateResult:
+    """Read the two minted identifiers out of the `201` envelope.
+
+    **THE CASING ASYMMETRY IS PINNED HERE** (§9 hazard 1): the write
+    response spells them `EId`, every read spells them `eId`, and
+    `read_identifier` accepts both. That is Jobvite's inconsistency, not
+    ours, and a normalisation that "tidied" it would break this route.
+
+    A missing id yields `None` rather than an invented error: the `201`
+    body is `[INFERRED]` throughout, and guessing a shape for a response
+    nobody has observed is how a wrong answer acquires an explanation.
+
+    Args:
+        payload: The decoded create response.
+
+    Returns:
+        The two identifiers, each `None` when the body carried neither
+        spelling of it.
+    """
+    application = payload.get(CREATE_APPLICATION_KEY)
+    if not isinstance(application, dict):
+        return CreateCandidateResult()
+    candidate = application.get(CREATE_CANDIDATE_KEY)
+    return CreateCandidateResult(
+        application_eid=read_identifier(application),
+        candidate_eid=(
+            read_identifier(candidate) if isinstance(candidate, dict) else None
+        ),
+    )
+
+
+def conflict_or_original(exc: Exception) -> Exception:
+    """Turn Jobvite's `409` into `/problems/conflict` (DESIGN.md:1390).
+
+    **Detection, not prevention, and the difference is the point.**
+    None of §2.2's gates stops an *authorised* write being made twice;
+    what this does is name the duplicate in `detail` so a caller can see
+    what happened instead of reading a generic upstream failure. The
+    `409` shape itself is `[INFERRED]` and never observed, so even the
+    detection rests on a hypothesis until a credential exists (C4-D2).
+
+    Args:
+        exc: Whatever the client raised.
+
+    Returns:
+        A `DuplicateCandidateError` when Jobvite reported the duplicate
+        status, otherwise the original exception unchanged.
+    """
+    if (
+        isinstance(exc, JobviteUpstreamError)
+        and exc.upstream_status == DUPLICATE_CANDIDATE_STATUS
+    ):
+        return DuplicateCandidateError(
+            f"Jobvite reported this candidate already exists and refused the "
+            f"duplicate ({exc.upstream_message}). The write was NOT retried; "
+            f"retrying it would create a second record and may email the "
+            f"candidate a second time."
+        )
+    return exc
 
 
 def to_candidate(raw: dict[str, Any]) -> Candidate:
@@ -301,7 +540,11 @@ def register(
             Substituted in tests to inject `httpx2.MockTransport`
             (DESIGN.md:1359-1360).
     """
-    wanted = {SEARCH_CANDIDATES, GET_CANDIDATE} & settings.enabled_tools
+    wanted = {
+        SEARCH_CANDIDATES,
+        GET_CANDIDATE,
+        CREATE_CANDIDATE,
+    } & settings.enabled_tools
     if not wanted:
         return
 
@@ -451,6 +694,138 @@ def register(
                 emit(event, AuditPhase.READ)
                 return ToolResult(
                     structured_content=record.model_dump(mode="json"),
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                )
+
+    if CREATE_CANDIDATE in wanted:
+
+        @server.tool(
+            name=CREATE_CANDIDATE,
+            output_schema=CreateCandidateResult.model_json_schema(mode="serialization"),
+            # THE THREE ANNOTATIONS ARE A CONTRACT, NOT DECORATION. A
+            # host reads them to decide how loudly to ask.
+            # `readOnlyHint`
+            # is stated FALSE rather than omitted: an absent hint and a
+            # false one are not the same claim, and this is the one tool
+            # in the server where the difference reaches a live person.
+            annotations={
+                "destructiveHint": True,
+                "idempotentHint": False,
+                "readOnlyHint": False,
+            },
+        )
+        async def create_candidate(
+            params: CreateCandidateInput,
+            ctx: Context,
+        ) -> ToolResult | InputRequiredToolResult:
+            """Create a candidate in the live Jobvite ATS.
+
+            **Requires an approval response from the host and refuses to
+            write without one.** The approval request names the
+            candidate, the target job and whether `send_email` is true,
+            because an outbound message to a third party is separately a
+            gated action.
+
+            **This creates a real record and cannot be undone**, and
+            with `send_email` true Jobvite mails the candidate. It is
+            never retried: a retried write would create a second record
+            and may email the candidate a second time.
+            """
+            with audit_scope(
+                CREATE_CANDIDATE,
+                transport,
+                arguments=params.model_dump(mode="json"),
+                meta=_meta_of(ctx),
+            ) as event:
+                decision = await resolve_approval(
+                    ctx,
+                    message=build_approval_message(
+                        candidate=f"{params.first_name} {params.last_name}",
+                        job=params.job_eid,
+                        send_email=params.send_email,
+                    ),
+                    # NO PII IN THE STATE. It travels to the client and
+                    # back and is not covered by the argument redaction
+                    # `audit_scope` applies on the way in.
+                    request_state=f"{CREATE_CANDIDATE}:{params.job_eid}",
+                )
+
+                if isinstance(decision, ApprovalPending):
+                    # THE MRTR FIRST LEG. No side effect is attempted,
+                    # and the phase is still `BEFORE_SIDE_EFFECT`: if
+                    # the audit write fails here the call fails, which
+                    # is the direction that cannot email anyone.
+                    event.approval_state = ApprovalState.PENDING
+                    event.approval_mechanism = decision.mechanism
+                    emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
+                    return decision.result
+
+                event.approval_state = decision.state
+                event.approval_mechanism = decision.mechanism
+
+                if not decision.approved:
+                    # EVERY REFUSAL PATH LANDS HERE: a decline, an
+                    # acceptance carrying `approve: false`, and an era
+                    # this server cannot identify. No client call is
+                    # made, so no row can be created.
+                    event.result_status = "error"
+                    emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
+                    return ToolResult(
+                        structured_content=problem_from_exception(
+                            ApprovalRefusedError(
+                                "The host did not return an approval for this "
+                                "write, so nothing was created."
+                            ),
+                            event.request_id,
+                        ),
+                        meta={REQUEST_ID_META_KEY: event.request_id},
+                        is_error=True,
+                    )
+
+                # NO AUDIT, NO WRITE (DESIGN.md:711-712). This emission
+                # is BEFORE the POST and its failure raises
+                # `AuditWriteError`, which leaves the ATS untouched.
+                emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
+
+                try:
+                    async with _client() as client:
+                        payload = await client.request(
+                            "POST",
+                            CANDIDATES_PATH,
+                            json_body=build_create_body(params),
+                        )
+                    result = build_create_result(payload)
+                except Exception as exc:  # noqa: BLE001 - every failure is a problem
+                    event.result_status = "error"
+                    # `AFTER_WRITE`'s POLICY, deliberately, on a path
+                    # where the write may or may not have landed: it
+                    # never raises and never fails the call, because a
+                    # timeout after a successful create is
+                    # indistinguishable from a refused one and an error
+                    # that makes the model retry emails a second live
+                    # human. **Its RETURN VALUE is discarded here** -
+                    # that string says the write succeeded, which is not
+                    # known on this path. The stderr line it also writes
+                    # is generic and is correct.
+                    emit(event, AuditPhase.AFTER_WRITE)
+                    return ToolResult(
+                        structured_content=problem_from_exception(
+                            conflict_or_original(exc), event.request_id
+                        ),
+                        meta={REQUEST_ID_META_KEY: event.request_id},
+                        is_error=True,
+                    )
+
+                # SUCCESS WITH A WARNING, NEVER AN ERROR
+                # (DESIGN.md:721-727). A post-write audit failure
+                # returned as a problem object would tell the caller the
+                # operation failed when it did not, and the caller's
+                # reasonable answer is to retry.
+                warnings = emit(event, AuditPhase.AFTER_WRITE)
+                return ToolResult(
+                    structured_content=attach_audit_warnings(
+                        result.model_dump(mode="json"), warnings
+                    ),
                     meta={REQUEST_ID_META_KEY: event.request_id},
                 )
 

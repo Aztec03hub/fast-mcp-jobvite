@@ -305,11 +305,21 @@ amputate "A12 the get_candidate success result carries no _meta" "$TOOLS" \
 # `JOBVITE_TOOLS` says, so the deploy-time control DESIGN.md:917-934
 # describes does not exist.
 # ---------------------------------------------------------------------------
+# U10 ADDED `create_candidate` TO THIS SET AND THE OLD ANCHOR WENT
+# STALE - 0 hits, which `check-harness-anchors.py` caught in
+# milliseconds and this row would otherwise have reported as a
+# non-applying amputation. The anchor is REPOINTED, not shortened: the
+# replacement keeps the write out of the mutant set as well, so the row
+# still deletes the whole gate rather than two thirds of it.
 amputate "A13 registration ignores the enabled-tools gate entirely" "$TOOLS" \
-  '    wanted = {SEARCH_CANDIDATES, GET_CANDIDATE} & settings.enabled_tools
+  '    wanted = {
+        SEARCH_CANDIDATES,
+        GET_CANDIDATE,
+        CREATE_CANDIDATE,
+    } & settings.enabled_tools
     if not wanted:
         return' \
-  '    wanted = {SEARCH_CANDIDATES, GET_CANDIDATE}'
+  '    wanted = {SEARCH_CANDIDATES, GET_CANDIDATE, CREATE_CANDIDATE}'
 
 # ---------------------------------------------------------------------------
 # A14 - `to_candidate` SILENTLY STOPS MAPPING ONE ADMITTED FIELD. The
