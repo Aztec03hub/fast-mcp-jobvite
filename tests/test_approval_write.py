@@ -1,7 +1,7 @@
 """The dual-era approval guard and `create_candidate`, end to end.
 
 **THE ROW COUNTER AND THE APPROVED-WRITE CONTROL ARE THE FIRST TWO
-THINGS IN THIS FILE AND THEY WERE WRITTEN BEFORE `approval.py` EXISTED.**
+THINGS HERE, AND BOTH PREDATE `approval.py`.**
 `IMPLEMENTATION-PLAN.md` §U10 says why, and it is not a style
 preference: four refusal arms below all assert *the row count did not
 move*, and every one of them passes perfectly against a
@@ -26,8 +26,9 @@ a **High residual** that is **not mitigable server-side**
 
 A suite passing only against synthetic fixtures proves the client is
 self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260). The
-`201` body here is `docs/research/fixtures/candidate_create_success.json`
-and it is synthetic - `JOBVITE-CONTRACT.md:260` marks the whole write
+`201` body here is
+`docs/research/fixtures/candidate_create_success.json` and it is
+synthetic - `JOBVITE-CONTRACT.md:260` marks the whole write
 contract `[INFERRED]`, and checklist row 10 is what replaces it.
 """
 

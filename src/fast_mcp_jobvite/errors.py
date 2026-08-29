@@ -198,6 +198,34 @@ class ScopeDeniedError(FastMcpJobviteError):
     kind = FORBIDDEN
 
 
+class ApprovalRefusedError(FastMcpJobviteError):
+    """The host returned no approval for `create_candidate`.
+
+    **NO NEW SLUG IS MINTED HERE, and that is the decision.**
+    `DESIGN.md:509` makes a published `type` URI a promise this project
+    owes forever, and the registry at `DESIGN.md:513-521` has no row for
+    an approval refusal. Of the rows it does have, `/problems/forbidden`
+    is the one whose semantics fit - the write was not authorised - and
+    `/problems/internal-error` is the alternative the "anything
+    unmapped" row would otherwise select, which would tell a caller this
+    server is broken when a refusal is the control working exactly as
+    designed. Reusing `FORBIDDEN` is therefore a deliberate widening of
+    that row past the *"caller's token lacks the scope"* condition its
+    table names.
+
+    **This IS a gap in the registry rather than a clean fit**, it is
+    reported rather than glossed, and it is not settled by an ADR
+    because the design is frozen. `detail` carries the distinction the
+    slug cannot.
+
+    It never names a person: the refusal is *no approval response from
+    the host*, and C4-S1 means an approval that DID arrive would not
+    have named one either (ADR-0009).
+    """
+
+    kind = FORBIDDEN
+
+
 def _timestamp() -> str:
     """Return an ISO 8601 UTC timestamp with the `Z` suffix.
 
