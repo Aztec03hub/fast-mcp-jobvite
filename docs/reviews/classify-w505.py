@@ -10,6 +10,27 @@ The point of this script is to decide whether complying is cheap or whether the 
 needs a scoped ADR, by MEASURING the split instead of guessing at it.
 
 Reads `ruff check --select W505` output, then re-reads each cited line in context.
+
+**THIS IS A ONE-SHOT ANALYSIS TOOL. It is deliberately NOT wired into
+CI, and it cannot be.** Its question - "is complying with B49b cheap, or
+does the clause need a scoped ADR?" - was answered: 1608 violations, no
+shape genuinely unbreakable, exemption list empty, and the sweep landed
+at `f0c3764`. A tool whose question is settled is a one-shot, and wiring
+it would add a gate with nothing left to guard.
+
+**On a swept tree it exits 1**, reporting "POSITIVE CONTROL FAILED: ruff
+reported no W505 at all". That is the control WORKING, not a bug: a
+classifier that reports a clean zero it cannot distinguish from a broken
+selector is worthless, and this project has found wrong zeros
+repeatedly. **Do not "fix" that by deleting the positive control.** If
+this ever needs to run against a clean tree, add an `--allow-empty` flag
+so an empty result passes only when the caller has declared it expected.
+
+This paragraph exists because `check-resweep-verdicts.py` was a one-shot
+that did NOT say so, and the result was that nothing invoked it and
+nobody could tell "deliberately unwired" from "overlooked" - a review
+found it, and it was wired at `ff7a923`. An undeclared one-shot is
+indistinguishable from an unwired gate.
 """
 
 from __future__ import annotations
