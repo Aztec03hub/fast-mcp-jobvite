@@ -6,6 +6,20 @@ single log record written there corrupts the protocol for the rest of the
 connection. `logging.basicConfig` defaults to stderr, but the default is the
 thing a later import changes, so it is stated.
 
+**There is ONE log stream, and `configure_logging` is the only thing that
+configures it.** Before this module configured loguru, `audit.py` and
+`services/jobvite_client.py` wrote through loguru while this module
+configured stdlib `logging` - a different library - so every audit record
+went to loguru's autoinit handler, whose format carries no `{extra}`. The
+whole audit event reached the stream as the six-character word
+`tool_invocation` and `tool_name`, `request_id` and `transport` appeared
+nowhere, in breach of `ai/tool-calling.md:171-179`. The suite passed
+throughout because its fixture installed its own sink: correct about the
+API, silent about the deployment. `configure_logging` removes the autoinit
+handler, adds one serialising stderr sink with `catch=False`, and routes
+stdlib records into it through `_InterceptHandler`, so the two libraries
+produce one stream in one shape.
+
 **The SIGTERM problem, and why the obvious fix is worse than none**
 (DESIGN.md:960-1023). Lifespan teardown does not run under SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on the
@@ -50,12 +64,132 @@ import signal
 import sys
 from types import FrameType
 
-logging.basicConfig(
-    # stderr, explicitly. stdout is the JSON-RPC channel on stdio.
-    stream=sys.stderr,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+from loguru import logger as _loguru
+
+# A LEAF import, taken before the framework imports on purpose. It pulls in
+# `urllib.parse` and nothing of this project's, so it cannot drag the server
+# in ahead of the logging configuration it exists to protect.
+from fast_mcp_jobvite.utils.redaction import redact_text
+
+#: The one sink. **`serialize=True` and not a `{extra}` format**, decided
+#: because `ai/tool-calling.md:171-179` cares that the mandated fields ARRIVE,
+#: not that a line is readable. A human-readable format names each field it
+#: prints, so a field added to `AuditEvent.to_record()` later - or one whose
+#: value contains the format's own separator - is dropped without any run
+#: going red: that is H-1 a second time, in a different disguise. `serialize`
+#: emits the whole `extra` mapping structurally, so a new field arrives by
+#: construction rather than by somebody remembering to widen a format string.
+#:
+#: `catch=False` (H-2). Loguru handlers default to `catch=True`, which prints
+#: `--- End of logging error ---` to stderr and lets `.info()` RETURN
+#: NORMALLY. Under that default `audit.emit`'s `except` is unreachable and the
+#: `BEFORE_SIDE_EFFECT` branch of DESIGN.md's audit-failure policy - no audit,
+#: no write, the branch that stops a second live candidate being emailed -
+#: cannot fire in production no matter what the tests say. The policy is only
+#: a policy if the failure reaches the code that implements it.
+#:
+#: `diagnose=False`: loguru's variable-value annotations would put local
+#: values into the traceback, and §5.3 treats the log stream as sensitive.
+_LOG_LEVEL = "INFO"
+
+
+def _redact_message(record: dict[str, object]) -> bool:
+    """Redact every record's message at the sink, and never drop one.
+
+    **A containment control, not an allow-list.** Routing stdlib records into
+    loguru made a pre-existing production leak visible: `httpx2` logs
+    `HTTP Request: GET <url>` at INFO, and the `jobFeed` URL structurally
+    carries `api`, `sc` and `companyId` (DESIGN.md:312-316). That line was
+    already reaching stderr in the clear through `basicConfig(level=INFO)`;
+    the client's own test could not see it because the test installs its own
+    loguru sink and the leak travelled through a different library.
+
+    Silencing `httpx2`'s logger would fix the producer we happened to find and
+    leave every producer nobody has thought of. Redacting at the one sink
+    covers all of them, and it calls `redact_text` rather than reimplementing
+    it, so DESIGN.md:312-316's "enforced in one place" still holds.
+
+    Args:
+        record: The loguru record, mutated in place before formatting.
+
+    Returns:
+        `True` always. This is a redactor, not a filter: dropping a record
+        would turn a leak into silence, which is the other way to lose an
+        audit trail.
+    """
+    message = record.get("message")
+    if isinstance(message, str):
+        record["message"] = redact_text(message)
+    return True
+
+
+class _InterceptHandler(logging.Handler):
+    """Forward stdlib `logging` records into loguru.
+
+    **The reconciliation of the two logging systems** (H-3 of the review's
+    "two logging systems writing to one stream" finding). `audit.py` and
+    `services/jobvite_client.py` write through loguru; `__main__`, uvicorn,
+    httpx and the framework write through stdlib `logging`. Two libraries
+    formatting independently onto one fd is two record shapes interleaved in
+    one file, and no consumer can parse it.
+
+    The alternative - configure both and accept two formats - was rejected:
+    it leaves the audit stream's own destination, level and failure behaviour
+    determined in two places, and `catch=False` would then apply to only one
+    of them. Forwarding gives one sink, one format, and one place where a
+    sink failure surfaces.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Re-emit one stdlib record through loguru at the same level."""
+        try:
+            level: str | int = _loguru.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+        frame, depth = logging.currentframe(), 2
+        while frame is not None and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+        _loguru.opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage()
+        )
+
+
+def configure_logging() -> None:
+    """Install the single log sink, before anything else is imported.
+
+    **Called at module scope below, not from `main()`.** `python -m` and an
+    `import fast_mcp_jobvite.__main__` must both get the configured stream:
+    a call inside `main()` would leave every record emitted during import
+    going to loguru's autoinit handler, which is the handler that has no
+    `{extra}` in its format and is exactly what dropped every mandated field.
+    """
+    # loguru autoinits handler 0 on import, with a format carrying no
+    # `{extra}`. Removing it is what closes H-1: an added sink does not
+    # replace it, and the default would keep writing field-less duplicates.
+    _loguru.remove()
+    _loguru.add(
+        # stderr, explicitly. stdout is the JSON-RPC channel on stdio, and a
+        # single log record written there corrupts the protocol.
+        sys.stderr,
+        level=_LOG_LEVEL,
+        serialize=True,
+        catch=False,
+        filter=_redact_message,
+        backtrace=False,
+        diagnose=False,
+    )
+    # `force=True` replaces any handler an earlier import already installed;
+    # without it `basicConfig` is a no-op once anything has configured the
+    # root logger, and the stdlib records would keep their own format.
+    logging.basicConfig(
+        handlers=[_InterceptHandler()],
+        level=_LOG_LEVEL,
+        force=True,
+    )
+
+
+configure_logging()
 
 from fastmcp.server.lifespan import Lifespan  # noqa: E402
 
