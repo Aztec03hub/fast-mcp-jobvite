@@ -126,9 +126,11 @@ def test_case4_the_audit_event_is_emitted_at_all(
 def test_case4_the_event_carries_every_mandated_field(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """`ai/tool-calling.md:171-173`, verbatim: tool name, redacted arguments,
-    result status, latency, correlation id - plus DESIGN.md:1226-1228's
-    transport and resolved client id.
+    """Every field the standard names, verbatim.
+
+    `ai/tool-calling.md:171-173`: tool name, redacted arguments, result status,
+    latency, correlation id - plus DESIGN.md:1226-1228's transport and the
+    resolved client id.
     """
     _emit_one(
         tool_name="get_candidate",
@@ -366,9 +368,7 @@ def test_stdio_never_records_the_literal_global(
     so the client id passed in is DISCARDED on this transport rather than
     trusted not to be supplied.
     """
-    _emit_one(
-        tool_name="get_candidate", transport=Transport.STDIO, client_id="global"
-    )
+    _emit_one(tool_name="get_candidate", transport=Transport.STDIO, client_id="global")
     record = audit_records[0]
     assert record["extra"]["caller_attribution"] == ATTRIBUTION_UNAVAILABLE
     assert "client_id" not in record["extra"]
@@ -459,8 +459,9 @@ def test_arm3_the_warning_tells_the_caller_not_to_retry(broken_audit: None) -> N
 def test_arm3_the_result_is_success_with_a_warnings_array_not_a_problem_object(
     broken_audit: None,
 ) -> None:
-    """DESIGN.md:698-705 specifies the SHAPE, because "success with a warning"
-    is not one.
+    """The shape, which DESIGN.md:698-705 specifies deliberately.
+
+    "Success with a warning" is not a shape, so the design states one.
     """
     with audit_scope("create_candidate", Transport.HTTP) as event:
         warnings = emit(event, AuditPhase.AFTER_WRITE)
@@ -515,14 +516,16 @@ def test_the_scope_resets_request_id_var_even_when_the_body_raises() -> None:
     assert request_id_var.get() is None
 
 
-def test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself() -> None:
+def test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself() -> (
+    None
+):
     """N1's resolution, asserted rather than described.
 
     `utils/correlation.py`'s `request_id_scope` was called by nothing. U3
     calls it, and this test is what stops a later edit quietly replacing it
     with a bare `request_id_var.set()` and losing the `finally`.
     """
-    source = (audit.__file__, )
+    source = (audit.__file__,)
     text = open(source[0], encoding="utf-8").read()  # noqa: SIM115, PTH123
     assert "request_id_scope(resolve_request_id(" in text
     assert "request_id_var.set(" not in text

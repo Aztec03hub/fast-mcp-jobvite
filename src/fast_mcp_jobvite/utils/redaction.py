@@ -196,8 +196,7 @@ def redact_arguments(arguments: JsonValue) -> JsonValue:
             key: (
                 redact_arguments(value)
                 if key in NON_SENSITIVE_ARGUMENT_KEYS
-                or isinstance(value, Mapping | list)
-                else _redacted_scalar(value)
+                else _redacted_value(value)
             )
             for key, value in arguments.items()
         }
@@ -206,8 +205,26 @@ def redact_arguments(arguments: JsonValue) -> JsonValue:
     return arguments
 
 
-def _redacted_scalar(value: JsonValue) -> str:
-    """Replace one scalar with a marker naming only its type."""
+def _redacted_value(value: JsonValue) -> str:
+    """Replace one value with a marker naming only its type.
+
+    **Containers are redacted whole, not descended into**, and that is the
+    path-aware half of the allow-list. An earlier revision descended into any
+    container regardless of its key, which meant an allow-listed key nested
+    under an UNLISTED one was emitted in the clear:
+
+        {"secretBlob": {"job_id": "...", "email": "..."}}
+          -> {"secretBlob": {"job_id": "...", "email": "[REDACTED:str]"}}
+
+    The `job_id` survived because `job_id` is allow-listed, even though nothing
+    had allowed `secretBlob`. DESIGN.md:1737 calls C6-I2's mechanism a
+    **path-keyed** allow-list for exactly this reason: membership has to be
+    judged on the path, not on the leaf name in isolation.
+
+    Found by the mutation harness rather than by reading - `M14` survived,
+    which said the mutation was not a leak, which said the walk it removed was
+    doing something other than what the test believed.
+    """
     return f"[REDACTED:{type(value).__name__}]"
 
 

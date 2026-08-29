@@ -194,7 +194,7 @@ def test_the_redacted_marker_names_the_type_but_not_the_value() -> None:
     assert out == {"coverLetter": "[REDACTED:str]", "age": "[REDACTED:int]"}
 
 
-def test_nesting_is_walked_so_a_candidate_one_level_down_is_not_emitted() -> None:
+def test_a_candidate_one_level_down_is_not_emitted() -> None:
     out = redact_arguments(
         {"candidate": {"firstName": "Ada", "contact": {"email": "a@example.invalid"}}}
     )
@@ -202,10 +202,42 @@ def test_nesting_is_walked_so_a_candidate_one_level_down_is_not_emitted() -> Non
     assert not leaked, "PII nested inside an argument survived redact_arguments"
 
 
-def test_lists_are_walked() -> None:
+def test_a_container_under_an_unlisted_key_is_redacted_WHOLE() -> None:
+    """The allow-list is path-keyed, not leaf-keyed.
+
+    **Found by the mutation harness, not by reading.** `M14` removed the
+    container walk and the suite stayed green, which meant the walk was not
+    doing what the test above believed. It was descending into a container
+    whose OWN key nothing had allowed, and then emitting any leaf that happened
+    to carry an allow-listed name - so `job_id` escaped from inside a blob
+    called `secretBlob`.
+
+    DESIGN.md:1737 describes C6-I2's mechanism as a **path-keyed** allow-list
+    for this reason: membership is a property of the path, not of the leaf name
+    in isolation.
+    """
+    out = redact_arguments({"secretBlob": {"job_id": "job-42", "email": "a@b.invalid"}})
+    assert out == {"secretBlob": "[REDACTED:dict]"}
+    leaked = _leaks(repr(out), "job-42", "a@b.invalid")
+    assert not leaked, "a leaf escaped from inside an unlisted container"
+
+
+def test_a_list_under_an_unlisted_key_is_redacted_WHOLE() -> None:
     out = redact_arguments({"candidates": [{"lastName": "Lovelace"}]})
+    assert out == {"candidates": "[REDACTED:list]"}
     leaked = _leaks(repr(out), "Lovelace")
     assert not leaked, "PII inside a list argument survived redact_arguments"
+
+
+def test_a_container_under_an_ALLOW_LISTED_key_is_still_walked() -> None:
+    """The paired positive for the two absences above.
+
+    A `redact_arguments` that replaced EVERY container with a marker would
+    pass both, and would stop the walk being reachable at all - which is how a
+    fix for an over-permissive rule quietly becomes dead code.
+    """
+    out = redact_arguments({"job_id": ["job-1", "job-2"]})
+    assert out == {"job_id": ["job-1", "job-2"]}
 
 
 def test_the_allow_list_does_not_contain_query() -> None:
