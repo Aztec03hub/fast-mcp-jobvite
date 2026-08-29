@@ -479,7 +479,7 @@ async def test_positive_control_defusedxml_still_parses_an_ordinary_document() -
 
 
 async def test_v2_credentials_travel_as_headers_and_NEVER_in_the_url() -> None:
-    """DESIGN.md:311-312, on the request the transport saw."""
+    """DESIGN.md:312-313, on the request the transport saw."""
     seen: dict[str, httpx2.Request] = {}
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -501,7 +501,7 @@ async def test_v2_credentials_travel_as_headers_and_NEVER_in_the_url() -> None:
 
 
 async def test_the_jobfeed_route_is_the_ONE_url_that_carries_credentials() -> None:
-    """DESIGN.md:313-316 - the exception, only for this route."""
+    """DESIGN.md:315-318 - the exception, only for this route."""
     seen: dict[str, httpx2.Request] = {}
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -543,7 +543,7 @@ def test_the_client_and_the_redactor_name_the_SAME_two_headers() -> None:
 
 
 async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
-    """DESIGN.md:313-316, asserted against CAPTURED log output.
+    """DESIGN.md:315-318, asserted against CAPTURED log output.
 
     The absence assertion has a paired positive below: against a silent
     logger every "the secret is not in the log" test passes vacuously,
@@ -588,7 +588,7 @@ async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
     """The exception text goes to the LOG, never to the consumer.
 
     `httpx` puts the request URL into its exception text
-    (DESIGN.md:314-315), so a timeout on the feed carries `sc=` in
+    (DESIGN.md:315-318), so a timeout on the feed carries `sc=` in
     `str(exc)`.
 
     **The positive control moved, and this is the whole point of the
@@ -916,7 +916,7 @@ async def test_the_v2_credential_headers_are_redacted_in_the_failure_log() -> No
     """L-1: `redact_headers`' call site, on the log it now guards.
 
     On the v2 branch the local `headers` IS `v2_headers()` - the
-    resolved `x-jvi-api` and `x-jvi-sc` in the clear (DESIGN.md:311).
+    resolved `x-jvi-api` and `x-jvi-sc` in the clear (DESIGN.md:312).
     The failure log line carries them, so `redact_headers` has a caller
     for the first time and this is the case that fails if anyone removes
     it.

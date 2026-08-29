@@ -83,7 +83,11 @@ rows above, so fix them in the same pass rather than leaving a neighbour wrong:
 
 - `jobvite_client.py:526` cites **`313-316`** for the `jobFeed` route's structural requirement.
   Repoint to **`315-318`**, the same target as `314-315` above.
-- `test_server.py:1` cites **`958-960`** for §7.4. Repoint to **`959-961`**; 958 is the heading.
+- `test_server.py:1` cites **`958-960`** for §7.4. Repoint to **`960-961`**, the same target as
+  `959-960` above. **This row said `959-961` until the checker rejected it**: 958 is the heading
+  and 959 is BLANK, so the "drop the heading" instinct produced a range starting on a blank line.
+  The map was wrong in exactly the shape it exists to prevent, and a machine caught it because
+  the target could not be anyone's subject.
 
 ## Who applies which
 

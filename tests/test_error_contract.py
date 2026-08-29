@@ -159,7 +159,7 @@ def test_jobvites_own_status_and_message_are_in_detail_and_not_discarded() -> No
 def test_a_jobvite_failure_with_no_status_still_keeps_its_message() -> None:
     """The plain-text and Tomcat-HTML encodings carry no status.
 
-    DESIGN.md:345-347.
+    DESIGN.md:335-340.
     """
     problem = errors.problem_from_exception(
         errors.JobviteUpstreamError(None, "Service Temporarily Unavailable"), RID

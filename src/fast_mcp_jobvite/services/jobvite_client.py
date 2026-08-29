@@ -46,12 +46,12 @@ should never respond to us.
 
 **Credentials.** v2 travels as the headers `x-jvi-api` and `x-jvi-sc`,
 and **a URL containing a secret is never constructed**
-(DESIGN.md:311-312), even though Jobvite's own published sample code
+(DESIGN.md:312-313), even though Jobvite's own published sample code
 does exactly that. `GET /v1/jobFeed` is the one structural exception: it
 requires `api`, `sc` and `companyId` as query parameters, so its URL is
 classified sensitive and never reaches a log line whole. Redaction is
 not reimplemented here - `utils/redaction.py` is the single enforcement
-point DESIGN.md:312-316 requires, and this module calls it.
+point DESIGN.md:312-318 requires, and this module calls it.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ from ..utils.redaction import redact_headers, redact_text, redact_url
 V2_BASE_URL: Final = "https://api.jobvite.com/api/v2"
 V1_BASE_URL: Final = "https://api.jobvite.com/v1"
 
-#: The v2 credential headers (DESIGN.md:311). `utils/redaction.py`
+#: The v2 credential headers (DESIGN.md:312). `utils/redaction.py`
 #: holds the same two names in `SECRET_HEADERS`; a test pins the two
 #: lists together so a rename here cannot leave the redactor watching a
 #: header that no longer exists.
@@ -87,7 +87,7 @@ API_KEY_HEADER: Final = "x-jvi-api"
 API_SECRET_HEADER: Final = "x-jvi-sc"  # noqa: S105
 
 #: The one route that structurally requires credentials in the query
-#: string (DESIGN.md:313-316, `JOBVITE-CONTRACT.md` §2.1 rule 2).
+#: string (DESIGN.md:315-318, `JOBVITE-CONTRACT.md` §2.1 rule 2).
 JOBFEED_PATH: Final = "/jobFeed"
 
 #: The threshold in `status.code >= 400` and `http_status < 400`
@@ -394,7 +394,7 @@ def _excerpt(text: str) -> str:
     """Bound and redact a body before it reaches a message or log.
 
     Both halves matter. `redact_text` is `utils/redaction.py`'s
-    exception-message arm (DESIGN.md:314-315): an error body can quote
+    exception-message arm (DESIGN.md:315-318): an error body can quote
     back the request URL, and on the `jobFeed` route that URL carries
     `sc=`. Truncation bounds a body we do not control.
     """
@@ -502,7 +502,7 @@ class JobviteClient:
     # -----------------------------------------------------
 
     def v2_headers(self) -> dict[str, str]:
-        """Build the v2 request headers (DESIGN.md:311).
+        """Build the v2 request headers (DESIGN.md:312).
 
         `.get_secret_value()` is called **here and only here** for v2,
         which is DESIGN.md:323-324's "resolved only when building a
@@ -520,10 +520,10 @@ class JobviteClient:
     def jobfeed_params(self) -> dict[str, str]:
         """Build the v1 `jobFeed` params - **the one exception**.
 
-        DESIGN.md:313-316: this route structurally requires `api`, `sc`
+        DESIGN.md:315-318: this route structurally requires `api`, `sc`
         and `companyId` as query parameters, which is why its URL is
         classified sensitive. Every other route puts the credential in a
-        header and DESIGN.md:311-312 forbids building a URL that
+        header and DESIGN.md:312-313 forbids building a URL that
         contains one.
 
         Returns:
@@ -595,7 +595,7 @@ class JobviteClient:
             query = dict(params or {})
 
         # The ONLY log line on this path, and it names the route rather
-        # than the URL. DESIGN.md:313-316 forbids the jobFeed URL
+        # than the URL. DESIGN.md:315-318 forbids the jobFeed URL
         # reaching a log whole, and `redact_url` is applied on top
         # rather than instead: the path is already credential-free for
         # v2, so this is belt and braces on the one route where a
@@ -644,14 +644,14 @@ class JobviteClient:
             # exceptions it raises, so on the jobFeed route `str(exc)`
             # carries `sc=`. `redact_text` is the arm of
             # utils/redaction.py that exists for exactly this
-            # (DESIGN.md:314-315); without it a timeout on the feed
+            # (DESIGN.md:315-318); without it a timeout on the feed
             # publishes the credential into whatever formats the
             # exception.
             #
             # `redact_headers` is applied because on the v2 branch
             # `headers` IS `v2_headers()` - the resolved `x-jvi-api` and
             # `x-jvi-sc` values, in the clear, in a local variable
-            # (DESIGN.md:311). This is the call site that function was
+            # (DESIGN.md:312). This is the call site that function was
             # written for; before this line it had none, and a header
             # dict was one `logger.debug(headers=headers)` away from the
             # log stream with nothing to stop it.

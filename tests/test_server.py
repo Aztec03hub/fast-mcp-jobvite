@@ -1,6 +1,6 @@
-"""The `FastMCP` instance and lifespan composition (DESIGN.md:958-960).
+"""The `FastMCP` instance and lifespan composition (DESIGN.md:960-961).
 
-DESIGN.md:959-960 states "startup in order, teardown in strict reverse,
+DESIGN.md:960-961 states "startup in order, teardown in strict reverse,
 verified". That property had no test, and its two halves fail
 differently: an out-of-order startup is usually visible, an out-of-order
 teardown is usually not.
@@ -91,7 +91,7 @@ def test_mask_error_details_is_set_explicitly() -> None:
 
 
 async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> None:
-    """DESIGN.md:959-960, which had no test before this one.
+    """DESIGN.md:960-961, which had no test before this one.
 
     Two composed lifespans, not one: with a single extra the sequence is
     up-then-down whatever the operator does, so a one-lifespan arm

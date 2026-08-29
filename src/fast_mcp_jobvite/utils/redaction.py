@@ -1,11 +1,11 @@
-"""Secret redaction - the single enforcement point (DESIGN.md:312-316).
+"""Secret redaction - the single enforcement point (DESIGN.md:312-318).
 
 **This module holds the SECRET half only.** DESIGN.md:291 gives
 `utils/redaction.py` two jobs, "log redaction; untrusted-content
 fencing", and `IMPLEMENTATION-PLAN.md:1497` assigns the fencing half to
 U8. Nothing here fences.
 
-**Why one place.** DESIGN.md:312-316 classifies the v1 `GET /v1/jobFeed`
+**Why one place.** DESIGN.md:312-318 classifies the v1 `GET /v1/jobFeed`
 URL as sensitive - it structurally requires `api`, `sc` and `companyId`
 as query parameters, so unlike every other Jobvite call the credential
 is *in the URL* - and states the rule as "never logged whole, never in
@@ -25,7 +25,7 @@ in the log line, so the case is the floor here and not the
 specification.
 
 **Arguments are redacted by allow-list, and the direction is
-deliberate.** DESIGN.md:1793 rates C7-I1 - candidate PII written to logs
+deliberate.** DESIGN.md:1799 rates C7-I1 - candidate PII written to logs
 in the clear - **Critical**, and `ai/tool-calling.md:171-172` requires
 the audit event to carry "validated arguments (PII redacted)". A
 deny-list of known PII key names fails *open*: the argument nobody
@@ -85,7 +85,7 @@ _USERINFO: Final = re.compile(
 #: that misses `SC=` has failed open.
 SECRET_QUERY_PARAMS: Final[frozenset[str]] = frozenset({"api", "sc", "companyid"})
 
-#: Request headers that carry a v2 credential (DESIGN.md:311).
+#: Request headers that carry a v2 credential (DESIGN.md:312).
 #: Lower-cased; callers must lower-case the key before lookup.
 SECRET_HEADERS: Final[frozenset[str]] = frozenset({"x-jvi-api", "x-jvi-sc"})
 
@@ -150,7 +150,7 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
 def redact_url(url: str) -> str:
     """Redact every credential-bearing query parameter in a URL.
 
-    The `jobFeed` URL is the reason this exists (DESIGN.md:312-316), but
+    The `jobFeed` URL is the reason this exists (DESIGN.md:312-318), but
     the function is not restricted to it: a URL is passed in and every
     parameter in `SECRET_QUERY_PARAMS` comes back redacted, whatever the
     host. Restricting it to a recognised `jobFeed` host would fail open
@@ -194,7 +194,7 @@ def redact_url(url: str) -> str:
 
 
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Redact the v2 credential headers (DESIGN.md:311).
+    """Redact the v2 credential headers (DESIGN.md:312).
 
     Args:
         headers: Request headers. Keys are matched case-insensitively.
@@ -214,7 +214,7 @@ def redact_text(text: str) -> str:
     """Redact any credential-bearing URL embedded in free text.
 
     This is the arm that covers an **exception message**
-    (DESIGN.md:314-315). `httpx` puts the request URL into the text of
+    (DESIGN.md:315-318). `httpx` puts the request URL into the text of
     the exceptions it raises, so a `jobFeed` timeout carries `sc=` in
     `str(exc)` and any handler that formats the exception into a log
     line publishes the credential. Redacting only at the URL-argument

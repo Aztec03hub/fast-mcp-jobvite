@@ -368,7 +368,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 413
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 420
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -475,10 +475,10 @@ jobs:
       # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
       # shape stops matching, every anchor that still parses resolves perfectly
       # and the checker reports OK on a fraction of its coverage. Measured:
-      # deleting one shape drops 164 to 149 with an exit code of 0. Lowering
+      # deleting one shape drops 171 to 156 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 164
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 171
 
       - name: Harness anchor checker controls, all fired
         run: |

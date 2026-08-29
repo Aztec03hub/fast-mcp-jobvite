@@ -129,7 +129,7 @@ def _redact_message(record: Record) -> bool:
     into loguru made a pre-existing production leak visible: `httpx2`
     logs `HTTP Request: GET <url>` at INFO, and the `jobFeed` URL
     structurally carries `api`, `sc` and `companyId`
-    (DESIGN.md:312-316). That line was already reaching stderr in the
+    (DESIGN.md:312-318). That line was already reaching stderr in the
     clear through `basicConfig(level=INFO)`; the client's own test could
     not see it because the test installs its own loguru sink and the
     leak travelled through a different library.
@@ -137,7 +137,7 @@ def _redact_message(record: Record) -> bool:
     Silencing `httpx2`'s logger would fix the producer we happened to
     find and leave every producer nobody has thought of. Redacting at
     the one sink covers all of them, and it calls `redact_text` rather
-    than reimplementing it, so DESIGN.md:312-316's "enforced in one
+    than reimplementing it, so DESIGN.md:312-318's "enforced in one
     place" still holds.
 
     **This is not made redundant by `_redact_serialised` below, and the
@@ -329,7 +329,7 @@ def configure_logging() -> None:
         # each: without the filter the full suite goes red on a foreign
         # sink reading an unredacted record; without the sink an
         # exception's text reaches stderr in the clear. Both call
-        # `redact_text`, so DESIGN.md:312-316's "enforced in one place"
+        # `redact_text`, so DESIGN.md:312-318's "enforced in one place"
         # holds - one redactor, two depths, not two redactors.
         _redacting_sink(sys.stderr),
         level=_LOG_LEVEL,
@@ -394,7 +394,7 @@ def _term(signum: int, frame: FrameType | None) -> None:
 
 
 def _install_shutdown_handler() -> None:
-    """Install the explicit SIGTERM handler (DESIGN.md:984-988)."""
+    """Install the explicit SIGTERM handler (DESIGN.md:985-986)."""
     signal.signal(signal.SIGTERM, _term)
 
 

@@ -32,7 +32,7 @@ deployment that is also missing its tokens would otherwise be told only
 about the tokens - the reason it was actually refused would never be
 printed.
 
-**Credentials are `SecretStr` throughout** (DESIGN.md:322-323), resolved
+**Credentials are `SecretStr` throughout** (DESIGN.md:323-324), resolved
 with `.get_secret_value()` only when building a request.
 `JOBVITE_COMPANY_ID` is one of them: DESIGN.md:320 classifies it as the
 job feed's separate credential, not as a public identifier.
@@ -337,7 +337,7 @@ def _check_tool_names(settings: Settings, reasons: list[str]) -> None:
 
 
 def _check_required_variables(settings: Settings, reasons: list[str]) -> None:
-    """Refuse a variable an ENABLED tool needs (DESIGN.md:936-943).
+    """Refuse a variable an ENABLED tool needs (DESIGN.md:937-945).
 
     Scoped to the enabled set and never the union: a deployment running
     only `search_candidates` is not asked for `JOBVITE_COMPANY_ID`.

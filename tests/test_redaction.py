@@ -1,4 +1,4 @@
-"""The single redaction point (DESIGN.md:312-316, §8 required case #2).
+"""The single redaction point (DESIGN.md:312-318, §8 required case #2).
 
 **Every assertion in this file is written so a FAILURE cannot print the
 secret it was checking for.** The obvious form,
@@ -110,7 +110,7 @@ def test_a_url_carrying_no_secret_is_untouched() -> None:
 
 
 # ----------------------------------------------------------------------
-# redact_text - the exception-message arm (DESIGN.md:314-315)
+# redact_text - the exception-message arm (DESIGN.md:315-318)
 # ----------------------------------------------------------------------
 
 
@@ -149,7 +149,7 @@ def test_redact_text_preserves_newlines_so_a_traceback_survives() -> None:
 
 
 # ----------------------------------------------------------------------
-# redact_headers - the v2 credential headers (DESIGN.md:311)
+# redact_headers - the v2 credential headers (DESIGN.md:312)
 # ----------------------------------------------------------------------
 
 

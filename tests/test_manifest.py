@@ -3,7 +3,7 @@
 Three arms, and the third is the one that earns the case its keep:
 
 1. `mcp` is present in `[project].dependencies` with an `==` pin.
-   DESIGN.md:1403-1407 pins it explicitly rather than relying on
+   DESIGN.md:1404-1407 pins it explicitly rather than relying on
    `fastmcp` to hold it, because the `ResponseLimiting` regression
    arrived through the transitive SDK with zero change to the code that
    broke.
@@ -77,7 +77,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         "fastmcp-slim==4.0.0b4",
         "mcp==2.1.1",
         # U3's, added under the serialised dependency slot.
-        # DESIGN.md:302-303 forbids a custom logging module and names
+        # DESIGN.md:303-304 forbids a custom logging module and names
         # loguru as what covers that need.
         "loguru==0.7.3",
         # U4's, APPENDED under the same slot - the set stays CLOSED.

@@ -269,7 +269,7 @@ def test_case2_the_sc_value_is_absent_from_a_record_proven_non_empty(
 def test_case2_the_whole_url_is_covered_not_just_the_sc_parameter(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """DESIGN.md:312-316 classifies the URL as sensitive.
+    """DESIGN.md:312-318 classifies the URL as sensitive.
 
     Not one parameter of it.
     """
@@ -289,7 +289,7 @@ def test_case2_a_stderr_failure_report_carries_no_credential(
 ) -> None:
     """The failure channel is a log record, and formats an exception.
 
-    DESIGN.md:314-315 says never in an exception message. `httpx` puts
+    DESIGN.md:315-318 says never in an exception message. `httpx` puts
     the request URL into the text of the exceptions it raises, so an
     audit-write failure that formats one is exactly where the URL would
     otherwise escape.
@@ -485,7 +485,7 @@ def test_arm3_the_warning_tells_the_caller_not_to_retry(broken_audit: None) -> N
 def test_arm3_the_result_is_success_with_a_warnings_array_not_a_problem_object(
     broken_audit: None,
 ) -> None:
-    """The shape, which DESIGN.md:720-727 specifies deliberately.
+    """The shape, which DESIGN.md:721-727 specifies deliberately.
 
     "Success with a warning" is not a shape, so the design states one.
     """
@@ -615,7 +615,7 @@ def test_an_invalid_inbound_request_id_is_replaced_rather_than_used(
 ) -> None:
     """C7-T1: a newline in the inbound id forges a log entry.
 
-    DESIGN.md:1795.
+    DESIGN.md:1797.
     """
     resolved = resolve_request_id(bad)
     assert resolved != bad

@@ -24,7 +24,7 @@ that resets the var lives in `utils/correlation.py` in shipped code
 rather than being restated at each call site.
 
 **Attribution is not the same question as identity**
-(DESIGN.md:692-705). Two identities are in play and the design is
+(DESIGN.md:693-705). Two identities are in play and the design is
 explicit that only one is knowable: *who approved* is unknowable
 (ADR-0009), while *which client invoked the tool* is knowable **on
 HTTP**, where §4.4 already derives it through `get_client_id` to
@@ -83,7 +83,7 @@ RESULT_STATUS_ERROR: Final = "error"
 #: `8`/`9`/`a`/`b`.
 #:
 #: Inbound `X-Request-ID` is validated against this before use
-#: (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1795). An unvalidated
+#: (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1797). An unvalidated
 #: inbound id is a log-forging vector: a value carrying a newline writes
 #: a second, attacker-authored line into the audit stream.
 _UUID4_RE: Final = re.compile(
@@ -219,7 +219,7 @@ def resolve_request_id(inbound_request_id: str | None = None) -> str:
     An inbound `X-Request-ID` is **echoed only if it is a valid UUIDv4**
     (DESIGN.md:597-599). Anything else is discarded silently and
     replaced, rather than rejected: a malformed correlation header is
-    not a reason to fail a tool call, and C7-T1 (DESIGN.md:1795) asks
+    not a reason to fail a tool call, and C7-T1 (DESIGN.md:1797) asks
     for the value to be "validated as a UUIDv4 before use and replaced
     if invalid".
 
@@ -289,7 +289,7 @@ def audit_scope(
         tool_name: The tool as registered.
         transport: The transport this invocation arrived on.
         arguments: The validated arguments. Redacted here, once, on the
-            way in (DESIGN.md:312-316); the event never holds the raw
+            way in (DESIGN.md:312-318); the event never holds the raw
             values.
         client_id: `get_client_id`'s value on HTTP. **Ignored on
             stdio**, where it would be the literal `"global"` and would
@@ -400,7 +400,7 @@ def attach_audit_warnings(
 ) -> dict[str, JsonValue]:
     """Add the `warnings` array to a SUCCESS result's content.
 
-    DESIGN.md:720-727 specifies this shape because "success with a
+    DESIGN.md:721-727 specifies this shape because "success with a
     warning" is not one: the normal success result, `is_error=False`,
     with a `warnings` array in its structured content naming the audit
     failure - **not a problem object**. §5.1 makes problem objects the

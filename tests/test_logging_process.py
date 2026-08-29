@@ -343,7 +343,7 @@ def test_a_failing_sink_after_a_write_returns_a_warning_not_an_error(
 
 #: A stdlib log record carrying the credential-bearing feed URL, emitted
 #: from a process configured the shipped way. `httpx2` emits this exact
-#: shape at INFO for every request, and DESIGN.md:312-316 classifies the
+#: shape at INFO for every request, and DESIGN.md:312-318 classifies the
 #: `jobFeed` URL as sensitive because it structurally carries `api`,
 #: `sc` and `companyId`.
 LEAK_ENTRY = """
@@ -522,7 +522,7 @@ def test_an_exception_carrying_a_credential_is_redacted_at_the_sink(
     `serialize=True` also renders `record["exception"]` and a `text`
     carrying the formatted traceback. An exception's `str()` is where a
     URL lands - which is the whole premise of `redact_text`
-    (DESIGN.md:314-315).
+    (DESIGN.md:315-318).
 
     **The producers are not enumerable, which is why the fix is at the
     sink.** `_InterceptHandler` forwards `exc_info` for every stdlib
