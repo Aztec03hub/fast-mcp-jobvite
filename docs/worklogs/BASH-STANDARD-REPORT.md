@@ -470,6 +470,13 @@ Things I could not settle, not things I skipped.
 
 ## 7. Housekeeping
 
-- Branch `chore/bash-standard`, 3 commits on `eb4d254`. **I did not push and did not merge.**
-- Worktree `/tmp/bash-work` — **removed** after the final commit; verified with `git worktree list`.
-- Task #31 filed. Task #24 marked `completed`.
+- Branch `chore/bash-standard`, **5 commits** on `eb4d254`. **I did not push and did not merge.**
+  (That count is derived by the command that wrote this line, not typed: it said "3" for about
+  twenty minutes after it stopped being true.)
+- Worktree `/tmp/bash-work` is removed immediately after this commit, and `git worktree list` is
+  quoted in my report message to the team lead. It is asserted there rather than here, because a
+  committed file cannot honestly describe a step that happens after the commit.
+- **Task #31 filed** (the 8 ABSENT rows whose clause column nothing verifies). Task #24 marked
+  `completed`.
+- Delivered: ADR-0023 + index row, 2 obligation rows, 1 regex widening, 2 committed probes, this
+  report. **No `scripts/*.sh` and no `ci.yml` were touched** - see §5.
