@@ -7,7 +7,7 @@ Worktree: `/tmp/plan-draft9-work`, created with `git worktree add` at the pinned
 checked out, never edited, and never had a branch moved in it.** The only write to it was none; the
 only reads were `git -C <shared> log/status/diff`.
 **One file changed: `docs/plans/IMPLEMENTATION-PLAN.md`.** Plus this report.
-Rebased onto `origin/main` at **`94330db`**. Plan is **2,339 lines** (`wc -l`), status line reads
+Rebased onto `origin/main` at **`20e55ef`**. Plan is **2,340 lines** (`wc -l`), status line reads
 **DRAFT 9**, and the two agree because I read both off the file rather than asserting either.
 
 **Read "The tree moved under me" below before the finding-by-finding section** - four commits landed
@@ -71,16 +71,20 @@ makes the *position-versus-content* point more sharply than mine did, and its *"
 paragraph is the same finding as my §8 one, written first. My amendment-table work is folded in
 **beside** it rather than over it. Nothing of `main`'s was discarded.
 
-**A second rebase followed**, onto `94330db`: `f4f69f9` landed **U11** (enabling its `ci.yml` block -
-§4's *"enabling a commented step is a write"* rule discharged for the first time) and `94330db`
-repointed two more obligation anchors it moved. Both are now rows in the amendment table, and the
-table was re-verified against its own derivation command after each rebase: **19 rows, 19 commits,
-both set differences empty.** The suite went 93 → 94 → **127** across the same window.
+**Two more rebases followed.** `f4f69f9` landed **U11**, enabling its `ci.yml` block - §4's
+*"enabling a commented step is a write"* rule discharged for the first time - and `94330db`
+repointed two more obligation anchors it had moved. Then `20e55ef` landed **U3's dependency slot**,
+which is **collision 10's rule discharged for the first time** (pin, re-lock, widen the exact-set
+assertion, one commit) **and renames the test whose name hid that collision** - §4's new standing
+check applied to the test rather than to the reader. All four are rows in the amendment table, which
+was re-verified against its own derivation command after each rebase: **20 rows, 20 commits, both
+set differences empty.** The suite went 93 → 94 → **127** across the same window.
 
-**This is itself evidence for §10.** Between being briefed and reporting, the tree closed round 7's
-High, fixed a red gate, landed the plan and landed a unit - **none of it from a review round.** It
-is also why draft 9's volatile lines now point at commands instead of stating facts: the
-"which units are built" sentence was already wrong once inside this single task.
+**This is itself the evidence for §10.** Between being briefed and reporting, the tree closed round
+7's High, fixed a red gate, landed the plan, landed a unit, and discharged collision 10's rule -
+**none of it from a review round, and all of it from building.** It is also why draft 9's volatile
+lines now point at commands instead of stating facts: the "which units are built" sentence was
+already wrong once inside this single task, and would have been wrong twice.
 
 ---
 
@@ -305,10 +309,10 @@ replaced by the §4 standing check, which does not depend on any sweep having be
 
 | B | Subject | Old (as `main` has it) | **New, on this branch** |
 |---|---|---|---|
-| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1306`** |
-| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1351`** |
+| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1307`** |
+| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1352`** |
 
-*Measured after the final rebase onto `94330db`, so the "old" column is `main`'s current value.*
+*Measured after the final rebase onto `20e55ef`, so the "old" column is `main`'s current value.*
 **`check-obligations.py --controls` is also red, for the same two anchors and not independently** -
 it aborts with *"the real map is already red, so no control below proves anything"*, which is the
 harness refusing to report a vacuous green. Both go green the moment these two rows are repointed.
@@ -350,7 +354,7 @@ I have not created board tasks for these; say the word and I will, or fold them 
    guard checks **reachability, not selection**, so a wholly-marker-excluded arm here is fine - and
    **do not narrow the guard to green something**, because that is what makes the credentialed
    subtree rot unwatched. R7 asked for this and it is not my file.
-4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1306` and B81 to `:1351` when this branch merges.
+4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1307` and B81 to `:1352` when this branch merges.
    **Re-run `check-obligations.py` after merging rather than trusting these two numbers**: `main`
    moved four times during this task, and if it moves again before the merge the checker will name
    the correct lines itself.
@@ -364,11 +368,15 @@ I have not created board tasks for these; say the word and I will, or fold them 
 git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite merge --no-ff plan/draft9
 ```
 
-Branch **`plan/draft9`**, **rebased onto `origin/main` at `94330db`** (U11's landing and its anchor
-repoint), four commits: the draft, this report, the reconciliation with the four commits that landed
-mid-task, and the second reconciliation with U11's two. **No `--ff-only` is promised** - `main`
-demonstrably moves under me, **six commits across two rebases during this task alone**, and the
-amendment table was brought back into exact agreement with its own derivation command after each. **I did not merge and did not push.** If `main` has moved again, rebase rather than
+Branch **`plan/draft9`**, **rebased onto `origin/main` at `20e55ef`** (U3's dependency slot), five
+commits: the draft, this report, and three reconciliations with the commits that landed mid-task.
+**No `--ff-only` is promised** - `main` demonstrably moves under me, **seven commits across three
+rebases during this task alone**, and the amendment table was brought back into exact agreement with
+its own derivation command after every one (final: **20 rows, 20 commits, both differences empty**).
+
+**Every line number and count in this report is a snapshot at `20e55ef`.** Re-run
+`check-obligations.py` after merging rather than trusting the two anchor numbers - it names the
+correct lines itself, which is the whole argument for the gate. **I did not merge and did not push.** If `main` has moved again, rebase rather than
 merge-commit; the two files this branch touches are `docs/plans/IMPLEMENTATION-PLAN.md` and
 `docs/worklogs/PLAN-DRAFT9-REPORT.md` and nothing else.
 
