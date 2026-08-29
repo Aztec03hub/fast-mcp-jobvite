@@ -1,6 +1,7 @@
 # ADR-0004: `ResponseLimitingMiddleware` excluded; response size bounded in-tool
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

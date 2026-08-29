@@ -1,6 +1,7 @@
 # ADR-0001: Target fastmcp 4.0.0b4 and the sessionless MCP spec
 
 **Status:** Accepted (Phil, 2026-08-27)
+**Type:** Deviation
 
 ## Context
 

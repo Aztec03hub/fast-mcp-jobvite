@@ -1,6 +1,7 @@
 # ADR-0011: Three log producers per invocation, not the mandated one
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

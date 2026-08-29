@@ -1,6 +1,7 @@
 # ADR-0009: Approver identity cannot be recorded. Caller identity can, on HTTP.
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

@@ -83,7 +83,7 @@ the map exists to make visible.
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | SUPERSEDED | `pyproject.toml:6` | `license = "Apache-2.0"` | `documentation/readme-standard.md:57` | Substance settled; only the README section is deferred with B77 |
 | B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |
-| B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md:24` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
+| B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md:25` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
 | B100 | MET | `.github/pull_request_template.md:3` | `Completed PR template` | `devops/quality-gates.md:50` | Untracked when seeded. Closing this does NOT close B101 |
 | B101 | MET | `docs/CODE-REVIEW-CHECKLIST.md:3` | `Reviewers must verify` | `devops/development-workflow.md:248` | The PR template's checklist is the AUTHOR's self-check (B100); this is the reviewer's. Kept out of the template deliberately. The rows of the standard with no subject here are listed with reasons rather than dropped |
 | B102 | MET | `CONTRIBUTING.md:64` | `Squash merge` | `devops/development-workflow.md:192` | Untracked when seeded. Enforcement is branch protection, which is out of tree |

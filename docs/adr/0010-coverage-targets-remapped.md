@@ -1,6 +1,7 @@
 # ADR-0010: Coverage targets remapped from the standard's category model
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

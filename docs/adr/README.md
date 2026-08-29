@@ -9,10 +9,16 @@ An ADR here does **two different jobs**, and they must stay distinguishable:
 2. **`Design change`** - after the freeze, an ADR is the only instrument that may change
    `docs/DESIGN.md`. This job begins at the freeze and not before.
 
-**Every ADR from 0012 onward carries a `Type:` field** - `Deviation`, `Design change`, or `Both` -
-because after the freeze "is this a deviation or a design change?" must have an answer, and the
-freeze rule's teeth depend on telling them apart. **ADR-0001 to ADR-0011 are all `Deviation`**, recorded
-before any freeze. `DESIGN.md` §13 states the same split.
+**Every ADR carries a `Type:` field** - `Deviation`, `Design change`, or `Both` - because after the
+freeze "is this a deviation or a design change?" must have an answer, and the freeze rule's teeth
+depend on telling them apart. `DESIGN.md` §13 states the same split.
+
+The convention began at 0012, and **0001 to 0011 were backfilled** as `Deviation` - which is what
+this paragraph had already asserted collectively, and each file now says for itself. Round 2 of the
+code review found the gap: the two ADRs in its scope, 0010 and 0011, are deviations that sat in the
+unlabelled half, and **once a convention exists, the ABSENCE of the field reads as "not a
+deviation"** rather than as "written before the field did". A classification that lives only in the
+index is not carried by the artifact a reader opens.
 
 Format: Status, Type, Context, Decision, Consequences. Every ADR cites the clause it deviates from
 at its `file:line`, and says what evidence the decision rests on.

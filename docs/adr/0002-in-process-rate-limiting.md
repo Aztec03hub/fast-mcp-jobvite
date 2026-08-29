@@ -1,6 +1,7 @@
 # ADR-0002: In-process rate limiting instead of a Redis token bucket
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

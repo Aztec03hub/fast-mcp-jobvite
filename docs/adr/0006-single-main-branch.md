@@ -1,6 +1,7 @@
 # ADR-0006: Single `main` branch rather than `main` plus `develop`
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

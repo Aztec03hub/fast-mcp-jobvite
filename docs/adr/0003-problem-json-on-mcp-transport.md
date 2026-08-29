@@ -1,6 +1,7 @@
 # ADR-0003: `application/problem+json` cannot be set on an MCP tool error
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

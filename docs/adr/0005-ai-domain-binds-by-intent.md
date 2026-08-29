@@ -1,6 +1,7 @@
 # ADR-0005: The `ai/` standards domain binds this repository by intent
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 

@@ -1,6 +1,7 @@
 # ADR-0007: Use `httpx2`, the client FastMCP ships
 
 **Status:** Accepted, reversing an earlier decision
+**Type:** Deviation
 
 ## Context
 

@@ -1,6 +1,7 @@
 # ADR-0008: EEO and other special-category fields excluded from output models
 
 **Status:** Accepted
+**Type:** Deviation
 
 ## Context
 
