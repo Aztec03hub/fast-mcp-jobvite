@@ -555,6 +555,20 @@ jobs:
       - name: Harness anchors still resolve
         run: python3 scripts/check-harness-anchors.py --self-check --floor 415
 
+      # WIRED ONLY NOW THAT ITS BACKLOG IS ZERO. It reported 10 floorless
+      # harnesses when written and stayed unwired through all of them,
+      # because a gate that lands red is a gate people learn to ignore -
+      # which this repository had already proved with a secret-scan step
+      # that was red for days and unread.
+      #
+      # It answers a NARROWER question than it looks: does every harness
+      # have a row floor at EITHER layer, an internal `ROW_FLOOR` or a
+      # `--min-rows` here. It cannot tell whether a floor is RIGHT; only a
+      # run of that harness establishes that, and no static reader can
+      # distinguish a derived number from a typed one.
+      - name: Every harness is wired and has a row floor
+        run: python3 docs/reviews/check-row-floors.py
+
       - name: Harness anchor checker controls, all fired
         run: |
           set -uo pipefail
