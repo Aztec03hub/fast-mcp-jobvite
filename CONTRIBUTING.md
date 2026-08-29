@@ -108,6 +108,21 @@ python3 docs/reviews/check-obligations.py --controls
 python3 docs/reviews/check-plan-measurements.py
 ```
 
+## Measurements a human runs, which are NOT gates
+
+```bash
+bash scripts/check-u1-pid1-shutdown.sh    # needs Docker; exits 2 if unavailable
+```
+
+This puts the interpreter at **PID 1** in a container with no `--init` and sends a real SIGTERM via
+`docker stop -t 15`, on both transports, closing the second of `DESIGN.md`'s two inherited limits on
+the shutdown mitigation. **It is deliberately not in `ci.yml`**: CI has no Docker daemon, and a
+required check that goes red for reasons nobody caused trains everyone to ignore it.
+
+It exits **2** when Docker is missing, never 0 - a skip that reports success is a green that tested
+nothing. Read the header before trusting a pass; it states exactly what the measurement does and
+does not cover.
+
 **`mypy` is the type gate, not `pyright`.** `pyright` may be on your PATH; it is not declared in
 `pyproject.toml`, is not what CI runs, and `backend/python.md:370` names mypy. Running it proves
 nothing about whether this repository is green, and `uv run --frozen pyright` would resolve a tool
