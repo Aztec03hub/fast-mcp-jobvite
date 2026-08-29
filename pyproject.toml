@@ -48,6 +48,24 @@ dependencies = [
   # it. Declared because we import it DIRECTLY, not because the resolve needs
   # the name. Found by impl-u1-boot after its unit had already merged.
   "pydantic-settings==2.15.0",
+  # U7's, and both were added in one edit under the SAME serialised dependency
+  # slot U3 and U4 used (collision 10: `uv lock` regenerates whole, so two units
+  # adding a dependency conflict on the whole file).
+  #
+  # `tenacity` is DESIGN.md:347-349's retry mechanism - "retries live inside this
+  # module, via tenacity with jitter, and only for connection errors, timeouts
+  # and 5xx" - and STANDARDS.md:374-375 blesses `tenacity ^9`.
+  "tenacity==9.1.2",
+  # `circuitbreaker` is B37's one-breaker-per-dependency library and
+  # STANDARDS.md:374-375 blesses `circuitbreaker ^2`. It is here rather than an
+  # inline breaker BECAUSE IT WAS MEASURED, not because it is blessed:
+  # DESIGN.md:617 requires half-open expiry to be evaluated ON THE CALL PATH
+  # rather than by a background timer, since a ContextVar is per-Task and a
+  # timer-fired expiry would log `request_id=None`. `circuitbreaker` 2.1.3
+  # computes `state` as a pure property read on entry and imports no threading
+  # or scheduling machinery at all - see scripts/probe-breaker-call-path.py,
+  # which is the artefact of that rejection test and is run as a test.
+  "circuitbreaker==2.1.3",
 ]
 
 # U1's key, and only this key (IMPLEMENTATION-PLAN.md:1273). U0 deliberately
@@ -286,4 +304,22 @@ exclude = ["^docs/"]
 # tests/test_jobvite_client.py cover the branch behaviourally.
 [[tool.mypy.overrides]]
 module = ["defusedxml.*"]
+ignore_missing_imports = true
+
+# circuitbreaker 2.1.3 ships no `py.typed` and no bundled stubs either, so under
+# `strict = true` U7's one import of it is a hard error for the same reason
+# defusedxml's three are. There is no `types-circuitbreaker` on PyPI to weigh
+# against this, so the override is not a choice between two options - it is the
+# only one. `tenacity` is NOT listed: it ships `py.typed` and type-checks.
+#
+# THE NARROW COST, recorded rather than hidden. `CircuitBreaker` and
+# `CircuitBreakerError` are `Any` inside services/jobvite_client.py, so
+# `_JOBVITE_BREAKER.state`, `.opened`, `.failure_count`, `.open_remaining` and
+# `.reset()` are unchecked attribute reads: a `circuitbreaker` bump that renames
+# one of them is a runtime `AttributeError`, not a mypy error. Every one of them
+# is exercised by a case in tests/test_resilience.py, and the breaker's
+# call-path property - the one that made it adoptable at all - is asserted by
+# scripts/probe-breaker-call-path.py, which the same suite runs.
+[[tool.mypy.overrides]]
+module = ["circuitbreaker.*"]
 ignore_missing_imports = true

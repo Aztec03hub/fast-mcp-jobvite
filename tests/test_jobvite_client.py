@@ -36,11 +36,15 @@ from fast_mcp_jobvite.errors import (
     RESOURCE_NOT_FOUND,
     JobviteUnavailableError,
     JobviteUpstreamError,
+    problem_from_exception,
 )
 from fast_mcp_jobvite.services import jobvite_client as jc
 from fast_mcp_jobvite.utils.redaction import REDACTED, SECRET_HEADERS
 
 from .conftest import FIXTURES_DIR
+
+#: A fixed UUIDv4 for the one case that builds a problem object here.
+_L4_REQUEST_ID = "44444444-4444-4444-8444-444444444444"
 
 API_KEY = "TESTKEY-not-a-real-credential"
 API_SECRET = "TESTSECRET-not-a-real-credential"  # noqa: S105 - a test literal
@@ -519,11 +523,35 @@ async def test_the_jobfeed_route_is_the_ONE_url_that_carries_credentials() -> No
 
 
 async def test_the_jobfeed_route_refuses_without_a_company_id() -> None:
-    """A missing `companyId` returns the same 401 as a bad secret."""
+    """A missing `companyId` is OUR fault, not Jobvite's.
+
+    **This case was R2-L-4 and it asserted the defect.** It used
+    to require `JobviteUpstreamError`, which `errors.py` maps to
+    `/problems/external-service-error` **502** and renders as *"Jobvite
+    returned status none: ..."* - telling the caller the upstream failed
+    when the deployment is misconfigured and Jobvite was never called.
+
+    `errors.py` has no configuration row and DESIGN.md:510-511 forbids
+    minting a slug, so the honest answer is an exception outside the
+    hierarchy, which ADR-0017 routes to `/problems/internal-error` 500.
+    **The problem object is asserted, not just the exception class**:
+    the finding was about what reaches the caller, and the class alone
+    would leave that unmeasured.
+    """
     async with client(responder(200, b"{}"), with_company_id=False) as c:
-        with pytest.raises(JobviteUpstreamError) as caught:
+        with pytest.raises(RuntimeError) as caught:
             await c.request("GET", jc.JOBFEED_PATH, jobfeed=True)
-    assert "companyId" in caught.value.detail
+    assert "companyId" in str(caught.value)
+    assert not isinstance(caught.value, JobviteUpstreamError)
+
+    problem = problem_from_exception(caught.value, _L4_REQUEST_ID)
+    assert problem["type"] == "/problems/internal-error"
+    assert problem["status"] == 500
+    # ADR-0017: the detail names the CLASS, never the message - an
+    # arbitrary exception's `str()` can carry a URL or a credential
+    # fragment, and this value reaches the caller.
+    assert problem["detail"] == "An unexpected RuntimeError occurred."
+    assert "companyId" not in problem["detail"]
 
 
 def test_the_client_and_the_redactor_name_the_SAME_two_headers() -> None:

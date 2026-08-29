@@ -94,6 +94,16 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         # been arriving transitively, so nothing would have noticed a
         # bump that dropped it.
         "pydantic-settings==2.15.0",
+        # U7's, APPENDED under the same slot - the set stays CLOSED.
+        # `tenacity` is DESIGN.md:347-349's retry mechanism and
+        # `circuitbreaker` is B37's breaker; STANDARDS.md:374-375
+        # blesses both at `^9` and `^2`, confirmed against the CORPUS
+        # (`standards/architecture/reference-architecture.md:95`) rather
+        # than the local digest, which §8 says is not the authority for
+        # currency. `circuitbreaker` was adopted by MEASUREMENT and not
+        # by blessing - see scripts/probe-breaker-call-path.py.
+        "tenacity==9.1.2",
+        "circuitbreaker==2.1.3",
     }
 
 

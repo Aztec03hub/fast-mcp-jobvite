@@ -148,11 +148,16 @@ run_mutation "M04 the two arms become an if/elif instead of two statements" "$CL
 
 # M05 - a JSON body that will not decode degrades to an empty dict. This is the
 # "wrong zero" arriving by a different road from C5-S1.
+# REPOINTED BY U7: a bare `except ValueError:` now has TWO hits in the client
+# (`_decode_json_object` and `_retry_after_seconds`), so the anchor carries the
+# comment that belongs to THIS one. The mutation is unchanged.
 run_mutation "M05 an undecodable body degrades to an empty result" "$CLIENT" \
-  '    except ValueError:' \
+  '    except ValueError:
+        # Plain text with no Content-Type' \
   '    except ValueError:
         return {}
-    except TypeError:' \
+    except TypeError:
+        # Plain text with no Content-Type' \
   'test_a_malformed_body_fails_loudly_rather_than_degrading'
 
 # M06 - a boolean is accepted as a status code. `{"code": true}` would then be
@@ -206,11 +211,16 @@ run_mutation "M10 v2 credentials are put in the URL instead of the headers" "$CL
 
 # M11 - the jobFeed route silently loses its companyId requirement, so a
 # missing credential becomes a 401 that looks like a bad secret.
+# REPOINTED BY U7: R2-L-4 changed what this branch RAISES - it was
+# `JobviteUpstreamError(None, ...)`, which rendered "Jobvite returned status
+# none" at 502 for a call Jobvite never saw, and is a `RuntimeError` now
+# (ADR-0017 routes it to /problems/internal-error 500). The mutation's subject,
+# the requirement disappearing, is unchanged.
 run_mutation "M11 the jobFeed route no longer requires a companyId" "$CLIENT" \
   '        if self._company_id is None:
-            raise JobviteUpstreamError(' \
+            msg = (' \
   '        if self._company_id is None and False:
-            raise JobviteUpstreamError(' \
+            msg = (' \
   'test_the_jobfeed_route_refuses_without_a_company_id'
 
 # ===========================================================================
@@ -238,9 +248,11 @@ run_mutation "M12b the consumer detail is formatted from the exception again" "$
   'test_a_transport_error_on_the_jobfeed_route_is_redacted'
 
 # M12c - `redact_headers` loses its one caller (L-1, unwired again).
+# REPOINTED BY U7, same cause as the amputation harness's A9d: `headers` is a
+# `Mapping` parameter now and the call site reads `redact_headers(dict(...))`.
 run_mutation "M12c the v2 credential headers reach the log unredacted" "$CLIENT" \
-  '                headers=redact_headers(headers),' \
-  '                headers=headers,' \
+  '                headers=redact_headers(dict(headers)),' \
+  '                headers=dict(headers),' \
   'test_the_v2_credential_headers_are_redacted_in_the_failure_log'
 
 # M13 - the body excerpt stops being redacted, so an error body that quotes the
@@ -273,9 +285,19 @@ run_mutation "M15 the cookie jar is carried between requests" "$CLIENT" \
 
 # M16 - the per-phase timeout collapses to a single scalar, which is what
 # DESIGN.md:346 forbids ("No SDK default, no single scalar").
+# REPOINTED BY U7: the four phases are NAMED CONSTANTS now
+# (DEFAULT_CONNECT_TIMEOUT and its three siblings) rather than inline literals,
+# and the construction moved out of the `AsyncClient(...)` call so
+# `_attempt_timeout` can clamp it to the outbound budget. DESIGN.md:346's
+# subject - "no single scalar" - is what this row still mutates.
 run_mutation "M16 the per-phase timeout becomes a single scalar" "$CLIENT" \
-  '            or httpx2.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0),' \
-  '            or httpx2.Timeout(30.0),' \
+  '        self._timeout = timeout or httpx2.Timeout(
+            connect=DEFAULT_CONNECT_TIMEOUT,
+            read=DEFAULT_READ_TIMEOUT,
+            write=DEFAULT_WRITE_TIMEOUT,
+            pool=DEFAULT_POOL_TIMEOUT,
+        )' \
+  '        self._timeout = timeout or httpx2.Timeout(30.0)' \
   'test_the_module_declares_an_explicit_per_phase_timeout'
 
 # M17 - a decode failure on a 200 claims Jobvite returned 200 as the error,
