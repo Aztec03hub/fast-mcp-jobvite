@@ -107,7 +107,7 @@ jobs:
       # SHELLCHECK_OPTS matches the threshold `bash.md:741,767` specifies
       # for ITSELF. actionlint runs shellcheck over every `run:` block, and
       # at the default threshold it reports one SC2015 (info) on the
-      # credentialed-collect step - `[ -n "$n" ] && [ "$n" -ge 3 ] || {...}`,
+      # credentialed-collect step - `[ -n "$n" ] && [ "$n" -ge 4 ] || {...}`,
       # where both operands are pure predicates so the idiom is correct.
       # Using the standard's own threshold keeps the two halves of that
       # standard - scripts and workflows - gated at one severity rather
@@ -440,7 +440,7 @@ jobs:
           # version was here first and would have failed this step every run.
           n=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ tests collected' \
                 | grep -oE '^[0-9]+' | tail -1)
-          [ -n "$n" ] && [ "$n" -ge 3 ] || {
+          [ -n "$n" ] && [ "$n" -ge 4 ] || {
             echo "::error::expected at least 3 credentialed tests collected, got '${n:-none}'"
             exit 1; }
 
