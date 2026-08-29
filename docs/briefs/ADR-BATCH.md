@@ -31,29 +31,36 @@ edit. This is the one task on the board that cannot run concurrently with anythi
 **Several carry a ruling that contradicts or corrects the body. APPLY THE RULING.** 0024, 0025 and
 0026 are the ones where reading only the Decision section produces the wrong edit.
 
-## The citation surface, measured at `9c41009` rather than estimated
+## The citation surface, re-measured at `1a51107` rather than estimated
 
 ```
-src               370        <- repoint
-tests             336        <- repoint
-scripts           125        <- repoint
-docs/briefs        42        <- repoint only THREE of these (see below)
+src               385        <- repoint
+tests             344        <- repoint
+scripts           132        <- repoint
+docs/briefs        42        <- repoint only the LIVE ones (see below)
 docs/adr           60        <- LEAVE (an ADR quotes the design it is amending)
-docs/worklogs     170        <- LEAVE (a worklog records what that unit saw)
-docs/reviews      519        <- LEAVE (a review cites the design as it stood)
+docs/worklogs     181        <- LEAVE (a worklog records what that unit saw)
+docs/reviews      476        <- LEAVE (a review cites the design as it stood)
 ```
 
-**834 to repoint, 788 to leave alone**, and the split is a judgement you should re-derive rather
+**861 to repoint, 717 to leave alone**, and the split is a judgement you should re-derive rather
 than inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this
 reason and says so; the same argument covers `docs/worklogs/` and applied ADRs.
+
+**These numbers moved between two measurements of the same brief.** They were 370 / 336 / 125 /
+170 / 519 at `9c41009`, so four went up and `docs/reviews` went DOWN by 43. **Re-measure before you
+start rather than trusting this block** - a count written into a document decays exactly this way,
+and this project has watched a retyped constant rot in a brief, two obligation rows, a CI comment
+and three harness floors.
 
 **`docs/briefs/` splits INSIDE itself, which is why its 42 is not 42.** A brief is an instruction
 while its task is open - a stale line number then sends an agent to the wrong text. Once the unit is
 done the brief is a RECORD of what that agent was told, and repointing it rewrites history exactly
-as repointing a worklog would. Measured: 19 brief files carry citations, `PREAMBLE.md` carries
-**ZERO**, and only two briefs belong to open tasks - `ADR-BATCH.md` (1) and `CRITICAL-COVERAGE.md`
-(2). **So the live brief set is 3 citations, not 42.** Re-derive that list at the time; more tasks
-will have closed.
+as repointing a worklog would. Measured at `1a51107`: 20 brief files carry citations, `PREAMBLE.md`
+carries **ZERO**, and the only briefs belonging to open tasks are `ADR-BATCH.md` (1) and
+`AUDIT-ROWS.md` (1). **So the live brief set is 2 citations, not 42, and it was 3 a few hours ago -
+`CRITICAL-COVERAGE.md` closed in between.** Re-derive that list against the task board at the time;
+more tasks will have closed.
 
 ## The recorded hazards, every one measured on this project
 
