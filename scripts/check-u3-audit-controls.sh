@@ -30,7 +30,13 @@ cd "$REPO_ROOT" || exit 3
 
 AUDIT="src/fast_mcp_jobvite/audit.py"
 REDACT="src/fast_mcp_jobvite/utils/redaction.py"
-SUITE="tests/test_audit.py tests/test_redaction.py"
+# tests/test_logging_process.py is in the suite deliberately. U3's assertions
+# all ran against a sink the FIXTURE installed, which is a real loguru stream
+# and not the one the server writes to - so A1 (emit() writes nothing) left
+# `test_arm1_before_the_side_effect_the_call_fails` green. The process arms
+# observe what the child actually wrote, so an amputated emit() has nowhere
+# to hide.
+SUITE="tests/test_audit.py tests/test_redaction.py tests/test_logging_process.py"
 
 PASS=0
 FAIL=0

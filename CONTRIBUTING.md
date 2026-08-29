@@ -91,6 +91,8 @@ bash scripts/check-u0-test-controls.sh # U0's controls, all must fire
 bash scripts/check-u15-gate-controls.sh
 bash scripts/check-u15-gate-amputation.sh  # survivors are the OUTPUT, not a failure
 bash scripts/check-u11-advisory-controls.sh
+bash scripts/check-u1-boot-controls.sh     # U1 mutation: every row must fire
+bash scripts/check-u1-boot-amputation.sh   # U1 amputation: survivors are the OUTPUT
 bash scripts/check-u3-audit-controls.sh    # U3 mutation: every row must be killed
 bash scripts/check-u3-audit-amputation.sh  # U3 amputation: survivors are the OUTPUT
 bash scripts/check-u4-client-controls.sh   # U4 mutation: every row must be killed

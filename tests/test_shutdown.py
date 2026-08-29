@@ -22,18 +22,22 @@ import ast
 import json
 import pathlib
 import signal
+import socket
 import subprocess
 import sys
 import time
 
 import pytest
 
+from fast_mcp_jobvite.__main__ import EXIT_CONFIGURATION_REFUSED, EXIT_SOFTWARE
 from tests.boot_process import (
     GRACE_SECONDS,
     clean_env,
     free_port,
     interpreter_of,
+    run_entry,
     spawn_marker_server,
+    wait_for_port,
 )
 
 TOKENS = json.dumps({"tok": ["jobs:read"]})
@@ -199,3 +203,78 @@ def test_the_handler_does_not_read_ambient_state() -> None:
         if isinstance(node, ast.Attribute) and node.attr == "signal"
     ]
     assert installs
+
+
+# ===========================================================================
+# ADR-0018, discharged BY THE SIDE EFFECT.
+# ===========================================================================
+
+
+def test_a_crashing_mcp_run_exits_70_read_from_the_process(
+    tmp_path: pathlib.Path,
+) -> None:
+    """ADR-0018 and DESIGN.md:1015-1023, asserted on the PROCESS's status.
+
+    **The structural assertion above is not a discharge of this.** It reads
+    `__main__.py`'s source and finds `os._exit(status)` and `EXIT_SOFTWARE =
+    70` in it. Every one of those substrings can be present while the process
+    exits 0 - a stray `finally` above, a `status` rebound, a swallowed
+    exception - and this file's own opening paragraph says why that matters:
+    a process that dies uncleanly can still exit 0, which is exactly why §8
+    #18 refuses to assert teardown by exit code. A defect ABOUT exit codes
+    cannot be discharged by grepping for one.
+
+    So this forces `mcp.run` to fail for a real reason - a bound port, the
+    cheapest one, and the one DESIGN.md:1021-1023 names - and reads the exit
+    status the supervisor would read.
+    """
+    # Hold the port for the whole arm. The listen backlog is what makes the
+    # child's bind fail rather than race.
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen(1)
+        port = int(held.getsockname()[1])
+
+        env = clean_env(
+            JOBVITE_MCP_TRANSPORT="http",
+            JOBVITE_MCP_HOST="127.0.0.1",
+            JOBVITE_MCP_PORT=str(port),
+            JOBVITE_HTTP_TOKENS=TOKENS,
+            JOBVITE_TOOLS="search_jobs",
+            **V2,
+        )
+        result = run_entry(tmp_path, env)
+
+    assert result.returncode == EXIT_SOFTWARE, (
+        f"a crashing mcp.run reported {result.returncode}; "
+        f"stderr:\n{result.stderr[-2000:]}"
+    )
+    # And it is a REAL failure, not a refusal wearing the same status: the
+    # configuration was accepted and the bind is what broke.
+    combined = result.stdout + result.stderr
+    assert "address already in use" in combined
+    assert result.returncode != EXIT_CONFIGURATION_REFUSED
+
+
+def test_a_clean_stop_still_reports_zero(tmp_path: pathlib.Path) -> None:
+    """The positive control for the arm above, on the same instrument.
+
+    Without it, `assert returncode == 70` passes against a `main()` that
+    returned 70 unconditionally, which is a different defect with the same
+    green. The same construction on a FREE port, stopped with SIGTERM, must
+    come back 0.
+    """
+    port = free_port()
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT="http",
+        JOBVITE_MCP_HOST="127.0.0.1",
+        JOBVITE_MCP_PORT=str(port),
+        JOBVITE_HTTP_TOKENS=TOKENS,
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+    )
+    proc, _marker, output = spawn_marker_server(tmp_path, env, stdio=False)
+    assert wait_for_port("127.0.0.1", port)
+    proc.send_signal(signal.SIGTERM)
+    returncode = proc.wait(timeout=GRACE_SECONDS)
+    assert returncode == 0, f"a clean stop reported {returncode}: {output.read_text()}"
