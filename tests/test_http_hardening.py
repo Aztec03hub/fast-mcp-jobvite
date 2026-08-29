@@ -25,6 +25,7 @@ C2-I1 exists for - with no assertion at all.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from typing import Any
@@ -78,6 +79,46 @@ ADOPTED_MIDDLEWARE = frozenset(
         "TimingMiddleware",
         "StructuredLoggingMiddleware",
         "RateLimitingMiddleware",
+    }
+)
+
+#: The middleware `FastMCP.__init__` appends on our behalf, which
+#: `build_middleware` never mentions and the design does not model.
+#:
+#: **Found by the equality assertion below on its first run, not by
+#: reading.** `server.py:477-482` appends `DereferenceRefsMiddleware()`
+#: whenever `dereference_schemas` is true, and it defaults to true, so
+#: the live stack is FOUR framework middleware and ours - not the three
+#: DESIGN.md §7.7 enumerates and not the three the C2 threat-model
+#: heading (`DESIGN.md:1725`) names as the stack it analysed.
+#:
+#: It is pinned here rather than waved through: this constant is what
+#: makes a framework bump that injects a SECOND such middleware a red
+#: test instead of a silent addition. Whether the design should be
+#: reconciled with it is raised as a task, not decided here - DESIGN.md
+#: is frozen and only a numbered ADR may change it.
+FRAMEWORK_INJECTED_MIDDLEWARE = frozenset({"DereferenceRefsMiddleware"})
+
+#: The framework middleware that are in no other bucket, named so that
+#: the four sets can be asserted EQUAL to what `fastmcp` actually ships
+#: (`test_every_framework_middleware_is_classified`).
+#:
+#: **These are undecided, not rejected.** `EXCLUDED_MIDDLEWARE`'s five
+#: each carry a measured reason in ADR-0004; these six have never
+#: been assessed. R7 established that `LoggingMiddleware` is both
+#: admissible and harmful - it is the payload-logging sibling of the
+#: middleware C2-I1 pins at `include_payloads=False` - and flagged
+#: `ToolInjectionMiddleware` as the next one to look at, since a
+#: middleware that can add tools sits upstream of the write gate and
+#: the scope map.
+UNCLASSIFIED_MIDDLEWARE = frozenset(
+    {
+        "AuthMiddleware",
+        "BaseLoggingMiddleware",
+        "DetailedTimingMiddleware",
+        "LoggingMiddleware",
+        "SlidingWindowRateLimitingMiddleware",
+        "ToolInjectionMiddleware",
     }
 )
 
@@ -136,6 +177,57 @@ def stdio_settings() -> Settings:
 def middleware_names(server: FastMCP[Any]) -> list[str]:
     """Return the class names of a built server's middleware stack."""
     return [type(item).__name__ for item in server.middleware]
+
+
+def discovered_middleware() -> frozenset[str]:
+    """Return every concrete `Middleware` subclass `fastmcp` ships.
+
+    **The container**, so that the hand-kept lists beside it can be
+    asserted equal to it rather than merely consistent with it. Walks
+    `fastmcp.server.middleware` and imports each module, so a module
+    added by a dependency bump is picked up without anyone editing a
+    list.
+
+    `Middleware` itself is excluded - it is the base, not a stack
+    member. Subclasses of subclasses are included: `LoggingMiddleware`
+    and `StructuredLoggingMiddleware` both descend from
+    `BaseLoggingMiddleware`, not directly from `Middleware`, and a
+    check on direct bases alone would miss the very class R7's M4
+    added.
+
+    **`walk_packages`, not `iter_modules`, and the difference is a
+    latent false negative rather than a live one.** The package is flat
+    today - both return the same 11 modules - so this changes no current
+    result. `iter_modules` does not RECURSE: were a subpackage added,
+    it would be listed, importing it would yield only what its
+    `__init__` re-exports, and any middleware defined in its submodules
+    would go silently undiscovered. That is a discovery that knows one
+    spelling of where a class can live, which is the same error this
+    whole assertion exists to catch.
+
+    Returns:
+        The class names, deduplicated across re-exports.
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    import fastmcp.server.middleware as package
+    from fastmcp.server.middleware import Middleware
+
+    names: set[str] = set()
+    for module_info in pkgutil.walk_packages(
+        package.__path__, prefix=f"{package.__name__}."
+    ):
+        module = importlib.import_module(module_info.name)
+        for obj in vars(module).values():
+            if (
+                inspect.isclass(obj)
+                and issubclass(obj, Middleware)
+                and obj is not Middleware
+            ):
+                names.add(obj.__name__)
+    return frozenset(names)
 
 
 def probe_server(settings: Settings) -> FastMCP[Any]:
@@ -223,6 +315,98 @@ def test_the_five_excluded_middleware_are_absent() -> None:
         server = build_server(transport_settings)
         present = set(middleware_names(server))
         assert not (EXCLUDED_MIDDLEWARE & present), present
+
+
+def test_the_stack_is_EXACTLY_the_adopted_three_plus_ours() -> None:
+    """R7-H1: the subset check above cannot notice an ADDITION.
+
+    `test_the_three_adopted_middleware_are_present` asserts
+    `ADOPTED_MIDDLEWARE <= present` and
+    `test_the_five_excluded_middleware_are_absent` asserts
+    `EXCLUDED_MIDDLEWARE & present` is empty. Between them they leave
+    the **seven** framework middleware in neither list completely
+    unseen, and R7 measured the consequence: a payload-logging
+    `LoggingMiddleware(include_payloads=True)` added to
+    `build_middleware` passed all 29 cases in this file and all 663 in
+    the suite.
+
+    **Equality, not subset.** This is the only assertion here that a
+    bare addition can fail, whatever class is added and whichever list
+    it is or is not in.
+
+    **It earned itself on its first run**, failing on the clean tree by
+    finding `DereferenceRefsMiddleware` - a framework-injected member
+    of the live stack that `build_middleware` does not add and no
+    document in this repository mentions. See
+    `FRAMEWORK_INJECTED_MIDDLEWARE`.
+    """
+    expected = (
+        ADOPTED_MIDDLEWARE | {"RequestIdMiddleware"} | FRAMEWORK_INJECTED_MIDDLEWARE
+    )
+    for transport_settings in (http_settings(), stdio_settings()):
+        server = build_server(transport_settings)
+        present = set(middleware_names(server))
+        assert present == expected, present
+
+
+def test_every_framework_middleware_is_classified() -> None:
+    """The container rule: enumerate it, never keep a list beside it.
+
+    `ADOPTED_MIDDLEWARE` and `EXCLUDED_MIDDLEWARE` name 8 of the 15
+    concrete `Middleware` subclasses `fastmcp` ships. A dependency bump
+    that adds a sixteenth is a class nobody has decided about, and
+    without this case nothing says so.
+
+    **`UNCLASSIFIED_MIDDLEWARE` is not an endorsement.** The five in
+    `EXCLUDED_MIDDLEWARE` were rejected for a measured reason recorded
+    in ADR-0004; these seven have never been assessed at all. The
+    constant exists so that the set is closed and a new arrival has to
+    be put somewhere deliberately.
+
+    **The positive controls come first**, because a discovery walk that
+    silently returns a short list gives a green that means nothing.
+    """
+    discovered = discovered_middleware()
+
+    # POSITIVE CONTROLS on the discovery mechanism itself.
+    assert len(discovered) > len(ADOPTED_MIDDLEWARE | EXCLUDED_MIDDLEWARE), (
+        "discovery found no more classes than the two hand-kept lists "
+        f"already name; it is not enumerating the container: {discovered}"
+    )
+    assert "LoggingMiddleware" in discovered, (
+        "the payload-logging class R7's M4 added is not in the discovered "
+        f"set, so this assertion could not have caught it: {discovered}"
+    )
+
+    # THE FOUR SETS MUST BE DISJOINT, or the union hides a
+    # double-classification: a name in both EXCLUDED and UNCLASSIFIED
+    # makes the union smaller than the parts, and the equality below
+    # would still pass while a class was governed two contradictory
+    # ways. Equality against a union is not equality against a
+    # PARTITION unless this is asserted.
+    buckets = {
+        "adopted": ADOPTED_MIDDLEWARE,
+        "excluded": EXCLUDED_MIDDLEWARE,
+        "framework-injected": FRAMEWORK_INJECTED_MIDDLEWARE,
+        "unclassified": UNCLASSIFIED_MIDDLEWARE,
+    }
+    overlaps = {
+        f"{one} & {other}": sorted(buckets[one] & buckets[other])
+        for one, other in itertools.combinations(sorted(buckets), 2)
+        if buckets[one] & buckets[other]
+    }
+    assert not overlaps, f"a class is classified two ways: {overlaps}"
+
+    governed = (
+        ADOPTED_MIDDLEWARE
+        | EXCLUDED_MIDDLEWARE
+        | FRAMEWORK_INJECTED_MIDDLEWARE
+        | UNCLASSIFIED_MIDDLEWARE
+    )
+    assert discovered == governed, {
+        "undecided (in fastmcp, in no list)": sorted(discovered - governed),
+        "stale (listed, no longer in fastmcp)": sorted(governed - discovered),
+    }
 
 
 def test_the_rate_limiter_has_a_get_client_id() -> None:
@@ -692,6 +876,60 @@ async def test_the_framework_default_throttles_everyone() -> None:
     assert drained > 0
     message = str(caught.value).lower()
     assert "global" in message or "rate limit" in message, message
+
+
+async def test_a_drained_client_is_locked_out_at_initialize_not_degraded() -> None:
+    """R7-L4: the bucket survives a reconnect, and HOW it survives.
+
+    The arm above documents connection-level refusal for the GLOBAL
+    keying, where it is the thing that makes the default bad. The
+    identical behaviour on the PER-CLIENT keying was undocumented and
+    untested, and it is operator-visible: a drained client does not lose
+    one tool call and carry on, it cannot complete `initialize` at all,
+    on a NEW connection with the same token.
+
+    Two properties in one sequence, and the second is what makes the
+    first mean anything:
+
+    - the bucket is keyed to the TOKEN, not to the connection, so a
+      noisy integrator cannot reset its own quota by reconnecting;
+    - a bystander opening a connection at the same moment is unaffected,
+      which is what separates "this client is locked out" from "the
+      server stopped accepting connections".
+
+    **Sequential and single-client, like every limiter measurement in
+    this file.** Behaviour under simultaneous callers is unverified, and
+    `U9-IMPL-REPORT.md:294` and `ADR-0002:44` both say so. This arm does
+    not change that and does not claim to.
+    """
+    with serve_http(limiter_server(per_client=True)) as url:
+        drained = await refusals(url, JOBS_TOKEN, DRAIN_CALLS)
+
+        # POSITIVE CONTROL: the bucket really is empty. Everything below
+        # would pass against a limiter that refused nothing.
+        assert drained > 0, "the client never drained; this arm proves nothing"
+
+        # A BRAND NEW CONNECTION on the SAME token. The refusal lands on
+        # `initialize`, so it raises out of the context manager rather
+        # than out of `call_tool`.
+        with pytest.raises(Exception) as caught:  # noqa: B017, PT011
+            async with Client(StreamableHttpTransport(url, auth=JOBS_TOKEN)):
+                pass
+
+        # THE BYSTANDER, on the same server, in the same block.
+        bystander = await refusals(url, CANDIDATES_TOKEN, 2)
+
+    message = str(caught.value).lower()
+    assert "rate limit" in message, message
+    # The id in the refusal is the DIGEST, never the bearer token -
+    # `token_client_id` doing its job on the one path that publishes it.
+    assert JOBS_TOKEN not in str(caught.value), str(caught.value)
+    assert token_client_id(JOBS_TOKEN) in str(caught.value), str(caught.value)
+
+    assert bystander == 0, (
+        "the bystander was refused too, so the lockout is not per-client "
+        "and the server is simply closed to everyone"
+    )
 
 
 # ======================================================================

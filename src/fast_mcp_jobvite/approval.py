@@ -30,12 +30,28 @@ one era and fails on the other**, which is why §8's case asserts the row
 count instead.
 
 **THE DISCRIMINATOR IS `protocol_version`, AND THE TWO OBVIOUS
-ALTERNATIVES ARE MEASURED TRAPS.** `ctx.transport` is **identical** on
-both eras (`'streamable-http'`) and `session_id` is **populated on
-both**, despite one era being called sessionless
-(`FASTMCP-SPIKE-4.md:2066-2074`). Neither can discriminate. A test pins
-`protocol_version` as the discriminator so a later refactor cannot
-quietly swap it for one of the two things that look like it and are not.
+ALTERNATIVES ARE MEASURED TRAPS.** `ctx.transport` is **identical on
+both eras**, and `session_id` is **populated on both**, despite one era
+being called sessionless (`FASTMCP-SPIKE-4.md:2066-2074`). Neither can
+discriminate. A test pins `protocol_version` as the discriminator so a
+later refactor cannot quietly swap it for one of the two things that
+look like it and are not.
+
+**Two values in that claim are transport-dependent, and saying so is
+the point (R7-L3).** `transport` is `'streamable-http'` on both eras
+over real streamable-HTTP, which is what `FASTMCP-SPIKE-4.md` measured;
+in-process - the transport this repository's whole suite runs on - it is
+`None` on both. **Identical either way, so the trap is real on both
+transports**, but the literal `'streamable-http'` is a value no test
+here can observe, and this paragraph named it as though it could.
+
+`session_id` needs the same care in the other direction: the REAL ones
+are per-session UUIDs and **differ** on every connection, measured
+in-process as `728ce0eb-...` against `960c1569-...`. It is "populated on
+both" that makes it useless as an era discriminator, never that it is
+equal on both - a session_id-keyed guard would fail loudly rather than
+quietly. `_FakeContext` gives both eras the SAME session_id, which is a
+convenience of the fake and not an observation about the framework.
 
 **AN UNIDENTIFIABLE ERA REFUSES.** The discriminator is correct for the
 two eras that have been measured; a third case exists - the version

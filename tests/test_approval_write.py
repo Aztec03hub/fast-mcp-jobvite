@@ -269,11 +269,21 @@ async def test_positive_control_an_approved_write_moves_the_row_counter_by_one(
 class _FakeRequestContext:
     """A request context carrying all three candidate discriminators.
 
-    **The two traps are POPULATED HERE ON PURPOSE**, and with the values
-    the spike measured: `transport` is `'streamable-http'` on both eras
-    and `session_id` is a real string on both. An implementation that
-    read either of them would sail through the arms below, because both
-    look exactly as they do on a working call.
+    **The two traps are POPULATED HERE ON PURPOSE**: `transport` is the
+    DEPLOYED value on both eras and `session_id` is a real string on
+    both. An implementation that read either of them would sail through
+    the arms below, because both look exactly as they do on a working
+    call.
+
+    **`'streamable-http'` is the deployed value, not a measured one
+    (R7-L3), and it is kept deliberately.** Over real streamable-HTTP
+    both eras report it, which is what `FASTMCP-SPIKE-4.md:2066-2074`
+    measured. In-process - the transport this whole suite runs on - the
+    real `ctx.transport` is `None` on both. The fake states the
+    deployment it is standing in for rather than the harness it runs
+    under; what matters to the trap is that the two eras AGREE, and they
+    agree either way. `test_the_traps_agree_on_the_real_context` pins
+    the in-process observation so the two cannot drift apart unnoticed.
     """
 
     def __init__(self, protocol_version: str | None) -> None:
@@ -312,26 +322,148 @@ class _Answer:
         self.content = content
 
 
-def test_the_discriminator_is_protocol_version_and_not_transport_or_session_id() -> (
+# E501: the name is one character over once `async` is prefixed, and it
+# is a HARNESS ANCHOR - `scripts/check-u10-write-controls.sh:192` names
+# this test verbatim, so shortening it to satisfy the line length would
+# silently unhook the row that proves this case can fail.
+async def test_the_discriminator_is_protocol_version_and_not_transport_or_session_id() -> (  # noqa: E501
     None
 ):
-    """The three candidates, separated.
+    """The three candidates, separated - by CALLING the guard.
 
-    `ctx.transport` and `session_id` are IDENTICAL on the two contexts
-    below and only `protocol_version` differs, so a guard keyed on
-    either trap cannot tell them apart. This is the assertion that stops
-    a later refactor swapping the discriminator for one of the two
-    things that look like it and are not.
+    **R7-L1: this case did not do what its name says.** Its body called
+    only `observed_protocol_version`, a four-line `getattr` helper, and
+    never reached `resolve_approval` at all. Its two "trap" assertions
+    compared `sessionless.transport` with `handshake.transport` and the
+    same for `session_id` - two `_FakeContext` objects this test
+    constructs itself, from the same hardcoded literals. They asserted
+    that a literal equals itself, and swapping the discriminator for
+    `transport` would not change either literal, so the refactor the
+    docstring claimed to stop would have passed.
+
+    It is now driven through `resolve_approval`, the function it names:
+
+    1. Two contexts differing ONLY in `protocol_version` must resolve to
+       DIFFERENT mechanisms - `SAMPLING` on the sessionless era,
+       `ELICITATION` on the handshake era. A guard keyed on `transport`
+       or `session_id` cannot produce two answers here, because those
+       are identical on both.
+    2. **The negative control, for what must NOT matter**: make
+       `transport` and `session_id` differ between the two contexts and
+       assert the mechanisms are UNCHANGED. Without this, a guard that
+       read `transport` and happened to agree on this pair would still
+       pass step 1.
+
+    The branch is not uncovered either way - R7's M2 mutation of the era
+    check is killed by two other cases - which is why this was a nit.
+    But a test whose name is a claim its body never exercises is a
+    recorded defect on this project, and the name is the part a later
+    reader trusts.
     """
-    from fast_mcp_jobvite.approval import observed_protocol_version
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        ApprovalMechanism,
+        resolve_approval,
+    )
 
-    sessionless = _FakeContext("2026-07-28")
+    async def mechanism_of(ctx: Any) -> ApprovalMechanism:
+        decision = await resolve_approval(
+            ctx, message="approve?", request_state="state"
+        )
+        assert isinstance(decision, ApprovalDecision), (
+            f"the era resolved to {type(decision).__name__}, not a decision; "
+            "this case cannot compare mechanisms"
+        )
+        return decision.mechanism
+
+    # The sessionless era needs its MRTR answers present, or it returns
+    # the pending FIRST leg instead of a settled decision.
+    answers = {APPROVAL_REQUEST_KEY: _Answer("accept", {"approve": True})}
+
+    sessionless = _FakeContext("2026-07-28", input_responses=answers)
     handshake = _FakeContext("2025-11-25")
 
+    # The two traps really are identical here, which is what makes the
+    # discrimination below attributable to the version alone.
     assert sessionless.transport == handshake.transport
     assert sessionless.session_id == handshake.session_id
-    assert observed_protocol_version(sessionless) == "2026-07-28"  # type: ignore[arg-type]
-    assert observed_protocol_version(handshake) == "2025-11-25"  # type: ignore[arg-type]
+
+    assert await mechanism_of(sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(handshake) == ApprovalMechanism.ELICITATION
+
+    # NEGATIVE CONTROL. Make both traps DIFFER and require the same two
+    # mechanisms: whatever the guard reads, it is not these.
+    varied_sessionless = _FakeContext("2026-07-28", input_responses=answers)
+    varied_sessionless.transport = "stdio"
+    varied_sessionless.session_id = "11111111-1111-4111-8111-111111111111"
+    varied_handshake = _FakeContext("2025-11-25")
+    varied_handshake.transport = "sse"
+    varied_handshake.session_id = "22222222-2222-4222-8222-222222222222"
+
+    assert varied_sessionless.transport != varied_handshake.transport
+    assert varied_sessionless.session_id != varied_handshake.session_id
+
+    assert await mechanism_of(varied_sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(varied_handshake) == ApprovalMechanism.ELICITATION
+
+
+async def test_the_traps_agree_on_the_real_context() -> None:
+    """R7-L3: the fakes above assert values this suite cannot produce.
+
+    `_FakeRequestContext` and `_FakeContext` set `transport` to
+    `'streamable-http'` and give both eras the SAME `session_id`. Over
+    real streamable-HTTP the first is right; in-process, which is what
+    everything here runs on, it is `None`. And real `session_id`s are
+    per-session UUIDs that DIFFER on every connection - the fakes make
+    them equal, which is a convenience of the fake and was being read as
+    an observation about the framework.
+
+    **The claim that matters survives either way, and this pins it:**
+    `transport` is EQUAL across the two eras, so it cannot discriminate.
+    `session_id` is POPULATED on both - that is what makes it a trap,
+    never that it is equal. Nothing else in this file measures the real
+    `Context`, so without this case the framework could change what
+    either returns and only the fakes would still agree.
+    """
+    from fastmcp import Client as ProbeClient
+    from fastmcp import FastMCP
+    from fastmcp.server.dependencies import get_context
+
+    probe = FastMCP("l3-probe")
+
+    @probe.tool
+    async def observe() -> dict[str, str]:
+        ctx = get_context()
+        return {
+            "transport": repr(getattr(ctx, "transport", None)),
+            "session_id": repr(getattr(ctx, "session_id", None)),
+            "protocol_version": repr(
+                getattr(ctx.request_context, "protocol_version", None)
+            ),
+        }
+
+    seen: dict[str, dict[str, str]] = {}
+    for mode in (SESSIONLESS_MODE, HANDSHAKE_MODE):
+        async with ProbeClient(probe, mode=mode) as client:
+            seen[mode] = (await client.call_tool("observe", {})).data
+
+    # POSITIVE CONTROL: the two eras really were distinguished, or the
+    # agreement below is agreement between two identical calls.
+    assert (
+        seen[SESSIONLESS_MODE]["protocol_version"]
+        != seen[HANDSHAKE_MODE]["protocol_version"]
+    ), seen
+
+    assert seen[SESSIONLESS_MODE]["transport"] == seen[HANDSHAKE_MODE]["transport"], (
+        f"transport now DIFFERS across eras, so it is no longer a trap: {seen}"
+    )
+
+    for mode in (SESSIONLESS_MODE, HANDSHAKE_MODE):
+        assert seen[mode]["session_id"] != repr(None), (
+            f"session_id is unpopulated on {mode}; the docstrings calling it "
+            f"a trap because it is populated on both are now wrong: {seen}"
+        )
 
 
 async def test_an_unidentifiable_era_refuses_and_logs_the_observed_value(
@@ -758,6 +890,20 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
 
     Asserted against the audit event the case above proves exists, not
     against an empty stream (DESIGN.md:1273-1281).
+
+    **R7-L2: this checked ONE of four values, and only `arguments`.** It
+    asserted `VALID_ARGS["email"]` absent and said nothing about
+    `first_name`, `last_name` or `job_eid` - all submitted, the first
+    two PII in their own right. It also serialised only
+    `e["arguments"]`, where U8's sibling
+    (`tests/test_tools_candidates.py:943`) serialises the WHOLE event.
+    The behaviour was correct - R7 probed all four - so this was a
+    partial check that happened to be pointed at a leak-free field.
+
+    Now every value in `VALID_ARGS` is checked, and against the whole
+    event: a redactor covering `arguments` while leaking the same value
+    into another structured field would have passed the old form, and a
+    JSON sink publishes every field.
     """
     ats = _JobviteRows()
     server = build_server(settings(), client_factory=ats.factory())
@@ -768,8 +914,9 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
 
     events = audit_events(audit_records)
     assert events, "the stream is empty; this absence would be vacuous"
-    serialised = json.dumps([e["arguments"] for e in events])
-    assert VALID_ARGS["email"] not in serialised, serialised
+    serialised = json.dumps(events, default=str)
+    for name, value in VALID_ARGS.items():
+        assert value not in serialised, (name, serialised)
 
 
 # ======================================================================
@@ -956,6 +1103,57 @@ async def test_send_email_true_is_forwarded_and_not_quietly_dropped() -> None:
         )
 
     assert ats.rows[0]["candidate"]["sendEmail"] is True
+
+
+@pytest.mark.parametrize("send_email", [True, False])
+async def test_the_audit_event_records_send_email_as_its_value(
+    audit_records: list[dict[str, Any]],
+    send_email: bool,
+) -> None:
+    """R7-M4: the audit event must answer "did this email a person?".
+
+    `send_email` was in `NON_SENSITIVE_ARGUMENT_KEYS`' complement, so
+    the audit event recorded it as `[REDACTED:bool]`. For every other
+    argument recording the SHAPE is what makes the event auditable
+    (`utils/redaction.py`'s own docstring). **For a `bool` the shape is
+    the whole domain**, so the record could not distinguish a write that
+    emailed a live person from one that did not.
+
+    `DESIGN.md:1719` C1-T1 names flipping this field to `true` a
+    **High** threat and `DESIGN.md:242` makes its `false` default a
+    safety property. The audit event is the artefact a compliance reader
+    consults after the fact, and it was the one place that question had
+    to be answerable and was not.
+
+    **BOTH directions, because R7 measured it unpinned in both.** Adding
+    the key broke nothing - and no test asserted it was redacted either,
+    so the previous behaviour was held in place by nothing at all. A
+    single-value arm here would pass against a tool that hard-codes
+    whichever value it was written with.
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(
+            CREATE_CANDIDATE,
+            {"params": {**VALID_ARGS, "send_email": send_email}},
+        )
+
+    events = audit_events(audit_records)
+    assert events, "the invocation emitted no audit event; this would be vacuous"
+    recorded = events[-1]["arguments"]["send_email"]
+    assert recorded is send_email, (
+        f"the audit event records send_email as {recorded!r}, not {send_email!r}; "
+        "C1-T1 cannot be answered from this record"
+    )
+
+    # The pairing: admitting this key must not admit the PII beside it.
+    for pii_key in ("first_name", "last_name", "email"):
+        assert events[-1]["arguments"][pii_key] == "[REDACTED:str]", (
+            f"{pii_key} is no longer redacted in the audit event"
+        )
 
 
 async def test_the_body_reaches_the_wire_under_jobvites_own_keys() -> None:
@@ -1149,15 +1347,66 @@ def test_the_write_method_is_not_in_the_retryable_set() -> None:
 #: below report its OWN pattern list and its own function names as
 #: claims - a checker that cannot be run over the file it lives in is a
 #: checker with a hole exactly where its author was standing.
-_CLAIMANTS = ("a human", "human", "a person")
-_HUMAN_CLAIMS = tuple(f"{who} approved" for who in _CLAIMANTS) + tuple(
-    f"approved by {who}" for who in _CLAIMANTS
+#: **The bare nouns, and the articled forms are DERIVED from them**, so
+#: that adding a claimant is one edit rather than three that can
+#: disagree. R7 evaded the original three with `a recruiter` - a
+#: claimant no more exotic than the ones already listed, in a repository
+#: about recruiting.
+_BARE_CLAIMANTS = (
+    "human",
+    "person",
+    "reviewer",
+    "recruiter",
+    "user",
+    "operator",
+    "someone",
+)
+_CLAIMANTS = _BARE_CLAIMANTS + tuple(
+    f"{'an' if who[0] in 'aeiou' else 'a'} {who}"
+    for who in _BARE_CLAIMANTS
+    if who != "someone"
+)
+
+#: The verbs that assert the act. `approved` alone let `authorised this
+#: write` through, which is the same claim in a synonym.
+_VERBS = ("approved", "authorised", "authorized", "signed off")
+
+#: The phrasings this unit may never assert, in all three shapes the
+#: claim takes: subject-verb, the passive `by`, and the hyphenated
+#: adjective form, which neither of the other two matches.
+#:
+#: **Assembled, never spelt** - and the widening proved why within
+#: minutes of being written. A first draft of this very comment wrote
+#: the hyphenated example out in full as an illustration, and the
+#: scanner reported the comment. That is the header's warning arriving
+#: on schedule: the checker with a hole where its author was standing.
+_HUMAN_CLAIMS = (
+    tuple(f"{who} {verb}" for who in _CLAIMANTS for verb in _VERBS)
+    + tuple(f"{verb} by {who}" for who in _CLAIMANTS for verb in _VERBS)
+    + tuple(
+        f"{who}-{verb}" for who in _BARE_CLAIMANTS for verb in _VERBS if " " not in verb
+    )
 )
 
 #: A denial reads as a claim to a substring search, so an occurrence is
 #: read together with the text before it.
 _NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't")
-_NEGATION_WINDOW = 160
+
+#: Where a negator stops applying: the end of the claim's own clause.
+#:
+#: **This used to be a 160-character window, and R7 measured what that
+#: cost.** A negator anywhere in the preceding 160 characters suppressed
+#: the hit, whatever it was negating, so the forbidden claim spelt
+#: exactly as `_HUMAN_CLAIMS[0]` spells it went unreported whenever any
+#: unrelated denial happened to sit nearby - 6 of 6 crafted evasions,
+#: and 24-40% of the four scanned files sat inside such a shadow. **The
+#: tripwire was blindest exactly where the prose denies the most**,
+#: which is the prose the rule exists to require.
+#:
+#: A comma is deliberately NOT a boundary: *"we never claim X, only
+#: that a response came back"* is one clause and the negator governs
+#: all of it.
+_CLAUSE_BOUNDARY = re.compile(r"[.;:!?]")
 
 
 def _unnegated_claims(text: str) -> list[str]:
@@ -1176,10 +1425,17 @@ def _unnegated_claims(text: str) -> list[str]:
     nobody made.**
 
     **This is a TRIPWIRE, not a proof.** It errs toward flagging: a
-    denial phrased with its negator further back than the window is
-    reported, and the fix is to tighten the sentence rather than widen
-    the window. It cannot see a claim made in words it does not know,
-    which is why review still applies.
+    denial phrased with its negator in an EARLIER clause than the claim
+    is reported, and the fix is to tighten the sentence rather than to
+    widen the scope. It cannot see a claim made in words it does not
+    know, which is why review still applies.
+
+    **The negator must govern the claim's own clause**, not merely sit
+    somewhere near it. R7 measured the earlier 160-character window
+    missing 6 of 6 crafted evasions - including the forbidden claim
+    spelt exactly as this file spells it, suppressed by an unrelated
+    denial in the previous sentence - with a quarter to two-fifths of
+    every scanned file inside such a shadow. See `_CLAUSE_BOUNDARY`.
 
     Args:
         text: The lower-cased source of one owned file.
@@ -1192,7 +1448,8 @@ def _unnegated_claims(text: str) -> list[str]:
     for phrase in _HUMAN_CLAIMS:
         offset = flat.find(phrase)
         while offset != -1:
-            before = flat[max(0, offset - _NEGATION_WINDOW) : offset]
+            boundaries = [m.end() for m in _CLAUSE_BOUNDARY.finditer(flat, 0, offset)]
+            before = flat[(boundaries[-1] if boundaries else 0) : offset]
             if not any(negator in before for negator in _NEGATORS):
                 found.append(flat[max(0, offset - 60) : offset + len(phrase)])
             offset = flat.find(phrase, offset + 1)
@@ -1213,13 +1470,51 @@ def test_the_wording_rule_holds_across_every_file_this_unit_owns(
 
     **This file is one of the files it scans**, which is why the
     patterns above are assembled rather than spelt.
+
+    **The scope is three CONTAINERS plus this file, not a list of
+    paths.** It was four typed paths, and R7 found two files the claim
+    could be written into that nobody had added: `errors.py`, which
+    holds `ApprovalRefusedError`, and ADR-0028, which is precisely the
+    kind of document the docstring above calls one *"a compliance
+    reader later treats as authoritative"*. Enumerating the directories
+    closes both, and closes the next file nobody thinks to add.
+
+    **Repo-wide was measured and rejected**, not assumed too broad.
+    Scanning all 243 tracked `.py`/`.md` files reports 18 hits, every
+    one of them benign: `README.md`, this repository's own review and
+    brief documents, and `FASTMCP-SPIKE-4.md` all quote the forbidden
+    phrasing in order to forbid it. The rule governs documents that
+    ASSERT how this system behaves, not documents that discuss the
+    rule, so `docs/reviews`, `docs/briefs` and `docs/research` are out
+    of scope by measurement.
     """
-    owned = [
-        repo_root / "src" / "fast_mcp_jobvite" / "approval.py",
-        repo_root / "src" / "fast_mcp_jobvite" / "tools" / "candidates.py",
-        repo_root / "tests" / "test_approval_write.py",
-        repo_root / "docs" / "worklogs" / "U10-IMPL-REPORT.md",
-    ]
+    owned = sorted(
+        {
+            *(repo_root / "src" / "fast_mcp_jobvite").rglob("*.py"),
+            *(repo_root / "docs" / "adr").glob("*.md"),
+            *(repo_root / "docs" / "worklogs").glob("*.md"),
+            repo_root / "tests" / "test_approval_write.py",
+        }
+    )
+
+    # A glob at a path that stopped resolving returns an empty list and
+    # this whole case would pass having read nothing - the wrong-zero
+    # this project has recorded three times. The floor is well under
+    # the 83 files the three containers hold today, so it fires on a
+    # broken glob without going red on ordinary deletions.
+    assert len(owned) >= 40, f"only {len(owned)} files scanned; a glob is not resolving"
+
+    # POSITIVE CONTROL on the derivation: the two files R7 found missing
+    # from the typed list must be inside what the containers produce.
+    for required in (
+        repo_root / "src" / "fast_mcp_jobvite" / "errors.py",
+        repo_root
+        / "docs"
+        / "adr"
+        / "0028-approval-mechanism-names-a-path-this-design-does-not-use.md",
+    ):
+        assert required in owned, f"the derivation does not reach {required}"
+
     for path in owned:
         assert path.exists(), f"the path does not resolve: {path}"
         text = path.read_text().lower()
@@ -1236,15 +1531,40 @@ def test_positive_control_the_wording_tripwire_can_actually_fire() -> None:
     failure mode. So the tripwire is shown catching an assertion, and
     shown NOT catching the two denials that broke its first two
     versions.
+
+    **The six evasions R7 measured are arms here, and they are the
+    ratchet.** Without them the scanner can be reverted to its
+    160-character window and its three-claimant list, and every one of
+    these claims goes silently unreported again with the suite green.
+    Each phrase is assembled from `_CLAIMANTS` and `_VERBS` rather than
+    spelt, because this file is one of the files the rule scans.
     """
-    assert _unnegated_claims(f"the write proceeded because {_HUMAN_CLAIMS[0]} it")
-    assert _unnegated_claims(f"the record was {_HUMAN_CLAIMS[3]} before it was sent")
+    claim = f"a human {_VERBS[0]}"
+
+    # It fires on the bare claim, subject-verb and passive shapes both.
+    assert _unnegated_claims(f"the write proceeded because {claim} it")
+    assert _unnegated_claims(f"the record was {_VERBS[0]} by a human before sending")
+
+    # It does NOT fire on the two denials that broke its first two
+    # versions - the negator governs the claim's own clause.
+    assert not _unnegated_claims(f"this does **not** establish that {claim} anything")
     assert not _unnegated_claims(
-        f"this does **not** establish that {_HUMAN_CLAIMS[0]} anything"
+        f"we never claim {claim} it, only that a response came back"
     )
-    assert not _unnegated_claims(
-        f"we never claim {_HUMAN_CLAIMS[0]} it, only that a response came back"
+
+    # R7's six evasions. The first three are the serious ones: the
+    # forbidden claim spelt exactly as this file spells it, formerly
+    # suppressed by an unrelated denial within 160 characters.
+    evasions = (
+        f"the elicitation handler is not optional here. {claim} this write.",
+        f"we never cache a tool that mints one-time state. {claim} this write.",
+        f"the host doesn't buffer anything. {claim} this write.",
+        f"a recruiter {_VERBS[0]} this write.",
+        f"a human {_VERBS[1]} this write.",
+        f"this write was human-{_VERBS[0]}.",
     )
+    for evasion in evasions:
+        assert _unnegated_claims(evasion), f"evasion not caught: {evasion}"
 
 
 async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:

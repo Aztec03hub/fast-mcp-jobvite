@@ -105,10 +105,20 @@ SECRET_HEADERS: Final[frozenset[str]] = frozenset({"x-jvi-api", "x-jvi-sc"})
 #:
 #: **Fail-closed: anything absent from this set is redacted.** Every
 #: member is here because its value is structurally an identifier, a
-#: bound or a page cursor rather than anything a candidate typed or that
-#: identifies one. A tool added later contributes its arguments to the
-#: audit event redacted, and stays that way until someone adds the key
-#: here deliberately - which is the point.
+#: bound, a page cursor, **or a closed-domain flag whose shape IS its
+#: value** - rather than anything a candidate typed or that identifies
+#: one. A tool added later contributes its arguments to the audit event
+#: redacted, and stays that way until someone adds the key here
+#: deliberately - which is the point.
+#:
+#: **The fourth clause was added with `send_email` and is not a
+#: loosening.** For every other argument here, recording the SHAPE is
+#: enough to make the event auditable. For a `bool` the shape is the
+#: whole domain, so `[REDACTED:bool]` answers nothing: the record cannot
+#: distinguish a write that emailed a live person from one that did not.
+#: A flag qualifies only when its domain is closed AND enumerating it
+#: discloses nothing about a candidate - which is why `query`, also a
+#: single value, is still absent below.
 #:
 #: `query` is deliberately ABSENT. A `search_candidates` query is free
 #: text a caller composed, and the obvious thing to search for is a
@@ -124,6 +134,39 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         "count",
         "page",
         "eId",
+        # ADMITTED BY THE FOURTH CLAUSE ABOVE, AND IT IS THE ONE
+        # ARGUMENT HERE WITH A THREAT ROW OF ITS OWN. DESIGN.md:1719
+        # C1-T1 names flipping `send_email` to `true` a HIGH threat and
+        # DESIGN.md:242 makes its `false` default a safety property.
+        # Redacted to `[REDACTED:bool]` the audit event - the artefact a
+        # compliance reader consults after the fact - could not answer
+        # "did this write email a live person?", which is the single
+        # question that row exists to make answerable.
+        #
+        # AND THE DESIGN ALREADY REQUIRES THE VALUE TO BE DISCLOSED.
+        # DESIGN.md:1070-1071: the elicitation payload "names the
+        # candidate, the target job, and **whether `send_email` is
+        # true**, in those terms" - so the value is shown to the
+        # approver at the moment of approval. A value the design
+        # mandates showing to the approver cannot coherently be a secret
+        # in the record of what was approved.
+        #
+        # **There is no tension with DESIGN.md:1072, and reading half of
+        # it manufactured one.** That line says `send_email` "is also an
+        # argument like any other AND IS SUBJECT TO §2.1's SCHEMA RULES;
+        # it defaults to `false` (§2.2)". It is scoped to schema and
+        # defaulting - it says this field gets no special treatment from
+        # the INPUT MODEL, and says nothing about the audit surface. A
+        # citation trimmed at the comma reads as a conflict with C1-T1
+        # and there is none; that misreading was carried into a review,
+        # a task and this comment before anyone quoted the sentence
+        # whole.
+        #
+        # NOT A LICENCE TO WIDEN. The next flag proposed for this list
+        # gets both questions asked out loud, and "it is a bool" is not
+        # on its own an answer: `approve` is also a bool and belongs
+        # nowhere near here.
+        "send_email",
         # `companyId` WAS HERE AND IS A CREDENTIAL. R2-H5.
         #
         # This file already classified it as one: SECRET_QUERY_PARAMS

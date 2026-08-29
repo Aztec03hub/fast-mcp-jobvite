@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import logging as stdlib_logging
+import pathlib
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -52,6 +53,7 @@ from fast_mcp_jobvite.models.job_feed import JOB_FEED_ENVELOPE_KEY
 from fast_mcp_jobvite.models.jobs import JOBS_ENVELOPE_KEY
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import (
+    JOBFEED_PAGE_CAP,
     JOBFEED_PATH,
     V1_BASE_URL,
     JobviteClient,
@@ -340,6 +342,98 @@ async def test_case2_the_url_bearing_producer_emits_it_redacted(
     assert COMPANY_ID not in message
 
 
+async def call_feed_raising(exc: Exception) -> Any:
+    """Drive `get_job_feed` against a raising transport, and return it.
+
+    The sibling of `call_feed`. Its handler raises rather than
+    responding, which is the only way to reach the branch that turns an
+    `httpx2` transport exception into a caller-visible `detail`.
+    """
+
+    def make() -> JobviteClient:
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            raise exc
+
+        return JobviteClient(
+            api_key=SecretStr(FEED_KEY),
+            api_secret=SecretStr(FEED_SECRET),
+            company_id=SecretStr(COMPANY_ID),
+            transport=httpx2.MockTransport(handler),
+        )
+
+    server = build_server(settings(), client_factory=make)
+    async with Client(server) as client:
+        return await client.call_tool(
+            GET_JOB_FEED, {"params": {}}, raise_on_error=False
+        )
+
+
+@pytest.mark.parametrize("failure", ["read_timeout", "connect_error"])
+async def test_case2_a_jobfeed_transport_failure_carries_no_secret_to_the_caller(
+    failure: str,
+) -> None:
+    """THE CALLER-VISIBLE HALF OF C5-I1, which was never built.
+
+    The three arms above measure the LOG stream and measure it well.
+    Nothing measured the other stream: the `detail` a jobFeed failure
+    returns to the MCP caller, which reaches the model, the model's
+    host, and whatever logs that host keeps.
+
+    **The behaviour is correct today and nothing held it there.** R7
+    probed it and found no leak - `detail` is enumerated prose, never
+    `str(exc)`. But `errors.py` is one edit away from the shape
+    R2-M5/L1 already found and fixed on the log stream, and that edit
+    passed every test in the repository. This is the ratchet, not a
+    bug report.
+
+    **The positive halves come first**, because an absence assertion
+    over a call that never failed, or over a URL that never carried the
+    secret, passes perfectly while measuring nothing.
+
+    **And it asserts the VALUE, not the token.** `f"sc={FEED_SECRET}"`
+    absent, never `"sc="` absent - the arm above records by measurement
+    why the literal-token form is the wrong assertion: it fails on a
+    compliant redacted line and passes on a line that never carried the
+    parameter at all.
+    """
+    url = (
+        f"{V1_BASE_URL}{JOBFEED_PATH}"
+        f"?api={FEED_KEY}&sc={FEED_SECRET}&companyId={COMPANY_ID}"
+    )
+    # POSITIVE HALF 1: the exception text really does carry the secret
+    # before anything redacts it. Without this the absence below could
+    # pass against a probe that never had a secret to leak.
+    assert f"sc={FEED_SECRET}" in url, (
+        "the probe URL carries no secret; this arm would be vacuous"
+    )
+
+    request = httpx2.Request("GET", url)
+    message = f"timed out for url {url}"
+    exc: Exception = (
+        httpx2.ReadTimeout(message, request=request)
+        if failure == "read_timeout"
+        else httpx2.ConnectError(message, request=request)
+    )
+    assert f"sc={FEED_SECRET}" in str(exc), (
+        "the exception does not carry the secret; this arm would be vacuous"
+    )
+
+    result = await call_feed_raising(exc)
+
+    # POSITIVE HALF 2: the call really did fail. An absence measured
+    # over a SUCCESSFUL call says nothing about the failure path.
+    assert result.is_error, (
+        "the call succeeded, so the failure branch never ran and the "
+        "absence below would be vacuous"
+    )
+
+    text = json.dumps([block.text for block in result.content])
+    assert FEED_SECRET not in text, text
+    assert f"sc={FEED_SECRET}" not in text, text
+    assert FEED_KEY not in text, text
+    assert COMPANY_ID not in text, text
+
+
 async def test_case2_the_url_never_reaches_a_log_record_whole(
     log_records: list[dict[str, Any]],
 ) -> None:
@@ -613,8 +707,80 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
     assert build_feed_result(payload, 1).total == 900
 
 
+def _numeric_literals(path: pathlib.Path) -> list[int | float]:
+    """Every numeric literal in a module, by VALUE not by spelling.
+
+    `ast` normalises `1000`, `1_000` and `0x3E8` to the same `int`, so a
+    caller comparing against `JOBFEED_PAGE_CAP` cannot be evaded by
+    respelling the number. Booleans are excluded: `True` is an `int`
+    subclass and would otherwise compare equal to 1.
+
+    **Docstrings and comments do not appear here**, which preserves the
+    original assertion's deliberate allowance that the number may be
+    mentioned in PROSE explaining whose cap it is. A comment is not in
+    the tree at all, and a docstring is a `str` constant, not a numeric
+    one.
+
+    Args:
+        path: The module to parse.
+
+    Returns:
+        Every numeric literal, in tree order.
+    """
+    import ast
+
+    return [
+        node.value
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path)))
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+    ]
+
+
+#: `tools/jobs.py`, the module that must not restate the transport cap.
+_JOBS_MODULE = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "fast_mcp_jobvite"
+    / "tools"
+    / "jobs.py"
+)
+
+#: The client module, which is where the cap legitimately lives. Used
+#: as the positive control for the walk above.
+_CLIENT_MODULE = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "fast_mcp_jobvite"
+    / "services"
+    / "jobvite_client.py"
+)
+
+
+def test_positive_control_the_literal_walk_finds_the_cap_where_it_lives() -> None:
+    """R7-M2's failure mode: an `ast` walk that finds nothing passes.
+
+    The case below asserts the cap's value is ABSENT from
+    `tools/jobs.py`. That absence means nothing unless the same walk
+    can be shown finding the value where it really is - a broken path,
+    a swallowed parse or a wrong predicate all produce an empty list
+    that reads exactly like a clean module.
+
+    So the walk is pointed at `services/jobvite_client.py`, which
+    declares `JOBFEED_PAGE_CAP`, and must find it there.
+    """
+    assert _CLIENT_MODULE.exists(), f"the path does not resolve: {_CLIENT_MODULE}"
+    literals = _numeric_literals(_CLIENT_MODULE)
+    assert literals, "the walk found no numeric literals at all; it is not parsing"
+    assert JOBFEED_PAGE_CAP in literals, (
+        "the walk cannot find the cap in the module that declares it, so "
+        "its absence from tools/jobs.py would be vacuous"
+    )
+
+
 def test_the_transport_cap_is_not_reimplemented_here() -> None:
-    """U6 owns the 1000 cap; this unit consumes it.
+    """U6 owns the page cap; this unit consumes it.
 
     The design states the `/v1/jobFeed` page cap once, in the client
     layer (DESIGN.md:434), and `services/jobvite_client.py` is not this
@@ -622,22 +788,25 @@ def test_the_transport_cap_is_not_reimplemented_here() -> None:
     made the RESULT cap wrong in two halves that were each correct
     alone (U6's F1), so this asserts the absence **by reading the
     module's own source** rather than by trusting that nobody typed it.
-    """
-    import pathlib
 
-    source = (
-        pathlib.Path(__file__).resolve().parents[1]
-        / "src"
-        / "fast_mcp_jobvite"
-        / "tools"
-        / "jobs.py"
-    ).read_text()
-    # The number may appear in PROSE explaining whose it is; what must
-    # not appear is a comparison or slice using it.
-    for forbidden in ("[:1000]", "min(1000", "1000)", "= 1000"):
-        assert forbidden not in source, (
-            f"`{forbidden}` in tools/jobs.py: the transport cap is the client's"
-        )
+    **It matches on VALUE, not on spelling, and that is R7-M2.** This
+    was four literal substrings - `[:1000]`, `min(1000`, `1000)` and
+    `= 1000` - and R7 inserted a genuine reimplementation of the cap
+    into `build_feed_result` spelt `_LOCAL_TRANSPORT_CAP = 1_000`. It
+    contains none of the four, and the whole file passed: 68 passed,
+    exit 0, reproduced here before this was changed. Neither would
+    `items[0:1000]`, `if n > 1000:`, `cap=1000` or `0x3E8`.
+
+    The cap is IMPORTED rather than typed, so this case follows the
+    value if U6 ever changes it instead of pinning a number of its own -
+    which would be the two-declarations defect all over again, in the
+    test written to prevent it.
+    """
+    assert _JOBS_MODULE.exists(), f"the path does not resolve: {_JOBS_MODULE}"
+    assert JOBFEED_PAGE_CAP not in _numeric_literals(_JOBS_MODULE), (
+        f"the value {JOBFEED_PAGE_CAP} is a literal in tools/jobs.py: "
+        "the transport cap is the client's, whatever it is spelt or named"
+    )
 
 
 # ======================================================================
