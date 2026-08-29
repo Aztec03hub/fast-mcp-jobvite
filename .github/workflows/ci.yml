@@ -475,10 +475,10 @@ jobs:
       # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
       # shape stops matching, every anchor that still parses resolves perfectly
       # and the checker reports OK on a fraction of its coverage. Measured:
-      # deleting one shape drops 154 to 139 with an exit code of 0. Lowering
+      # deleting one shape drops 164 to 149 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 154
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 164
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -512,10 +512,12 @@ jobs:
       # one thing at a time in a COPY of the tree and requires the named test to go
       # red. Same "all fired, never a literal count" rule as the design controls.
       #
-      # NOTE, measured while wiring these gates: this is the one harness whose
-      # anchors scripts/check-harness-anchors.py cannot read, because it mutates
-      # with `sed -i` expressions rather than literal anchors. The checker NAMES
-      # it on every run rather than reporting a clean zero over it.
+      # NOTE: this harness mutates with `sed -i` expressions rather than literal
+      # anchors. The checker read none of them until shape D landed - it NAMED
+      # the harness as an unread mechanism rather than reporting a clean zero,
+      # which is why that gap was a task and not an incident. It now contributes
+      # 11 of the 164 anchors, and found a dead expression in one of them on its
+      # first run.
       - name: U0 test controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u0-test-controls.sh --controls-fired
 
