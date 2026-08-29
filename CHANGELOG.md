@@ -235,6 +235,13 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Changed
 
+- **`main` now keeps its CI runs; every other ref still cancels.** `cancel-in-progress` was true for
+  all refs, which is right for a busy branch and wrong for a trunk: on `main` the run IS the record,
+  and a cancelled run leaves none. Measured on 2026-08-29, `main` had **54 cancelled runs, 5
+  failures and zero successes in a day** - and because a cancelled conclusion is not a failure,
+  nothing read as red while the trunk had been broken for hours. Each push cancelled the evidence
+  that the previous one was broken. (2026-08-29 12:45 PM CDT)
+
 - ADRs separated from the freeze. The two jobs the instrument was doing - recording a deviation
   from a required standard, and being the only thing that may change a frozen design - were stated
   in consecutive sentences of the same README and had no way to be told apart. Deviations are
