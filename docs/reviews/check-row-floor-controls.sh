@@ -50,6 +50,27 @@ set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# TWO CONSUMERS, TWO DIFFERENT CLAIMS, AND DO NOT CONFLATE THEM.
+# `check-row-floor-exactness.py` reads columns 1-3 of this table and checks
+# STATICALLY that each floor equals its harness's row count. THIS script
+# reads all five and WATCHES the floor fire by removing real rows.
+#
+# The exactness claim now covers all 23 rows below. The firing claim covers
+# only the first NINE - the ones #91 actually ran - plus
+# `check-u15-gate-amputation.sh` in the singular
+# `check-row-floor-control.sh`. **The fourteen added afterwards have been
+# checked but never watched.** `--list` prints the table, not the evidence;
+# a reader who takes a row here as proof the floor has been seen to fire is
+# reading more than this file says. Task #102 is the remainder.
+#
+# For those fourteen the ERE and the EXTRA were DERIVED per harness and
+# checked rather than assumed: each has exactly ONE counter increment and it
+# sits INSIDE its row function, so EXTRA is 0. The method was validated
+# against `check-harness-anchors-controls.sh`, which has TWO increments -
+# one inside, one at top level for its inline F1 row - and is the reason
+# that row's EXTRA is 1. Without that control an ERE-only count would read
+# a low count against a low floor as "tight".
+#
 # harness | row-invocation ERE | rows the harness counts that the ERE canNOT
 # match | the exit code that harness uses for a floor breach
 #
@@ -72,6 +93,20 @@ check-u15-gate-controls.sh|@@.*@@.*@@|0|1|data
 check-u3-audit-controls.sh|^run_mutation \"|0|1|cmd
 check-u4-client-controls.sh|^run_mutation \"|0|1|cmd
 check-u7-resilience-controls.sh|^mutate \"|0|1|cmd
+check-body-cap-amputation.sh|^amputate \"|0|1|cmd
+check-body-cap-controls.sh|^mutate \"|0|1|cmd
+check-critical-coverage-amputation.sh|^amputate \"|0|1|cmd
+check-log-redaction-amputation.sh|^amputate \"|0|1|cmd
+check-u10-write-controls.sh|^mutate \"|0|1|cmd
+check-u12-jobfeed-controls.sh|^mutate \"|0|1|cmd
+check-u14-arguments-controls.sh|^mutate \"|0|1|cmd
+check-u5-jobs-amputation.sh|^amputate \"|0|1|cmd
+check-u5-jobs-controls.sh|^mutate \"|0|1|cmd
+check-u6-paging-amputation.sh|^amputate \"|0|1|cmd
+check-u6-paging-controls.sh|^mutate \"|0|1|cmd
+check-u8-candidates-amputation.sh|^amputate \"|0|1|cmd
+check-u8-candidates-controls.sh|^mutate \"|0|1|cmd
+check-u9-http-controls.sh|^mutate \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }
@@ -214,12 +249,24 @@ git -C "$REPO" diff --quiet -- "$S" \
   || { echo "::error::RESTORE FAILED - $S still differs from HEAD"; exit 9; }
 
 echo "--- the floor's own line ---"
-grep -E "(^|[^0-9])${EXPECT}/${FLOOR} ROWS" "$B.out" || true
+grep -E "(^|[^0-9])${EXPECT}/${FLOOR} ROWS|holds ${EXPECT} rows, below its floor of ${FLOOR}" \
+  "$B.out" || true
 echo "exit with $DELETE row(s) deleted: $rc (must be $WANT_RC)"
 
+# THE FIFTH TALLY SHAPE. Four were found among the first nine; the u5, u6
+# and u8 AMPUTATION harnesses print a fifth - "holds N rows, below its
+# floor of M" - with no `N/M ROWS` anywhere in it. A control asserting only
+# the `N/M ROWS` form calls those three broken while they are working
+# perfectly, which is the same class of error as assuming one exit code.
+floor_line() {
+  grep -qE "(^|[^0-9])${EXPECT}/${FLOOR} ROWS" "$1" ||
+    grep -qF "holds ${EXPECT} rows, below its floor of ${FLOOR}" "$1"
+}
+
 ok=0
-grep -qE "(^|[^0-9])${EXPECT}/${FLOOR} ROWS" "$B.out" || {
-  echo "::error::the floor did NOT print '$EXPECT/$FLOOR ROWS'. Either the"
+floor_line "$B.out" || {
+  echo "::error::the floor named neither '$EXPECT/$FLOOR ROWS' nor"
+  echo "         'holds $EXPECT rows, below its floor of $FLOOR'. Either the"
   echo "         comparison never fired, or the counter does not track rows."
   echo "--- last 25 lines of the run ---"
   tail -25 "$B.out"
