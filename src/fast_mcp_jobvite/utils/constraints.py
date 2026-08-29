@@ -120,3 +120,38 @@ JobviteIdentifier = Annotated[
 
 #: A bounded positive count, for any argument that names a quantity.
 PositiveCount = Annotated[int, Field(ge=1)]
+
+
+# ----------------------------------------------------------------------
+# THE THREE STRUCTURAL LIMITS ARE NOT HERE, AND THAT IS A GAP
+# ----------------------------------------------------------------------
+#
+# `DESIGN.md:295-297` at the frozen `c15b138` specifies this module as
+# holding "control-character and bidi rejection, AND the
+# depth/list/dict-key limits (SS2.1)". Only the first half exists.
+# SS2.1's table is:
+#
+#     Max nesting depth   5 levels
+#     Max list items      1,000
+#     Max dict keys       100
+#     Max request body    1 MiB      <- middleware, not this module
+#
+# and SS8 requires one test arm per limit.
+#
+# WHY THEY ARE NOT IMPLEMENTED YET. No input model in the tree is deeper
+# than one flat object of scalars, so a depth-5 check, a 1000-item check
+# and a 100-key check would each have NO CALLER and NO REACHABLE TEST.
+# This project forbids inoperative code, and an unreachable limit is
+# worse than absent: it reads as discharged. A green suite over an
+# unreachable guard is the failure the `scripts/` harnesses exist to
+# catch.
+#
+# THE TRIGGER IS THE FIRST NESTED INPUT MODEL, not a date.
+# `create_candidate` carries a nested payload (SS4's table) and is the
+# write tool; whichever unit lands the first model with a nested field
+# owns implementing these three and their arms.
+#
+# Until then this comment is the record that the module is INCOMPLETE
+# against a frozen design, so that reading the file does not suggest
+# otherwise. Found by U5, which correctly declined to build them for a
+# tool whose input is a single optional string.
