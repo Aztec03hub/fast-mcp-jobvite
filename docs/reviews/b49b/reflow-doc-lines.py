@@ -152,20 +152,43 @@ def reflow_block(lines: list[str], width: int = LIMIT) -> list[str]:
 
 
 def reflow_comment_run(run: list[tuple[int, str]]) -> list[str] | None:
-    """Reflow a run of full-line comments sharing one indent."""
+    """Reflow a run of full-line comments sharing one indent.
+
+    `#:` IS PRESERVED AS A MARKER, not eaten as body text. It is the
+    Sphinx attribute-documentation prefix and this project uses it for
+    module-level constants. Stripping only the `#` left the `:` at the
+    front of the content, so a rewrapped line came back as `# : text` -
+    a marker turned into punctuation, and the continuation lines lost it
+    entirely.
+
+    MEASURED: valid `#:` markers in the tree went from 22 to 3 across the
+    B49b sweep and the follow-up passes that used this tool. Nothing
+    caught it - not ruff, not mypy, not the suite. It is the same shape
+    as this tool's F-2 (inline code spans split across a wrap): a reflow
+    quietly becoming a rewrite, invisible to every gate.
+
+    A run that MIXES `#:` and `#` is refused rather than normalised.
+    Guessing which the author meant is how a reflow turns into an edit.
+    """
     indent = run[0][1][: len(run[0][1]) - len(run[0][1].lstrip())]
+    marker = "#:" if run[0][1].strip().startswith("#:") else "#"
+
     body: list[str] = []
     for _, text in run:
         stripped = text.strip()
         if not stripped.startswith("#"):
             return None
-        content = stripped[1:]
+        if (stripped.startswith("#:")) != (marker == "#:"):
+            return None  # mixed run: leave it alone
+        content = stripped[len(marker) :]
         if content.startswith(" "):
             content = content[1:]
         body.append(content)
 
-    reflowed = reflow_block(body, width=LIMIT - len(indent) - 2)
-    return [f"{indent}#" if not b else f"{indent}# {b}" for b in reflowed]
+    reflowed = reflow_block(body, width=LIMIT - len(indent) - len(marker) - 1)
+    return [
+        f"{indent}{marker}" if not b else f"{indent}{marker} {b}" for b in reflowed
+    ]
 
 
 def fix_dividers(lines: list[str]) -> list[str]:
