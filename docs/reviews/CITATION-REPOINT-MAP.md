@@ -32,6 +32,7 @@ Every "new" below is the range whose text IS the quoted subject, verified agains
 | `311` | `312` | "v2 credentials travel as headers, `x-jvi-api` and `x-jvi-sc`" |
 | `311-312` | `312-313` | "**A URL containing a secret is never constructed**" |
 | `311-316` | `312-318` | both: the header rule and the `jobFeed` exception |
+| `312-316` | `312-318` | the same, plus "Enforced in one place, `utils/redaction.py`" - see the section below; 17 sites |
 | `314-315` | `315-318` | "`GET /v1/jobFeed` is the exception ... never logged whole, never in an exception message, `sc=` redacted before any log line" |
 | `302-306` | `300-301` | "Every input model imports its constraints from `utils/constraints.py`. No input model defines its own (ADR-0012)" |
 | `302-303` | `303-304` | "No cache module, no bulk module, no custom logging module ... `loguru` cover the first and third" |
@@ -46,6 +47,35 @@ Every "new" below is the range whose text IS the quoted subject, verified agains
 | `1793` | `1799` | **C7-I1**, "Candidate PII written to logs in the clear", rated Critical |
 | `1795` | `1797` | **C7-T1**, "A caller-supplied `X-Request-ID` carrying newlines forges log entries" |
 
+## `312-316`, cited at seventeen sites, stops one sentence short
+
+**Found by `shell-hygiene` while applying its three rows, and it is the map's own first miss.** The
+range ends at 316, mid-specification. 317-318 is:
+
+> `sc=` redacted before any log line. **Enforced in one place, `utils/redaction.py`**, with a test
+> that fails if a secret can reach a log record.
+
+*"Enforced in one place"* is the phrase four of the citing sites quote back, and the range cuts it
+off. `redaction.py:1` opens *"Secret redaction - the single enforcement point (DESIGN.md:312-316)"*,
+which is a citation that does not contain its own subject.
+
+**No checker can see this**, because both endpoints are real prose. It is the class this document's
+next section describes, and it was not in it.
+
+**Repoint `312-316` -> `312-318`**, at all twelve sites under `src/ tests/ scripts/`. No new
+derivation is needed: the table already sends `311-316` to `312-318` with the subject "both: the
+header rule and the `jobFeed` exception". This citation has that same subject plus the enforcement
+sentence, which is the part being quoted.
+
+**The five hits under `docs/` are deliberately LEFT AS WRITTEN** - `U3-IMPL-REPORT.md` (x2),
+`FIX-AUDIT-LOGGING-REPORT.md` (x2) and `REVIEW-CODE-R2.md`. They are dated records of what someone
+measured on a particular day, and the same reasoning that excludes `docs/reviews/` from the checker's
+scan applies to a worklog: repointing them edits history to agree with the present. shell-hygiene
+flagged this call rather than making it; this is the call.
+
+**Sweep all twelve in one pass.** Repointing one of seventeen is worse than repointing none, because
+a reader who greps the string then finds two answers and no way to tell which is current.
+
 ## Two adjacent citations that RESOLVE and are still wrong
 
 The shape checker cannot see these - both land on real prose - and they are in the same sentences as
@@ -57,9 +87,11 @@ rows above, so fix them in the same pass rather than leaving a neighbour wrong:
 
 ## Who applies which
 
-- **`src/` and `tests/`** - 33 rows - belong to `r4-fixes`.
-- **`scripts/check-u4-client-amputation.sh:249` and `scripts/check-u4-client-controls.sh:184,195`** -
-  3 rows - belong to `shell-hygiene`.
+- **`src/` and `tests/`** - 33 shape rows, plus 11 of the 12 `312-316` sites - belong to `r4-fixes`.
+- **`scripts/check-u4-client-*.sh`** - 3 shape rows - and **`scripts/check-u3-audit-controls.sh:185`**,
+  one `312-316` site. Applied at `2e21aa7` and in the commit that adds this section; `shell-hygiene`
+  had gone idle and its branch was merged, so reviving an agent for four comment lines was the more
+  expensive option.
 
 Whoever goes second re-runs the checker; it exits 1 while any remain and 0 when both lanes have
 landed. **A zero from it does not mean the citations are correct**, only that none of them point at
