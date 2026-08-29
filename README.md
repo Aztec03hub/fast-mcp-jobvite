@@ -194,6 +194,27 @@ requiring a test to go red. Survivors are the output, not a crash. The harnesses
 **Nothing is deployed and nothing is published yet.** There is no runbook to point at, and inventing
 one would be worse than saying so.
 
+### A token without a scope makes the tool VANISH, it does not produce a permission error
+
+On the `http` transport, `JOBVITE_HTTP_TOKENS` maps each bearer token to the scopes it holds, and a
+tool the caller's token does not hold is **removed from `tools/list` entirely**. A direct call then
+returns **"Unknown tool"** - indistinguishable from a tool that was never registered.
+
+That is correct and it is confusing, so it is written here rather than left to be discovered:
+
+> **If an integrator reports a tool missing, check the scopes on their token before you check
+> `JOBVITE_TOOLS`.** Both produce a server that does not list the tool, and only one of them is a
+> configuration mistake.
+
+### Embedding the server rather than running it
+
+`fast_mcp_jobvite.__main__` installs the log redaction at import. **An embedder that imports
+`fast_mcp_jobvite.server` and calls `build_server` directly does not get it**, and the HTTP client
+library logs each request URL through the standard library - which on the job-feed route carries the
+API key, secret and company id. Until [ADR-0026](./docs/adr/0026-log-redaction-is-a-property-of-the-entry-point-not-the-client.md)
+is decided, **an embedder must call `configure_logging()` itself**. This is a measured leak, not a
+theoretical one: `docs/reviews/probe-u12-f2-embedder-leak.py` reproduces it.
+
 What exists:
 
 - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) - the pipeline: gates, the test suite,
