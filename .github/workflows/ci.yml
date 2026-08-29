@@ -228,7 +228,7 @@ jobs:
           # Selector control: a green over zero references means nothing. The
           # count is not hard-coded - it grows with the documents - but it must
           # not be zero, which is what a broken heading parser would produce.
-          printf '%s\n' "$out" | grep -qE '[1-9][0-9]* references' || {
+          grep -qE '[1-9][0-9]* references' <<< "$out" || {
             echo "::error::the checker found no references at all; its green means nothing"; exit 1; }
 
       # ASSERT THE EXIT CODE AND THE "ALL FIRED" PROPERTY, NEVER A LITERAL COUNT.
@@ -259,7 +259,7 @@ jobs:
             echo "::error::$fired of $total controls fired; every control must fire"; exit 1
           fi
           # DESIGN.md's own requirement: a clean post-run re-check of the real file.
-          printf '%s\n' "$out" | grep -q 'post-run re-check of the real DESIGN.md: exit=0' || {
+          grep -q 'post-run re-check of the real DESIGN.md: exit=0' <<< "$out" || {
             echo "::error::the harness did not leave DESIGN.md green"; exit 1; }
 
       # The obligations map, wired. It was built to stop obligations decaying and
@@ -284,7 +284,7 @@ jobs:
           # Selector control: the script treats parsing zero rows as a failure,
           # but assert the population is non-empty here too rather than trusting
           # a green whose sample size nothing states.
-          printf '%s\n' "$out" | grep -qE 'Mappings: [1-9][0-9]*' || {
+          grep -qE 'Mappings: [1-9][0-9]*' <<< "$out" || {
             echo "::error::the checker parsed no mappings; its green means nothing"; exit 1; }
 
       # And its own controls arm, because the checker is itself a measuring
@@ -314,13 +314,13 @@ jobs:
           # negative list would not: it would print a clean "N/M controls
           # fired." and exit 0. That is the unwired-control shape this repo has
           # been bitten by six times, so the section is asserted, not assumed.
-          printf '%s\n' "$out" | grep -q 'negative controls' || {
+          grep -q 'negative controls' <<< "$out" || {
             echo "::error::the harness ran no negative controls, so the guarantee"
             echo "::error::that line drift does not matter is untested"; exit 1; }
-          printf '%s\n' "$out" | grep -qE '^  tolerated ' || {
+          grep -qE '^  tolerated ' <<< "$out" || {
             echo "::error::no negative control was tolerated: either none ran, or"
             echo "::error::the checker has gone back to matching line numbers"; exit 1; }
-          printf '%s\n' "$out" | grep -q 'post-run re-check of the real OBLIGATIONS.md: exit=0' || {
+          grep -q 'post-run re-check of the real OBLIGATIONS.md: exit=0' <<< "$out" || {
             echo "::error::the harness did not leave OBLIGATIONS.md green"; exit 1; }
 
       # The plan's own measurements, re-run rather than re-read. Four decisions
@@ -342,7 +342,7 @@ jobs:
           if [ "$rc" -ne 0 ]; then
             echo "::error::a measurement the plan rests a decision on no longer holds"; exit 1
           fi
-          printf '%s\n' "$out" | grep -qE 'Re-running [1-9][0-9]* plan measurements' || {
+          grep -qE 'Re-running [1-9][0-9]* plan measurements' <<< "$out" || {
             echo "::error::the harness ran no probes; its green means nothing"; exit 1; }
 
       # Likewise: the property is "0 escapes are holes", not a count of rows.
@@ -364,7 +364,7 @@ jobs:
           out=$(python3 docs/reviews/check-resweep-verdicts.py 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::the resweep parser exited $rc"; exit 1; }
-          printf '%s\n' "$out" | grep -q "tally and section 1's stated counts agree" || {
+          grep -q "tally and section 1's stated counts agree" <<< "$out" || {
             echo "::error::the parser exited 0 without reporting agreement; a"
             echo "::error::selector fault would look exactly like this"; exit 1; }
 
@@ -376,9 +376,9 @@ jobs:
           if [ "$rc" -ne 0 ]; then
             echo "::error::the sweep exited $rc - it found holes in the gate"; exit 1
           fi
-          printf '%s\n' "$out" | grep -q '0 escapes are holes' || {
+          grep -q '0 escapes are holes' <<< "$out" || {
             echo "::error::the sweep exited 0 without reporting '0 escapes are holes'"; exit 1; }
-          printf '%s\n' "$out" | grep -q 'ABORT' && {
+          grep -q 'ABORT' <<< "$out" && {
             echo "::error::the sweep aborted; it swept nothing"; exit 1; }
           exit 0
 
@@ -430,7 +430,7 @@ jobs:
           set -uo pipefail
           out=$(uv run --frozen pytest 2>&1); rc=$?
           [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
-          if printf '%s\n' "$out" | grep -qE '[0-9]+ skipped'; then
+          if grep -qE '[0-9]+ skipped'; then <<< "$out"
             echo "$out"
             echo "::error::the suite skipped tests. A skip is a green that tested nothing."
             exit 1

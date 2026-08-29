@@ -120,8 +120,70 @@ if [ "${#present[@]}" -eq 0 ]; then
 fi
 echo "gate vocabulary for $harness (derived from its source): ${present[*]}"
 
+# THE TREE BEFORE THE RUN. A mutation harness edits the working tree and
+# restores; if it is interrupted between those steps THE MUTATION STAYS, and
+# nothing here used to say so. Measured 2026-08-29: a killed
+# check-u9-http-amputation.sh left `build_token_verifier` cut to
+# `if True: return None` - every bearer-token check on the HTTP transport
+# disabled - in a tree someone was about to commit from. It was found only
+# because an agent ran `git status` out of habit. No gate spoke.
+#
+# Pre-existing dirt is TOLERATED and recorded, not failed on: this gate runs in
+# worktrees where an agent is legitimately mid-change. What is failed on is dirt
+# that APPEARED during the run, which is the harness's own doing.
+tree_before=$(git status --porcelain 2>/dev/null || true)
+
 out=$(bash "$HARNESS_PATH" 2>&1); rc=$?
 echo "$out"
+
+# ---- did the harness put the tree back? ------------------------------------
+tree_after=$(git status --porcelain 2>/dev/null || true)
+if [ "$tree_before" != "$tree_after" ]; then
+  # TWO DIFFERENT FAILURES, and they must not share a message. This file
+  # already says why, one section down: "a message that misdescribes what
+  # happened sends the next reader to the wrong place". Measured while
+  # writing this - a control that WIPED pre-existing dirt was reported as
+  # a stranded mutation, which would have sent someone hunting a mutation
+  # that was not there.
+  appeared=$(comm -13 <(printf '%s\n' "$tree_before" | sort) \
+                      <(printf '%s\n' "$tree_after" | sort))
+  vanished=$(comm -23 <(printf '%s\n' "$tree_before" | sort) \
+                      <(printf '%s\n' "$tree_after" | sort))
+
+  if [ -n "$appeared" ]; then
+    echo "::error::$harness DID NOT RESTORE THE WORKING TREE."
+    echo "         A mutation harness owns the tree for its whole run and restores"
+    echo "         at the end. What changed DURING this run and is still changed is"
+    echo "         almost certainly a STRANDED MUTATION - source edited to be wrong"
+    echo "         on purpose, left in place. Measured once: a killed harness left"
+    echo "         every bearer-token check on the HTTP transport disabled."
+    echo "         DO NOT COMMIT FROM THIS TREE. Read the diff first:"
+    printf '           %s\n' "$appeared"
+  fi
+
+  if [ -n "$vanished" ]; then
+    echo "::error::$harness DESTROYED UNCOMMITTED WORK that predated it."
+    echo "         These files were modified before the run and are clean now, so"
+    echo "         the harness's restore - which is \`git checkout --\` - discarded"
+    echo "         someone else's edits. This is why a harness refuses to start on"
+    echo "         a dirty tree; that refusal is a guard, not an obstacle."
+    printf '           %s\n' "$vanished"
+  fi
+  exit 1
+fi
+
+# ---- interrupted is NOT the same as failed ---------------------------------
+# A signal death and a finding both arrive as a non-zero code, and reporting
+# them the same way is the switched-off-vs-broken shape: 128+N means the run
+# was KILLED and measured nothing, so its silence is not evidence of anything.
+if [ "$rc" -ge 128 ]; then
+  echo "::error::$harness was KILLED by signal $((rc - 128)) and did not finish."
+  echo "         This is NOT a verdict. The harness measured nothing, and a green"
+  echo "         from a later step does not cover what it would have checked."
+  echo "         The tree was verified restored above; re-run it before trusting"
+  echo "         any result that depended on it."
+  exit 1
+fi
 
 # ---- exit code -------------------------------------------------------------
 # An amputation harness exits 0 by design because SURVIVORS ARE ITS OUTPUT, so
