@@ -26,7 +26,16 @@ import time
 # : the handler, the `except KeyboardInterrupt` and the
 # `finally: os._exit(0)` : under test are the real ones and not a copy
 # written in a test.
+# :
+# : The `opened` line carries `pid=<n>`. R3-M2: the PID-1 harness could
+# : only establish PID 1 on the `http` arm, because it keyed off a
+# : uvicorn log string (`Started server process [1]`) that `stdio` never
+# : emits - so the stdio row read as proven while being unproven.
+# : Recording the PID here makes the assertion transport-independent and
+# : removes the dependency on a third-party log format. Downstream
+# : readers match the substring `opened`, which is unaffected.
 MARKER_ENTRY = """
+import os
 import pathlib
 import sys
 
@@ -40,7 +49,7 @@ MARKER = pathlib.Path(sys.argv[1])
 @lifespan
 async def marker_lifespan(server):
     with MARKER.open("a") as fh:
-        fh.write("opened\\n")
+        fh.write(f"opened pid={os.getpid()}\\n")
         fh.flush()
     try:
         yield {"marker": str(MARKER)}

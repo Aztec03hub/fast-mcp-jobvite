@@ -200,16 +200,26 @@ container exit code: 0            container exit code: 0
 The container log naming process **[1]** is the evidence that this was PID 1 and not an ordinary
 child. Teardown ran and the process exited in under 0.3 s against a 15 s grace period.
 
+**Correction, R3-M2.** Read the two columns again: that `[1]` evidence appears in the **HTTP**
+column only, because it is a uvicorn log line and `stdio` does not emit one. The stdio column shows
+teardown and timing, and **a process that is not PID 1 satisfies both** - so "simulated on **both**
+transports" above was one arm's evidence carrying two arms' claim. The committed harness
+(`scripts/check-u1-pid1-shutdown.sh`) now takes the PID from the entry script's own marker
+(`opened pid=<n>`) and asserts it unconditionally, so both arms establish what this paragraph
+claims. Measured after the fix: `stdio: marker='opened pid=1 closed'`, `http: marker='opened pid=1
+closed'`, both under the grace period. See `docs/worklogs/HARNESS-INTEGRITY-REPORT.md`.
+
 **A limit on that second measurement, stated because the mitigation this replaced was also called
 verified and was not.** The container ran the host's virtualenv over a bind mount under
 `python:3.12-slim`, not an image built from this repository. That is the correct interpreter, the
 correct dependency set and a genuine PID-1 signal disposition; it is **not** a test of a Dockerfile
 this project does not have. **The PID-1 arm is a recorded measurement, not a CI step** - wiring a
 Docker daemon into CI for one arm is a required check that goes red for reasons nobody caused, and
-`ci.yml` already reasons that way about `pip-audit`. The reproducer is
-`/tmp/u1probe/pid1.sh`; if you want it durable, say so and I will commit it as
+`ci.yml` already reasons that way about `pip-audit`. The reproducer **is committed**, at
 `scripts/check-u1-pid1-shutdown.sh` - **prose about a measurement decays into a claim about one**,
-and I would rather commit the script.
+and a restart destroyed the `/tmp/u1probe/pid1.sh` this line used to point at, which is why it was
+re-derived and committed at `06dd240`. `CONTRIBUTING.md:118` lists it under the measurements a human
+runs.
 
 **Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1345-1346` says. Mutant M12
 removes it and `test_only_stdio_exercises_the_forced_exit` goes red; the HTTP arm stays green
