@@ -286,6 +286,29 @@ async def test_a_route_level_404_is_not_reported_as_a_record_not_found() -> None
     )
 
 
+async def test_an_http_404_with_NO_status_envelope_is_also_not_a_record_not_found() -> (
+    None
+):
+    """The second arm, and the amputation harness is why it exists.
+
+    A12 in `check-u4-client-amputation.sh` INTRODUCES the mapping hazard 7
+    forbids. Its first revision injected that mapping after the envelope arm,
+    where arm 1 already raises for the recorded fixture's 404 envelope - the
+    branch was unreachable, the whole suite stayed green, and the row tested
+    nothing. Repositioning it killed the case above.
+
+    That still left one shape uncovered: an HTTP 404 carrying no `status` block
+    at all reaches arm 2 rather than arm 1, so the case above says nothing about
+    it. This arm covers it, and the record-level not-found shape being UNKNOWN
+    (`JOBVITE-CONTRACT.md` §3.4) is exactly why neither may be guessed at.
+    """
+    async with client(responder(404, b'{"message": "nope"}')) as c:
+        with pytest.raises(JobviteUpstreamError) as caught:
+            await c.request("GET", "/candidate")
+    assert caught.value.kind is EXTERNAL_SERVICE_ERROR
+    assert caught.value.kind is not RESOURCE_NOT_FOUND
+
+
 # ===========================================================================
 # The two SYNTHETIC malformed bodies - fail loudly, no ground-truth weight.
 # Their BYTES ARE DELIBERATELY NOT PINNED: they are invented, not captured.

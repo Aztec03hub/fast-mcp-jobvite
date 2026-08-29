@@ -237,15 +237,18 @@ amputate "A11 the request path logs NOTHING (absence assertions go vacuous)" "$C
 # whether anything notices. An amputation that adds code is unusual and is
 # stated as such rather than dressed up as a deletion.
 # ---------------------------------------------------------------------------
+# The injection goes at the TOP of evaluate_response, BEFORE arm 1. An earlier
+# revision of this row put it after arm 1 and the whole suite stayed green,
+# because arm 1 already raises for the recorded fixture's 404 envelope and the
+# injected branch was unreachable. The row tested nothing and said so by passing
+# 36/36 - a survivor that was an instrument fault, not a finding about the code.
 amputate "A12 a route-level 404 IS mapped to a record-level not-found" "$CLIENT" \
-  '    if http_status >= ERROR_STATUS_THRESHOLD:
-        raise JobviteUpstreamError(http_status, _envelope_message(payload))' \
-  '    if envelope_code == 404 or http_status == 404:
-        from ..errors import ResourceNotFoundError
+  '    envelope_code = _envelope_status_code(payload)' \
+  '    from ..errors import ResourceNotFoundError
 
-        raise ResourceNotFoundError(_envelope_message(payload))
-    if http_status >= ERROR_STATUS_THRESHOLD:
-        raise JobviteUpstreamError(http_status, _envelope_message(payload))'
+    envelope_code = _envelope_status_code(payload)
+    if envelope_code == 404 or http_status == 404:
+        raise ResourceNotFoundError(_envelope_message(payload))'
 
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
 echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"
