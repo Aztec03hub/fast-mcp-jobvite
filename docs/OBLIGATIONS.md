@@ -63,23 +63,23 @@ the map exists to make visible.
 | B | Class | Artifact | Subject | Standard clause | Note |
 |---|---|---|---|---|---|
 | B16 | ABSENT | - | - | `ai/tool-calling.md:55-57` | No tool descriptions exist yet and no unit schedules their review |
-| B49 | MET | `pyproject.toml:159` | `line-length = 88` | `backend/python.md:35` | Code half only. The 72-character comment/docstring half of `python.md:36` is unenforced - see task B49b |
-| B50 | MET | `pyproject.toml:188` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
-| B51 | MET | `pyproject.toml:181` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
-| B52 | MET | `pyproject.toml:175` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
+| B49 | MET | `pyproject.toml:177` | `line-length = 88` | `backend/python.md:35` | Code half only. The 72-character comment/docstring half of `python.md:36` is unenforced - see task B49b |
+| B50 | MET | `pyproject.toml:206` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
+| B51 | MET | `pyproject.toml:199` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
+| B52 | MET | `pyproject.toml:193` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
 | B53 | MET | `.env.example:16` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
 | B58 | MET | `tests/test_collection_guard.py:173` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
 | B59 | MET | `.github/workflows/ci.yml:257` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
 | B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md:117` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
 | B74 | ABSENT | - | - | `documentation/agentic-coding-standard.md:171` | No TODO in code and no CI check. Inherits B73's prefix problem and nothing connects them |
-| B75 | MET | `.github/workflows/ci.yml:509` | `name: Capability drift report` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out step blocks with no ADR.** U11 enabled the advisory audit; U1 enabled the capability-drift diff and the coverage floors. `grep -n '^\s*#\s*-\s*name:'` over `ci.yml` now returns NOTHING, so the obligation is discharged by each owning unit enabling its own block rather than by anyone deleting them. **Residue: `ERA` is still unselected in ruff**, so nothing stops a NEW commented-out block - the rule is met by the tree's state, not by a gate |
+| B75 | MET | `.github/workflows/ci.yml:539` | `name: Capability drift report` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out step blocks with no ADR.** U11 enabled the advisory audit; U1 enabled the capability-drift diff and the coverage floors. `grep -n '^\s*#\s*-\s*name:'` over `ci.yml` now returns NOTHING, so the obligation is discharged by each owning unit enabling its own block rather than by anyone deleting them. **Residue: `ERA` is still unselected in ruff**, so nothing stops a NEW commented-out block - the rule is met by the tree's state, not by a gate |
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
 | B77 | SUPERSEDED | `docs/DESIGN.md:1484` | `not written yet, deliberately` | `documentation/readme-standard.md:43` | Deferred with a recorded reason; scheduled as U13 |
 | B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1308` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
 | B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
 | B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1353` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
-| B82 | MET | `.github/workflows/ci.yml:679` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
+| B82 | MET | `.github/workflows/ci.yml:709` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | SUPERSEDED | `pyproject.toml:6` | `license = "Apache-2.0"` | `documentation/readme-standard.md:57` | Substance settled; only the README section is deferred with B77 |
 | B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |
