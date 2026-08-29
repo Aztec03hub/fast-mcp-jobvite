@@ -10,6 +10,23 @@ ARM 2  same, but the non-outage is an EXHAUSTED OUTBOUND BUDGET, which is
 ARM 1c positive control: the same shape with an OUTAGE in the last slot
        must leave failure_count at threshold, proving the harness can
        observe a count at all.
+
+ARM 3  HALF-OPEN, which R6 recorded as unestablished: "a neutral
+       exception in half-open must leave the breaker half-open rather
+       than closing it, and I have not established what `circuitbreaker`
+       does there under the proposed shape". Drive the breaker OPEN,
+       expire the window so `state` reads `half_open`, then issue ONE
+       non-outage and read state and counter.
+ARM 3c positive control for arm 3: the same shape with an OUTAGE in the
+       trial slot must leave the breaker OPEN with a higher counter, so
+       arm 3 is a reading of a live state machine and not a constant.
+
+**THIS PROBE GATES.** It exits non-zero if any arm reads the defect or
+any control fails to fire, so it can be wired the way
+`test_the_breaker_rejection_test_still_passes_against_the_pinned_library`
+wires the rejection probe. It did NOT gate when R6 committed it, on
+purpose: it demonstrated the defect then, and gating on it would have
+gated on the bug staying.
 """
 
 from __future__ import annotations
@@ -100,7 +117,45 @@ async def arm(name, last, *, budget=False):
     return before, after
 
 
-async def main() -> None:
+async def half_open_arm(name, trial):
+    """Open the breaker, expire the window, then issue ONE call.
+
+    The recovery timeout is shortened for the length of the arm only.
+    `state` is a PROPERTY computing `half_open` from `open_remaining`,
+    so expiring the window is all it takes - there is no timer to wait
+    for and nothing writes the state behind us.
+    """
+    jc.reset_breaker_for_test()
+    outage = httpx2.Response(500, content=b'{"status":{"code":500}}')
+    c = client(responder([outage] * T + [trial]))
+    real = jc._JOBVITE_BREAKER._recovery_timeout  # noqa: SLF001
+    try:
+        await drive_to(c, T)
+        opened_state = jc._JOBVITE_BREAKER.state  # noqa: SLF001
+        # Expire the open window. 0.01 rather than 0: `__init__` folds a
+        # falsy recovery_timeout away as `or RECOVERY_TIMEOUT`, which is
+        # the mistake this probe's arm 2 sibling records making.
+        jc._JOBVITE_BREAKER._recovery_timeout = 0.01  # noqa: SLF001
+        await asyncio.sleep(0.05)
+        before_state = jc._JOBVITE_BREAKER.state  # noqa: SLF001
+        before = jc._JOBVITE_BREAKER.failure_count  # noqa: SLF001
+        try:
+            await c.request("GET", JOBS_PATH)
+        except (JobviteUnavailableError, JobviteUpstreamError):
+            pass
+        after = jc._JOBVITE_BREAKER.failure_count  # noqa: SLF001
+        after_state = jc._JOBVITE_BREAKER.state  # noqa: SLF001
+    finally:
+        jc._JOBVITE_BREAKER._recovery_timeout = real  # noqa: SLF001
+        await c.aclose()
+    print(
+        f"{name}: {opened_state} -> {before_state} -> {after_state}, "
+        f"failure_count {before} -> {after}"
+    )
+    return before_state, after_state, before, after
+
+
+async def main() -> int:
     print(f"threshold = {T}")
     ok = httpx2.Response(200, content=b"{}")
     b1, a1 = await arm(
@@ -120,5 +175,54 @@ async def main() -> None:
     print(f"ARM 1 verdict : {b1} -> {a1}  {v1}")
     print(f"ARM 2 verdict : {b2} -> {a2}  {v2}")
 
+    print()
+    s3, e3, hb3, ha3 = await half_open_arm(
+        "ARM 3  half_open, then a 404 (non-outage)",
+        httpx2.Response(404, content=b'{"status":{"code":404}}'),
+    )
+    s3c, e3c, hb3c, ha3c = await half_open_arm(
+        "ARM 3c half_open, then a 500 (outage)    ",
+        httpx2.Response(500, content=b'{"status":{"code":500}}'),
+    )
+    print()
+    control3 = s3c == "half_open" and e3c == "open" and ha3c > hb3c
+    print(
+        f"ARM 3c control: {s3c} -> {e3c}, {hb3c} -> {ha3c}  "
+        f"(must be half_open -> open, counting) "
+        f"{'PASS' if control3 else 'FAIL - harness measures nothing'}"
+    )
+    v3 = (
+        "CLOSED by a call that never reached Jobvite (defect)"
+        if e3 == "closed"
+        else "still half_open, counter untouched (ok)"
+    )
+    print(f"ARM 3 verdict : {s3} -> {e3}, {hb3} -> {ha3}  {v3}")
 
-asyncio.run(main())
+    # THE GATE. Every arm must read the fixed behaviour AND both
+    # controls must fire; a control that stopped firing makes the other
+    # arms unreadable, so it fails the same way a defect does.
+    failures = []
+    if a3 != T:
+        failures.append("ARM 1c control did not reach the threshold")
+    if not control3:
+        failures.append("ARM 3c control did not count from half_open")
+    if a1 != b1:
+        failures.append(f"ARM 1: a 4xx moved the counter {b1} -> {a1}")
+    if a2 != b2:
+        failures.append(f"ARM 2: an exhausted budget moved it {b2} -> {a2}")
+    if s3 != "half_open" or e3 != "half_open" or ha3 != hb3:
+        failures.append(
+            f"ARM 3: a non-outage took the breaker {s3} -> {e3}, {hb3} -> {ha3}"
+        )
+    print()
+    if failures:
+        for f in failures:
+            print(f"*** FAIL *** {f}")
+        print("VERDICT: a non-outage is NOT neutral to the breaker.")
+        return 1
+    print("VERDICT: a non-outage is NEUTRAL to the breaker - not counted,")
+    print("         and not treated as evidence of health either.")
+    return 0
+
+
+sys.exit(asyncio.run(main()))
