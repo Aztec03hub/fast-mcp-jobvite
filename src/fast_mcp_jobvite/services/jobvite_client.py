@@ -1882,7 +1882,14 @@ class JobviteClient:
             )
             pages += 1
             reported = payload.get(TOTAL_KEY)
-            if isinstance(reported, int):
+            # `not isinstance(reported, bool)` IS LOAD-BEARING, not
+            # defensive noise: `isinstance(True, int)` is True in
+            # Python, so an envelope carrying `"total": true` would
+            # land a `bool` in `ScanResult.total` (R5-N1, measured).
+            # `True` then compares equal to `unique == 1`, so a
+            # one-record scan declares itself COMPLETE against a
+            # `total` that is not a number.
+            if isinstance(reported, int) and not isinstance(reported, bool):
                 total = reported
             raw = payload.get(items_key)
             page: list[dict[str, Any]] = (
@@ -1988,6 +1995,29 @@ class JobviteClient:
             return False
         if unique == total:
             return False
+
+        # THE TWO DIRECTIONS ARE DIFFERENT FINDINGS AND WERE LOGGED
+        # AS ONE (R5-M2). `unique != total` fires on both, and this
+        # method's own docstring says the check is for a scan that
+        # returned **fewer** records than `total` - which is what
+        # DESIGN.md:469-477 describes and all it contemplates.
+        #
+        # The over-count direction is REACHABLE and was reached: a
+        # wrong `id_key` sends every record down the `unidentified`
+        # branch, kept and never de-duplicated, giving `unique=10`
+        # against `total=9`. That was logged as "jobvite scan
+        # incomplete" - an OVER-read reported as an under-read, the
+        # same wolf with the wrong name on it. DESIGN.md:474 is
+        # explicit about what crying wolf costs.
+        if unique > total:
+            logger.warning(
+                "jobvite scan returned MORE unique records than total",
+                route=redact_url(f"{V2_BASE_URL}{path}"),
+                unique=unique,
+                reported_total=total,
+            )
+            return True
+
         logger.warning(
             "jobvite scan incomplete",
             route=redact_url(f"{V2_BASE_URL}{path}"),

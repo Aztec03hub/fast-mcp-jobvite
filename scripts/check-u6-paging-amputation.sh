@@ -285,8 +285,7 @@ amputate "A8  records carrying no id are discarded" \
 # ---------------------------------------------------------------------------
 amputate "A9  total is never read from the envelope" \
   "$CLIENT" \
-  '            reported = payload.get(TOTAL_KEY)
-            if isinstance(reported, int):
+  '            if isinstance(reported, int) and not isinstance(reported, bool):
                 total = reported' \
   '            pass'
 

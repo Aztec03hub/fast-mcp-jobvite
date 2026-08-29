@@ -664,3 +664,71 @@ async def test_a_scan_is_whole_under_both_surviving_hypotheses(base: int) -> Non
     ids = [item["eId"] for item in result.items]
     assert sorted(ids) == sorted(item["eId"] for item in records(11))
     assert result.incomplete is False
+
+
+# ======================================================================
+# R5-M2 and R5-N1: the two directions, and a bool that is an int
+# ======================================================================
+
+
+async def test_an_over_read_is_not_logged_as_an_under_read() -> None:
+    """R5-M2: the two directions are different findings.
+
+    `unique != total` fires on both, and the check's own docstring
+    says **fewer** - which is what DESIGN.md:469-477 describes and
+    all it contemplates.
+
+    THE OVER-COUNT IS REACHABLE, which is why this case exists rather
+    than a comment. A wrong `id_key` sends every record down the
+    `unidentified` branch, kept and never de-duplicated, so `unique`
+    exceeds `total`. Reported as "jobvite scan incomplete", that is an
+    OVER-read announced as an under-read - and DESIGN.md:474 is
+    explicit about what a check that cries wolf costs.
+
+    Asserts the MESSAGE, not just `incomplete`: both directions set
+    `incomplete=True`, so a case asserting only the flag passes against
+    the defect it is meant to catch.
+    """
+    server = Recorder(records=records(5), total=3)
+    # THE MESSAGE is what distinguishes the two directions, so capture
+    # it. `_capture_extras` returns only `extra`, and BOTH branches put
+    # `reported_total` there - a case asserting on `extra` alone cannot
+    # tell them apart. MEASURED: my first version of this test did
+    # exactly that, and deleting the over-read branch left it GREEN.
+    said: list[str] = []
+    sink_id = logger.add(
+        lambda message: said.append(str(message.record["message"])),
+        level="DEBUG",
+    )
+    try:
+        async with client(server) as c:
+            result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY, id_key="no-such-key")
+    finally:
+        logger.remove(sink_id)
+
+    assert result.unidentified == 5
+    assert result.incomplete is True
+    assert any("MORE unique records than total" in m for m in said), said
+    assert not any("scan incomplete" in m for m in said), (
+        "an OVER-read was announced as an under-read"
+    )
+
+
+async def test_a_boolean_total_is_not_an_integer_total() -> None:
+    """R5-N1. `isinstance(True, int)` is True in Python.
+
+    An envelope carrying `"total": true` would land a `bool` in
+    `ScanResult.total`, and `True == 1`, so a ONE-record scan declares
+    itself complete against a `total` that is not a number. The
+    sibling case at :476 uses a string and cannot reach this.
+    """
+    server = Recorder(records=records(1))
+    # No `type: ignore` needed, and THAT IS THE DEFECT: mypy accepts
+    # `True` for `int | None` because `bool` subclasses `int`. The
+    # type checker cannot see this one either.
+    server.total = True
+    async with client(server) as c:
+        result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY)
+
+    assert result.total is None, "a bool reached ScanResult.total"
+    assert result.incomplete is False
