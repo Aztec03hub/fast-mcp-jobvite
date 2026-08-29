@@ -14,12 +14,15 @@ chance to, which is what `boot_process._die_with_parent` asks it to do.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import signal
 import subprocess
 import sys
 import textwrap
 import time
+
+from tests.boot_process import _die_with_parent
 
 #: The parent script. It starts a long-lived child through the SAME
 #: `_die_with_parent` the real spawner installs - not a copy of the
@@ -32,11 +35,11 @@ PARENT = textwrap.dedent(
     from boot_process import _die_with_parent
 
     proc = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(300)  # {tag}"],
+        [sys.executable, "-c", "import time; time.sleep(60)  # {tag}"],
         preexec_fn=_die_with_parent,
     )
     print(proc.pid, flush=True)
-    time.sleep(300)
+    time.sleep(60)
     """
 )
 
@@ -58,10 +61,21 @@ def _alive(pid: int, tag: str) -> bool:
 
 
 def _run_parent(tag: str) -> tuple[subprocess.Popen[bytes], int]:
-    """Start the parent and return it with the grandchild's pid."""
+    """Start the parent and return it with the grandchild's pid.
+
+    **The parent gets `_die_with_parent` too, and the reason is that
+    this file failed its own sibling check.** Enumerating every `Popen`
+    in the repo rather than the sites #100 named turned up three, and
+    the third was here: a 300-second process this test spawns from
+    pytest with no protection at all. A test about orphans that can
+    orphan is the same defect wearing the fix's name. The sleeps are
+    also 60s rather than 300s, so the residue is bounded even on the
+    day `prctl` is the thing that is broken.
+    """
     proc = subprocess.Popen(
         [sys.executable, "-c", PARENT.format(tests=TESTS, tag=tag)],
         stdout=subprocess.PIPE,
+        preexec_fn=_die_with_parent,  # noqa: PLW1509
     )
     assert proc.stdout is not None
     child_pid = int(proc.stdout.readline().strip())
@@ -97,8 +111,6 @@ def test_sigkilling_the_harness_reaps_the_spawned_server() -> None:
         parent.kill()
         parent.wait()
         if _alive(child_pid, tag):  # pragma: no cover - only on failure
-            import os
-
             os.kill(child_pid, signal.SIGKILL)
 
     assert elapsed is not None, (
