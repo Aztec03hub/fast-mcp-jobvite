@@ -623,7 +623,7 @@ dev dependency**, so the licence gate runs under `uv run --frozen` like everythi
 ### U1 - Boot: config, transport selection, TLS refusal, shutdown
 
 **Builds.** `config.py` (pydantic-settings, `SecretStr`, per-enabled-tool required-variable
-validation per `DESIGN.md:918-923`, `JOBVITE_TOOLS` allow-list with an unrecognised name as a
+validation per `DESIGN.md:918-924`, `JOBVITE_TOOLS` allow-list with an unrecognised name as a
 **startup failure**, the `JOBVITE_ENABLE_WRITES` AND `JOBVITE_TOOLS` conjunction in both
 directions per `:903-907`); `__main__.py` (transport selection, `_install_shutdown_handler()`,
 `os._exit(0)` in `finally`, logging configured before imports); `server.py` (the `FastMCP`
