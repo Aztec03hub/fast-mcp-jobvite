@@ -33,6 +33,7 @@ from pydantic import BaseModel, SecretStr, ValidationError, computed_field
 from fast_mcp_jobvite.audit import AUDIT_EVENT_NAME, Transport
 from fast_mcp_jobvite.config import READ_TOOLS, SEARCH_JOBS, Settings
 from fast_mcp_jobvite.errors import EXTERNAL_SERVICE_ERROR, REQUIRED_MEMBERS
+from fast_mcp_jobvite.http_hardening import registered_tools
 from fast_mcp_jobvite.models.fencing import (
     Fenced,
     FencingDecision,
@@ -710,20 +711,34 @@ async def test_the_server_lists_the_same_tools_on_http() -> None:
     """The tool surface does not depend on the transport (SS7.1).
 
     Built rather than bound: binding a port in the suite would make
-    this a network test, and the property under test is registration,
+    this a network test, and the property under test is REGISTRATION,
     which happens before any socket exists.
+
+    **This asserted through `client.list_tools()` until U9, and U9
+    made that the wrong instrument rather than making the property
+    false.** `require_scopes` now removes a tool the CALLER's token
+    does not hold (DESIGN.md:836-839), and an in-memory client
+    presents no token at all, so the listing is empty on HTTP while
+    registration is identical. Reading the registry directly asserts
+    the sentence in the docstring; reading the listing asserted the
+    scope check was absent. `tests/test_http_hardening.py` owns the
+    token-dependent listing, over a real HTTP request where a token
+    exists.
+
+    The token map is also well-formed now: `{"t": "client-a"}` maps a
+    token to a STRING rather than a list of scopes, which
+    `config._token_map_problems` refuses at boot. Nothing here reached
+    that refusal, so the fixture had been wrong and invisible.
     """
     server = build_server(
         settings(
             mcp_transport="http",
             mcp_host="127.0.0.1",
-            http_tokens=SecretStr('{"t": "client-a"}'),
+            http_tokens=SecretStr('{"t": ["jobs:read"]}'),
         ),
         client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS)),
     )
-    async with Client(server) as client:
-        listed = {tool.name for tool in await client.list_tools()}
-    assert listed == {SEARCH_JOBS}
+    assert {tool.name for tool in registered_tools(server)} == {SEARCH_JOBS}
 
 
 async def test_the_tool_advertises_a_serialisation_output_schema() -> None:

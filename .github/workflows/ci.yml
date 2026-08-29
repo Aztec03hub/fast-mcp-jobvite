@@ -415,7 +415,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 562
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 590
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -525,7 +525,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 278
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 306
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -608,6 +608,26 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u8-candidates-amputation.sh \
             --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
+
+      # ----- U9, HTTP transport hardening (§7.2, §4.4) -----
+      # WIRED IN THE MERGE COMMIT, and this unit needs it more than any other:
+      # the plan records that NO §8 case owns U9, so nothing in the coupling
+      # gate notices if one of its tests is deleted. These two steps are the
+      # only thing standing between that and a silent regression.
+      #
+      # THE AMPUTATION STEP TAKES ~13 MINUTES. It runs the full suite once per
+      # row, which is the point of it for a unit with no required case behind
+      # it, and it is the slowest step in this file. Left in the same job
+      # deliberately: splitting it would let the fast steps go green while the
+      # expensive one is still running, and a reader would take the first
+      # green as the answer.
+      - name: U9 HTTP hardening controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-u9-http-controls.sh --controls-fired
+
+      - name: U9 HTTP hardening amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-u9-http-amputation.sh \
+            --amputation --min-rows 14 --row-re '^########## A[0-9]+ '
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a

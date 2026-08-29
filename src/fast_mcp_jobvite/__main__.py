@@ -358,6 +358,7 @@ from fast_mcp_jobvite.config import (  # noqa: E402
     ConfigurationError,
     load_settings,
 )
+from fast_mcp_jobvite.http_hardening import http_run_kwargs  # noqa: E402
 from fast_mcp_jobvite.server import build_server  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -430,11 +431,14 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     try:
         if settings.mcp_transport == "http":
             logger.info("serving http on %s:%s", settings.mcp_host, settings.mcp_port)
+            # U9 owns the kwargs. `allowed_hosts`/`allowed_origins`
+            # appear only off loopback, which is the one place they
+            # mean anything; `http_hardening.http_run_kwargs` carries
+            # the reasoning and is what the tests assert against.
             mcp.run(
                 transport="http",
-                host=settings.mcp_host,
-                port=settings.mcp_port,
                 show_banner=False,
+                **http_run_kwargs(settings),
             )
         else:
             logger.info("serving stdio")

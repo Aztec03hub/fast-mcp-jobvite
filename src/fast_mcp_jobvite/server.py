@@ -45,6 +45,11 @@ from fastmcp.server.lifespan import Lifespan, lifespan
 
 from fast_mcp_jobvite import __version__
 from fast_mcp_jobvite.config import Settings, load_settings
+from fast_mcp_jobvite.http_hardening import (
+    apply_tool_scopes,
+    build_middleware,
+    build_token_verifier,
+)
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
 from fast_mcp_jobvite.tools import candidates, jobs
 
@@ -133,9 +138,28 @@ def build_server(
         # Never left to the framework default - see the module
         # docstring.
         mask_error_details=True,
+        # U9. `None` on stdio, which DESIGN.md:844-848 makes
+        # unauthenticated by design; the verifier is built only when
+        # the transport is `http`.
+        auth=build_token_verifier(settings),
+        # U9. Three adopted, five deliberately absent
+        # (`http_hardening.EXCLUDED_MIDDLEWARE`). Passed to the
+        # constructor rather than added afterwards so the stack is
+        # visible in one expression.
+        middleware=build_middleware(settings),
     )
     jobs.register(server, settings, client_factory=client_factory)
     candidates.register(server, settings, client_factory=client_factory)
+    # U9. AFTER BOTH registrations, because it scopes what registration
+    # produced. On stdio this returns without touching a tool.
+    #
+    # THE ORDER IS THE RESOLUTION OF A REAL CONFLICT, not a formatting
+    # choice: U8 added the `candidates` registration and U9 added this
+    # call to the same line of the same function, from branches that
+    # never saw each other. Taking either side alone would have been a
+    # clean merge that silently ships a server with two tools missing,
+    # or one whose candidate tools are never scoped.
+    apply_tool_scopes(server, settings)
     return server
 
 
