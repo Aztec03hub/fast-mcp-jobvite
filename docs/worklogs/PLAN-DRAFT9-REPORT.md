@@ -389,9 +389,16 @@ Worktree `/tmp/plan-draft9-work` **removed** after reporting; the branch remains
 
 For what I could not settle, not for what I did not try.
 
-1. **Whether dropping `-m` from `_collected_test_files()` has a cost at import time.** R7 left this
-   open, `1e67f9c` made the change, and **it is still open**: collection **imports** the module, so
-   a credentialed arm doing real work at module scope would now run during collection.
+1. ~~**Whether dropping `-m` from `_collected_test_files()` has a cost at import time.**~~
+   **SETTLED BY MEASUREMENT, and the answer is no.** Planting a module under
+   `tests/credentialed/` that writes a marker file at module scope, then running
+   `--collect-only` twice: **the module is imported WITH `-m` and WITHOUT it, identically.**
+   pytest imports every module during collection and applies marker deselection afterwards, so
+   `1e67f9c` changed nothing about import behaviour. The concern was reasonable and is unfounded.
+   Kept struck through rather than deleted, because it was slated to go in front of U5.
+
+   **The second half stands and is independent of that change**: collection **imports** the module, so
+   a credentialed arm doing real work at module scope would run during collection.
    `tests/credentialed/README.md:16-17` forbids module-scope credential reads, but that is a
    convention with **no gate**, and `1e67f9c`'s regression test manufactures a *trivial* file, which
    would not exercise it. **This is the one thing I would put in front of U5**, and the cheapest

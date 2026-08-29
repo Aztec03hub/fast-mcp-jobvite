@@ -92,6 +92,16 @@ def _collected_test_files() -> set[Path]:
     #
     # Marker selection is irrelevant to reachability, so the selector was never right
     # here, not merely inconvenient.
+    #
+    # MEASURED, because dropping the selector raised a reasonable objection: does
+    # collection now IMPORT credentialed modules it used to skip? No. A module planted
+    # under tests/credentialed/ writing a marker at module scope is imported WITH `-m`
+    # and WITHOUT it, identically - pytest imports every module during collection and
+    # deselects by marker afterwards. This change has no import-time cost.
+    #
+    # What IS true, and was true before this change: collection imports the module, so a
+    # credentialed arm doing real work at module scope runs during collection.
+    # tests/credentialed/README.md forbids that, and nothing enforces it.
     result = subprocess.run(
         [
             sys.executable,
