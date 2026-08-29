@@ -15,6 +15,18 @@ design decisions the implementation was built against and the units built so far
 
 ### Added
 
+- **Resilience on every outbound call: per-phase timeouts, then retry, then a circuit breaker**, in
+  that order. Retries use jitter and fire only for connection errors, timeouts and 5xx; a `429` is
+  retried and then reported as a 503 honouring `Retry-After`. **`create_candidate` is excluded from
+  retry by construction rather than by configuration**, so no setting can turn it back on - a
+  retried write emails a second live human. (2026-08-29 06:18 AM CDT)
+- **A total outbound budget bounding every attempt for one tool invocation.** A slow upstream now
+  becomes a typed 503 rather than an unbounded wait, and one scan shares one budget rather than
+  opening a fresh one per page. (2026-08-29 06:18 AM CDT)
+- An open circuit and an upstream outage both return `/problems/service-unavailable`, distinguished
+  by their `detail` and carrying a `retry_after` hint, so a caller can tell "Jobvite is down" from
+  "this server has stopped calling Jobvite for now". (2026-08-29 06:18 AM CDT)
+
 - **Base-agnostic offset paging in the Jobvite client.** Every scan starts at `start=0`, which is
   the whole mechanism and is one character: a 0-based server returns record zero, and a 1-based
   server returns the same first page it would have returned anyway. Starting at 1 is the only
