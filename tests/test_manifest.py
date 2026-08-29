@@ -59,7 +59,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
     deciding to add it should fail here. Adding one is meant to cost a deliberate edit.
 
     **Widen this set by APPENDING. Never relax it to a subset check**, and never remove
-    or reorder the three pins - they are DESIGN.md:1358-1362, and
+    or reorder the three pins - they are DESIGN.md:1367-1369, and
     `test_removing_fastmcp_slim_breaks_the_resolve` below is the control that proves
     the second of them load-bearing.
     """
@@ -132,7 +132,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     combined = proc.stdout + proc.stderr
     assert proc.returncode != 0, (
         "removing the fastmcp-slim pin STILL resolved. Either uv's behaviour changed "
-        "or the pin is no longer load-bearing; DESIGN.md:1358-1360 needs an ADR "
+        "or the pin is no longer load-bearing; DESIGN.md:1367-1369 needs an ADR "
         f"before the line is touched. Output:\n{combined}"
     )
     assert "fastmcp-slim" in combined, (
