@@ -211,9 +211,23 @@ async def test_a_server_with_no_enabled_tool_registers_nothing() -> None:
     fail here, which is the only way to tell "registration honours the
     gate" from "registration happens to register the one tool that
     exists".
+
+    **THE NAME CHANGED FROM `get_candidate` TO `create_candidate` WHEN
+    U8 LANDED, and the rewrite is the point.** This case needs a tool
+    that is DECLARED in `KNOWN_TOOLS` and has no `register` yet, so
+    that naming it produces an empty server. `get_candidate` was that
+    tool until U8 implemented it, at which point this assertion started
+    testing the opposite of what its name says. `create_candidate` is
+    U10's and is the remaining unimplemented read-shaped name.
+
+    **This case therefore expires again when U10 lands**, which is a
+    property of the case and not a defect: it is pinned to "a declared
+    tool with no implementation", and the day there is none left, the
+    gate has nothing to prove and the case should be deleted rather
+    than repointed a third time.
     """
     settings = Settings(
-        tools="get_candidate",
+        tools="create_candidate",
         api_key=SecretStr("k"),
         api_secret=SecretStr("s"),  # noqa: S106
     )
