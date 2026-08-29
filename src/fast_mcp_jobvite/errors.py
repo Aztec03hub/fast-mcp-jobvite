@@ -46,7 +46,8 @@ class ProblemKind:
     """One row of the registry at `error-contract.md:96-108`.
 
     Attributes:
-        type: The relative `/problems/<slug>` URI, or `about:blank` when unmapped.
+        type: The relative `/problems/<slug>` URI, or `about:blank` for an
+            unmapped HTTP status received from Jobvite (ADR-0017).
         title: The registry's title. Stable per `type`, never per-instance
             (`error-contract.md:73`).
         status: The registry's status. Never Jobvite's.
@@ -82,11 +83,17 @@ INTERNAL_ERROR: Final = ProblemKind(
 )
 
 #: `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an unmapped
-#: condition. **The design's table (DESIGN.md:515) gives this row no status**,
-#: while DESIGN.md:496 makes `status` a required member - see U2-REPORT.md
-#: finding D1. RFC 9457 4.2.1 resolves it: with `about:blank` the title is the
-#: status phrase, so an unmapped condition is a 500 that declines to claim a
-#: registry slug it does not have.
+#: **HTTP status received from Jobvite**, and for nothing else. ADR-0017 settled
+#: this: U2 read the design's table (then `DESIGN.md:515`) as routing an
+#: unhandled exception in our own tool body here, and that reading is replaced -
+#: the registry already names that condition `/problems/internal-error`, which
+#: is what `problem_from_exception` now returns.
+#:
+#: **No code path reaches this today**, and it stays anyway: SS5.1's registry
+#: maps every status this client is known to receive, so the fallback may be
+#: unreachable in practice, and an unreachable fallback that is correct beats a
+#: reachable one that is wrong (ADR-0017). Establishing reachability needs the
+#: live-tenant observations the credential checklist gates.
 UNMAPPED: Final = ProblemKind("about:blank", "Internal Server Error", 500)
 
 
@@ -99,7 +106,7 @@ class FastMcpJobviteError(Exception):
     revision DESIGN.md:502-509 corrects.
     """
 
-    kind: ProblemKind = UNMAPPED
+    kind: ProblemKind = INTERNAL_ERROR
 
     def __init__(self, detail: str) -> None:
         """Store the occurrence-specific explanation.
@@ -243,8 +250,10 @@ def problem_from_exception(
 ) -> dict[str, Any]:
     """Convert an exception into a problem object - **returned, never raised**.
 
-    An exception outside this module's hierarchy is `about:blank`
-    (DESIGN.md:515), and its `detail` names the exception class rather than its
+    An exception outside this module's hierarchy is `/problems/internal-error`,
+    500 (DESIGN.md:521, ADR-0017): it is a bug in our own code, the registry
+    names it, and `about:blank` is RFC 9457's way of saying *no additional
+    semantics* when we have semantics. Its `detail` names the exception class rather than its
     message: an arbitrary exception's `str()` can carry a URL, a credential
     fragment or an upstream body, and this value reaches the caller.
 
@@ -259,7 +268,7 @@ def problem_from_exception(
     if isinstance(exc, FastMcpJobviteError):
         return build_problem(exc.kind, exc.detail, request_id, **extensions)
     return build_problem(
-        UNMAPPED,
+        INTERNAL_ERROR,
         f"An unexpected {type(exc).__name__} occurred.",
         request_id,
         **extensions,

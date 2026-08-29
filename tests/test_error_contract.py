@@ -62,7 +62,7 @@ REGISTRY_CASES: list[tuple[str, Callable[[], BaseException], str, int]] = [
     (
         "anything unmapped",
         lambda: RuntimeError("something nobody modelled"),
-        "about:blank",
+        "/problems/internal-error",
         500,
     ),
 ]

@@ -105,7 +105,7 @@ KILLED  M6  timestamp member dropped                           3 failed, 31 pass
 KILLED  M7  request_id member dropped                          3 failed, 31 passed
 KILLED  M8  Jobvite message discarded from detail              2 failed, 32 passed
 KILLED  M9  Jobvite status discarded from detail               1 failed, 33 passed
-KILLED  M10 unmapped becomes /problems/internal-error          3 failed, 31 passed
+KILLED  M10 unmapped becomes about:blank (INVERTED, ADR-0017)  2 failed, 32 passed
 KILLED  M11 problem object RAISED instead of returned         18 failed, 16 passed
 KILLED  M12 unmapped exception message leaked to caller        1 failed, 33 passed
 KILLED  M13 naive (non-UTC) timestamp                          1 failed, 33 passed
@@ -205,19 +205,25 @@ iterates over nothing, because a mutant leaves the collection populated.** `asse
 
 ## 5. Findings - design, standards and scope
 
-### D1 (design defect, needs a ruling): the unmapped row specifies no `status`, and `status` is required
+### D1 (design defect): the unmapped row specified no `status`, and `status` is required - DECIDED, ADR-0017
 
 `DESIGN.md:495-496` makes `status` one of seven **required** members. `DESIGN.md:515`'s registry
 table gives the unmapped row `about:blank` and a literal `-` in the Status column. Those cannot
 both hold: an unmapped condition must produce a `status` and the design says which value it is
 nowhere.
 
-**Implemented:** `about:blank` with **500** and title `"Internal Server Error"`, per RFC 9457
-§4.2.1 (with `about:blank` the title is the status phrase). This is my reading, not the design's
-instruction. **A defect in the design is an ADR, not an edit** - the design is untouched and this
-is reported for the team lead to file.
+**Implemented at the time:** `about:blank` with **500** and title `"Internal Server Error"`, per
+RFC 9457 §4.2.1 (with `about:blank` the title is the status phrase). That was my reading, not the
+design's instruction, and it was reported rather than edited in - **a defect in the design is an
+ADR, not an edit**.
 
-### D2 (standards vs design, related to D1): `about:blank` may be the wrong row entirely
+**ADR-0017 replaced that reading.** The row is now `/problems/internal-error`, 500, "Internal
+Server Error", and every problem object carries a `status` without exception, which is what makes
+the seven-member requirement checkable. D2 below is the argument, and it is the one that decided
+this. The design line is now `DESIGN.md:521`; `DESIGN.md:515` above is where it stood in the
+frozen object this report was written against.
+
+### D2 (standards vs design, related to D1): `about:blank` was the wrong row - DECIDED, ADR-0017
 
 `error-contract.md:115` scopes the `about:blank` fallback to *"unmapped **HTTP** errors"*, and
 `error-contract.md:106` already carries `/problems/internal-error` **500** *"Unhandled exception
@@ -225,11 +231,21 @@ is reported for the team lead to file.
 row - it is not an unmapped HTTP status. `DESIGN.md:515` routes it to `about:blank` instead, which
 declines a registry row that exists for the case.
 
-Consequence in the tree today: **`INTERNAL_ERROR` is defined in `errors.py` and reached by no code
-path.** It is exercised only by the registry-mirror test. If D2 is resolved in favour of the
-design as written, `INTERNAL_ERROR` should be deleted rather than left as an unused constant; if
-in favour of the standard, `UNMAPPED` becomes `/problems/internal-error` and mutation M10 - which
-is currently a killed mutant - becomes the correct behaviour. **Flagged rather than decided.**
+**DECIDED by ADR-0017, in favour of the standard.** `problem_from_exception` now returns
+`/problems/internal-error`, 500, for an exception outside this module's hierarchy, and
+`FastMcpJobviteError.kind` defaults to it. `INTERNAL_ERROR` was defined in `errors.py` and reached
+by no code path, exercised only by the registry-mirror test; it is now the answer, and **the dead
+constant was the symptom**. `UNMAPPED` keeps `about:blank` for its actual scope - an unmapped HTTP
+status received from Jobvite - and is reached by no path today, which ADR-0017 accepts on the
+grounds that an unreachable fallback that is correct beats a reachable one that is wrong.
+
+**Mutation M10 inverted.** As written here it read *"unmapped becomes `/problems/internal-error`"*
+and the harness killed it; that is now the shipped behaviour. The row above is the mutation in its
+new direction - *"unmapped becomes `about:blank`"* - re-run against the current tree: **2 failed,
+32 passed**, killed by
+`test_every_registry_row_maps_to_its_registry_type_and_status[anything unmapped]` and
+`test_a_problem_object_is_returned_never_raised`. The row's numbers changed with its direction and
+are measured, not carried forward.
 
 ### D3 (design, minor): `retry_after` and the "seven members"
 
