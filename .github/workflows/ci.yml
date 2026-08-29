@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 863
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 865
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -585,6 +585,15 @@ jobs:
 
       - name: Every harness is wired and has a row floor
         run: python3 docs/reviews/check-row-floors.py
+
+      # The floor EXISTING and the floor being RIGHT are different claims,
+      # and #91 found the gap between them: u7 held 31 rows against a floor
+      # of 26, so five rows could be deleted with this job green. Neither
+      # branch was wrong - the MERGE produced the slack, which is the
+      # direction that never announces itself. Checks the 9 harnesses the
+      # control table names; the other 15 are #102.
+      - name: Every checked row floor EQUALS its harness's live row count
+        run: python3 docs/reviews/check-row-floor-exactness.py
 
       # WIRED GREEN, backlog zero. #85 fixed sixteen of these in one day and
       # my first pass found only five - the sweep stopped at the directory I
