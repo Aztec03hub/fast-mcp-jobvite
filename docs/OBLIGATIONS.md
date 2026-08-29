@@ -148,3 +148,31 @@ the map exists to make visible.
    rejects a subject too short to be evidence.
 4. Run the script. If it is green on a row you have just invented, break the artifact deliberately
    and confirm it goes red before believing the green.
+
+## A clause of `bash.md` that is GUIDANCE, recorded rather than dropped
+
+**`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or Go". 13 of the 15
+`scripts/*.sh` exceed 100 lines; the largest is 469.**
+
+It gets no row above, and the class check is what settled that: the table's vocabulary is MET /
+ABSENT / CONTRADICTED / SUPERSEDED, and every one of those asserts something about an *obligation*.
+This is not one. `:795` heads the section **"When NOT to Use Bash"**, `:798` opens *"Bash is the
+wrong tool when:"*, and `:807` labels the whole block **Guideline** - in a document that writes
+*"Every script MUST begin with"* at `:36` when it means MUST. So there is no deviation and no ADR.
+
+**The substance is still weighed, because "it is only guidance" is not a reason to stop reading.**
+The section's other bullets are complex data structures, JSON/YAML processing, cross-platform
+behaviour, concurrency and HTTP. These harnesses do none of that: they mutate one file, run pytest,
+and read an exit code, which is what shell is actually good at.
+
+**One bullet does bite.** *"Error handling matters - `set -e` has surprising edge cases; use a
+language with try/catch."* BASH-1 is exactly such an edge case, and it is measured, not hypothetical:
+`docs/reviews/probe-set-e-vs-harness.sh` shows `-e` aborting before `rc=$?` is read and leaving the
+mutation in the working tree. That is the guidance being right, and it is recorded here rather than
+argued away.
+
+**The decision is not to rewrite.** 3374 lines of amputation-verified harness carry every other gate
+in this repository, and replacing them to satisfy a guideline would put those gates at risk in order
+to comply with something that does not require compliance. If a harness is ever rewritten for its own
+reasons, this is a reason to write it in Python.
+
