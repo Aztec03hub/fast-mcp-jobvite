@@ -88,9 +88,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      # THIS JOB NEEDS THE DEPENDENCIES, and for one non-obvious reason.
+      # Most steps here are pure-stdlib checkers, which is why the job ran
+      # without a sync for so long. But `check-plan-measurements.py` RE-RUNS
+      # measurements, and two of its four probes invoke pytest. It selects
+      # `.venv/bin/python` when that exists and falls back to `sys.executable`
+      # otherwise - so with no sync it silently ran the probes under the
+      # hosted-toolchain interpreter, which has no pytest, and the step failed
+      # for a reason that looks nothing like its subject.
+      #
+      # The fallback is not the defect: a checker that degrades to the ambient
+      # interpreter is right for a developer machine. The defect was a job that
+      # runs a pytest-dependent checker without the environment it needs.
+      - name: Install from the frozen lock
+        run: uv sync --frozen
 
       # WORKFLOW LINTING. Nothing lint this file until now, and the cost of
       # that was 119 consecutive silent failures: mirror.yml used `secrets`
