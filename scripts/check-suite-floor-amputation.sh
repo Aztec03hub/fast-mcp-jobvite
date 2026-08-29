@@ -95,9 +95,9 @@ echo "post-run re-check of the real script: exit=0"
 # stops being counted. DERIVED: this harness printed "4/4 amputations
 # killed a test." at 7d3800c. Lowering this number is a visible diff
 # that has to be defended.
-row_floor=4
-if [ "$total" -lt "$row_floor" ]; then
-  echo "::error::$total/$row_floor ROWS - THE HARNESS LOST ROWS."
+ROW_FLOOR=4
+if [ "$total" -lt "$ROW_FLOOR" ]; then
+  echo "::error::$total/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "         A harness with fewer rows than its floor is green for the wrong reason."
   exit 1
 fi
