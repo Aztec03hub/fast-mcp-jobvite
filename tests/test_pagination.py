@@ -352,6 +352,14 @@ async def test_a_total_that_overstates_does_not_extend_the_loop() -> None:
         result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY)
     assert result.pages == 1
     assert len(result.items) == 2
+    # `total` is READ FROM THE ENVELOPE, never recomputed from the page.
+    # `JOBVITE-API.md:398` records it as the full result-set size: a
+    # call
+    # requesting 5 reported a `total` in the hundreds of thousands. A
+    # client that recounts it makes every scan agree with itself and
+    # deletes the only number the completeness check has to compare
+    # against.
+    assert result.total == 10_000
 
 
 async def test_a_full_page_of_duplicates_is_not_a_short_page() -> None:
@@ -410,19 +418,42 @@ async def test_completeness_does_not_fire_on_a_capped_call() -> None:
     check to every call *"would fire the alarm on the default path and
     train everyone to ignore it"*.
 
-    A single-armed suite passes against an implementation that alarms
-    on everything, which is the outcome this case exists to fail.
+    **TWO SUB-CASES, AND THE FIRST ONE ALONE IS NOT ENOUGH.** A capped
+    call that stops because it filled its limit never reaches a short
+    page, so `not exhaustive` is not the condition that keeps it quiet
+    and an implementation missing that condition still passes. The
+    second sub-case is a capped call that DOES terminate on a short
+    page and still mismatches `total`, which is the only shape where
+    the exhaustive test is load-bearing. Measured: without the second,
+    deleting `not exhaustive` from the guard survived this case.
     """
-    server = Recorder(records=records(1240), total=1240)
+    filled = Recorder(records=records(1240), total=1240)
     sink_id, captured = _capture_extras()
     try:
-        async with client(server) as c:
+        async with client(filled) as c:
             result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY, limit=50)
     finally:
         logger.remove(sink_id)
 
     assert result.capped is True
     assert len(result.items) == 50
+    assert result.total == 1240
+    assert result.incomplete is False
+    assert [extra for extra in captured if "reported_total" in extra] == []
+
+    # SUB-CASE TWO: capped, short page, and a mismatch. The caller asked
+    # for at most 50 and Jobvite served 30 of a claimed 1,240. Still not
+    # an anomaly: the caller did not ask for everything.
+    short = Recorder(records=records(30), total=1240)
+    sink_id, captured = _capture_extras()
+    try:
+        async with client(short) as c:
+            result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY, limit=50)
+    finally:
+        logger.remove(sink_id)
+
+    assert result.exhaustive is False
+    assert len(result.items) == 30
     assert result.total == 1240
     assert result.incomplete is False
     assert [extra for extra in captured if "reported_total" in extra] == []
@@ -516,12 +547,23 @@ async def test_the_jobfeed_route_uses_its_own_transport_cap() -> None:
     assert server.asks[0][1] == 1000
 
 
-async def test_a_capped_call_asks_for_no_more_than_its_cap() -> None:
-    """A limited call must not pull 500 records to return 50."""
+async def test_a_capped_call_stops_asking_once_it_is_full() -> None:
+    """A limited call must not pull 300 records to return 50.
+
+    **The request COUNT is the assertion, and it was missing.** The
+    amputation harness found it: deleting the in-loop cap break changed
+    nothing observable, because the final truncation still returned 50
+    records. Only the number of requests distinguishes a scan that
+    stopped from one that paged the whole resource and threw the rest
+    away - which against a self-throttled client (DESIGN.md:425-427) is
+    six requests a minute spent to discard 250 records.
+    """
     server = Recorder(records=records(300), total=300)
     async with client(server) as c:
         result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY, limit=50)
     assert server.asks[0][1] == 50
+    assert len(server.asks) == 1
+    assert result.pages == 1
     assert len(result.items) == 50
 
 
