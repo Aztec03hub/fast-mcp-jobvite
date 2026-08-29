@@ -89,6 +89,8 @@ uv run --frozen mypy                   # types
 uv run --frozen pytest                 # the default offline suite, zero skips
 bash scripts/check-u0-test-controls.sh # U0's controls, all must fire
 bash scripts/check-u15-gate-controls.sh
+bash scripts/check-u3-audit-controls.sh    # U3 mutation: every row must be killed
+bash scripts/check-u3-audit-amputation.sh  # U3 amputation: survivors are the OUTPUT
 python3 scripts/check-committed-file-types.py --all
 
 # The `design-gates` job
