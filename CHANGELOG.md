@@ -15,6 +15,29 @@ design decisions the implementation was built against and the units built so far
 
 ### Added
 
+- **`search_candidates` and `get_candidate`.** Two tools rather than one, because the shapes differ:
+  one returns a page and one returns a record, and a single tool cannot advertise two return
+  schemas. Candidate records are **allow-listed** - a field Jobvite returns that is not declared
+  does not reach the caller - and **no EEO field can be carried at all**, which is a property of the
+  output model rather than a filter that could be forgotten. Free-text fields are fenced, including
+  content that tries to close its own fence. (2026-08-29 08:41 AM CDT)
+- **`get_job_feed`**, the public job feed, on its own credential class
+  (`JOBVITE_FEED_KEY`, `JOBVITE_FEED_SECRET`, `JOBVITE_COMPANY_ID`). It is the one route whose URL
+  structurally carries its credentials, so that URL never reaches a log record whole and `sc=` is
+  redacted before any line is written - asserted against a log stream proven non-empty by the same
+  call, including the HTTP library's own record. (2026-08-29 08:41 AM CDT)
+- **`create_candidate`, behind an approval the host must answer**, and registered only when writes
+  are enabled AND the tool is named. The request names the candidate, the target job, and whether an
+  email will be sent. **`send_email` defaults to false; setting it true mails a real person.** A
+  duplicate is reported as `/problems/conflict` naming the duplicate. **The server requires an
+  approval response and refuses to write without one - it cannot and does not claim a human
+  approved anything.** (2026-08-29 08:41 AM CDT)
+- **Bearer-token authentication and per-token scopes on the HTTP transport.** A tool the caller's
+  token does not hold is absent from the tool list entirely, so a direct call reports it unknown
+  rather than forbidden - documented in the README, because it is correct and surprising. Rate
+  limiting is **per client** rather than the framework's default of one shared bucket, and the
+  inbound `X-Request-ID` is validated as a UUIDv4 before use and echoed back on every result. (2026-08-29 08:41 AM CDT)
+
 - **Resilience on every outbound call: per-phase timeouts, then retry, then a circuit breaker**, in
   that order. Retries use jitter and fire only for connection errors, timeouts and 5xx; a `429` is
   retried and then reported as a 503 honouring `Retry-After`. **`create_candidate` is excluded from
