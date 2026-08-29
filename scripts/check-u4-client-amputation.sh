@@ -259,9 +259,7 @@ amputate "A9f the transport failure is never logged (relocated controls go vacuo
   '            logger.warning(
                 "jobvite transport failure",
                 method=method,
-                route=redact_url(
-                    f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"
-                ),
+                route=redact_url(f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"),
                 headers=redact_headers(headers),
                 error=redact_text(f"{type(exc).__name__}: {exc}"),
             )' \

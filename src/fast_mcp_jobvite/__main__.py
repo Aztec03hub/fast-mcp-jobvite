@@ -20,6 +20,14 @@ handler, adds one serialising stderr sink with `catch=False`, and routes
 stdlib records into it through `_InterceptHandler`, so the two libraries
 produce one stream in one shape.
 
+**Redaction runs at TWO depths, and neither covers the other.**
+`_redact_message` redacts the record, which is what every handler in the
+process sees; `_redact_serialised` redacts what this handler renders, and
+`serialize=True` renders `record["exception"]` and a `text` carrying the
+formatted traceback as well as `message`. `_InterceptHandler` forwards
+`exc_info` for every stdlib logger in the process, so the producers of an
+exception on this stream are not enumerable.
+
 **The SIGTERM problem, and why the obvious fix is worse than none**
 (DESIGN.md:960-1023). Lifespan teardown does not run under SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on the
@@ -68,13 +76,14 @@ import logging
 import os
 import signal
 import sys
+from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, TextIO
 
 from loguru import logger as _loguru
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from loguru import Record
+    from loguru import Message, Record
 
 # A LEAF import, taken before the framework imports on purpose. It pulls in
 # `urllib.parse` and nothing of this project's, so it cannot drag the server
@@ -119,6 +128,16 @@ def _redact_message(record: Record) -> bool:
     covers all of them, and it calls `redact_text` rather than reimplementing
     it, so DESIGN.md:312-316's "enforced in one place" still holds.
 
+    **This is not made redundant by `_redact_serialised` below, and the
+    measurement that said it was, was scoped wrong.** The sink redacts what
+    OUR handler writes; this filter redacts the RECORD, which is what every
+    other handler in the process sees - and a test that installs its own
+    loguru sink is one, as is anything a future operator adds. Deleting it
+    left the U1 boot suite passing 78/78, because every arm of that suite
+    reads the process's own stream; the full suite then went red on
+    `test_the_jobfeed_url_never_reaches_a_log_record_whole`, which reads a
+    foreign sink. A partial check selects for the case it cannot see.
+
     Args:
         record: The loguru record, mutated in place before formatting.
 
@@ -162,13 +181,14 @@ def _redact_json(value: object) -> object:
 def _redact_serialised(line: str) -> str:
     """Redact one serialised record - EVERY field, not just `message`.
 
-    **`_redact_message` above reaches one field and `serialize=True` renders
-    several.** Measured at this commit, on a process configured the shipped
-    way: a stdlib `logger.exception` whose exception text carried
+    **The record filter reaches one field and `serialize` renders several.**
+    `_redact_message` above redacts `record["message"]`. Measured on a process
+    configured the shipped way, before this sink existed: a
+    stdlib `logger.exception` whose exception text carried
     `?api=...&sc=...&companyId=...` arrived on stderr with the credentials in
     the clear **twice** - once in `record.exception.value` and once in the
-    rendered `text`, which carries the formatted traceback. `_redact_message`
-    saw neither, because neither is `record["message"]`.
+    rendered `text`, which carries the formatted traceback. The filter saw
+    neither, because neither is `record["message"]`.
 
     `_InterceptHandler` forwards `record.exc_info` for **every** stdlib logger
     in the process, so the producers are not enumerable: any dependency that
@@ -197,7 +217,7 @@ def _redact_serialised(line: str) -> str:
     return json.dumps(_redact_json(payload)) + "\n"
 
 
-def _redacting_sink(stream: TextIO) -> object:
+def _redacting_sink(stream: TextIO) -> Callable[[Message], None]:
     """Build the one sink: redact the serialised record, then write it.
 
     **The stream is captured HERE, at configuration time**, which is the
@@ -220,7 +240,7 @@ def _redacting_sink(stream: TextIO) -> object:
         The sink callable to hand to `logger.add`.
     """
 
-    def sink(message: str) -> None:
+    def sink(message: Message) -> None:
         stream.write(_redact_serialised(str(message)))
         stream.flush()
 
@@ -277,13 +297,20 @@ def configure_logging() -> None:
         # JSON-RPC channel on stdio, and a single log record written there
         # corrupts the protocol.
         #
-        # A SINK rather than the bare stream, because `filter=` below reaches
-        # `record["message"]` and `serialize` renders more than that field -
-        # `record["exception"]` and the formatted `text` among them. Both are
-        # kept: the filter cleans the record for any handler, and the sink
-        # cleans everything that was actually rendered. Both call
-        # `redact_text`, so DESIGN.md:312-316's "enforced in one place" holds -
-        # there is one redactor, applied at two depths, not two redactors.
+        # A SINK rather than the bare stream, and it is the SECOND depth at
+        # which `redact_text` runs, not a replacement for the first.
+        #
+        # `filter=_redact_message` redacts the RECORD, which is what every
+        # handler in the process sees. This sink redacts what THIS handler
+        # renders, and `serialize` renders more than `record["message"]` -
+        # `record["exception"]` and the formatted `text` among them.
+        #
+        # Neither covers the other, and that was established by deleting each:
+        # without the filter the full suite goes red on a foreign sink reading
+        # an unredacted record; without the sink an exception's text reaches
+        # stderr in the clear. Both call `redact_text`, so DESIGN.md:312-316's
+        # "enforced in one place" holds - one redactor, two depths, not two
+        # redactors.
         _redacting_sink(sys.stderr),
         level=_LOG_LEVEL,
         serialize=True,

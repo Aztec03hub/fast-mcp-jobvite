@@ -418,8 +418,8 @@ jobs:
           if printf '%s\n' "$out" | grep -q 'TIMED OUT'; then
             echo "::error::a U1 amputation hung; that row proved nothing"; exit 1
           fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## [A-M]\. ')
-          [ "$rows" -ge 13 ] || { echo "::error::only $rows amputation rows ran, expected 13"; exit 1; }
+          rows=$(printf '%s\n' "$out" | grep -cE '^########## [A-N]\. ')
+          [ "$rows" -ge 14 ] || { echo "::error::only $rows amputation rows ran, expected 14"; exit 1; }
 
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
       # else touched. Both harnesses run here, because a control that runs only
@@ -483,8 +483,12 @@ jobs:
           if printf '%s\n' "$out" | grep -q 'DID NOT LAND'; then
             echo "::error::a U4 amputation did not land; that row tested nothing"; exit 1
           fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+ ')
-          [ "$rows" -ge 12 ] || { echo "::error::only $rows amputation rows ran, expected 12"; exit 1; }
+          # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the
+          # old pattern required a space straight after the digits, so it would
+          # have counted 12 while 17 ran - a gate reporting the number of rows
+          # it can SEE, which is how a row goes missing without a red run.
+          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+[a-z]* ')
+          [ "$rows" -ge 17 ] || { echo "::error::only $rows amputation rows ran, expected 17"; exit 1; }
 
       - name: Secret scan hook runs clean
         # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,

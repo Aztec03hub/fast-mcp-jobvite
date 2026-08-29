@@ -389,6 +389,83 @@ def test_a_third_party_log_line_is_redacted_at_the_sink(
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
 
 
+#: A SECOND loguru sink, added by something that is not `configure_logging`.
+#:
+#: `_InterceptHandler` routes every stdlib record in the process into loguru,
+#: so a handler nobody in `src/` installed still receives them - and the suite
+#: itself is such a handler: `tests/test_boot.py` imports `__main__` at module
+#: scope, so by the time `tests/test_jobvite_client.py` adds its own sink the
+#: intercept is live and `httpx2`'s INFO line reaches it.
+#:
+#: The record has to be clean, not just the stream, and that is what
+#: `_redact_message` is for. The outcome goes to a FILE because stderr carries
+#: the shipped sink's own output.
+FOREIGN_SINK_ENTRY = """
+import json
+import logging
+import pathlib
+import sys
+
+import fast_mcp_jobvite.__main__  # noqa: F401 - configures the one log sink
+
+from loguru import logger
+
+OUT = pathlib.Path(sys.argv[1])
+
+seen = []
+logger.add(seen.append, level="DEBUG")
+
+logging.getLogger("some.third.party").info(
+    "HTTP Request: GET https://api.jobvite.com/v1/jobFeed"
+    "?api=LEAKKEY-not-a-real-credential&sc=LEAKSECRET-not-a-real-credential"
+    "&companyId=LEAKCOMPANY"
+)
+
+OUT.write_text(json.dumps({"seen": [str(item) for item in seen]}))
+"""
+
+
+def test_a_sink_this_project_did_not_install_sees_a_redacted_record(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`_redact_message` guards the RECORD; the serialising sink guards a LINE.
+
+    **Neither covers the other, and this arm is the half that was nearly lost.**
+    When the sink-level redaction landed, deleting `_redact_message` left this
+    module's whole suite passing 78/78 - every arm here reads the process's own
+    stream, which the sink cleans. The full suite then went red on
+    `tests/test_jobvite_client.py::test_the_jobfeed_url_never_reaches_a_log_record_whole`,
+    which reads a sink the test installed itself. The measurement that said the
+    filter was redundant was scoped to the suite that structurally could not
+    see it.
+
+    So the property is asserted here, deliberately and in one process, rather
+    than left to depend on collection order in another module.
+    """
+    outcome = tmp_path / "seen.json"
+    result = _run_script(tmp_path, FOREIGN_SINK_ENTRY, str(outcome))
+    assert result.returncode == 0, result.stderr
+
+    seen = json.loads(outcome.read_text())["seen"]
+    # POSITIVE half: the stdlib record really did reach the foreign sink, so
+    # the absence below is about redaction and not about an empty list.
+    assert seen, "no stdlib record reached the second sink at all"
+    joined = "".join(seen)
+    assert "jobFeed" in joined, f"the line never arrived: {joined!r}"
+    assert "[REDACTED]" in joined
+
+    leaked = [
+        needle
+        for needle in (
+            "LEAKSECRET-not-a-real-credential",
+            "LEAKKEY-not-a-real-credential",
+            "LEAKCOMPANY",
+        )
+        if needle in joined
+    ]
+    assert not leaked, f"{len(leaked)} of 3 credentials reached the foreign sink"
+
+
 #: An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
 #:
 #: `_InterceptHandler` forwards `record.exc_info` for every stdlib logger in
