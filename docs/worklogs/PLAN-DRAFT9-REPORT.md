@@ -10,8 +10,9 @@ only reads were `git -C <shared> log/status/diff`.
 Rebased onto `origin/main` at **`20e55ef`**. Plan is **2,340 lines** (`wc -l`), status line reads
 **DRAFT 9**, and the two agree because I read both off the file rather than asserting either.
 
-**Read "The tree moved under me" below before the finding-by-finding section** - four commits landed
-on `main` while I worked, two of them closing things this report was written to raise.
+**Read "The tree moved under me" below before the finding-by-finding section** - **seven commits
+landed on `main` while I worked**, across three rebases, two of them closing things this report was
+written to raise and one of them landing the plan itself.
 
 ---
 
@@ -45,10 +46,10 @@ section, (d) fix the numbers. Not a fresh application.
 
 ---
 
-## The tree moved under me, and two of my findings landed before my branch did
+## The tree moved under me seven commits, and two of my findings landed before my branch did
 
-I pinned `ff9461a` as instructed and measured everything there. `origin/main` is now `1e67f9c`, four
-commits ahead, and **two of those commits close things this report was written to raise**:
+I pinned `ff9461a` as instructed and measured everything there. **`main` moved seven commits during
+the task.** The first four, and what they did to this work:
 
 | Commit | What it did | Effect on this work |
 |---|---|---|
@@ -60,7 +61,7 @@ commits ahead, and **two of those commits close things this report was written t
 **`1e67f9c` invalidated seven passages I had just written**, all describing collision 11 as an open
 defect: the header bullet, §4's *"reds on TWO things"* paragraph, collision 11's list item, U5's new
 bullet, the shared-file row, the §8 measurement block and §10.3. **All seven rewritten in place** in
-`8181dfe`, and what survives in each is the **rule** rather than the defect - *do not narrow this
+the first reconciliation commit on this branch, and what survives in each is the **rule** rather than the defect - *do not narrow this
 guard to buy a green* still binds U5, and `1e67f9c`'s third measured arm (a genuine orphan outside
 `testpaths` still fails after the fix) is the assertion that says the guard did not go blind while
 being made green. That arm is the part of `1e67f9c` I would most want other units to copy.
@@ -208,7 +209,7 @@ commit and said so in it.** No citation anywhere in the plan calls `4e5a1b2` dra
 ## The accepted-items checklist, checked off against the finished text
 
 Carried through the rewrite deliberately, because a rewrite silently reverts sentence-sized
-findings. Every row re-read in the committed object at `258ba37`, not from memory.
+findings. Every row re-read in the finished file on this branch, not from memory.
 
 | # | Item | Source | In the finished text? |
 |---|---|---|---|
@@ -236,7 +237,7 @@ findings. Every row re-read in the committed object at `258ba37`, not from memor
 | 22 | "all eleven closed-set assertions" number deleted | brief | **yes** |
 | 23 | "Two of the ten collisions above" number deleted | own sweep | **yes** |
 | 24 | Suite trajectory carries the re-measured figure | own re-run | **yes, 94 at `1e67f9c`** |
-| 25 | Collision 11 described as CLOSED, in all seven places | `1e67f9c` | **yes, `8181dfe`** |
+| 25 | Collision 11 described as CLOSED, in all seven places | `1e67f9c` | **yes** |
 | 26 | The rule that outlives the fix still binds U5 | own judgement | **yes, 3 places** |
 | 27 | U0 harness: `9ca76fe` break and `d48c112` fix both in the amendment table | own finding + `d48c112` | **yes** |
 | 28 | `main`'s concurrent edits merged, not overwritten | rebase | **yes, both conflicts** |
@@ -420,7 +421,7 @@ For what I could not settle, not for what I did not try.
 ---
 
 *`impl-plan-draft9`, 2026-08-28. Worktree pinned at `ff9461a`, then rebased onto `origin/main` at
-`1e67f9c`; branch `plan/draft9` at `8181dfe`. One plan file changed plus this report - no `tests/`,
+`20e55ef`; branch `plan/draft9`, six commits. One plan file changed plus this report - no `tests/`,
 no `scripts/`, no `ci.yml`, no ADR, no `docs/OBLIGATIONS.md`. `docs/DESIGN.md` read only from the
 frozen object `135c3ac` and not edited. **The shared checkout was never written to and never had a
 branch moved in it.** Nothing was pushed and nothing was merged. Worktree removed.*
