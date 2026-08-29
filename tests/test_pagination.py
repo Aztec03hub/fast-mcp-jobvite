@@ -576,6 +576,44 @@ async def test_a_limit_above_the_configured_cap_is_clamped_to_it() -> None:
     assert result.capped is True
 
 
+async def test_a_clamped_page_still_returns_no_more_than_the_limit() -> None:
+    """R5-H1. The FINAL truncation, which no other case reaches.
+
+    **This is the one shape where the in-loop break cannot hold the
+    limit on its own**, and it is the ordinary clamping shape this unit
+    exists for (DESIGN.md:460-462). A page that is FULL on the wire but
+    yields fewer than `effective_limit` NEW records does not trip the
+    break, so the scan asks for one more page and overshoots. Both
+    existing capped cases -
+    `test_a_capped_call_stops_asking_once_it_is_full` and
+    `test_a_limit_above_the_configured_cap_is_clamped_to_it` -
+    accumulate their limit exactly on page one and stop there, so
+    **deleting the truncation outright left the entire suite green** -
+    amputation row A7b, which was VACUOUS until this case landed.
+
+    **The assertion is the item COUNT, and it cannot be `capped`.**
+    `capped` is `True` with the truncation and `True` without it, so the
+    result object cannot tell the two apart: measured, a `limit=4` call
+    returned four records intact and SIX amputated, `capped=True` in
+    both. Downstream that is `showing 4 of 8` printed over six records.
+
+    `pages == 2` is the second half, and it is what stops the case being
+    satisfiable by an implementation that never pages at all.
+    """
+    duplicate = records(1)[0]
+    server = Recorder(records=[duplicate, duplicate, duplicate, *records(5, offset=1)])
+    async with client(server, max_results=4) as c:
+        result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY, limit=4)
+
+    # Page one is four records on the wire and TWO new ones, so the
+    # break at `len(items) >= effective_limit` does not fire; page two
+    # takes the running total to six.
+    assert server.asks == [(0, 4), (4, 4)]
+    assert result.pages == 2
+    assert len(result.items) == 4
+    assert result.duplicates_dropped == 2
+
+
 # ======================================================================
 # the start base: per resource, not global
 # ======================================================================

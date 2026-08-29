@@ -49,6 +49,7 @@ from fast_mcp_jobvite.models.jobs import (
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
 from fast_mcp_jobvite.tools.jobs import (
+    CLIENT_ROUTES,
     JOBS_PATH,
     REQUEST_ID_META_KEY,
     SearchJobsInput,
@@ -1059,6 +1060,104 @@ async def test_the_default_client_factory_carries_the_configured_result_cap(
         "cap holds a different number from the in-tool half"
     )
     assert seen[0]["company_id"] is not None
+
+
+async def test_the_default_client_factory_carries_the_pagination_start_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R5-M1: `JOBVITE_PAGINATION_START_BASE` reached no code at all.
+
+    **F1's sibling in the argument list F1 was fixed in.** The factory
+    gained `max_results` and `company_id` and not this, so
+    `grep -rn "pagination_start_base" src/` returned exactly one line -
+    its own definition in `config.py`. `.env.example` documents an
+    operator override that did nothing.
+
+    **The assertion is BEHAVIOUR, not the keyword argument.** A case
+    asserting `seen[0]["start_base_overrides"] == {...}` passes against
+    a client that ignores what it was handed; `scan_start()` is what a
+    scan actually reads (DESIGN.md:478-480), so the built client is
+    asked directly.
+
+    `client_factory=None` is the whole point, exactly as it is for F1:
+    every other case in this file supplies its own factory and never
+    reaches the branch that builds the real client.
+
+    **The silence arm is not decoration.** Without it this case passes
+    against a factory that hands every route a base unconditionally,
+    which is the failure mode that loses record zero on a 0-based
+    server - the one DESIGN.md:463-464 exists to prevent.
+    """
+    built: list[JobviteClient] = []
+
+    def recording(**kwargs: Any) -> JobviteClient:
+        handler = _static_handler(fixture_bytes(JOB_LIST_SUCCESS))
+        client = JobviteClient(**{**kwargs, "transport": httpx2.MockTransport(handler)})
+        built.append(client)
+        return client
+
+    monkeypatch.setattr("fast_mcp_jobvite.tools.jobs.JobviteClient", recording)
+
+    async def run(**overrides: Any) -> JobviteClient:
+        built.clear()
+        server = build_server(settings(**overrides), client_factory=None)
+        async with Client(server) as client:
+            await client.call_tool(SEARCH_JOBS, {"params": {}})
+        assert built, "the default factory was never reached; this proves nothing"
+        return built[0]
+
+    configured = await run(pagination_start_base=1)
+    assert configured.scan_start(JOBS_PATH) == 1, (
+        "JOBVITE_PAGINATION_START_BASE did not reach the client, so the "
+        "documented operator override moves nothing on the wire"
+    )
+
+    unset = await run()
+    assert unset.scan_start(JOBS_PATH) == 0
+
+
+def test_the_client_routes_tuple_lists_every_route_this_module_asks_for() -> None:
+    """`CLIENT_ROUTES` is checked against its CONTAINER, not maintained.
+
+    The start-base overrides are built by spreading one scalar over
+    `CLIENT_ROUTES`, which makes that tuple a hand-kept list beside the
+    thing it describes - the defect this project has recorded seven
+    times, whose shape is that the list is blind to the member nobody
+    added to it. So this parses the module and enumerates the routes
+    every `client.request(...)` / `client.scan(...)` call actually
+    names, and asserts the two sets are **EQUAL**: a new route reaching
+    the client without an entry here fails, and so does a stale entry
+    for a route nobody calls any more.
+
+    It reads the SOURCE rather than calling the tool, because a route
+    behind a branch this suite does not take is exactly the member that
+    would be missed.
+    """
+    tree = ast.parse(TOOLS_SOURCE.read_text())
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not isinstance(func, ast.Attribute) or func.attr not in {"request", "scan"}:
+            continue
+        for arg in node.args:
+            if isinstance(arg, ast.Name) and arg.id.endswith("_PATH"):
+                called.add(arg.id)
+
+    assert called, "no client call site was found; the parse found nothing to check"
+    declared = {
+        name
+        for name, value in vars(
+            importlib.import_module("fast_mcp_jobvite.tools.jobs")
+        ).items()
+        if name.endswith("_PATH") and value in CLIENT_ROUTES
+    }
+    assert called == declared, (
+        f"routes reaching the client: {sorted(called)}; routes CLIENT_ROUTES "
+        f"covers: {sorted(declared)}. A route missing here silently loses "
+        "JOBVITE_PAGINATION_START_BASE."
+    )
 
 
 def _static_handler(body: bytes) -> Callable[[httpx2.Request], httpx2.Response]:

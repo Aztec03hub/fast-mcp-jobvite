@@ -225,11 +225,22 @@ amputate "A6  the result cap has no transport half; min() is gone" \
   '        return self._max_results'
 
 # ---------------------------------------------------------------------------
-# A7 - THE CALLER'S LIMIT IS NEVER ENFORCED. Both the loop break and the
-# final truncation go, so a `limit=50` call returns everything Jobvite
-# holds - and reports it as an ordinary result.
+# A7a/A7b - THE CALLER'S LIMIT IS ENFORCED IN TWO PLACES AND THIS ROW USED
+# TO BE ONE. It read "Both the loop break and the final truncation go",
+# and its anchor deleted only the break. R5-M3: the comment was the
+# claim, the anchor was the deed, they disagreed, and the half the
+# comment claimed is the half R5-H1 proved untested - deleting the
+# truncation left the WHOLE suite green while a `limit=4` call returned
+# six records. One row per anchor, so each half is separately
+# measurable and neither can be read as covering the other.
+#
+# A7a - the in-loop break: the scan pages the whole resource and throws
+# the remainder away. Only the request COUNT distinguishes it from a
+# scan that stopped, which is what made this row VACUOUS on U6's first
+# run before `test_a_capped_call_stops_asking_once_it_is_full` asserted
+# `len(server.asks)`.
 # ---------------------------------------------------------------------------
-amputate "A7  a caller's limit bounds nothing" \
+amputate "A7a a caller's limit does not stop the loop" \
   "$CLIENT" \
   '            if not exhaustive and len(items) >= effective_limit:
                 capped = True
@@ -237,6 +248,23 @@ amputate "A7  a caller's limit bounds nothing" \
   '            if False:
                 capped = True
                 break'
+
+# ---------------------------------------------------------------------------
+# A7b - the final truncation: reaching it needs a page that is FULL on
+# the wire but yields fewer than `effective_limit` NEW records, so the
+# next page overshoots - the ordinary clamping shape this unit exists
+# for. `capped` is True with or without the truncation, so the result
+# object cannot tell the two apart and the item COUNT is the only
+# assertion that can. `test_a_clamped_page_still_returns_no_more_than_the_limit`
+# is the case; without it this row is VACUOUS, which is how R5-H1 was
+# found and is the state this row was deliberately committed in first.
+# ---------------------------------------------------------------------------
+amputate "A7b the caller's limit does not truncate the result" \
+  "$CLIENT" \
+  '        if not exhaustive and len(items) > effective_limit:
+            capped = True
+            items = items[:effective_limit]' \
+  '        pass'
 
 # ---------------------------------------------------------------------------
 # A8 - RECORDS WITHOUT AN ID ARE DROPPED. A silent under-read produced by
@@ -293,7 +321,7 @@ fi
 # `APPLIED -ne ROWS` is satisfied by 0 == 0, so a harness whose rows were
 # all deleted would be fully green. Lowering this number is a visible
 # diff that has to be defended.
-ROW_FLOOR=10
+ROW_FLOOR=11
 if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
   echo "::error::the harness holds $ROWS rows, below its floor of $ROW_FLOOR"
   exit 1

@@ -26,11 +26,12 @@ design decisions the implementation was built against and the units built so far
 - Completeness is checked against `total` **only on an exhaustive scan**. A capped call is a
   mismatch by design - it reports `showing 50 of 1,240` - so wiring the check to every call would
   fire the alarm on the default path and train everyone to ignore it. (2026-08-29 05:12 AM CDT)
-- The per-resource pagination start base, with `JOBVITE_PAGINATION_START_BASE` as an override for
-  anyone who has established which base a resource actually uses. **Whether `start` is 0- or
-  1-based remains unestablished as a fact about Jobvite**: the vendor documents 1-based, and what
-  is observed is only that `start=0` is accepted and returns records. Correctness does not rest on
-  which is true. (2026-08-29 05:12 AM CDT)
+- The pagination start base, with `JOBVITE_PAGINATION_START_BASE` as an override for anyone who has
+  established which base a resource actually uses. The client's own override is per-resource; the
+  environment variable is one value, applied to every route the calling tool asks the client for.
+  **Whether `start` is 0- or 1-based remains unestablished as a fact about Jobvite**: the vendor
+  documents 1-based, and what is observed is only that `start=0` is accepted and returns records.
+  Correctness does not rest on which is true. (2026-08-29 05:12 AM CDT)
 
 - **`search_jobs`, and with it the first runnable server.** The tool composes every cross-cutting
   mechanism the earlier units built - configuration fail-fast, the RFC 9457 error contract, the
@@ -258,6 +259,15 @@ design decisions the implementation was built against and the units built so far
   (2026-08-27 02:45 PM CDT)
 
 ### Fixed
+
+- **`JOBVITE_PAGINATION_START_BASE` reached no code at all.** The variable shipped, was documented
+  as an operator override, and was read by nothing: the tool built its client without passing it
+  through, so setting it changed no request on the wire. It is the same omission as the result-cap
+  one below, in the same argument list, and the fix for that one did not check its siblings. The
+  setting now reaches the client for every route the tool asks it for, and a case builds the real
+  client and asks it what base it would scan from - with a silence arm, because a factory that
+  applies a base unconditionally is the failure that loses record zero.
+  (2026-08-29 05:41 AM CDT)
 
 - **The two halves of the result cap could hold different numbers.** `JOBVITE_MAX_RESULTS` is applied
   in two places by design - once in the tool, which owns the `showing N of total` string, and once at

@@ -74,6 +74,21 @@ REQUEST_ID_META_KEY: Final = "com.evolvconsulting.fast-mcp-jobvite/requestId"
 #: The v2 route this tool calls (DESIGN.md:137).
 JOBS_PATH: Final = "/job"
 
+#: **Every route this module asks the client for**, and the container
+#: the start-base overrides below are built from rather than a second
+#: hand-kept copy of the same knowledge.
+#:
+#: `JOBVITE_PAGINATION_START_BASE` is a SCALAR
+#: (`config.py:pagination_start_base`) and the client takes a per-route
+#: `Mapping` (DESIGN.md:478-480), so something has to name the routes
+#: the scalar applies to. A list written beside the call site would be
+#: blind to the route nobody added to it - the defect this project has
+#: recorded seven times - so
+#: `test_the_client_routes_tuple_lists_every_route_this_module_asks_for`
+#: enumerates the CONTAINER, parsing every client call in this file,
+#: and asserts the two sets are EQUAL rather than merely overlapping.
+CLIENT_ROUTES: Final = (JOBS_PATH,)
+
 
 class SearchJobsInput(BaseModel):
     """Arguments for `search_jobs`.
@@ -261,11 +276,32 @@ def register(
         # tool does not call that route. Wiring it here rather than
         # when U12 arrives keeps the factory's argument list a
         # description of the settings, not of the current caller.
+        #
+        # `start_base_overrides` IS PASSED, and leaving it out was
+        # R5-M1 - F1's sibling in the argument list F1 was fixed in.
+        # `grep -rn "pagination_start_base" src/` returned exactly one
+        # line, its own definition: the knob `.env.example` documents
+        # for an operator who has ESTABLISHED the base against a live
+        # tenant reached no code at all. Latent like `company_id`,
+        # because `scan()` has no caller in `src/` yet (U8/U12), and
+        # wired now for the same reason: the factory's argument list
+        # should describe the settings, not the current caller.
+        #
+        # **The scalar is applied to every route this module uses, not
+        # made global**, because the client's contract is per-route and
+        # widening it is U6-F2's decision, not this call site's. Guarded
+        # on `is not None` so an unset variable leaves `SCAN_START`
+        # alone - an override written as 0 is still an override.
         return JobviteClient(
             api_key=api_key,
             api_secret=api_secret,
             company_id=settings.company_id,
             max_results=settings.max_results,
+            start_base_overrides=(
+                None
+                if settings.pagination_start_base is None
+                else dict.fromkeys(CLIENT_ROUTES, settings.pagination_start_base)
+            ),
         )
 
     @server.tool(
