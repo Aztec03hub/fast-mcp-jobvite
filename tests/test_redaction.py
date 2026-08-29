@@ -18,18 +18,31 @@ values.
 
 from __future__ import annotations
 
-import pytest
+import logging
+import subprocess
+import sys
+from collections.abc import Iterator
 
+import httpx2
+import pytest
+from pydantic import SecretStr
+
+from fast_mcp_jobvite.services.jobvite_client import JobviteClient
 from fast_mcp_jobvite.utils.redaction import (
+    HTTPX_LOGGER_NAME,
     NON_SENSITIVE_ARGUMENT_KEYS,
     REDACTED,
     SECRET_HEADERS,
     SECRET_QUERY_PARAMS,
+    RedactingLogFilter,
+    install_log_redaction,
     redact_arguments,
     redact_headers,
     redact_text,
     redact_url,
 )
+
+from .conftest import REPO_ROOT
 
 #: Obvious non-values. `CONTRIBUTING.md:133-135` forbids a real tenant
 #: id, client name or credential anywhere in the repository, tests
@@ -446,3 +459,204 @@ def test_company_id_is_redacted_as_an_argument() -> None:
     assert "ACME123" not in redact_url(
         "https://api.jobvite.com/v1/jobFeed?api=k&sc=s&companyId=ACME123"
     )
+
+
+# ----------------------------------------------------------------------
+# ADR-0026: the EMBEDDER's half. `JobviteClient.__init__` installs the
+# filter, and the install is IDEMPOTENT.
+#
+# **The shipped server was never exposed.** `configure_logging()` runs
+# at `__main__` module scope on every shipped path. These cases are
+# about a process that never imports it.
+# ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def httpx_logger() -> Iterator[logging.Logger]:
+    """`httpx2`'s logger, left as it was found.
+
+    **The filter list is PROCESS GLOBAL, and it arrives here already
+    populated.** Measured: these four cases passed run alone and FAILED
+    in the full suite, because every other module that constructs a
+    `JobviteClient` - `test_jobvite_client`, `test_tools_job_feed`,
+    `test_resilience` - installs the filter as a side effect and it
+    outlives them. So the fixture CLEARS ours on the way in as well as
+    restoring the process's own list on the way out; snapshotting alone
+    would leave each case reading whatever ran before it.
+
+    The restore puts back exactly what was there, ours included, so
+    this fixture cannot itself become the reason a later case sees no
+    filter.
+    """
+    logger = logging.getLogger(HTTPX_LOGGER_NAME)
+    before = list(logger.filters)
+    logger.filters = [f for f in before if not isinstance(f, RedactingLogFilter)]
+    try:
+        yield logger
+    finally:
+        logger.filters = before
+
+
+def _ours(logger: logging.Logger) -> list[logging.Filter]:
+    """OUR filters on a logger, counted by type.
+
+    By type rather than by `len(logger.filters)`: a filter somebody
+    else installed is not our leak, and a raw length would blame us for
+    it.
+    """
+    return [f for f in logger.filters if isinstance(f, RedactingLogFilter)]
+
+
+def _client(**kwargs: object) -> JobviteClient:
+    """One client over a transport that answers everything."""
+    return JobviteClient(
+        api_key=SecretStr(FAKE_API),
+        api_secret=SecretStr(FAKE_SC),
+        company_id=SecretStr(FAKE_COMPANY),
+        transport=httpx2.MockTransport(lambda _r: httpx2.Response(200, json={})),
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def test_the_logger_guarded_is_the_one_the_library_actually_logs_through(
+    httpx_logger: logging.Logger,
+) -> None:
+    """`httpx2`, not `httpx` (ADR-0007), asserted against the library.
+
+    **A filter installed on the wrong logger is accepted by `logging`
+    without complaint, never fires, and leaves the leak exactly as
+    measured.** Every arm of every other case here would still pass:
+    they would install on a logger nothing writes to, observe one
+    filter on it, and observe no credentials in a stream that never
+    carried any. This is the one case that reads the library rather
+    than our own constant, so a rename upstream - or a `httpx`/`httpx2`
+    typo here - goes red instead of going quiet.
+    """
+    assert HTTPX_LOGGER_NAME == httpx2._client.logger.name  # noqa: SLF001
+
+
+async def test_building_many_clients_leaves_exactly_one_redaction_filter(
+    httpx_logger: logging.Logger,
+) -> None:
+    """ADR-0026's ruling: the install must be IDEMPOTENT.
+
+    **"The filter is installed" is not the property.** That passes on
+    the FIRST construction and says nothing about the twentieth.
+    `JobviteClient` is built once per invocation - `jobvite_client.py`
+    says so where it explains why the breaker is module-level - from
+    three call sites, so an unguarded `addFilter` in `__init__` stacks
+    one filter per tool call for the life of a long-running server, and
+    every record on that logger then walks a list that grows without
+    bound. A slow leak inside the change written to stop a leak.
+
+    A test that built two or three clients would not see it, which is
+    exactly why this one builds twenty.
+
+    **The `== 1` is paired with a growing control below**, because a
+    counter that reads the wrong logger also returns a constant.
+    """
+    assert not _ours(httpx_logger), "a filter of ours was already installed"
+    for _ in range(20):
+        client = _client()
+        await client.aclose()
+    assert len(_ours(httpx_logger)) == 1
+
+
+def test_the_filter_count_can_read_growth_at_all(
+    httpx_logger: logging.Logger,
+) -> None:
+    """The positive control for the case above.
+
+    `== 1` is satisfied perfectly by an instrument that can only ever
+    return 1 - one that reads a logger nothing installs onto, or whose
+    isinstance check matches nothing. Appending by hand makes the list
+    grow on purpose, so the assertion above is known to be a reading of
+    a live list.
+    """
+    for _ in range(20):
+        httpx_logger.addFilter(RedactingLogFilter())
+    assert len(_ours(httpx_logger)) == 20
+
+
+async def test_the_opt_out_is_honoured_and_installs_nothing(
+    httpx_logger: logging.Logger,
+) -> None:
+    """ADR-0026: an embedder may decline the side effect.
+
+    A library mutating a host's global logging configuration from a
+    constructor is something an embedder is entitled to object to. The
+    default installs because a credential leak is the worse default;
+    the keyword is what makes the exposure a choice they made.
+
+    **A constructor argument and never a `Settings` field** (ADR-0025).
+    """
+    client = _client(install_log_redaction=False)
+    await client.aclose()
+    assert not _ours(httpx_logger)
+
+
+def test_install_log_redaction_reports_whether_it_installed(
+    httpx_logger: logging.Logger,
+) -> None:
+    """The second call must be a no-op, and must SAY it was one.
+
+    The return value is what makes idempotence observable without
+    reaching into `logger.filters`, and it is the value the constructor
+    ignores - so it is asserted here rather than nowhere.
+    """
+    assert install_log_redaction() is True
+    assert install_log_redaction() is False
+    assert len(_ours(httpx_logger)) == 1
+
+
+def test_the_filter_redacts_a_credential_carried_in_a_records_ARGS() -> None:
+    """The shape `httpx2` emits, not the shape easiest to test.
+
+    `httpx2` calls `logger.info("HTTP Request: %s %s ...", method, url,
+    ...)`, so the URL is in `record.args` and `record.msg` is a format
+    string carrying no credential at all. A filter that redacted only
+    `record.msg` would pass an `assert REDACTED in record.msg` written
+    against a pre-formatted message and leak every real record.
+    """
+    record = logging.LogRecord(
+        name=HTTPX_LOGGER_NAME,
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="HTTP Request: %s %s",
+        args=("GET", JOB_FEED_URL),
+        exc_info=None,
+    )
+    assert RedactingLogFilter().filter(record) is True
+    assert not _leaks(record.getMessage(), FAKE_API, FAKE_SC, FAKE_COMPANY)
+    assert REDACTED in record.getMessage()
+
+
+def test_the_embedder_leak_probe_still_reproduces_its_measurements() -> None:
+    """`docs/reviews/probe-u12-f2-embedder-leak.py`, run not cited.
+
+    **The probe is the artefact behind ADR-0026's claim, and prose
+    about a measurement decays into a claim about one.** It ran
+    UNWIRED while it demonstrated the defect, because gating on it
+    would have gated on the bug staying; now that it asserts the fix it
+    gates, the way `probe-scan-bounds.py` and the breaker probes do.
+
+    **A SUBPROCESS, and not for tidiness.** The probe's precondition is
+    that `fast_mcp_jobvite.__main__` has never been imported - if it
+    has, `configure_logging()` has run and the probe measures the
+    SHIPPED path instead of an embedder's, which is the one thing it is
+    not for. It aborts with exit 2 rather than passing, but in-process
+    it would abort every time: this suite imports plenty. A fresh
+    interpreter is the only place the experiment is valid.
+    """
+    probe = REPO_ROOT / "docs" / "reviews" / "probe-u12-f2-embedder-leak.py"
+    assert probe.is_file(), f"the probe is missing at {probe}"
+    result = subprocess.run(  # noqa: S603 - a committed script, no shell
+        [sys.executable, str(probe)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

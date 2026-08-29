@@ -48,7 +48,7 @@ different lifetimes, and only one of them is guaranteed to exist.
 **§4.1 should say which entry points carry the redaction guarantee, and the answer must be
 reachable by an embedder.** Three shapes, and the trade is real in every direction:
 
-1. **`JobviteClient` installs a `logging.Filter` on the `httpx` logger.** Covers the measured path
+1. **`JobviteClient` installs a `logging.Filter` on the `httpx2` logger.** Covers the measured path
    exactly. **A library mutating a host's global logging configuration from a constructor is a side
    effect an embedder is entitled to object to**, and this project would object to it in someone
    else's library.
@@ -115,14 +115,14 @@ ADR-0025 is about a setting nothing reads and this would be a second one.
 
 Three call sites construct one: `tools/jobs.py:330`, `tools/jobs.py:642`, `tools/candidates.py:575`.
 
-A `logging.Filter` appended to the `httpx` logger in `__init__` therefore stacks **one filter per
+A `logging.Filter` appended to the `httpx2` logger in `__init__` therefore stacks **one filter per
 tool call, forever**, in a long-running server. Every record then walks a list that grows without
 bound. That is a slow leak in the code path added to prevent a leak, and it would be invisible in
 tests, which construct a handful of clients and exit.
 
 **So: check for an existing filter of our type before adding one, and prove the idempotence.** The
 test is not "the filter is installed" - that passes on the first call and says nothing. Construct N
-clients, assert the filter count on the `httpx` logger is 1, and amputate the idempotence check to
+clients, assert the filter count on the `httpx2` logger is 1, and amputate the idempotence check to
 confirm the assertion goes red.
 
 ### On inverting the probe
@@ -140,3 +140,27 @@ every shipped path, and U12's C5-I1 arm asserts the redaction fires there, inclu
 record, asserted PRESENT rather than merely absent. This closes an EMBEDDER's exposure, and the
 README's disclosure that an embedder must call `configure_logging()` stays accurate until the code
 lands - **rewrite it in place when it does, do not append a correction.**
+
+## Correction, 2026-08-29: the logger is `httpx2`, and this ADR said `httpx` three times
+
+**The three occurrences above are corrected IN PLACE rather than annotated**, because a document
+that names the wrong logger in its body and the right one in a footnote has two answers.
+
+`log-redaction` caught it while implementing. Verified independently: `httpx2._client` calls
+`logging.getLogger("httpx2")`, so a filter installed on `httpx` attaches to a logger this library
+never writes to. **The fix would have been inoperative and every test of it would have passed**,
+because a filter that is never consulted refuses nothing and breaks nothing.
+
+**The error came from the paragraph directly above it in this ADR being right.** Its Context quotes
+the leak as coming from `httpx2` twice - the finding was always about `httpx2`. I then wrote the
+decision using the library's UPSTREAM name, which is what one types from memory. A wrong name that
+is a near-miss of a correct one is not caught by reading; it is caught by running, or by the next
+person implementing against it.
+
+Two things follow for anything built on this ADR:
+
+- **The implementation must derive the logger name from the imported module, not retype it.** The
+  package is vendored as `httpx2` and a future rename would silently detach the filter again.
+- **A test asserting "the filter is installed" is not enough** and never was - it passes against a
+  filter attached to the wrong logger entirely. The assertion has to be that a record carrying a
+  credential-bearing URL comes out redacted, which is what the inverted probe does.

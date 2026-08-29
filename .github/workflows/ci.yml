@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 803
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 810
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -553,7 +553,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 415
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 421
 
       # WIRED ONLY NOW THAT ITS BACKLOG IS ZERO. It reported 10 floorless
       # harnesses when written and stayed unwired through all of them,
@@ -726,6 +726,16 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u14-arguments-amputation.sh \
             --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
+
+      # ----- ADR-0026: the embedder's log-redaction install -----
+      # Row counts DERIVED: the harness declares ROW_FLOOR=6 internally and
+      # its six rows were run at c54dc72. A3 is the one to read - it points
+      # the filter at `"httpx"`, which is the name ADR-0026 itself used three
+      # times before the correction, and the library logs on `httpx2`.
+      - name: Log redaction amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-log-redaction-amputation.sh \
+            --amputation --anchors-applied --min-rows 6 --row-re '^########## A[0-9]+ '
 
       # ADR NUMBERS ARE UNIQUE, CONTIGUOUS, AND MATCH THEIR OWN HEADINGS.
       # Two agents claimed 0027 within one hour: one checked `git log --all`

@@ -44,7 +44,9 @@ any of their content.
 
 from __future__ import annotations
 
+import logging
 import re
+import threading
 import urllib.parse
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
@@ -369,6 +371,90 @@ def _split_keeping_whitespace(text: str) -> list[str]:
     if current:
         tokens.append("".join(current))
     return tokens
+
+
+class RedactingLogFilter(logging.Filter):
+    """Redact a stdlib log record in place, and never drop it.
+
+    **The embedder's half of DESIGN.md:312-318** (ADR-0026). Our own
+    process gets redaction from `__main__.configure_logging()`, which
+    installs a loguru sink and a record filter. An embedder that
+    imports `server.build_server` - or, as ADR-0026's probe does,
+    constructs `JobviteClient` directly - never runs it, and `httpx2`
+    logs `HTTP Request: GET <url>` through the STANDARD LIBRARY logger,
+    which on the `jobFeed` route structurally carries `api`, `sc` and
+    `companyId`.
+
+    So this is a `logging.Filter`, not a second redactor: it calls
+    `redact_text`, the same function both loguru depths call, and
+    "enforced in one place" still holds - one redactor, now three
+    depths.
+
+    **The MESSAGE is rewritten, not the arguments.** `record.msg` and
+    `record.args` are formatted together by `getMessage()`, and the
+    credential can sit in either - `httpx2` puts the URL in an
+    argument. Formatting once here and clearing `args` redacts both
+    without having to know which. It costs the lazy `%`-formatting a
+    handler below might have skipped; a record that reached a filter is
+    one somebody has already decided to emit.
+
+    **Returns `True` always.** Dropping the record would turn a leak
+    into silence, which is the other way to lose a log line - the same
+    call `__main__._redact_message` makes, for the same reason.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Redact one record's formatted message. Never drops one."""
+        record.msg = redact_text(record.getMessage())
+        record.args = None
+        return True
+
+
+#: The logger `httpx2` emits its request lines on.
+#:
+#: **`httpx2`, not `httpx`** (ADR-0007), and the distinction is not
+#: cosmetic here: a filter installed on `httpx` is accepted by
+#: `logging` without complaint, never fires, and leaves the leak
+#: exactly as measured - a fix that lands on the wrong artefact.
+#: `tests/test_redaction.py` asserts this constant against the
+#: library's own logger object, so a rename upstream goes red rather
+#: than going quiet.
+HTTPX_LOGGER_NAME: Final = "httpx2"
+
+#: Serialises the check-then-add below. Two threads constructing a
+#: client at once would otherwise both read a filter-less logger and
+#: both append, which is the unbounded growth the idempotence exists to
+#: prevent, merely rarer and harder to reproduce.
+_INSTALL_LOCK: Final = threading.Lock()
+
+
+def install_log_redaction(logger_name: str = HTTPX_LOGGER_NAME) -> bool:
+    """Install `RedactingLogFilter` on one logger, at most once.
+
+    **IDEMPOTENT, and that is the whole point of the function**
+    (ADR-0026's ruling). `JobviteClient` is constructed once per
+    invocation - `jobvite_client.py` says so where it explains why the
+    breaker is module-level and not per-instance - so a bare
+    `addFilter` in `__init__` stacks one filter per tool call, forever,
+    and every record on that logger then walks a list that grows
+    without bound. That is a slow leak inside the change written to
+    stop a leak, and a test that builds a handful of clients and exits
+    cannot see it.
+
+    Args:
+        logger_name: The logger to guard. Defaults to `httpx2`'s.
+
+    Returns:
+        `True` if this call installed the filter, `False` if one of
+        ours was already there. The return value is what makes the
+        idempotence observable without reaching into `logger.filters`.
+    """
+    logger = logging.getLogger(logger_name)
+    with _INSTALL_LOCK:
+        if any(isinstance(f, RedactingLogFilter) for f in logger.filters):
+            return False
+        logger.addFilter(RedactingLogFilter())
+        return True
 
 
 # ======================================================================

@@ -75,6 +75,9 @@ from tenacity.wait import wait_exponential_jitter
 
 from ..errors import JobviteUnavailableError, JobviteUpstreamError
 from ..utils.correlation import request_id_var
+from ..utils.redaction import (
+    install_log_redaction as _install_log_redaction,
+)
 from ..utils.redaction import redact_headers, redact_text, redact_url
 
 # ----------------------------------------------------------------------
@@ -1221,6 +1224,7 @@ class JobviteClient:
         start_base_overrides: Mapping[str, int] | None = None,
         outbound_budget_seconds: float = DEFAULT_OUTBOUND_BUDGET_SECONDS,
         retry_max_attempts: int = DEFAULT_RETRY_MAX_ATTEMPTS,
+        install_log_redaction: bool = True,
     ) -> None:
         """Build the client.
 
@@ -1262,6 +1266,20 @@ class JobviteClient:
                 invocation (DESIGN.md:373-375). Applied by `scan`, and
                 by a bare `request` that finds no scope already open -
                 see `outbound_budget_scope`.
+            install_log_redaction: ADR-0026, option 1. Install the
+                redaction filter on `httpx2`'s stdlib logger, so an
+                EMBEDDER who never runs
+                `__main__.configure_logging()` does not receive the
+                `jobFeed` URL - `api`, `sc` and `companyId` - in the
+                clear. **Defaults to installing**: a credential leak
+                is a worse default than a surprising side effect, and
+                an embedder who wants their logging untouched passes
+                `False` here, which makes the exposure a choice they
+                made rather than one they did not know about.
+
+                **A constructor argument and NEVER a `Settings`
+                field.** ADR-0025 is about a setting nothing reads;
+                a second one is not the answer.
             retry_max_attempts: The attempt half of
                 `backend/resilience.md:88-90`'s "cap BOTH the maximum
                 attempt count AND the total elapsed time". The elapsed
@@ -1269,6 +1287,12 @@ class JobviteClient:
                 NOT settable from the environment; see the constant's
                 own note.
         """
+        if install_log_redaction:
+            # IDEMPOTENT by construction - see the function. This runs
+            # once per invocation from three call sites, so an
+            # unguarded `addFilter` here would stack one filter per
+            # tool call for the life of the process.
+            _install_log_redaction()
         self._api_key = api_key
         self._api_secret = api_secret
         self._company_id = company_id
