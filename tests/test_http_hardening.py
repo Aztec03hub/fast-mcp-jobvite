@@ -64,6 +64,7 @@ from fast_mcp_jobvite.http_hardening import (
     token_client_id,
 )
 from fast_mcp_jobvite.server import build_server
+from fast_mcp_jobvite.tools.jobs import REQUEST_ID_META_KEY
 from fast_mcp_jobvite.utils.correlation import request_id_var
 from tests.http_server_process import serve_http
 
@@ -691,3 +692,49 @@ async def test_the_framework_default_throttles_everyone() -> None:
     assert drained > 0
     message = str(caught.value).lower()
     assert "global" in message or "rate limit" in message, message
+
+
+# ======================================================================
+# U9-F1: the caller's id must be the one that comes back
+# ======================================================================
+
+
+async def test_a_valid_inbound_request_id_is_the_one_stamped_into_meta() -> None:
+    """U9-F1, end to end over a real HTTP request.
+
+    **U9's probe deliberately stops one step short of this.** It proves
+    the TRANSPORT reaches `resolve_request_id` with the header's value
+    and binds the result - which is what U9 owned. What nothing proved
+    is the half a caller actually experiences: that the id it sent is
+    the id that comes back in `_meta`.
+
+    It was not. All three `audit_scope` call sites - `search_jobs` and
+    both candidate tools - omit `inbound_request_id`, so
+    `resolve_request_id(None)` MINTED A FRESH ID inside the scope the
+    middleware had already bound. A caller's valid `X-Request-ID` was
+    validated, bound, and then discarded.
+
+    **The fix is the fallback in `resolve_request_id`, not an argument
+    at each call site**, and this case is what holds it: a per-call-site
+    fix would need three edits today and a fourth for the next tool,
+    which is a hand-kept obligation beside a container.
+
+    Asserted as an EQUALITY against a known id, not as "some id is
+    present" - a `_meta` carrying any UUID passes the weaker form, and
+    the weaker form is exactly what was green while this was broken.
+    """
+    sent = "0e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b"
+    from tests.test_tools_jobs import JOB_LIST_SUCCESS, client_factory, fixture_bytes
+
+    factory = client_factory(fixture_bytes(JOB_LIST_SUCCESS))
+    server = build_server(http_settings(), client_factory=factory)
+    with serve_http(server) as url:
+        async with Client(
+            StreamableHttpTransport(
+                url, auth=JOBS_TOKEN, headers={"X-Request-ID": sent}
+            )
+        ) as client:
+            result = await client.call_tool(SEARCH_JOBS, {"params": {}})
+
+    echoed = (result.meta or {}).get(REQUEST_ID_META_KEY)
+    assert echoed == sent, f"sent {sent!r}, got {echoed!r}"

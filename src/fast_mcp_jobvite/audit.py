@@ -55,7 +55,7 @@ from typing import Final
 
 from loguru import logger
 
-from .utils.correlation import request_id_scope
+from .utils.correlation import request_id_scope, request_id_var
 from .utils.redaction import JsonValue, redact_arguments, redact_text
 
 #: The message every audit record carries, so the audit stream is
@@ -245,6 +245,29 @@ def resolve_request_id(inbound_request_id: str | None = None) -> str:
     """
     if inbound_request_id is not None and _UUID4_RE.match(inbound_request_id):
         return inbound_request_id
+
+    # U9-F1. FALL BACK TO AN ALREADY-BOUND id BEFORE MINTING ONE.
+    # The HTTP transport validates the caller's `X-Request-ID` and binds
+    # it into `request_id_var` before a tool runs. Every `audit_scope`
+    # call site then called this with no argument, so a FRESH id was
+    # minted INSIDE the scope the middleware had already bound: the
+    # caller's id was validated, bound, and discarded, and the value
+    # stamped into `_meta` was one we invented. Measured end to end -
+    # sent `0e1f2a3b-...`, got `db66f3bc-...`.
+    #
+    # FIXED HERE RATHER THAN AT EACH CALL SITE, deliberately. All three
+    # sites omitted the argument - `search_jobs` and both candidate
+    # tools - so a per-site fix is three edits today and a fourth for
+    # the next tool, which is a hand-kept obligation beside a container
+    # and the defect this repository has recorded eight times. The rule
+    # belongs where the id is resolved.
+    #
+    # On stdio there is no header and the var is unset, so this returns
+    # `None` and a fresh id is minted, which is the behaviour §7.4
+    # requires there.
+    bound = request_id_var.get()
+    if bound is not None:
+        return bound
     return str(uuid.uuid4())
 
 
