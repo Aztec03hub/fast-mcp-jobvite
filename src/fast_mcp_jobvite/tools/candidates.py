@@ -199,6 +199,13 @@ class GetCandidateInput(InboundModel):
 #: (`JOBVITE-CONTRACT.md:260`, DESIGN.md:1390-1393). Named so the
 #: mapping to `/problems/conflict` is one comparison against one
 #: constant rather than a magic number beside a status test.
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "the write"
+
 DUPLICATE_CANDIDATE_STATUS: Final = 409
 
 #: The `201` envelope's outer key (`JOBVITE-CONTRACT.md:575-583`).

@@ -143,6 +143,13 @@ _assert_total()
 #: design, not established here.
 DESIRED_TOOL_CALLS_PER_BURST: Final = 10
 INBOUND_BURST_CAPACITY: Final = DESIRED_TOOL_CALLS_PER_BURST + 2
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "auth"
+
 INBOUND_MAX_REQUESTS_PER_SECOND: Final = 5.0
 
 #: The `client_id` a caller with no access token is billed to. stdio has

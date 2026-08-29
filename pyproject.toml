@@ -164,14 +164,27 @@ filterwarnings = [
 
 # ---------------------------------------------------------------------------
 # Coverage. Floors are ADR-0010's, against backend/testing.md:82's branch = true.
-#   80% overall floor, 85% tool modules, 90% the Jobvite client,
-#   95% utils/ (the standard's own Utilities target, kept not remapped),
-#   95% line / 90% branch on critical paths.
-# Only the overall floor is expressible as a single fail_under; the per-module
-# floors are enforced by the units that create those modules.
+# THE NUMBERS ARE NOT REPEATED HERE. They live in DESIGN.md's coverage sentence,
+# and `docs/reviews/check-coverage-floors.py` parses them out of it - so a copy in
+# this comment would be a second place to change a threshold and, on the evidence
+# below, the place nobody would change.
+#
+# Only the overall floor is expressible as a single `fail_under`. THE PER-MODULE
+# FLOORS ARE ENFORCED BY THAT CHECKER, over `coverage json`, and each critical-path
+# module declares its own `COVERAGE_ROLE` so the checker joins rather than carries
+# the list.
+#
+# THIS COMMENT USED TO SAY THEY WERE "enforced by the units that create those
+# modules", which was an obligation with no enforcer. `fail_under` is 80 and the
+# suite measures well above it, so `pytest --cov` stayed green while approval.py sat
+# at 78.6% branch and tools/candidates.py at 80.8%, both against a 90% floor - and
+# both misses were on BRANCH, which is not the half the terminal summary invites you
+# to read. Task #94.
 #
 # WIRED. `ci.yml`'s Coverage step runs `pytest --cov`, and `fail_under` below is the
-# floor it enforces - measured at 92.66% over 552 statements, against a floor of 80.
+# floor it enforces. NO MEASUREMENT IS QUOTED HERE ON PURPOSE: this line used to
+# carry "92.66% over 552 statements", and the statement count had nearly TRIPLED by
+# the time anyone read it again. Run the checker; it prints the current figures.
 #
 # `--cov-fail-under` is deliberately NOT passed on that command line, so the floor
 # lives in this file alone. Two places to change a threshold is one place to forget.
