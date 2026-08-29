@@ -1,6 +1,6 @@
 # ADR-0029: §2.1's 1 MiB body limit is placed at a middleware this design does not have
 
-**Status:** Proposed
+**Status:** Accepted in part (orchestrator, 2026-08-29) - see the ruling
 **Type:** Design change
 
 > `DESIGN.md:165` puts *"Max total request body size — 1 MiB"* in §2.1's table of inbound
@@ -97,3 +97,60 @@ What a caller sees when a body cap fires. On the argument-payload path the answe
 rejection is on the other side of that boundary and could return one; the registry's `422` row
 exists and is reachable there. **That is a real choice and this ADR does not make it**, because
 making it would be specifying the control rather than recording its absence.
+
+## Ruling, 2026-08-29 - accepted on the refusal, CORRECTED on the claim
+
+### Accepted, and this is the important half
+
+**`MAX_PAYLOAD_BYTES` is NOT the discharge of `DESIGN.md:165`, and the row stays open.** The ADR's
+reasoning for refusing the shortcut is exactly right and is the reason this project keeps finding
+things: a control *adjacent* to the required one, reported as the required one, with a green test
+beside it. U5's own earlier note about these same limits says it best - **"an unreachable limit is
+worse than absent: it reads as discharged"** - and a misplaced limit reads as discharged in the same
+way. `constraints.py` and the §8 #9 size arms both carry the caveat, so nothing in the tree claims
+otherwise. That stands.
+
+### Corrected: there IS a seat for it. It is unimplemented, not unplaceable.
+
+The ADR's title and its central claim are that the body cap *"has no middleware to live in"*.
+Measured against the locked framework rather than against our own stack, that is too strong:
+
+```
+$ uv run python -c "import inspect; from fastmcp import FastMCP; \
+    print(list(inspect.signature(FastMCP.run_http_async).parameters))"
+[..., 'path', 'uvicorn_config', 'middleware', 'json_response', ...]
+
+$ # and the type of that parameter, from http_app's own source:
+        middleware: list[ASGIMiddleware] | None = None,
+```
+
+**`ASGIMiddleware` sees the raw request body**; our own `Middleware` objects are MCP-protocol
+middleware and see a parsed message, which is why `build_middleware` cannot host this. The two are
+different layers and the ADR conflates "no middleware WE have" with "no middleware".
+
+The seat is already plumbed: `__main__.py:438` calls `mcp.run(transport="http",
+**http_run_kwargs(settings))`, and `http_run_kwargs` is the function that decides what the HTTP
+transport is handed. A body cap is an `ASGIMiddleware` added to that dictionary.
+
+**So the correct statement is:** `DESIGN.md:165` is undischarged and implementable, and U14 was right
+not to claim it and right to refuse the shortcut. It is a gap, not an impossibility. This matters
+because an impossibility invites a design change and a gap invites a unit, and those are different
+pieces of work - **an impossibility claim needs a higher bar than the one that was met here.**
+
+### Two consequences the implementing unit must not discover late
+
+- **The cap is HTTP-only by construction.** There is no body on stdio, so `DESIGN.md:165` bounds
+  nothing there. `constraints.py`'s payload bound is the only limit on the stdio path and remains
+  necessary rather than redundant. **The two limits are not duplicates**, and whoever lands the
+  middleware must not remove the payload cap as one.
+- **Unlike the argument path, this rejection CAN return a problem object.** `DESIGN.md:181-190` says
+  no problem object can be produced pre-dispatch, which is why every §8 #9 argument arm asserts a
+  `ValidationError`; an ASGI middleware sits at the HTTP layer where the registry's 413/422 row is
+  reachable. The ADR deliberately declined to make that call and was right to; the implementing unit
+  makes it, and must pick the row deliberately rather than by whichever is nearest.
+
+### What I did not settle
+
+Whether `uvicorn_config` offers a body limit that would make an explicit middleware unnecessary. I
+did not look; if it does, that is a cheaper answer and the implementing unit should find it before
+writing one.

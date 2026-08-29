@@ -1,6 +1,6 @@
 # ADR-0024: `DESIGN.md:486-487` bounds paging by the server's honesty and by nothing else
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29)
 **Type:** Design change
 
 > Paging terminates on a short page and never on `total`. That rule is right about `total` and
@@ -102,3 +102,57 @@ before the first caller arrives, not a reason to defer.
 **Not that U6 erred.** It implemented 486-487 faithfully. **This is a defect in the design at least
 as much as in the code**, which is why it is an ADR and not a patch - and why R5 proposed it as one
 rather than editing a frozen document.
+
+## Ruling, 2026-08-29
+
+**ACCEPTED. Both mechanisms, and the bound is in RECORDS rather than pages.**
+
+The ADR proposes a `MAX_PAGES` and, two sections later, requires that any bound be *"sane at both 50
+and 500 records per page"*. **Those two cannot both hold.** A ceiling in pages is a different record
+count at each page size, which is precisely the objection the ADR raises against choosing one
+against a single page size. The ceiling is therefore in records. The zero-progress break is
+unchanged and is still not a substitute - it catches a server that repeats, the ceiling catches one
+that advances but never shortens.
+
+### Re-measured before ruling, at `40ce300`, because the ADR's own framing depends on it
+
+The ADR argues the defect is latent because `scan()` has zero callers in `src/`. U8 and U12 - the
+callers it named as planned - have both landed since, so that claim needed re-checking rather than
+inheriting.
+
+```
+$ grep -rn "scan(" --include="*.py" src/ | grep -v "def scan" | grep -v scan_start
+src/fast_mcp_jobvite/tools/jobs.py:321:   # because `scan()` has no caller in `src/` yet (U8/U12), and
+src/fast_mcp_jobvite/tools/jobs.py:680:   # DELIBERATE. `client.scan()` exists and this tool
+```
+
+**Both hits are comments saying there is no caller.** Still zero, and the exhaustive path's only
+loop exits remain a short page and the non-exhaustive caller cap. The defect is unfixed and still
+latent - and both of its intended callers now exist, so the first real caller is the next unit that
+wants one, not a distant prospect.
+
+### An implementation already exists and is NOT adopted by this ruling
+
+`rescue/adr-0024-scan-bound` carries 513 lines implementing exactly this shape - a record ceiling,
+tests, a harness row, and `scripts/probe-scan-bounds.py`, which measures both failure directions
+including the advancing-forever server R5's fake could not produce. Its recorded pre-fix numbers:
+
+```
+A1  budget 60s   requests issued: 2001   *** UNBOUNDED ***
+A2  budget  2s   requests issued: 2001   *** UNBOUNDED ***
+```
+
+That is the direct evidence for this ADR's load-bearing claim that the outbound budget is a
+mitigation and not a fix - the claim R5 could not test, because the budget did not exist at
+`8d7af64` where R5 looked.
+
+**It was written by an agent that never reported it, found uncommitted in a worktree during a
+cleanup, and nobody has reviewed a line of it.** Accepting this ADR does not accept that branch. It
+needs a full review round and its numbers re-measured on current `main` before any of it lands.
+
+### What this ruling does not settle
+
+Whether the defect is reachable against real Jobvite. It needs an endpoint that ignores `start`;
+`/v1/jobFeed` is the candidate and no credential exists to test it. R5 recorded that as unsettled,
+the ADR repeated it, and it is still unsettled. **The bound is being adopted because the client must
+terminate against a server that misbehaves, not because this server is known to.**
