@@ -1,4 +1,4 @@
-"""The single redaction point (DESIGN.md:306-310, §8 required case #2).
+"""The single redaction point (DESIGN.md:312-316, §8 required case #2).
 
 **Every assertion in this file is written so a FAILURE cannot print the secret
 it was checking for.** The obvious form,
@@ -91,14 +91,14 @@ def test_a_url_with_no_query_is_returned_unchanged() -> None:
 def test_a_url_carrying_no_secret_is_untouched() -> None:
     """Positive control: the redactor does not mangle innocent URLs.
 
-    DESIGN.md:1319-1320 - a guard that refuses everything is not a guard.
+    DESIGN.md:1367-1368 - a guard that refuses everything is not a guard.
     """
     url = "https://api.jobvite.com/api/v2/jobs?count=50&start=0"
     assert redact_url(url) == url
 
 
 # ---------------------------------------------------------------------------
-# redact_text - the exception-message arm (DESIGN.md:308-309)
+# redact_text - the exception-message arm (DESIGN.md:314-315)
 # ---------------------------------------------------------------------------
 
 
@@ -136,7 +136,7 @@ def test_redact_text_preserves_newlines_so_a_traceback_survives() -> None:
 
 
 # ---------------------------------------------------------------------------
-# redact_headers - the v2 credential headers (DESIGN.md:305)
+# redact_headers - the v2 credential headers (DESIGN.md:311)
 # ---------------------------------------------------------------------------
 
 
@@ -212,7 +212,7 @@ def test_a_container_under_an_unlisted_key_is_redacted_WHOLE() -> None:
     to carry an allow-listed name - so `job_id` escaped from inside a blob
     called `secretBlob`.
 
-    DESIGN.md:1737 describes C6-I2's mechanism as a **path-keyed** allow-list
+    DESIGN.md:1785 describes C6-I2's mechanism as a **path-keyed** allow-list
     for this reason: membership is a property of the path, not of the leaf name
     in isolation.
     """

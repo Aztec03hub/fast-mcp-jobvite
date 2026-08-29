@@ -1,7 +1,7 @@
-"""The Jobvite client: authentication and the error-detection rule (DESIGN.md:302-334).
+"""The Jobvite client: authentication and the error-detection rule (DESIGN.md:308-340).
 
 **The load-bearing behaviour in this codebase is `evaluate_response` below, and
-everything else in this module exists to feed it.** DESIGN.md:326-327 states the
+everything else in this module exists to feed it.** DESIGN.md:332-333 states the
 invariant this module is built around:
 
     a response is successful only if the body carries no `status.code >= 400`
@@ -24,29 +24,29 @@ one alone passes a plausible-looking test suite:
 * Drop the HTTP arm and a transport-level failure carrying a body that has no
   `status` block at all is reported as a success.
 
-`DESIGN.md:326-327` says *both, every call*, so both are here and each has a
+`DESIGN.md:332-333` says *both, every call*, so both are here and each has a
 case of its own that dies when it is removed.
 
 **Decoding cannot assume JSON and cannot dispatch on content type either**
-(DESIGN.md:329-331). Three error encodings are handled on the routes we call - a
+(DESIGN.md:335-337). Three error encodings are handled on the routes we call - a
 JSON status envelope, plain text with **no `Content-Type` header at all**, and a
 Tomcat HTML page. `JOBVITE-CONTRACT.md` §3.3 records that the v1 `jobFeed` 401
 sends no `Content-Type`, which is what rules content-type sniffing out as the
 dispatch.
 
-**HR-XML is a hardened fallback, not a handled case** (DESIGN.md:331-334). It
+**HR-XML is a hardened fallback, not a handled case** (DESIGN.md:337-340). It
 appears on `/v1/candidate`, which we do not call. If XML ever arrives it is
 parsed with `defusedxml` and treated as an **error body** - never as a success -
 because entity expansion on attacker-reachable input is not a risk worth taking
 for a route that should never respond to us.
 
 **Credentials.** v2 travels as the headers `x-jvi-api` and `x-jvi-sc`, and **a
-URL containing a secret is never constructed** (DESIGN.md:305-306), even though
+URL containing a secret is never constructed** (DESIGN.md:311-312), even though
 Jobvite's own published sample code does exactly that. `GET /v1/jobFeed` is the
 one structural exception: it requires `api`, `sc` and `companyId` as query
 parameters, so its URL is classified sensitive and never reaches a log line
 whole. Redaction is not reimplemented here - `utils/redaction.py` is the single
-enforcement point DESIGN.md:306-310 requires, and this module calls it.
+enforcement point DESIGN.md:312-316 requires, and this module calls it.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ from ..utils.redaction import redact_text, redact_url
 V2_BASE_URL: Final = "https://api.jobvite.com/api/v2"
 V1_BASE_URL: Final = "https://api.jobvite.com/v1"
 
-#: The v2 credential headers (DESIGN.md:305). `utils/redaction.py` holds the same
+#: The v2 credential headers (DESIGN.md:311). `utils/redaction.py` holds the same
 #: two names in `SECRET_HEADERS`; a test pins the two lists together so a rename
 #: here cannot leave the redactor watching a header that no longer exists.
 API_KEY_HEADER: Final = "x-jvi-api"
@@ -80,11 +80,11 @@ API_KEY_HEADER: Final = "x-jvi-api"
 API_SECRET_HEADER: Final = "x-jvi-sc"  # noqa: S105
 
 #: The one route that structurally requires credentials in the query string
-#: (DESIGN.md:307-310, `JOBVITE-CONTRACT.md` §2.1 rule 2).
+#: (DESIGN.md:313-316, `JOBVITE-CONTRACT.md` §2.1 rule 2).
 JOBFEED_PATH: Final = "/jobFeed"
 
 #: The threshold in `status.code >= 400` and `http_status < 400`
-#: (DESIGN.md:326-327). Named rather than inlined twice, so the two arms cannot
+#: (DESIGN.md:332-333). Named rather than inlined twice, so the two arms cannot
 #: drift apart under a later edit.
 ERROR_STATUS_THRESHOLD: Final = 400
 
@@ -98,7 +98,7 @@ MAX_BODY_EXCERPT_CHARS: Final = 500
 class SecretValue(Protocol):
     """The one method this module needs from a secret holder.
 
-    **Structural rather than nominal, and that is deliberate.** DESIGN.md:317-318
+    **Structural rather than nominal, and that is deliberate.** DESIGN.md:323-324
     requires credentials to be `SecretStr` throughout, resolved with
     `.get_secret_value()` only when building a request - and `SecretStr` is
     pydantic's. `pydantic` is present in the resolve only as a transitive of
@@ -118,14 +118,14 @@ class SecretValue(Protocol):
 
 
 # ===========================================================================
-# THE INVARIANT (DESIGN.md:326-327). Everything below this block is plumbing.
+# THE INVARIANT (DESIGN.md:332-333). Everything below this block is plumbing.
 # ===========================================================================
 
 
 def evaluate_response(http_status: int, body: bytes) -> dict[str, Any]:
     """Apply the error-detection rule to one response, and decode it.
 
-    **The invariant (DESIGN.md:326-327): a response is successful only if the
+    **The invariant (DESIGN.md:332-333): a response is successful only if the
     body carries no `status.code >= 400` AND the HTTP status is below 400. Both,
     every call.**
 
@@ -186,7 +186,7 @@ def _envelope_status_code(payload: Mapping[str, Any]) -> int | None:
 def _envelope_message(payload: Mapping[str, Any]) -> str:
     """Join Jobvite's own `status.messages` into one line for `detail`.
 
-    Jobvite's message is preserved rather than discarded - DESIGN.md:517-519 puts
+    Jobvite's message is preserved rather than discarded - DESIGN.md:530-532 puts
     it in `detail` - but it never reaches the problem object's `status`, which
     comes from the registry (`errors.py`).
     """
@@ -205,7 +205,7 @@ def _decode_json_object(http_status: int, body: bytes) -> dict[str, Any]:
     """Decode the body as a JSON object, or raise the right typed error.
 
     **This is the "cannot assume JSON, cannot dispatch on content type" half**
-    (DESIGN.md:329-331). Dispatch is on the bytes themselves, because the v1
+    (DESIGN.md:335-337). Dispatch is on the bytes themselves, because the v1
     `jobFeed` 401 sends no `Content-Type` header at all
     (`JOBVITE-CONTRACT.md` §3.3), so a content-type dispatch has nothing to read
     on exactly the route that needs it most.
@@ -246,7 +246,7 @@ def _decode_json_object(http_status: int, body: bytes) -> dict[str, Any]:
 def _raise_from_markup(http_status: int, text: str) -> NoReturn:
     """Treat any markup body as an error, parsing XML with `defusedxml`.
 
-    **HR-XML is a hardened fallback, not a handled case** (DESIGN.md:331-334).
+    **HR-XML is a hardened fallback, not a handled case** (DESIGN.md:337-340).
     It appears on `/v1/candidate`, which we do not call. So this function's job
     is not to support XML - it is to make sure that if XML ever does arrive, the
     parse that touches it cannot be turned into a denial of service by entity
@@ -297,7 +297,7 @@ def _excerpt(text: str) -> str:
     """Bound and redact a body before it can reach an exception message or log.
 
     Both halves matter. `redact_text` is `utils/redaction.py`'s exception-message
-    arm (DESIGN.md:308-309): an error body can quote back the request URL, and
+    arm (DESIGN.md:314-315): an error body can quote back the request URL, and
     on the `jobFeed` route that URL carries `sc=`. Truncation bounds a body we
     do not control.
     """
@@ -340,15 +340,15 @@ class JobviteClient:
         Args:
             api_key: The v2 `x-jvi-api` credential, and the v1 `api` parameter.
             api_secret: The v2 `x-jvi-sc` credential, and the v1 `sc` parameter.
-            company_id: The job feed's separate credential (DESIGN.md:314-315).
+            company_id: The job feed's separate credential (DESIGN.md:320-321).
                 Required only for `jobFeed`, so it is optional here and the
                 failure for a missing one is raised at the call.
             transport: Substituted in tests with `httpx2.MockTransport`
-                (DESIGN.md:1308-1309, ADR-0007). `None` in production.
-            timeout: Explicit and per-phase (DESIGN.md:340). **No SDK default and
+                (DESIGN.md:1356-1357, ADR-0007). `None` in production.
+            timeout: Explicit and per-phase (DESIGN.md:346). **No SDK default and
                 no single scalar**: `httpx2`'s own default is a 5-second scalar,
                 which is a resilience decision made by a library rather than by
-                us. The full retry/breaker ordering of DESIGN.md:336-352 is U7's;
+                us. The full retry/breaker ordering of DESIGN.md:342-358 is U7's;
                 this is the timeout half, which cannot wait for it because the
                 default it would otherwise inherit is silent.
         """
@@ -381,10 +381,10 @@ class JobviteClient:
     # -- authentication -----------------------------------------------------
 
     def v2_headers(self) -> dict[str, str]:
-        """Build the v2 request headers (DESIGN.md:305).
+        """Build the v2 request headers (DESIGN.md:311).
 
         `.get_secret_value()` is called **here and only here** for v2, which is
-        DESIGN.md:317-318's "resolved only when building a request".
+        DESIGN.md:323-324's "resolved only when building a request".
 
         Returns:
             The two credential headers plus `Accept`.
@@ -398,10 +398,10 @@ class JobviteClient:
     def jobfeed_params(self) -> dict[str, str]:
         """Build the v1 `jobFeed` query parameters - **the one exception**.
 
-        DESIGN.md:307-310: this route structurally requires `api`, `sc` and
+        DESIGN.md:313-316: this route structurally requires `api`, `sc` and
         `companyId` as query parameters, which is why its URL is classified
         sensitive. Every other route puts the credential in a header and
-        DESIGN.md:305-306 forbids building a URL that contains one.
+        DESIGN.md:311-312 forbids building a URL that contains one.
 
         Returns:
             The three credential parameters.
@@ -468,7 +468,7 @@ class JobviteClient:
             query = dict(params or {})
 
         # The ONLY log line on this path, and it names the route rather than the
-        # URL. DESIGN.md:307-310 forbids the jobFeed URL reaching a log whole,
+        # URL. DESIGN.md:313-316 forbids the jobFeed URL reaching a log whole,
         # and `redact_url` is applied on top rather than instead: the path is
         # already credential-free for v2, so this is belt and braces on the one
         # route where a mistake is unrecoverable.
@@ -490,7 +490,7 @@ class JobviteClient:
             # `httpx` puts the request URL into the text of the exceptions it
             # raises, so on the jobFeed route `str(exc)` carries `sc=`.
             # `redact_text` is the arm of utils/redaction.py that exists for
-            # exactly this (DESIGN.md:308-309); without it a timeout on the feed
+            # exactly this (DESIGN.md:314-315); without it a timeout on the feed
             # publishes the credential into whatever formats the exception.
             raise JobviteUnavailableError(
                 redact_text(f"{type(exc).__name__}: {exc}")

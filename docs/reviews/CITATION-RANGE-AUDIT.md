@@ -149,7 +149,7 @@ value** with no principal check, which is the literal thing `tool-calling.md:111
 control. There is one Jobvite tenant credential and no per-user model, so there is no caller-scoped
 record set to enforce - the clause has no referent *as a matter of fact about this deployment*. But
 that fact is nowhere written down, and §7.2 states the opposite-facing fact (*"stdio is
-unauthenticated by design"*, `DESIGN.md:758`) without connecting it. **A reader cannot tell a clause
+unauthenticated by design"*, `DESIGN.md:778`) without connecting it. **A reader cannot tell a clause
 was considered and found inapplicable from a clause that was never opened.**
 
 **Suggested fix (design edit + corpus edit):**
@@ -190,8 +190,8 @@ concrete operation to the approver"* - and its twin `ai/tool-calling.md:131-132`
 cited.** The corpus cites `:70-73` (B18, at `CONFORMANCE-B1-B106.md:151`) and stops one bullet short.
 
 **Satisfied, and load-bearing:** §7.5 - *"The approval request must state what is actually being
-authorised, including the email"* (`DESIGN.md:908`) and *"The elicitation payload accordingly names
-the candidate, the target job, and whether `send_email` is true"* (`DESIGN.md:916`). That is exactly
+authorised, including the email"* (`DESIGN.md:928`) and *"The elicitation payload accordingly names
+the candidate, the target job, and whether `send_email` is true"* (`DESIGN.md:936`). That is exactly
 `:76`'s *"Render the concrete operation to the approver"*.
 
 §7.5 reaches that conclusion from `:70-73`'s *"outbound message to a third party"*, not from
@@ -207,8 +207,8 @@ paragraph that already exists and is already correct.
 `ai/agent-guardrails.md:80-84`. **Cited by nothing.**
 
 **Satisfied:** §7.5's conjunction *"`action == "accept" and content.get("approve") is True`"*
-(`DESIGN.md:923`, mirrored in the §11 row C4-E1 at `DESIGN.md:1563`) and *"What we may honestly
-claim"* (`DESIGN.md:985`), which states the server never claims a human approved.
+(`DESIGN.md:943`, mirrored in the §11 row C4-E1 at `DESIGN.md:1611`) and *"What we may honestly
+claim"* (`DESIGN.md:1027`), which states the server never claims a human approved.
 
 **Suggested fix (corpus edit):** include `:80-84` in B18's range alongside F3, or give it its own
 B-number.
@@ -216,7 +216,7 @@ B-number.
 ### F5 - UNCITED BUT SATISFIED - "Approvals are scoped and expire"
 
 `ai/agent-guardrails.md:77-79`. **`:79` alone is cited** - by ADR-0009 (`docs/adr/0009-approver-identity-unknowable.md:7`),
-`DESIGN.md:1559` and `DESIGN.md:1800`, all for the *"record who approved"* half. **`:77-78` -
+`DESIGN.md:1607` and `DESIGN.md:1848`, all for the *"record who approved"* half. **`:77-78` -
 *"An approval authorizes one specific call (or a narrow, declared batch), not a standing
 capability"* - is cited nowhere.** Half a bullet tracked, half not: the same shape again.
 
@@ -248,7 +248,7 @@ One edit, seven clauses, no design change.
 
 It *was* raised by a reviewer: `DESIGN-R2.md:325` quotes it and says *"the design has to state it.
 The ADR list has no entry either way."* The design then answered it - §5.3's *"Audit-write failure
-has a stated policy, and the third case is the one that matters"* (`DESIGN.md:643`) is precisely the
+has a stated policy, and the third case is the one that matters"* (`DESIGN.md:656`) is precisely the
 position R2 asked for.
 
 **This is the clearest single piece of evidence for §3's mechanism.** A finding was made, the design
@@ -276,7 +276,7 @@ working for two - one from each outcome class.
 3. **Absence established, not assumed.** `grep -rn 'agent-guardrails.md:5[4-6]' docs/` -> zero hits.
    `grep -rn 'tool-calling.md:10[4-9]|tool-calling.md:11[01]' docs/` -> zero hits. **Positive
    control:** the identical grep for `agent-guardrails.md:79` returns five hits across four files
-   (`DESIGN.md:1559`, `DESIGN.md:1800`, `adr/0009-...:7`, `THREAT-MODEL-DRAFT.md:266`,
+   (`DESIGN.md:1607`, `DESIGN.md:1848`, `adr/0009-...:7`, `THREAT-MODEL-DRAFT.md:266`,
    `CITATION-AUDIT.md:213`), so the pattern shape and the corpus path are both live and the zero is
    a real absence rather than a broken instrument.
 4. **ADRs checked by reading, not by title.** ADR-0005: grants B9-B26 in full - inapplicable, no
@@ -295,7 +295,7 @@ working for two - one from each outcome class.
 2. **Absence established.** `grep -rn 'agent-guardrails.md:7[4-6]' docs/` -> zero hits. The nearest
    citation is B18's `:70-73` (`STANDARDS.md:189`, `CONFORMANCE-B1-B106.md:151`), which stops at the
    bullet before.
-3. **Design read.** §7.5, `DESIGN.md:908` and `:916` (quoted in F3 above) meet `:76` in full.
+3. **Design read.** §7.5, `DESIGN.md:928` and `:916` (quoted in F3 above) meet `:76` in full.
 4. **Provenance of the design sentence checked** - this is the step that decides the class. §7.5
    justifies itself from `:70-73` (*"The standard settles this rather than leaving it to our
    judgement"*), i.e. from the **cited** bullet, and arrives at the right answer by a different
@@ -460,10 +460,10 @@ auto-retry, and both are discharged that way: B36 is SATISFIED because §4.3 exc
 (`:152`). The skipped clause is about the **other** replay path - a caller re-issuing the write -
 and names its remedy: an idempotency key.
 
-That other path is not hypothetical here. `DESIGN.md:1562` (row C4-D2) reads: *"An authorised write
+That other path is not hypothetical here. `DESIGN.md:1610` (row C4-D2) reads: *"An authorised write
 is made twice - **a model retrying after a timeout, or a human approving twice** - creating a
 duplicate candidate and a second email to a live person ... **Detection, not prevention**"*, rated
-Medium and carried to Residual Risks at `DESIGN.md:1710`. **That is precisely the harm
+Medium and carried to Residual Risks at `DESIGN.md:1758`. **That is precisely the harm
 `resilience.md:146-148` exists to prevent, and the design accepted it as residual without any
 instrument ever pointing at the clause that names the remedy.**
 
@@ -475,7 +475,7 @@ The standard is dismissed because a B-number covers the residue; the B-number is
 something that is not the residue; and the clause bridging them is uncited. Each step reads sound
 in isolation.
 
-**The design already suspects this.** `DESIGN.md:1820`, in the freeze procedure: *"`devops/docker.md`
+**The design already suspects this.** `DESIGN.md:1868`, in the freeze procedure: *"`devops/docker.md`
 and `backend/idempotency.md` are the two most likely to have gone live."* `DESIGN-R5.md:497` asked
 round 6 to re-check exactly those two. So the suspicion was recorded and the instrument that would
 have settled it does not exist.
@@ -580,7 +580,7 @@ citing `threat-modeling.md:35` and `:50-56`, verdict SATISFIED, evidence §11's 
 numbered rules at `:204-213` are cited at rules 1, 3, 7 and 8 only; rules 2, 4, 5, 6 and 9 are
 uncited by any B-number, and all are covered in substance by B2 via `:66`'s seven elevated fields
 and by ADR-0003 for the `Content-Type` rule. Rule 9 (`:212`, `about:blank` for unknowns) is
-uncited by the corpus but **used directly by `DESIGN.md:469`** (*"Anything unmapped | `about:blank`
+uncited by the corpus but **used directly by `DESIGN.md:475`** (*"Anything unmapped | `about:blank`
 per `:212`"*). That is the inverse of the F9 pattern and equally invisible: the design is ahead of
 its own instrument. No hole; *suggested fix (corpus edit):* fold `:205-209` and `:212` into B2's
 range so the rule list is tracked as the unit it is.

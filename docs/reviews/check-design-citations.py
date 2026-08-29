@@ -6,7 +6,7 @@ after an edit, says which ones moved.
 pointing at the wrong lines, none of them by a gate:
 
   - `DESIGN.md:603` cites a section that does not exist (ADR-0019).
-  - `DESIGN.md:918-923` is contracted by one line and drops the `http` transport
+  - `DESIGN.md:938-943` is contracted by one line and drops the `http` transport
     row that §7.2 leans on - found by U1, in a brief I wrote.
   - Three separate citations of the three runtime pins pointed nine lines above
     them, at the prose paragraph about the resolve - found by U4.
@@ -60,7 +60,7 @@ import sys
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DESIGN = REPO_ROOT / "docs" / "DESIGN.md"
 
-# `DESIGN.md:603`, `DESIGN.md:918-924`. The filename is required so this does not
+# `DESIGN.md:603`, `DESIGN.md:938-944`. The filename is required so this does not
 # match a bare number, and `docs/DESIGN.md:` forms are caught by the same pattern.
 _CITATION = re.compile(r"DESIGN\.md:(\d+)(?:-(\d+))?")
 
@@ -209,7 +209,7 @@ def controls() -> int:
         print("  CONTROL a changed line maps to None -> DID NOT FIRE")
 
     total += 1
-    if _CITATION.findall("see DESIGN.md:918-924 and DESIGN.md:603"):
+    if _CITATION.findall("see DESIGN.md:938-944 and DESIGN.md:603"):
         fired += 1
         print("  CONTROL the pattern reads both forms -> FIRED")
     else:

@@ -74,9 +74,9 @@ swept the remainder. Six are wrong, and two of them anchor the plan's most load-
 | a | `:238`, `:1137` | `DESIGN.md:43-45` | *"names exactly **two** mechanisms in the whole design that 'sit among executed results and borrow their credibility'"* | The **freeze condition** - 0C/0H/0M vs the must-mitigate table coming apart | **`:64-68`** |
 | b | `:667`, `:1106` | `DESIGN.md:44-47` | *"the two mechanisms `DESIGN.md:44-47` names as **never executed**"* | Same freeze-condition paragraph | **`:64-68`** |
 | c | `:1062` | `DESIGN.md:39-51` | *"says **no claim about a Jobvite success response is verified, because none has ever been observed**"* | Same freeze-condition paragraph | **`:63`** (the sentence is quoted verbatim there) |
-| d | `:451`, `:1318` | `DESIGN.md:1194-1197` | *"The design solved this exact shape for the audit stream by pairing #4 with #5"* / *"shows the design already knows this shape"* | `--strict-markers` and the typo-in-marker-name argument. Nothing about #4/#5 | **`:1229-1231`** |
-| e | `:711`, `:1324` | `DESIGN.md:1284-1285` | *"the blanket rule"* / *"the design's own blanket positive-control rule"* | Case **#17**, trace context, *"two arms... both are required"* | **`:1319-1320`** |
-| f | `:1262` | `DESIGN.md:1279` | *"records the same measured residual in case **#18**'s own bullet"* | Case **#16**, *"The success arms assert it in `_meta`..."* | **`:1293`** |
+| d | `:451`, `:1318` | `DESIGN.md:1236-1239` | *"The design solved this exact shape for the audit stream by pairing #4 with #5"* / *"shows the design already knows this shape"* | `--strict-markers` and the typo-in-marker-name argument. Nothing about #4/#5 | **`:1229-1231`** |
+| e | `:711`, `:1324` | `DESIGN.md:1332-1333` | *"the blanket rule"* / *"the design's own blanket positive-control rule"* | Case **#17**, trace context, *"two arms... both are required"* | **`:1319-1320`** |
+| f | `:1262` | `DESIGN.md:1327` | *"records the same measured residual in case **#18**'s own bullet"* | Case **#16**, *"The success arms assert it in `_meta`..."* | **`:1293`** |
 
 Four observations that make this High rather than Medium:
 
@@ -116,10 +116,10 @@ is **true**; only the anchors are wrong. That is exactly why it survived three d
 sixth?"*
 
 The five named collisions are all real and I confirmed each against the design's module layout
-(`DESIGN.md:280-295`). **They are not exhaustive.**
+(`DESIGN.md:280-298`). **They are not exhaustive.**
 
 **The gap.** Four units each add a tool that must be registered, and registration is
-config-conditional (`DESIGN.md:903-907` requires `create_candidate` registered only on the
+config-conditional (`DESIGN.md:923-927` requires `create_candidate` registered only on the
 `JOBVITE_ENABLE_WRITES` **and** `JOBVITE_TOOLS` conjunction):
 
 | Unit | Adds | Plan text |
@@ -153,7 +153,7 @@ an unstated ownership question about a file that two concurrent units both need.
 >
 > > **6. Tool registration has no stated home and four claimants.** U5, U8, U10 and U12 each add a
 > > tool, and `create_candidate`'s registration is conditional on the `JOBVITE_ENABLE_WRITES` ∧
-> > `JOBVITE_TOOLS` conjunction (`DESIGN.md:903-907`). `DESIGN.md:280-295` does not assign
+> > `JOBVITE_TOOLS` conjunction (`DESIGN.md:923-927`). `DESIGN.md:280-298` does not assign
 > > registration to a module. **Each unit registers its own tools in its own `tools/*.py` via the
 > > `FastMCP` instance imported from `server.py`, and the `JOBVITE_TOOLS` gate is applied at that
 > > decorator site.** `server.py` therefore holds the instance, the middleware stack and the lifespan
@@ -271,7 +271,7 @@ C1-R1 `:1669`, C1-I1 `:1670`, C2-R1 `:1680`, C4-S1 `:1703`, C4-R1 `:1705`, C4-E1
 C8-I1 `:1760`, C9-T1 `:1770`. **The "17" is correct.**
 
 This is a count carried through its own correction - the defect the plan names at `:89-94`,
-`:285-286` and `:1048-1051`, and which `DESIGN.md:1797-1806` legislates against directly (*"This
+`:285-286` and `:1048-1051`, and which `DESIGN.md:1845-1854` legislates against directly (*"This
 table is the count. No sentence in this section states a total for it."*).
 
 > **Suggested fix (MY SUGGESTION - verify before adopting).** Replace the first sentence and the list
@@ -285,7 +285,7 @@ table is the count. No sentence in this section states a total for it."*).
 > > homes: C9-T1 in U0's inherited-limit paragraph and in §6, and C5-E1's ceiling in U13.
 >
 > Better still, given this document's history with counts: state the **list** and drop the totals
-> entirely, per `DESIGN.md:1797`.
+> entirely, per `DESIGN.md:1845`.
 
 ---
 
@@ -363,11 +363,11 @@ Two consequences, in opposite directions, and the second is the one that matters
 
 ---
 
-## L1 - `DESIGN.md:1282-1284` spills into the next case
+## L1 - `DESIGN.md:1330-1332` spills into the next case
 
 **Severity: Low.**
 
-Plan `:547`: *"`DESIGN.md:1282-1284` is explicit that asserting on the `ToolResult` object would
+Plan `:547`: *"`DESIGN.md:1330-1332` is explicit that asserting on the `ToolResult` object would
 pass while the wire carried nothing."*
 
 The sentence runs `:1281-1283`. Line `:1284` is the **first line of case #17**, trace context. The
@@ -375,8 +375,8 @@ cite starts one line late and ends one line into a different case. It resolves t
 plausible text, and the claim it supports is true - the exact profile the plan's own header warns
 about at `:41-46`.
 
-> **Suggested fix (MY SUGGESTION - verify before adopting).** Change `DESIGN.md:1282-1284` to
-> **`DESIGN.md:1281-1283`**.
+> **Suggested fix (MY SUGGESTION - verify before adopting).** Change `DESIGN.md:1330-1332` to
+> **`DESIGN.md:1329-1331`**.
 
 ---
 
@@ -384,10 +384,10 @@ about at `:41-46`.
 
 **Severity: Low.**
 
-- `:162` cites `DESIGN.md:1207-1218` for the fixture tiers. The tiers are `:1207-1212`; `:1213` is
+- `:162` cites `DESIGN.md:1249-1260` for the fixture tiers. The tiers are `:1207-1212`; `:1213` is
   blank and `:1214-1217` is the synthetic-fixtures docstring sentence, a different subject the plan
   cites separately.
-- `:186` cites `DESIGN.md:1214-1216` for *"the sentence"* going in the test module's docstring. The
+- `:186` cites `DESIGN.md:1256-1258` for *"the sentence"* going in the test module's docstring. The
   sentence is `:1214-1215`; `:1216` begins the `CREDENTIAL-CHECKLIST.md` conversion clause.
 
 Neither misleads. Both are the range-contraction-and-expansion drift that goes unnoticed because a
@@ -439,7 +439,7 @@ same log stream, carrying a High. A pairing stated in the design's §8 would hav
    whether the design wants the pairing stated where it states the other one, so a future reader of
    §8 sees #2 and #4 as the same construction rather than discovering the asymmetry in a plan."*
    That is the right question and the right answer is yes.
-3. **The design already made this call once, for the same reason.** `DESIGN.md:1229-1231` pairs #4
+3. **The design already made this call once, for the same reason.** `DESIGN.md:1277-1279` pairs #4
    and #5 explicitly *"so that neither can be satisfied by silence."* #2 is the same construction on
    a different stream. Leaving one pair in the design and its twin in a plan is the two-lists defect
    the design designs around at `:1497-1501` and `:202-205`.

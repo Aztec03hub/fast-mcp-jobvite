@@ -1,16 +1,16 @@
-"""The exception hierarchy and RFC 9457 problem construction (DESIGN.md:485-525).
+"""The exception hierarchy and RFC 9457 problem construction (DESIGN.md:491-538).
 
 Two rules govern everything in this module, and both were corrections to an
 earlier revision of the design rather than defaults:
 
 **`type` and `status` come from the registry at `error-contract.md:96-108`, never
-from Jobvite** (DESIGN.md:496-519). A Jobvite `401` reaching the caller as `401`
+from Jobvite** (DESIGN.md:502-532). A Jobvite `401` reaching the caller as `401`
 tells them *their* credential failed, when the credential that failed is the one
 *this server* holds and the caller cannot touch. The registry's answer is
 `/problems/external-service-error` **502**. Validation is **422**, not 400.
 Jobvite's own status and message are not discarded: they go in `detail`.
 
-**Problem objects are returned, never raised** (DESIGN.md:521-525). That is the
+**Problem objects are returned, never raised** (DESIGN.md:534-538). That is the
 property that makes them the one error shape no configuration can distort - being
 returned, they are untouched by `ErrorHandlingMiddleware`, by `transform_errors`
 and by `mask_error_details`. Nothing in this module raises a problem object.
@@ -29,7 +29,7 @@ from typing import Any, Final
 INSTANCE_PREFIX: Final = "urn:fast-mcp-jobvite:invocation:"
 
 #: The seven members `error-contract.md:66` elevates to required, in the order
-#: the design lists them (DESIGN.md:489-490).
+#: the design lists them (DESIGN.md:495-496).
 REQUIRED_MEMBERS: Final[tuple[str, ...]] = (
     "type",
     "title",
@@ -59,7 +59,7 @@ class ProblemKind:
 
 # ---------------------------------------------------------------------------
 # The registry. Every entry is a verbatim row of `error-contract.md:96-108`;
-# nothing here is minted locally. DESIGN.md:504-505 makes a published `type` URI a
+# nothing here is minted locally. DESIGN.md:510-511 makes a published `type` URI a
 # contract we would owe forever, so inventing a slug is not available to us even
 # when the condition feels unlike anything in the table.
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ INTERNAL_ERROR: Final = ProblemKind(
 
 #: `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an unmapped
 #: condition. **The design's table (DESIGN.md:515) gives this row no status**,
-#: while DESIGN.md:490 makes `status` a required member - see U2-REPORT.md
+#: while DESIGN.md:496 makes `status` a required member - see U2-REPORT.md
 #: finding D1. RFC 9457 4.2.1 resolves it: with `about:blank` the title is the
 #: status phrase, so an unmapped condition is a 500 that declines to claim a
 #: registry slug it does not have.
@@ -96,7 +96,7 @@ class FastMcpJobviteError(Exception):
     Carries the registry row its condition maps to, so the mapping is decided at
     the point the condition is *known* rather than re-derived from a status code
     at the boundary, which is how Jobvite's status leaked into `status` in the
-    revision DESIGN.md:496-503 corrects.
+    revision DESIGN.md:502-509 corrects.
     """
 
     kind: ProblemKind = UNMAPPED
@@ -113,10 +113,10 @@ class FastMcpJobviteError(Exception):
 
 
 class JobviteUpstreamError(FastMcpJobviteError):
-    """Any Jobvite failure, **including its 4xx** (DESIGN.md:509).
+    """Any Jobvite failure, **including its 4xx** (DESIGN.md:515).
 
     Jobvite's own status and message are preserved on the instance and reproduced
-    in `detail` (DESIGN.md:517-519). They are never allowed to reach `status`.
+    in `detail` (DESIGN.md:530-532). They are never allowed to reach `status`.
     """
 
     kind = EXTERNAL_SERVICE_ERROR
@@ -126,7 +126,7 @@ class JobviteUpstreamError(FastMcpJobviteError):
 
         Args:
             upstream_status: The status Jobvite reported - the HTTP status or the
-                `status.code` of its JSON envelope (DESIGN.md:333-338). `None`
+                `status.code` of its JSON envelope (DESIGN.md:339-344). `None`
                 when Jobvite gave no status at all.
             upstream_message: Jobvite's own message text.
         """
@@ -140,7 +140,7 @@ class JobviteUnavailableError(FastMcpJobviteError):
     """Jobvite unreachable, breaker open, or the outbound budget exhausted.
 
     An open breaker and a real outage share this row deliberately
-    (DESIGN.md:349-352): what distinguishes them is `detail`, not a minted type.
+    (DESIGN.md:355-358): what distinguishes them is `detail`, not a minted type.
     """
 
     kind = SERVICE_UNAVAILABLE
@@ -149,7 +149,7 @@ class JobviteUnavailableError(FastMcpJobviteError):
 class ValidationError(FastMcpJobviteError):
     """A validation failure detected **inside** the tool body.
 
-    Not the pre-dispatch path. DESIGN.md:533-553 records that FastMCP rejects bad
+    Not the pre-dispatch path. DESIGN.md:546-566 records that FastMCP rejects bad
     arguments before the body runs, so no pre-dispatch rejection can *return*
     anything and none carries a problem object. This row serves the other half:
     a semantically invalid argument combination, or a validation error Jobvite
@@ -160,19 +160,19 @@ class ValidationError(FastMcpJobviteError):
 
 
 class ResourceNotFoundError(FastMcpJobviteError):
-    """A candidate or job id that does not exist (DESIGN.md:512)."""
+    """A candidate or job id that does not exist (DESIGN.md:518)."""
 
     kind = RESOURCE_NOT_FOUND
 
 
 class DuplicateCandidateError(FastMcpJobviteError):
-    """A duplicate candidate on create (DESIGN.md:513, DESIGN.md:855)."""
+    """A duplicate candidate on create (DESIGN.md:519, DESIGN.md:875)."""
 
     kind = CONFLICT
 
 
 class ScopeDeniedError(FastMcpJobviteError):
-    """The caller's token lacks the scope for this tool (DESIGN.md:514)."""
+    """The caller's token lacks the scope for this tool (DESIGN.md:520)."""
 
     kind = FORBIDDEN
 
@@ -198,16 +198,16 @@ def build_problem(
 
     `request_id` is required rather than read from `request_id_var`. The var is a
     correlation carrier for code that never sees the invocation
-    (DESIGN.md:586-591); reading it here would let a caller that forgot to set it
+    (DESIGN.md:599-604); reading it here would let a caller that forgot to set it
     produce a problem object with `None` where a required member belongs.
 
     Args:
         kind: The registry row. Never derived from an upstream status.
         detail: The occurrence-specific explanation.
         request_id: The UUIDv4 minted by `audit.py` for this invocation
-            (DESIGN.md:580-582).
+            (DESIGN.md:593-595).
         **extensions: RFC 9457 extension members, e.g. the `retry_after` hint
-            DESIGN.md:352 attaches to a 503, or `errors` for a 422
+            DESIGN.md:358 attaches to a 503, or `errors` for a 422
             (`error-contract.md:86`). They may not shadow a required member.
 
     Returns:
@@ -217,7 +217,7 @@ def build_problem(
         ValueError: If an extension would shadow one of the seven required
             members. That is a programming error at the call site, not a runtime
             condition, and silently letting it overwrite `status` is the exact
-            failure DESIGN.md:496 corrects.
+            failure DESIGN.md:502 corrects.
     """
     clashes = sorted(set(extensions) & set(REQUIRED_MEMBERS))
     if clashes:

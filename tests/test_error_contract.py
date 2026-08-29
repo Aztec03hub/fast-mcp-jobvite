@@ -1,6 +1,6 @@
-"""U2: the error contract (DESIGN.md:485-525, IMPLEMENTATION-PLAN.md:447-470).
+"""U2: the error contract (DESIGN.md:491-538, IMPLEMENTATION-PLAN.md:447-470).
 
-The table below is the design's registry table (DESIGN.md:507-515) restated as
+The table below is the design's registry table (DESIGN.md:513-521) restated as
 data, so a change to either side shows up as a diff here rather than as a
 sentence nobody re-reads.
 """
@@ -85,7 +85,7 @@ def test_every_registry_row_maps_to_its_registry_type_and_status(
 
 
 def test_a_jobvite_401_is_a_502_and_not_a_401() -> None:
-    """DESIGN.md:500-503: returning 401 blames a credential the caller cannot hold."""
+    """DESIGN.md:506-509: returning 401 blames a credential the caller cannot hold."""
     problem = errors.problem_from_exception(
         errors.JobviteUpstreamError(401, "Invalid API key"), RID
     )
@@ -96,14 +96,14 @@ def test_a_jobvite_401_is_a_502_and_not_a_401() -> None:
 
 
 def test_validation_is_422_and_not_400() -> None:
-    """DESIGN.md:519: validation is 422 per the registry, not 400."""
+    """DESIGN.md:532: validation is 422 per the registry, not 400."""
     problem = errors.problem_from_exception(errors.ValidationError("bad range"), RID)
     assert problem["status"] == 422
     assert problem["status"] != 400
 
 
 def test_every_problem_carries_all_seven_required_members() -> None:
-    """error-contract.md:66 elevates these seven to required; DESIGN.md:489-490."""
+    """error-contract.md:66 elevates these seven to required; DESIGN.md:495-496."""
     assert errors.REQUIRED_MEMBERS == (
         "type",
         "title",
@@ -122,7 +122,7 @@ def test_every_problem_carries_all_seven_required_members() -> None:
 
 
 def test_instance_is_the_urn_and_request_id_matches_it() -> None:
-    """DESIGN.md:493-494."""
+    """DESIGN.md:499-500."""
     problem = errors.build_problem(errors.CONFLICT, "duplicate", RID)
     assert problem["instance"] == f"urn:fast-mcp-jobvite:invocation:{RID}"
     assert problem["request_id"] == RID
@@ -137,18 +137,18 @@ def test_timestamp_is_iso_8601_utc() -> None:
 
 
 def test_jobvites_own_status_and_message_are_in_detail_and_not_discarded() -> None:
-    """DESIGN.md:517-519."""
+    """DESIGN.md:530-532."""
     exc = errors.JobviteUpstreamError(401, "Invalid API key or company id")
     problem = errors.problem_from_exception(exc, RID)
     assert "401" in problem["detail"]
     assert "Invalid API key or company id" in problem["detail"]
-    # Preserved on the exception too, for the audit event (DESIGN.md:517-518).
+    # Preserved on the exception too, for the audit event (DESIGN.md:530-531).
     assert exc.upstream_status == 401
     assert exc.upstream_message == "Invalid API key or company id"
 
 
 def test_a_jobvite_failure_with_no_status_still_keeps_its_message() -> None:
-    """The plain-text and Tomcat-HTML encodings carry no status (DESIGN.md:339-341)."""
+    """The plain-text and Tomcat-HTML encodings carry no status (DESIGN.md:345-347)."""
     problem = errors.problem_from_exception(
         errors.JobviteUpstreamError(None, "Service Temporarily Unavailable"), RID
     )
@@ -166,7 +166,7 @@ def test_an_unmapped_exception_does_not_leak_its_message_to_the_caller() -> None
 
 
 def test_a_problem_object_is_returned_never_raised() -> None:
-    """DESIGN.md:521-525 - being returned is what no configuration can distort.
+    """DESIGN.md:534-538 - being returned is what no configuration can distort.
 
     Two arms, because the first alone passes on a function that returns None.
     """
@@ -207,7 +207,7 @@ def test_an_extension_member_cannot_shadow_a_required_member() -> None:
 
 
 def test_extension_members_survive_alongside_the_seven() -> None:
-    """DESIGN.md:352 attaches a retry_after hint to the 503."""
+    """DESIGN.md:358 attaches a retry_after hint to the 503."""
     problem = errors.build_problem(
         errors.SERVICE_UNAVAILABLE, "breaker open", RID, retry_after=30
     )
@@ -247,7 +247,7 @@ def test_the_registry_constants_match_the_standards_table_verbatim() -> None:
 
 
 def test_no_type_uri_is_minted_locally() -> None:
-    """DESIGN.md:504-505: a published type URI is a promise owed forever.
+    """DESIGN.md:510-511: a published type URI is a promise owed forever.
 
     The count is asserted first. Without it, deleting every registry constant
     makes this loop iterate zero times and pass - which is how a repo-wide
@@ -303,7 +303,7 @@ def test_the_envelope_scanner_reports_a_wrong_zero_on_an_empty_tree(
 
 
 def test_no_success_true_false_envelope_exists_anywhere_in_the_repository() -> None:
-    """DESIGN.md:491.
+    """DESIGN.md:497.
 
     **This assertion is near-vacuous today and U2-REPORT.md says so**: `src/`
     holds four modules, so it passes over almost nothing. It must be re-asserted

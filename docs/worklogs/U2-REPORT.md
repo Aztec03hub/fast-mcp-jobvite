@@ -25,20 +25,20 @@ No shared file was touched: `pyproject.toml`, `.github/`, `docs/plans/`, `tests/
 ### `errors.py`
 
 - **The registry is mirrored as seven `ProblemKind` constants**, each a verbatim row of
-  `error-contract.md:96-108`. Nothing is minted locally, per `DESIGN.md:504-505`.
+  `error-contract.md:96-108`. Nothing is minted locally, per `DESIGN.md:510-511`.
 - **The exception hierarchy carries its registry row**, so the mapping is fixed where the
   condition is *known* rather than re-derived from a status at the boundary - which is how
-  Jobvite's status reached `status` in the revision `DESIGN.md:496-503` corrects.
+  Jobvite's status reached `status` in the revision `DESIGN.md:502-509` corrects.
   `JobviteUpstreamError` (502), `JobviteUnavailableError` (503), `ValidationError` (422),
   `ResourceNotFoundError` (404), `DuplicateCandidateError` (409), `ScopeDeniedError` (403),
   and anything else -> `about:blank`.
 - **`JobviteUpstreamError` keeps Jobvite's status and message** on the instance (for the audit
-  event) and reproduces both in `detail` (`DESIGN.md:517-519`). `upstream_status=None` is a first
-  class case: the plain-text and Tomcat-HTML error encodings (`DESIGN.md:339-341`) carry no status.
+  event) and reproduces both in `detail` (`DESIGN.md:530-532`). `upstream_status=None` is a first
+  class case: the plain-text and Tomcat-HTML error encodings (`DESIGN.md:345-347`) carry no status.
 - **`build_problem` and `problem_from_exception` return; they never raise a problem object**
-  (`DESIGN.md:521-525`). The one `raise` in the module is a `ValueError` when an extension member
+  (`DESIGN.md:534-538`). The one `raise` in the module is a `ValueError` when an extension member
   would shadow one of the seven - a call-site programming error, and letting it silently overwrite
-  `status` would reintroduce exactly the defect `DESIGN.md:496` corrects.
+  `status` would reintroduce exactly the defect `DESIGN.md:502` corrects.
 - **An unmapped exception's message never reaches the caller.** `detail` names the exception class
   instead; an arbitrary `str(exc)` can carry a URL, a credential fragment or an upstream body.
 
@@ -207,7 +207,7 @@ iterates over nothing, because a mutant leaves the collection populated.** `asse
 
 ### D1 (design defect, needs a ruling): the unmapped row specifies no `status`, and `status` is required
 
-`DESIGN.md:489-490` makes `status` one of seven **required** members. `DESIGN.md:515`'s registry
+`DESIGN.md:495-496` makes `status` one of seven **required** members. `DESIGN.md:515`'s registry
 table gives the unmapped row `about:blank` and a literal `-` in the Status column. Those cannot
 both hold: an unmapped condition must produce a `status` and the design says which value it is
 nowhere.
@@ -233,7 +233,7 @@ is currently a killed mutant - becomes the correct behaviour. **Flagged rather t
 
 ### D3 (design, minor): `retry_after` and the "seven members"
 
-`DESIGN.md:490` names seven members; `DESIGN.md:352` attaches a `retry_after` hint to the 503, and
+`DESIGN.md:496` names seven members; `DESIGN.md:358` attaches a `retry_after` hint to the 503, and
 `error-contract.md:86` defines an `errors` array for 422s. Read strictly, "seven members" and an
 eighth hint are in tension. **Implemented** as RFC 9457 extension members: the seven are always
 present, extensions are additive and may not shadow a required member. This is the reading RFC
@@ -241,7 +241,7 @@ present, extensions are additive and may not shadow a required member. This is t
 
 ### N1 (scope, needs the team lead's ruling): `request_id_scope` is not in the design
 
-`DESIGN.md:589-591` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
+`DESIGN.md:602-604` places the set and the `finally`-reset in **`audit.py`**, which is U3's.
 `utils/correlation.py` is described as holding *"a single `ContextVar[str | None]` named
 `request_id_var`"* - which it still does; there is exactly one `ContextVar(` in the file, asserted
 by `test_correlation_declares_exactly_one_contextvar`.
@@ -281,9 +281,9 @@ standards file hits the same wall.
   read the file by hand at `architecture/error-contract.md:96-108` and transcribed seven rows; a
   transcription error would pass every test in this suite.
 - **The envelope assertion proves nothing today.** See V1.
-- **Nothing here is asserted on the wire.** `DESIGN.md:600-601` requires the problem object's
+- **Nothing here is asserted on the wire.** `DESIGN.md:613-614` requires the problem object's
   `request_id` to match the audit event's id **on the wire**; that is U5's and needs a server.
-- **The 422 row's reachability is unexercised.** `DESIGN.md:548` records it is unreachable on the
+- **The 422 row's reachability is unexercised.** `DESIGN.md:561` records it is unreachable on the
   pre-dispatch path and serves in-body validation only. Nothing in the tree yet produces either,
   so the class exists and no caller raises it.
 - **Timestamp format vs consumers.** `_timestamp()` emits microseconds (`...T14:32:00.123456Z`),

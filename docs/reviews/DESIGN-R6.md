@@ -152,7 +152,7 @@ limits on the word "verified". This is the document's strongest property and it 
 
 ### H-1. §11's count paragraph says "Two" over an empty table, and its written-out arithmetic does not reconcile. Third recurrence of the failure mode the paragraph exists to prevent.
 
-**Location:** `DESIGN.md:1571-1593`.
+**Location:** `DESIGN.md:1619-1641`.
 
 The must-mitigate table at `:1573-1575` is empty:
 
@@ -514,12 +514,12 @@ described as reading it, since §5.1's problem object and §5.3's retry hooks bo
 
 ### L-2. §5.3 states as a design property something that is true only before mitigation, and it contradicts the §8 case a Critical row depends on.
 
-`DESIGN.md:586`, bolded and unqualified:
+`DESIGN.md:599`, bolded and unqualified:
 
 > **The audit stream holds candidate PII by construction**, because the approval request describes
 > the candidate about to be written.
 
-`DESIGN.md:1070`, a required §8 case:
+`DESIGN.md:1112`, a required §8 case:
 
 > **candidate PII never reaching a log or audit record**
 
@@ -546,7 +546,7 @@ append:
 threat row is modelled correctly, and no design decision changes. It is a precision defect in a
 document that holds itself to precision.
 
-### L-3. `DESIGN.md:468` cites `:211` for `about:blank`. The rule is at `:212`.
+### L-3. `DESIGN.md:474` cites `:211` for `about:blank`. The rule is at `:212`.
 
 §5.1's registry table, final row:
 
@@ -555,7 +555,7 @@ document that holds itself to precision.
 Read at source, `architecture/error-contract.md`:
 
 - `:210` - *"7. **Type URIs are stable**: Once published, a `type` URI is a contract."* (correctly
-  cited at `DESIGN.md:458`)
+  cited at `DESIGN.md:464`)
 - `:211` - *"8. **Relative type URIs**: Use `/problems/<slug>`, not absolute URLs."*
 - `:212` - *"9. **`about:blank` for unknowns**: Unmapped HTTP errors use `about:blank` as the type."*
 
@@ -567,7 +567,7 @@ One character. Verify by re-reading `error-contract.md:212` rather than trusting
 
 ### L-4. §11's threshold prose merges the Medium production-release list with the Critical/High must-mitigate table, and credits a Medium row with emptying the High table.
 
-`DESIGN.md:1601-1610`. The paragraph is headed **"Mitigate before production release (inherent
+`DESIGN.md:1649-1658`. The paragraph is headed **"Mitigate before production release (inherent
 Medium, unmitigated)"** and then says:
 
 > **C9-D1 (B72), C5-R1 (B39, B40) and C5-E1 (B21) have now left it too**, which empties the
@@ -671,7 +671,7 @@ interface, not by running it.
 
 ### N-1. §4.3 cites a bare `resilience.md:74-76` and there are two files by that name.
 
-`DESIGN.md:312` quotes *"Timeouts MUST be shorter than the inbound request's own deadline"* and
+`DESIGN.md:318` quotes *"Timeouts MUST be shorter than the inbound request's own deadline"* and
 attributes it to `resilience.md:74-76`. The corpus holds **`backend/resilience.md`** and
 **`ai/resilience.md`**. The quote is correct for `backend/resilience.md:74-76` - I read it and it
 matches word for word. But `ai/resilience.md:74-76` is a `@retry(...)` code block, so a reader
@@ -681,7 +681,7 @@ resolving the bare name against the wrong file finds something plausible and unr
 with itself about the prefix.
 
 **Suggested fix (MY SUGGESTION - verify before adopting).** Change `resilience.md:74-76` to
-`backend/resilience.md:74-76` at `DESIGN.md:312`. Worth a grep for other bare filenames that resolve
+`backend/resilience.md:74-76` at `DESIGN.md:318`. Worth a grep for other bare filenames that resolve
 ambiguously - `testing.md` and `README.md` are the other multi-home names in this corpus.
 
 ---
@@ -840,7 +840,7 @@ Everything else stands as written.
 | M-3 | **Medium** | `ai/tool-calling.md:176-177`'s LLM trace/span id obligation falls outside §5.3's cited range and is discharged nowhere | **Verified: an implementation obligation, NOT an ADR.** MCP carries W3C trace context per SEP-414 and FastMCP already extracts it. Parse + two audit fields + a two-arm §8 case |
 | L-1 | Low | `utils/correlation.py` specified in §5.3, missing from §3's module layout | One line |
 | L-2 | Low | §5.3's "audit stream holds candidate PII by construction" contradicts §8's "never reaching a log or audit record" | In-place rewrite of one sentence |
-| L-3 | Low | `DESIGN.md:468` cites `:211` for `about:blank`; the rule is `:212` | One character |
+| L-3 | Low | `DESIGN.md:474` cites `:211` for `about:blank`; the rule is `:212` | One character |
 | L-4 | Low | §11 threshold prose merges the Medium list with the High must-mitigate table | Split one sentence |
 | L-5 | Low | Breaker-transition `request_id` requires a call-driven breaker; nothing says so | One sentence in §4.3 |
 | L-6 | Low | The 30-day advisory expiry names no mechanism; `pip-audit` cannot supply one | One clause in §10 step 3 |

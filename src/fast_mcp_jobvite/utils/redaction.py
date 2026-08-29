@@ -1,11 +1,11 @@
-"""Secret redaction - the single enforcement point (DESIGN.md:306-310).
+"""Secret redaction - the single enforcement point (DESIGN.md:312-316).
 
 **This module holds the SECRET half only.** DESIGN.md:291 gives
 `utils/redaction.py` two jobs, "log redaction; untrusted-content fencing", and
 `IMPLEMENTATION-PLAN.md:1497` assigns the fencing half to U8. Nothing here
 fences.
 
-**Why one place.** DESIGN.md:306-310 classifies the v1 `GET /v1/jobFeed` URL as
+**Why one place.** DESIGN.md:312-316 classifies the v1 `GET /v1/jobFeed` URL as
 sensitive - it structurally requires `api`, `sc` and `companyId` as query
 parameters, so unlike every other Jobvite call the credential is *in the URL* -
 and states the rule as "never logged whole, never in an exception message,
@@ -14,8 +14,8 @@ with a test that fails if a secret can reach a log record." A second redactor
 elsewhere is the defect this sentence exists to prevent, because the two drift
 and the one that drifts is the one nobody reads.
 
-**Three parameters are redacted, not one.** DESIGN.md:307 names `api`, `sc` and
-`companyId` as the three the URL structurally carries, and DESIGN.md:311-313
+**Three parameters are redacted, not one.** DESIGN.md:313 names `api`, `sc` and
+`companyId` as the three the URL structurally carries, and DESIGN.md:317-319
 makes `companyId` a credential class of its own ("the job feed's separate
 `companyId` credential"). §8's required case names `sc=` because that is the
 one an implementer is most likely to reach for; redacting only it would satisfy
@@ -23,11 +23,11 @@ the case and leave two credentials in the log line, so the case is the floor
 here and not the specification.
 
 **Arguments are redacted by allow-list, and the direction is deliberate.**
-DESIGN.md:1742 rates C7-I1 - candidate PII written to logs in the clear -
+DESIGN.md:1790 rates C7-I1 - candidate PII written to logs in the clear -
 **Critical**, and `ai/tool-calling.md:171-172` requires the audit event to carry
 "validated arguments (PII redacted)". A deny-list of known PII key names fails
 *open*: the argument nobody thought of is emitted in the clear, which is the
-failure mode DESIGN.md:1737 (C6-I2) already rejects for output fields in favour
+failure mode DESIGN.md:1785 (C6-I2) already rejects for output fields in favour
 of "path-keyed allow-list fails closed: an unlisted field is dropped until
 someone adds it deliberately". The same reasoning applies with more force on
 the audit path, because `create_candidate`'s arguments **are** the candidate.
@@ -58,12 +58,12 @@ type JsonValue = (
 REDACTED: Final = "[REDACTED]"
 
 #: Query parameters on the `jobFeed` URL that carry a credential
-#: (DESIGN.md:306-313). Compared case-insensitively, because a URL a human
+#: (DESIGN.md:312-319). Compared case-insensitively, because a URL a human
 #: assembled will not always match Jobvite's casing and a redactor that misses
 #: `SC=` has failed open.
 SECRET_QUERY_PARAMS: Final[frozenset[str]] = frozenset({"api", "sc", "companyid"})
 
-#: Request headers that carry a v2 credential (DESIGN.md:305). Lower-cased;
+#: Request headers that carry a v2 credential (DESIGN.md:311). Lower-cased;
 #: callers must lower-case the key before lookup.
 SECRET_HEADERS: Final[frozenset[str]] = frozenset({"x-jvi-api", "x-jvi-sc"})
 
@@ -96,7 +96,7 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
 def redact_url(url: str) -> str:
     """Redact every credential-bearing query parameter in a URL.
 
-    The `jobFeed` URL is the reason this exists (DESIGN.md:306-310), but the
+    The `jobFeed` URL is the reason this exists (DESIGN.md:312-316), but the
     function is not restricted to it: a URL is passed in and every parameter in
     `SECRET_QUERY_PARAMS` comes back redacted, whatever the host. Restricting
     it to a recognised `jobFeed` host would fail open on a staging host, a
@@ -136,7 +136,7 @@ def redact_url(url: str) -> str:
 
 
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Redact the v2 credential headers (DESIGN.md:305).
+    """Redact the v2 credential headers (DESIGN.md:311).
 
     Args:
         headers: Request headers. Keys are matched case-insensitively.
@@ -155,7 +155,7 @@ def redact_headers(headers: dict[str, str]) -> dict[str, str]:
 def redact_text(text: str) -> str:
     """Redact any credential-bearing URL embedded in free text.
 
-    This is the arm that covers an **exception message** (DESIGN.md:308-309).
+    This is the arm that covers an **exception message** (DESIGN.md:314-315).
     `httpx` puts the request URL into the text of the exceptions it raises, so
     a `jobFeed` timeout carries `sc=` in `str(exc)` and any handler that
     formats the exception into a log line publishes the credential. Redacting
@@ -217,7 +217,7 @@ def _redacted_value(value: JsonValue) -> str:
           -> {"secretBlob": {"job_id": "...", "email": "[REDACTED:str]"}}
 
     The `job_id` survived because `job_id` is allow-listed, even though nothing
-    had allowed `secretBlob`. DESIGN.md:1737 calls C6-I2's mechanism a
+    had allowed `secretBlob`. DESIGN.md:1785 calls C6-I2's mechanism a
     **path-keyed** allow-list for exactly this reason: membership has to be
     judged on the path, not on the leaf name in isolation.
 

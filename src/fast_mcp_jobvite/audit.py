@@ -2,17 +2,17 @@
 
 `ai/agent-guardrails.md:40` mandates audit logging of every tool invocation and
 `ai/tool-calling.md:171-173` names the fields. **We emit this ourselves rather
-than assuming middleware provides it** (DESIGN.md:574-579):
+than assuming middleware provides it** (DESIGN.md:587-592):
 `StructuredLoggingMiddleware` runs with `include_payloads=False`, which emits
 *no* arguments where the mandated field is *redacted* arguments, so the
 framework's default is wrong for this project in the one way that matters.
 
-**`request_id` originates here** (DESIGN.md:580-582). MCP has no `X-Request-ID`
+**`request_id` originates here** (DESIGN.md:593-595). MCP has no `X-Request-ID`
 middleware and no ambient request id, so this module mints a UUIDv4 per tool
 invocation and it is the same value that reaches the problem object's
 `request_id` and its `instance` URN.
 
-**The id is minted and bound in ONE statement** (DESIGN.md:589-591), which is
+**The id is minted and bound in ONE statement** (DESIGN.md:602-604), which is
 literally true of the single line in `audit_scope`:
 
     with request_id_scope(resolve_request_id(inbound_request_id)) as request_id:
@@ -21,7 +21,7 @@ literally true of the single line in `audit_scope`:
 resets the var lives in `utils/correlation.py` in shipped code rather than
 being restated at each call site.
 
-**Attribution is not the same question as identity** (DESIGN.md:670-683). Two
+**Attribution is not the same question as identity** (DESIGN.md:690-703). Two
 identities are in play and the design is explicit that only one is knowable:
 *who approved* is unknowable (ADR-0009), while *which client invoked the tool*
 is knowable **on HTTP**, where §4.4 already derives it through `get_client_id`
@@ -32,7 +32,7 @@ stdio, receives `"global"` and believes attribution exists leaves the gap open
 behind a value that looks like an answer.
 
 **`trace_id` and `span_id` are recorded when present, omitted when absent, and
-never synthesised** (DESIGN.md:648-650, `ai/tool-calling.md:176-177`). A
+never synthesised** (DESIGN.md:661-663, `ai/tool-calling.md:176-177`). A
 locally minted id in a field named for the host's trace joins nothing while
 looking like it does, which is worse than an empty field.
 """
@@ -60,7 +60,7 @@ from .utils.redaction import JsonValue, redact_arguments, redact_text
 #: and a message you have to parse is not a field.
 AUDIT_EVENT_NAME: Final = "tool_invocation"
 
-#: What `caller_attribution` says on stdio (DESIGN.md:676-681).
+#: What `caller_attribution` says on stdio (DESIGN.md:696-701).
 #:
 #: **This string must never be `"global"` and must never contain it.** `"global"`
 #: is what `get_client_id` returns on stdio, and recording it would assert an
@@ -76,7 +76,7 @@ RESULT_STATUS_ERROR: Final = "error"
 #: A UUIDv4 in canonical form: version nibble `4`, variant nibble `8`/`9`/`a`/`b`.
 #:
 #: Inbound `X-Request-ID` is validated against this before use
-#: (DESIGN.md:582-584, threat C7-T1 at DESIGN.md:1744). An unvalidated inbound
+#: (DESIGN.md:595-597, threat C7-T1 at DESIGN.md:1792). An unvalidated inbound
 #: id is a log-forging vector: a value carrying a newline writes a second,
 #: attacker-authored line into the audit stream.
 _UUID4_RE: Final = re.compile(
@@ -89,21 +89,21 @@ _UUID4_RE: Final = re.compile(
 #: The all-zero trace id and the all-zero span id are invalid per the W3C Trace
 #: Context recommendation, and both are rejected here. Accepting them would put
 #: a field in the event that looks like a join and is not one, which is exactly
-#: what DESIGN.md:648-650 forbids.
+#: what DESIGN.md:661-663 forbids.
 _TRACEPARENT_RE: Final = re.compile(
     r"\A00-(?!0{32})([0-9a-f]{32})-(?!0{16})([0-9a-f]{16})-[0-9a-f]{2}\Z"
 )
 
 
 class Transport(enum.StrEnum):
-    """The transport the invocation arrived on (DESIGN.md:676-678)."""
+    """The transport the invocation arrived on (DESIGN.md:696-698)."""
 
     STDIO = "stdio"
     HTTP = "http"
 
 
 class AuditPhase(enum.StrEnum):
-    """Which branch of the audit-write-failure policy applies (DESIGN.md:689-705).
+    """Which branch of the audit-write-failure policy applies (DESIGN.md:709-725).
 
     The phase is a property of *when the audit write is attempted*, not of the
     tool, which is why a write tool passes `BEFORE_SIDE_EFFECT` for its first
@@ -127,7 +127,7 @@ class AuditWriteError(RuntimeError):
     Deliberately **not** a `FastMcpJobviteError`: it is not one of the registry
     conditions at `error-contract.md:96-108`, and the tool boundary converts it
     through `problem_from_exception`'s `about:blank` path (ADR-0017) rather than
-    through a slug this project would then owe forever (DESIGN.md:504-505).
+    through a slug this project would then owe forever (DESIGN.md:510-511).
     """
 
 
@@ -173,7 +173,7 @@ class AuditEvent:
         **Optional fields are OMITTED, never emitted as `None`.** A `trace_id`
         of `None` is a field that is always present, and §8's trace case exists
         because a field that is always there passes a single-arm test
-        (DESIGN.md:1287-1292).
+        (DESIGN.md:1335-1340).
         """
         record: dict[str, JsonValue] = {
             "tool_name": self.tool_name,
@@ -203,9 +203,9 @@ def resolve_request_id(inbound_request_id: str | None = None) -> str:
     """Return the invocation's `request_id`: the inbound one, or a fresh UUIDv4.
 
     An inbound `X-Request-ID` is **echoed only if it is a valid UUIDv4**
-    (DESIGN.md:582-584). Anything else is discarded silently and replaced,
+    (DESIGN.md:595-597). Anything else is discarded silently and replaced,
     rather than rejected: a malformed correlation header is not a reason to
-    fail a tool call, and C7-T1 (DESIGN.md:1744) asks for the value to be
+    fail a tool call, and C7-T1 (DESIGN.md:1792) asks for the value to be
     "validated as a UUIDv4 before use and replaced if invalid".
 
     Args:
@@ -224,12 +224,12 @@ def parse_trace_context(meta: Mapping[str, object] | None) -> tuple[str, str] | 
     """Extract W3C trace context from the request `_meta`, or `None`.
 
     Read from `ctx.request_context.meta` directly rather than through FastMCP's
-    span plumbing (DESIGN.md:641-647): `telemetry_mode()` may be `"off"`, in
+    span plumbing (DESIGN.md:654-660): `telemetry_mode()` may be `"off"`, in
     which case FastMCP's extractor returns the ambient context unchanged while
     the wire `_meta` still carries the header.
 
     **Returns `None` rather than a synthesised pair** when the header is
-    missing or malformed (DESIGN.md:648-650).
+    missing or malformed (DESIGN.md:661-663).
 
     Args:
         meta: The request `_meta` mapping, or `None` when the caller sent none.
@@ -262,7 +262,7 @@ def audit_scope(
 
     **This does not emit.** A write tool audits twice - once before the side
     effect and once after it - under two different branches of the failure
-    policy (DESIGN.md:689-705), so the caller decides when and with which
+    policy (DESIGN.md:709-725), so the caller decides when and with which
     `AuditPhase`. A scope that emitted on exit would collapse those two
     branches into one and silently delete the branch the design says matters.
 
@@ -270,17 +270,17 @@ def audit_scope(
         tool_name: The tool as registered.
         transport: The transport this invocation arrived on.
         arguments: The validated arguments. Redacted here, once, on the way in
-            (DESIGN.md:306-310); the event never holds the raw values.
+            (DESIGN.md:312-316); the event never holds the raw values.
         client_id: `get_client_id`'s value on HTTP. **Ignored on stdio**, where
             it would be the literal `"global"` and would assert an identity
-            that does not exist (DESIGN.md:676-681).
+            that does not exist (DESIGN.md:696-701).
         inbound_request_id: The caller's `X-Request-ID`, if any.
         meta: The request `_meta`, read for `traceparent`.
 
     Yields:
         The `AuditEvent`, for the caller to complete and emit.
     """
-    # DESIGN.md:589-591: minted and bound in the same statement.
+    # DESIGN.md:602-604: minted and bound in the same statement.
     with request_id_scope(resolve_request_id(inbound_request_id)) as request_id:
         trace = parse_trace_context(meta)
         yield AuditEvent(
@@ -295,7 +295,7 @@ def audit_scope(
 
 
 def emit(event: AuditEvent, phase: AuditPhase) -> list[str]:
-    """Write the audit event, applying the failure policy of DESIGN.md:689-705.
+    """Write the audit event, applying the failure policy of DESIGN.md:709-725.
 
     Args:
         event: The completed event.
@@ -319,7 +319,7 @@ def emit(event: AuditEvent, phase: AuditPhase) -> list[str]:
 def _on_audit_write_failure(
     exc: Exception, event: AuditEvent, phase: AuditPhase
 ) -> list[str]:
-    """The three branches, in the order DESIGN.md:690-696 states them."""
+    """The three branches, in the order DESIGN.md:710-716 states them."""
     detail = redact_text(f"{type(exc).__name__}: {exc}")
     if phase is AuditPhase.BEFORE_SIDE_EFFECT:
         # Fail the call. No audit, no write.
@@ -328,7 +328,7 @@ def _on_audit_write_failure(
             f"the call was not performed ({detail})"
         )
     # Both surviving branches report to STDERR, never to the audit stream that
-    # just failed (DESIGN.md:695-696): routing the report down the channel whose
+    # just failed (DESIGN.md:715-716): routing the report down the channel whose
     # failure it reports is how the record of the failure is lost too.
     _warn_on_stderr(
         f"audit write failed ({phase}) for {event.tool_name} "
@@ -360,7 +360,7 @@ def attach_audit_warnings(
 ) -> dict[str, JsonValue]:
     """Add the `warnings` array to a SUCCESS result's structured content.
 
-    DESIGN.md:698-705 specifies this shape because "success with a warning" is
+    DESIGN.md:718-725 specifies this shape because "success with a warning" is
     not one: the normal success result, `is_error=False`, with a `warnings`
     array in its structured content naming the audit failure - **not a problem
     object**. §5.1 makes problem objects the channel for expected *failures*,

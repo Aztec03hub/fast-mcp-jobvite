@@ -1,4 +1,4 @@
-"""The `FastMCP` instance and its lifespan (DESIGN.md:936-1004).
+"""The `FastMCP` instance and its lifespan (DESIGN.md:956-1046).
 
 **`mask_error_details=True` is set explicitly** rather than left to the
 framework default. The default is what a dependency bump changes silently,
@@ -9,7 +9,7 @@ kind of thing that must be stated in our own source so a diff shows it
 moving.
 
 **The lifespan rule, and it belongs here rather than in a review**
-(DESIGN.md:997-1004): even when teardown runs, it runs *after* connections
+(DESIGN.md:1039-1046): even when teardown runs, it runs *after* connections
 are gone. **Nothing that must complete before connections close may live in
 a lifespan teardown.** Today nothing depends on teardown - the only resource
 is a connection pool the OS reclaims - which means the constraint is free
@@ -22,13 +22,13 @@ and that nothing may depend on cross-call memory from a module-level
 variable. Putting the validated settings in the lifespan context keeps the
 one long-lived object on the framework's own lifetime.
 
-**Why `extra_lifespan` exists and is not a test hook.** DESIGN.md:1289-1295
+**Why `extra_lifespan` exists and is not a test hook.** DESIGN.md:1337-1343
 requires the shutdown case to assert the **teardown side effect** - the
 resource the lifespan opened is released - and not the exit code, because a
 process that dies uncleanly can still exit 0. U1 opens no resource, so
 without a composition point the case would have to reimplement the shutdown
 path in the test and assert against its own copy. This parameter is the
-composition point DESIGN.md:938 already requires (`|` composition), used by
+composition point DESIGN.md:958 already requires (`|` composition), used by
 the test today and by U4's connection pool and U9's HTTP resources next.
 """
 
@@ -56,7 +56,7 @@ def make_base_lifespan(settings: Settings) -> Lifespan:
     """Build the server's own lifespan. Startup in order, teardown reversed.
 
     It holds no resource of its own today, and that is deliberate rather
-    than an omission: DESIGN.md:997-1004 records that the only long-lived
+    than an omission: DESIGN.md:1039-1046 records that the only long-lived
     state is a connection pool the OS reclaims, and forbids putting anything
     that must complete before connections close into a teardown. U4 adds the
     pool here; nothing else belongs.
@@ -97,12 +97,12 @@ def build_server(
 
     No tool is registered here. `settings.enabled_tools` is the allow-list
     the tool units register against, and U1 owns the gate rather than the
-    tools (DESIGN.md:897-914).
+    tools (DESIGN.md:917-934).
 
     Args:
         settings: Settings that have already passed `validate_settings`.
         extra_lifespan: A lifespan composed after the base one with `|`, so
-            teardown runs in strict reverse (DESIGN.md:938).
+            teardown runs in strict reverse (DESIGN.md:958).
 
     Returns:
         The configured `FastMCP` instance.

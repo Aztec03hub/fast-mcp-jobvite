@@ -1,4 +1,4 @@
-"""U2: `request_id_var` (DESIGN.md:586-597, IMPLEMENTATION-PLAN.md:471-478).
+"""U2: `request_id_var` (DESIGN.md:599-610, IMPLEMENTATION-PLAN.md:471-478).
 
 **The leak test is the known trap.** "The var is `None` after the invocation"
 passes perfectly against a `ContextVar` that was never set at any point - and
@@ -55,7 +55,7 @@ def test_the_positive_arm_the_var_reads_back_the_id_inside_the_scope() -> None:
 
 
 def test_the_id_does_not_leak_past_the_scope() -> None:
-    """DESIGN.md:590-591 - a reused worker task must not inherit the last id.
+    """DESIGN.md:603-604 - a reused worker task must not inherit the last id.
 
     Paired: the positive arm inside the scope is what makes the negative arm
     after it mean anything.
@@ -79,7 +79,7 @@ def test_the_reset_is_lexically_in_a_finally() -> None:
 
     A `set(None)` after the `yield` would pass every behavioural test above on
     the happy path and strand the id on the error path in production, where the
-    exception is not the one the test raises. DESIGN.md:590-591 asks for a
+    exception is not the one the test raises. DESIGN.md:603-604 asks for a
     `finally` specifically, so the `finally` is asserted directly.
     """
     tree = ast.parse(CORRELATION_PY.read_text())
@@ -99,7 +99,7 @@ def test_a_nested_scope_restores_the_enclosing_id_rather_than_erasing_it() -> No
 
 
 async def test_concurrent_invocations_never_read_each_others_id() -> None:
-    """DESIGN.md:593-597 - the failure a module global would cause, silently.
+    """DESIGN.md:606-610 - the failure a module global would cause, silently.
 
     Two candidates fetched in parallel would each log the other's id about half
     the time under a module global, and every line would still carry a
@@ -150,6 +150,6 @@ async def test_the_concurrency_test_would_catch_a_module_global() -> None:
 
 
 def test_correlation_declares_exactly_one_contextvar() -> None:
-    """DESIGN.md:589 - "a single ContextVar". A second one is a second truth."""
+    """DESIGN.md:602 - "a single ContextVar". A second one is a second truth."""
     source = CORRELATION_PY.read_text()
     assert len(re.findall(r"ContextVar\(", source)) == 1, source

@@ -126,7 +126,7 @@ considered or overlooked.
 | *No `any` types in TypeScript*, *Explicit return types*, *Discriminated unions* | No TypeScript. The Python equivalents are in **Type safety** above. |
 | *Zod schemas for frontend validation* | No frontend. Pydantic covers the equivalent obligation and is listed above. |
 | *XSS prevention in frontend* | No frontend, and this server renders no HTML. |
-| *CSRF protection for mutations* | **Verified, not assumed.** HTTP auth is `StaticTokenVerifier` over a Bearer token (`DESIGN.md:806`). CSRF requires an *ambient* credential the browser attaches automatically; a Bearer token is not one, and there are no cookies. `grep -in csrf docs/DESIGN.md` returns nothing, so the design never states this - **the reasoning is recorded here because it was not recorded there.** |
+| *CSRF protection for mutations* | **Verified, not assumed.** HTTP auth is `StaticTokenVerifier` over a Bearer token (`DESIGN.md:826`). CSRF requires an *ambient* credential the browser attaches automatically; a Bearer token is not one, and there are no cookies. `grep -in csrf docs/DESIGN.md` returns nothing, so the design never states this - **the reasoning is recorded here because it was not recorded there.** |
 | *SQL injection prevented (SQLAlchemy ORM)* | No database. `pyproject.toml` declares no SQLAlchemy, psycopg, asyncpg or alembic dependency. |
 | *No N+1 queries (use eager loading)* | No database. Upstream request volume is governed by the pagination and rate-limit rows instead. |
 | *Images optimized (next/image)* / *No unnecessary re-renders* | No frontend. |

@@ -84,15 +84,15 @@ Two legs: a conditional one ("a DB-backed API this project does not serve") and 
 
 1. **Frontmatter.** `standards/backend/pagination.md:6-10` is
    `applicable_to: [fastapi, express, dotnet, rest-api]`. This server exposes MCP tools; its HTTP
-   mode is a FastMCP ASGI transport (`docs/DESIGN.md:746-750`), not FastAPI routes.
+   mode is a FastMCP ASGI transport (`docs/DESIGN.md:766-770`), not FastAPI routes.
 2. **What the standard actually obliges.** `pagination.md:31` — all paginated *endpoints* must use
    shared dependency functions; `:138` — "No inline pagination params: Every paginated endpoint
    must use `PaginationDep`"; `:80-81`, `:129` — an opaque base64url `cursor` and a `next_cursor`
    in the response envelope.
-3. **What the design does.** `docs/DESIGN.md:405-460` is entirely about *consuming* Jobvite's
+3. **What the design does.** `docs/DESIGN.md:411-466` is entirely about *consuming* Jobvite's
    offset paging: `start`/`count`, base-agnostic scans from `start=0`, a per-scan seen set, a
    completeness check against `total`. The caller-facing surface has **no cursor and no offset**:
-   `docs/DESIGN.md:1131-1133` — "Result size is bounded inside each tool… a page is capped and the
+   `docs/DESIGN.md:1173-1175` — "Result size is bounded inside each tool… a page is capped and the
    result says `showing 50 of 1,240`."
 4. **The delegating leg checked by mechanism, not by name.** "Consumed, not implemented" is not a
    restatement of the dismissal; it is checkable, and it checks out — no `PaginationParams`, no
@@ -113,14 +113,14 @@ caller **no way to ask for the rest** short of an exhaustive scan. That is a pro
    shape that made `threat-modeling.md` bind after being dismissed unread.
 2. **The conditional leg holds.** The DSAR/RTBF machinery is table-scoped —
    `:50` ("Every table containing personal data MUST declare its DSAR/RTBF policy"), `:55-56`,
-   `:60`, `:88`, `:113-117`. This server stores nothing (`docs/DESIGN.md:725-729`), and
+   `:60`, `:88`, `:113-117`. This server stores nothing (`docs/DESIGN.md:745-749`), and
    `docs/DESIGN.md:242-247` records that a durable server-side seen-set was **considered and not
    taken** precisely because it would need durable state. So statelessness is still true today.
 3. **The delegating leg is where it fails.** The row at `STANDARDS.md:791` states that the residue
    which binds is *the no-PII-in-logs rule, captured as B88* — and names nothing else. That is
    incomplete. `gdpr-data-rights.md:119-129` (records of processing, Article 30) is field-level,
    names downstream processors, and is satisfied by neither statelessness nor B88.
-   `docs/DESIGN.md:731-733` says so in the design's own words — *"What does bind, and is not
+   `docs/DESIGN.md:751-753` says so in the design's own words — *"What does bind, and is not
    waived: `:119-129`… so `docs/data-inventory.md` records the categories handled, the purpose, and
    the recipients"* — and `docs/data-inventory.md:1-6` exists and cites the same range.
 
@@ -143,7 +143,7 @@ of "What I could NOT verify". I read the file in full (170 lines).
 
 This server produces no model output to regress. B23's own fail condition
 (`STANDARDS.md:246-252`) is *"these tests exist but are not wired to a required CI check"* — a
-pytest-and-CI obligation, discharged by `docs/DESIGN.md:711` ("Red-team cases live in the main suite
+pytest-and-CI obligation, discharged by `docs/DESIGN.md:731` ("Red-team cases live in the main suite
 and are merge-gating"). The phrase "the eval suite" in `ai/prompt-injection.md:138-139` does not
 import this file's golden-dataset structure into a server that judges nothing.
 
@@ -154,7 +154,7 @@ import this file's golden-dataset structure into a server that judges nothing.
 `threat-modeling.md:6-8` is `applicable_to: all`, `priority: required`. The row's rationale —
 "process/design-artifact standards rather than code obligations" — was already found wrong by
 `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` ("`architecture/threat-modeling.md` — BINDS") and
-`:344` ("dismissed UNREAD"). `docs/DESIGN.md:1511` now states the model is "Required by
+`:344` ("dismissed UNREAD"). `docs/DESIGN.md:1559` now states the model is "Required by
 `architecture/threat-modeling.md`", §11 supplies the STRIDE grid, and B110 tracks it.
 
 `data-flow.md:6` is `applicable_to: [system-design]`;
@@ -168,12 +168,12 @@ See §4/F2.
 ### 3.5 `architecture/caching.md` (D20): **STANDING today**, and the re-arm condition is written down
 
 This is the row that failed once. Re-tested rather than assumed:
-`docs/DESIGN.md:1087` — "**`ResponseCachingMiddleware` is NOT adopted, and this reverses an earlier
+`docs/DESIGN.md:1129` — "**`ResponseCachingMiddleware` is NOT adopted, and this reverses an earlier
 revision**"; `:63` — "It caches no Jobvite response (§7.7)"; `:1732` — the cache-disclosure threat
 row was removed from the model entirely rather than mitigated. `grep -n -i "cache" docs/DESIGN.md`
 returns no adopted cache anywhere.
 
-Note the difference in quality from the original dismissal: `docs/DESIGN.md:1104-1108` now states
+Note the difference in quality from the original dismissal: `docs/DESIGN.md:1146-1150` now states
 the re-arm condition *in the design* — a key derivation established by execution and a two-token
 isolation test before any cache ships. That is what makes this row testable rather than
 discretionary.
@@ -183,17 +183,17 @@ discretionary.
 | # | Standard(s) | Test performed | Result |
 |---|---|---|---|
 | D1 | `frontend/api-client.md` | `grep -n -i openapi docs/DESIGN.md` → one hit, `:86`, saying no OpenAPI document exists for *Jobvite*. We publish no REST surface and generate no TS client | STANDING |
-| D3 | `frontend/markdown-rendering.md` | Delegating leg tested by source, not by name: B24 (`STANDARDS.md:254-258`) is sourced from `ai/prompt-injection.md:49-50` and `:74-75`, an independent standard, and is discharged by `docs/DESIGN.md:701-702` (fencing, delimiter stripping). No circularity: the covering obligation does not rest on the dismissal | STANDING |
-| D5 | `adr-ec-350-04` | The project now *has* inbound rate limiting (`docs/DESIGN.md:362-366`, ADR-0002), so this was worth re-reading. The ADR is scoped to evolv-coder's `/api/v1/public/reports/{shareToken}` behind Clerk-bypassing share tokens, with a Redis store. No share tokens, different product | STANDING |
+| D3 | `frontend/markdown-rendering.md` | Delegating leg tested by source, not by name: B24 (`STANDARDS.md:254-258`) is sourced from `ai/prompt-injection.md:49-50` and `:74-75`, an independent standard, and is discharged by `docs/DESIGN.md:721-722` (fencing, delimiter stripping). No circularity: the covering obligation does not rest on the dismissal | STANDING |
+| D5 | `adr-ec-350-04` | The project now *has* inbound rate limiting (`docs/DESIGN.md:368-372`, ADR-0002), so this was worth re-reading. The ADR is scoped to evolv-coder's `/api/v1/public/reports/{shareToken}` behind Clerk-bypassing share tokens, with a Redis store. No share tokens, different product | STANDING |
 | D6 | `database/*` | Tested against the two places the design flirts with durable state: `docs/DESIGN.md:242-247` (durable seen-set considered and **not taken**) and `:1069` (a store that is per-connection on stdio — rejected with §7.6). Nothing persists | STANDING |
 | D9 | `backend/background-jobs.md` | `grep -n -iE "create_task\|background task\|celery\|worker"` — every hit concerns rate-limit buckets per worker process or an AnyIO thread at shutdown (`docs/DESIGN.md:74-79`, `:913-915`). No queue, no job, no worker role | STANDING |
-| D10 | `backend/auth-guard.md` et al. | This row was worth a real check because §7.2 now *does* have authentication and scopes. `standards/backend/auth-guard.md:14-22` is a Clerk-JWT `get_current_user` dependency guaranteeing `db_id: UUID` and a `tenant_id` claim; `:6-9` is `applicable_to: [fastapi, express, dotnet, rest-api]`. `docs/DESIGN.md:774-779` uses `StaticTokenVerifier` and `require_scopes` — no users, no JWT, no tenant rows. `openapi-contract.md` is `priority: recommended` with zero `MUST` clauses | STANDING |
+| D10 | `backend/auth-guard.md` et al. | This row was worth a real check because §7.2 now *does* have authentication and scopes. `standards/backend/auth-guard.md:14-22` is a Clerk-JWT `get_current_user` dependency guaranteeing `db_id: UUID` and a `tenant_id` claim; `:6-9` is `applicable_to: [fastapi, express, dotnet, rest-api]`. `docs/DESIGN.md:794-799` uses `StaticTokenVerifier` and `require_scopes` — no users, no JWT, no tenant rows. `openapi-contract.md` is `priority: recommended` with zero `MUST` clauses | STANDING |
 | D12 | cloud/IaC | `ls .github/workflows` → `mirror.yml` only, a git mirror job, no deploy. No Dockerfile, no IaC, no cloud target | STANDING |
 | D14 | backup-DR / monitoring / environments | See §4/F3 — standing, with a residue the rationale over-dismisses | STANDING (residue) |
 | D15 | `devops/git-workflow.md` | Delegating leg: the workflow gap it leaves is closed by `devops/development-workflow.md`, extracted as B89-B96 (`STANDARDS.md:1061-1063`), not by the dismissal itself. Non-circular | STANDING |
 | D16 | `ai/*` (9 files) | `grep -n -iE "bedrock\|anthropic\|openai\|langchain\|embedding\|foundation model" docs/DESIGN.md` → **zero hits**. The server is a tool provider; it calls no model, holds no prompt template, spends no tokens | STANDING |
-| D19 | `architecture/api-versioning.md` | `standards/architecture/api-versioning.md:6-11` is `applicable_to: [fastapi, express, dotnet, nextjs, rest-api]`, `priority: recommended`, zero `MUST`. MCP protocol eras (`docs/DESIGN.md:765-770`) are the framework's versioning axis, not a URL-versioned REST surface of ours | STANDING |
-| D23 | documentation templates | `docs/DESIGN.md:1416-1456` (§10.1) commits to `readme-standard.md`'s fourteen sections and to `docs/adr/`. No PRD/BRD/discovery/onboarding/glossary deliverable is produced or promised | STANDING |
+| D19 | `architecture/api-versioning.md` | `standards/architecture/api-versioning.md:6-11` is `applicable_to: [fastapi, express, dotnet, nextjs, rest-api]`, `priority: recommended`, zero `MUST`. MCP protocol eras (`docs/DESIGN.md:785-790`) are the framework's versioning axis, not a URL-versioned REST surface of ours | STANDING |
+| D23 | documentation templates | `docs/DESIGN.md:1464-1504` (§10.1) commits to `readme-standard.md`'s fourteen sections and to `docs/adr/`. No PRD/BRD/discovery/onboarding/glossary deliverable is produced or promised | STANDING |
 
 ---
 
@@ -205,7 +205,7 @@ verified before adoption** — I did not edit `DESIGN.md` and I committed nothin
 ### F1 — Medium. The GDPR dismissal row states a residue set that the design has since outgrown.
 
 `docs/research/STANDARDS.md:791` says the residue that binds is the no-PII-in-logs rule "captured as
-B88", and names nothing else. `docs/DESIGN.md:731-733` and `docs/data-inventory.md:1-6` both record
+B88", and names nothing else. `docs/DESIGN.md:751-753` and `docs/data-inventory.md:1-6` both record
 that `gdpr-data-rights.md:119-129` (Article 30 records of processing) **also** binds and is
 discharged by `docs/data-inventory.md`. A reader who trusts §3 gets a false picture of what this
 required standard costs us, and the next person to re-derive the dismissal will re-derive the same
@@ -225,7 +225,7 @@ at `STANDARDS.md:791` with:
 
 `docs/research/STANDARDS.md:794` still reads "Not read in full; both are process/design-artifact
 standards rather than code obligations. Flagged in 'What I could NOT verify'." That is contradicted
-by `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` and by `docs/DESIGN.md:1511`, where §11 exists
+by `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` and by `docs/DESIGN.md:1559`, where §11 exists
 *because* the standard binds. `STANDARDS.md:1070-1073` (item 4) repeats the stale claim.
 
 **Suggested fix (my suggestion — verify before adoption).** Rewrite the row at `STANDARDS.md:794`
@@ -253,7 +253,7 @@ running infrastructure with an on-call rotation". That is right for
 `last-rotated-at` metadata, `T-30` alerts, an on-call runbook). It is **not** right for the rest of
 the file: `:141`/`:230` (`.env.example`), `:291` (a Settings class), `:612-622` (never commit
 secrets) are repo-shaped obligations, and this repo defines five credential variables plus static
-bearer tokens (`docs/DESIGN.md:774`, `.env.example`).
+bearer tokens (`docs/DESIGN.md:794`, `.env.example`).
 
 The dismissal does not trip, because the repo already conforms incidentally: `.env.example` exists
 and is deliberately empty-valued, `.gitignore:13-15` ignores `.env`/`.env.*` while keeping
@@ -309,8 +309,8 @@ re-tested and both stand.
 
 | Where | Dismissal | Class | Test | Result |
 |---|---|---|---|---|
-| `STANDARDS.md:700` | "Clerk/JWT (`:68-517`) is not applicable — no human users" | CONDITIONAL | `docs/DESIGN.md:774` — HTTP auth is `StaticTokenVerifier` from environment; `:783-786` — stdio is unauthenticated by design, trust boundary is the OS. No human identity anywhere | STANDING |
-| `STANDARDS.md:702-715` | The `ai/agent-guardrails.md` / `ai/tool-calling.md` loop-bound clause set is disposed of because "this server runs no loop" | CONDITIONAL | Re-tested against §7.5, which is the one place a loop could have appeared: MRTR is a **client** retry of the original call (`docs/DESIGN.md:961-969`), driven by `ctx.input_responses`. The server still runs no agent loop, so max-steps, recursion depth and tool-call budget still have nothing to bound | STANDING |
+| `STANDARDS.md:700` | "Clerk/JWT (`:68-517`) is not applicable — no human users" | CONDITIONAL | `docs/DESIGN.md:794` — HTTP auth is `StaticTokenVerifier` from environment; `:783-786` — stdio is unauthenticated by design, trust boundary is the OS. No human identity anywhere | STANDING |
+| `STANDARDS.md:702-715` | The `ai/agent-guardrails.md` / `ai/tool-calling.md` loop-bound clause set is disposed of because "this server runs no loop" | CONDITIONAL | Re-tested against §7.5, which is the one place a loop could have appeared: MRTR is a **client** retry of the original call (`docs/DESIGN.md:981-989`), driven by `ctx.input_responses`. The server still runs no agent loop, so max-steps, recursion depth and tool-call budget still have nothing to bound | STANDING |
 
 Also noted, and deliberately **not** re-done per instruction: `backend/idempotency.md` (D8,
 TRIPPED, disposed as B108) and `devops/docker.md` (D13, re-tested STANDING).

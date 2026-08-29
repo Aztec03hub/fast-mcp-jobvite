@@ -3,14 +3,14 @@
 **Status:** Proposed
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md:970-981`, which is frozen, and it changes shipped behaviour
+> **Proposed.** This changes `DESIGN.md:990-1023`, which is frozen, and it changes shipped behaviour
 > in `__main__.py`. U1 built **what the frozen design specifies** and did not apply this. Like
 > ADR-0017, it carries an argument someone might reject, so it should be reviewed rather than held
 > only on sequencing.
 
 ## Context
 
-Found by **building U1**, not by reading. `DESIGN.md:970-978` gives the shutdown mitigation
+Found by **building U1**, not by reading. `DESIGN.md:990-1008` gives the shutdown mitigation
 verbatim, and the block is the specification rather than an illustration:
 
 > ```python
@@ -22,7 +22,7 @@ verbatim, and the block is the specification rather than an illustration:
 
 The forced exit is necessary and its justification is measured: on stdio a non-daemon AnyIO worker
 thread blocks interpreter shutdown, so even an explicit `sys.exit(0)` never completes
-(`DESIGN.md:959-961`). U1's shutdown case reproduces both halves and both go red when `os._exit` is
+(`DESIGN.md:979-981`). U1's shutdown case reproduces both halves and both go red when `os._exit` is
 removed.
 
 **The defect is the constant, not the call.** `finally` runs on *every* exit from the `try`, not
@@ -40,10 +40,10 @@ disappears from the only signal that survives log rotation.
 
 **This is the same failure shape §8 #18 already reasons about, on the other side.** That case
 refuses to assert shutdown by the exit code, "since a process that dies uncleanly can still exit 0"
-(`DESIGN.md:1290-1291`). The design identified that an exit code can lie about an unclean death and
+(`DESIGN.md:1338-1339`). The design identified that an exit code can lie about an unclean death and
 then, four hundred lines earlier, specified the code that makes it lie.
 
-**What the design does not claim, and why this is not a reading error.** `DESIGN.md:979` says only
+**What the design does not claim, and why this is not a reading error.** `DESIGN.md:1009` says only
 "Teardown completes before `os._exit`, so skipping atexit handlers costs nothing we rely on". That
 sentence disposes of the *atexit* consequence. The exit *status* is not mentioned anywhere in §7.4,
 so this is a gap rather than a decision recorded against a rejected alternative.
@@ -97,5 +97,5 @@ what actually records the failure.
   yet. U9's HTTP hardening is where a bound port becomes reachable.
 - **It does not touch the refusal path.** That path returns before the `try` and already carries a
   distinct status.
-- **It does not remove `os._exit`.** `DESIGN.md:959-961`'s measurement stands, and U1's mutation
+- **It does not remove `os._exit`.** `DESIGN.md:979-981`'s measurement stands, and U1's mutation
   control M12 confirms the stdio arm goes red without it.

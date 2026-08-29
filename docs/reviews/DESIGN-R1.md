@@ -87,7 +87,7 @@ What the design provides, `DESIGN.md:229-231` (§7):
 That is the opposite of B17, not a satisfaction of it. B17 requires the validated arguments to
 be logged **with PII redacted**. The design logs no arguments at all. That is defensible as a
 privacy posture but it is a deviation from a `priority: required` clause and it is undeclared -
-there is no ADR for it in `DESIGN.md:341-349` (§12) and no row in `DECISIONS.md`. Under the
+there is no ADR for it in `DESIGN.md:347-355` (§12) and no row in `DECISIONS.md`. Under the
 project's own standing rule (an in-scope numbered ADR is the only thing that overrides a
 standard), this is drift.
 
@@ -135,7 +135,7 @@ Sections that become false or orphaned the moment P17 is applied:
    uppercase `EId` occurs **only on the create response**. With no create tool, there is no
    `EId` in our code to pin. The test either becomes vacuous or must be re-scoped to "reads
    normalise `eId`", which pins nothing about the asymmetry.
-7. **`DESIGN.md:277-279`** (§9 hazard 1, casing asymmetry) and **`DESIGN.md:300-306`** (§11 open
+7. **`DESIGN.md:277-279`** (§9 hazard 1, casing asymmetry) and **`DESIGN.md:306-312`** (§11 open
    questions) - both are framed around the create path.
 
 Additionally: `DESIGN.md:56-59` justifies splitting `search_candidates` / `get_candidate` by
@@ -198,7 +198,7 @@ correct.
 
 ### M1 - The stated defence against the incident that already happened would not have caught it. [ABSENT]
 
-`DESIGN.md:334-338`:
+`DESIGN.md:340-344`:
 
 > "**Secret scanning also runs pre-commit**, deliberately exceeding the standard, which mandates
 > it only in CI. On a public remote a pushed secret is compromised the instant it lands [...]
@@ -239,7 +239,7 @@ distinction that will matter to exactly one audience, and that audience is Jobvi
 I am not asserting this is unlawful - I am not qualified to and short factual quotation of an
 API parameter is a weak claim for anyone to press. I am asserting that **it is currently
 undecided**, in a public repo, after an incident of the same class, and that the design is
-silent on it. `DESIGN.md:328-338` (§10) covers licensing gates for dependencies
+silent on it. `DESIGN.md:334-344` (§10) covers licensing gates for dependencies
 (`pip-licenses` allow-list) and says nothing about the licensing of the *sources this project
 was built from*. Decide it deliberately: either the excerpts are defensible and a note in
 `JOBVITE-API.md` §0 says why, or they are paraphrased down to facts. Facts about an API are not
@@ -415,7 +415,7 @@ invariant.
 
 ### M9 - §12's ADR list is stale against the staged decisions, and one staged item has no home. [ABSENT]
 
-`DESIGN.md:341-349` lists ADR-0001 through ADR-0006. Against `PENDING-DESIGN-CHANGES.md`:
+`DESIGN.md:347-355` lists ADR-0001 through ADR-0006. Against `PENDING-DESIGN-CHANGES.md`:
 
 - **ADR-0007** (httpx over httpx2) is created by P2 and is not in §12.
 - **ADR-0002's content changes materially.** §12 describes it as *"in-process rate limiting
@@ -464,7 +464,7 @@ that path; the two commits touching a similarly-named file are for `FASTMCP-SPIK
 real artifacts are `FASTMCP.md` and `FASTMCP-SPIKE-4.md`. A design that cites a nonexistent
 evidence file undercuts every other citation in it.
 
-**m2.** `DESIGN.md:303` (§11 item 2): *"The `start` base. One call settles it."* It is two calls
+**m2.** `DESIGN.md:309` (§11 item 2): *"The `start` base. One call settles it."* It is two calls
 - `CREDENTIAL-CHECKLIST.md` row 2 and `JOBVITE-CONTRACT.md:666` both specify `start=0` **versus**
 `start=1`, compared. A single call settles nothing, because there is no reference to compare it
 against. `DESIGN.md:178-180` makes the same "one call" claim.
@@ -909,7 +909,7 @@ Reviewed as instructed, since they are staged rather than sanctified.
   not be softened just because its motivating example left.
 - **P5/P6 (regression guardrails): endorsed, and P6 answers the generalised question directly.**
   Pinning `mcp` and gating on a `fastmcp inspect` diff are the right two controls. The design
-  already emits the capability report (`DESIGN.md:331-333`); making it a gate is nearly free.
+  already emits the capability report (`DESIGN.md:337-339`); making it a gate is nearly free.
 - **P12 (a middleware's defaults are not a safe starting point): endorsed as the most valuable
   general principle in the file** - and see **R2-b**, where Blue's own C2 resolution violated it
   within one round of it being written. That is how quickly this principle gets forgotten.

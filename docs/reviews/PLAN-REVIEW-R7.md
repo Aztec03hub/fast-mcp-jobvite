@@ -144,7 +144,7 @@ handled. **The shape of the red is the trap, again**: the failure message reads 
 are not reachable from `testpaths`, so they never run and the suite is green without them"*, which is
 a false diagnosis of a correctly-placed file, and the cheapest green is to add the new directory to
 `_SKIP_DIRS` at `:40-48` — which deletes the guard's coverage of the whole credentialed subtree, the
-one subtree `DESIGN.md:1200-1205` exists to keep from rotting.
+one subtree `DESIGN.md:1242-1247` exists to keep from rotting.
 
 **Why this is the same species as collision 10 and not a repeat of it.** Collision 10 is a unit
 against an assertion over `[project] dependencies`. This is a unit against an assertion over *the set
@@ -436,10 +436,10 @@ against what the plan schedules.** Found by `grep -n "== {\|== \[\|len(.*) ==\|f
 | `test_repo_hygiene.py:74` | `len(.env.example vars) == 15` | **no.** Diffed both ways: `JOBVITE_*` tokens in `git show 135c3ac:docs/DESIGN.md` vs `.env.example` → **empty in both directions**; the same diff against the plan → empty. No sixteenth variable is named in the frozen design or in the plan. Round 6's dismissal holds, independently |
 | `test_repo_hygiene.py:136` | `.gitignore` negations `== {"!.env.example"}` | no — no unit adds a negation |
 | `test_error_contract.py:107` | `REQUIRED_MEMBERS` 7-tuple | no — it is `error-contract.md:66` verbatim |
-| `test_error_contract.py:246`, `:257` | the seven registry `ProblemKind`s | no — `DESIGN.md:504-505` forbids minting locally, and no unit plans an eighth. ADR-0017 would swap `UNMAPPED`'s type, not add a kind, and the dict comprehension at `:237-241` dedupes by `.type`, so the count holds either way |
+| `test_error_contract.py:246`, `:257` | the seven registry `ProblemKind`s | no — `DESIGN.md:510-511` forbids minting locally, and no unit plans an eighth. ADR-0017 would swap `UNMAPPED`'s type, not add a kind, and the dict comprehension at `:237-241` dedupes by `.type`, so the count holds either way |
 | `test_error_contract.py:313` | no `success:` envelope under `src/` and `tests/` | yes, and **correctly so** — it is a ban, and `:305-312` already says it is near-vacuous today and must be re-asserted by U14 (`:1253-1259`) |
 | `test_fixture_path.py:46` | `EXPECTED_FIXTURES` | **no — it is `<=`, a subset**, so adding a fixture is a non-event. Correctly built |
-| `check-committed-file-types.py:56`, `:81` | allowed extensions / basenames | no. Every extension in a backticked path anywhere in the plan (`.py .md .toml .json .yml .lock .txt .sh .yaml .html`, plus `.example`) is allowlisted. `.xml` is **not** allowlisted, but nothing schedules an XML file — `grep -in xml` over the plan returns prose only, and `defusedxml` is a parser for a route the design says we do not call (`DESIGN.md:331-333`) |
+| `check-committed-file-types.py:56`, `:81` | allowed extensions / basenames | no. Every extension in a backticked path anywhere in the plan (`.py .md .toml .json .yml .lock .txt .sh .yaml .html`, plus `.example`) is allowlisted. `.xml` is **not** allowlisted, but nothing schedules an XML file — `grep -in xml` over the plan returns prose only, and `defusedxml` is a parser for a route the design says we do not call (`DESIGN.md:337-339`) |
 | `test_file_type_gate.py:256`, `:263` | allowlist-parser fixtures, in `tmp_path` | no — self-contained |
 
 **The `Network-dependent arms` CI step** (`ci.yml:192-193`, `uv run --frozen pytest -m network`) is

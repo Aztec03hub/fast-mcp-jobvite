@@ -7,7 +7,7 @@ connection. `logging.basicConfig` defaults to stderr, but the default is the
 thing a later import changes, so it is stated.
 
 **The SIGTERM problem, and why the obvious fix is worse than none**
-(DESIGN.md:940-981). Lifespan teardown does not run under SIGTERM, only
+(DESIGN.md:960-1023). Lifespan teardown does not run under SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on the
 previous major, filed upstream as PrefectHQ/fastmcp#4927. Docker, Kubernetes
 and Cloud Run all stop containers with SIGTERM.
@@ -20,13 +20,13 @@ a container the process then does not stop on `docker stop` and is SIGKILLed
 after the grace period, guaranteeing no teardown at all. `_install_shutdown_handler`
 installs an explicit handler instead and never reads ambient state.
 
-**`os._exit(0)` in the `finally` is required on stdio** (DESIGN.md:959-961):
+**`os._exit(0)` in the `finally` is required on stdio** (DESIGN.md:979-981):
 teardown runs there but the process does not die, because a non-daemon AnyIO
 worker thread blocks interpreter shutdown - even an explicit `sys.exit(0)`
 never completes. Teardown completes before `os._exit`, so skipping atexit
 handlers costs nothing we rely on.
 
-**A limit of the shape DESIGN.md:970-981 mandates, recorded rather than
+**A limit of the shape DESIGN.md:990-1023 mandates, recorded rather than
 smoothed over:** because `os._exit(0)` sits in a `finally`, an exception
 escaping `mcp.run` also exits **0**, so a crash is indistinguishable from a
 clean stop to a supervisor. That is what the frozen design specifies and it
@@ -83,7 +83,7 @@ def _term(signum: int, frame: FrameType | None) -> None:
 
 
 def _install_shutdown_handler() -> None:
-    """Install the explicit SIGTERM handler (DESIGN.md:964-968)."""
+    """Install the explicit SIGTERM handler (DESIGN.md:984-988)."""
     signal.signal(signal.SIGTERM, _term)
 
 
@@ -91,7 +91,7 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     """Load configuration, select the transport, and serve until stopped.
 
     **This function does not return on the serving path.** The `finally`
-    calls `os._exit(0)`, which DESIGN.md:959-961 requires because a
+    calls `os._exit(0)`, which DESIGN.md:979-981 requires because a
     non-daemon AnyIO thread blocks interpreter shutdown on stdio. It returns
     a status only on the configuration-refusal path, which happens before
     the handler is installed and before anything is served.
@@ -131,7 +131,7 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
-        # DESIGN.md:959-961. Teardown has already completed by here.
+        # DESIGN.md:979-981. Teardown has already completed by here.
         os._exit(0)
 
 

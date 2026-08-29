@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Advisory-expiry owner. DESIGN.md:1454-1473, step 3 and step 4 only.
+"""Advisory-expiry owner. DESIGN.md:1502-1521, step 3 and step 4 only.
 
 WHY THIS EXISTS. `pip-audit` fails on ANY advisory: it has no severity
 threshold, so one advisory anywhere in the transitive tree turns a required
@@ -17,17 +17,17 @@ ignore cannot outlive its justification by drifting.
 
 **THE TABLE IS THE SINGLE SOURCE FOR BOTH THE FLAGS AND THE EXPIRY.** Nothing
 here hand-maintains a second list of ids beside it. Two lists that must agree
-is the defect DESIGN.md:1469-1471 names, and it fails by going silently stale.
+is the defect DESIGN.md:1517-1519 names, and it fails by going silently stale.
 
 WHAT THIS DOES NOT DO, stated because a control trusted for the wrong thing is
 worse than no control. **Step 1 of the policy - reachability - is human
-judgement written down, and it is NOT here** (DESIGN.md:1456-1459). This
+judgement written down, and it is NOT here** (DESIGN.md:1504-1507). This
 script cannot tell whether our code reaches a vulnerable path. It enforces the
 SHAPE of a recorded judgement: that one was made, was written down, named a
 single advisory, and carries an expiry that has not passed. A well-formed
 entry with a dishonest `reason` passes this gate cleanly.
 
-THE FOUR FIELDS a legal entry must carry (DESIGN.md:1462-1467):
+THE FOUR FIELDS a legal entry must carry (DESIGN.md:1510-1515):
 
   id      the advisory id. Required and non-blank. An entry without one is a
           BLANKET ignore - it suppresses every future advisory, not just this
@@ -61,7 +61,7 @@ from pathlib import Path
 from typing import Any
 
 MAX_IGNORE_DAYS = 30
-"""DESIGN.md:1466 - `an expiry date no more than 30 days out`."""
+"""DESIGN.md:1514 - `an expiry date no more than 30 days out`."""
 
 TABLE_PATH = ("tool", "fast-mcp-jobvite", "advisory-ignores")
 """The single source. Nothing else in this file names an advisory id."""
@@ -230,7 +230,7 @@ def check_entries(
         if not isinstance(advisory_id, str) or not advisory_id.strip():
             refusals.append(
                 f"{where}: no advisory id - a BLANKET ignore, forbidden by "
-                f"DESIGN.md:1472-1473"
+                f"DESIGN.md:1520-1521"
             )
             continue
         where = f"entry {index} ({advisory_id})"
@@ -285,7 +285,7 @@ def check_entries(
         if budget > MAX_IGNORE_DAYS:
             refusals.append(
                 f"{where}: expiry is {budget} days after {recorded.isoformat()}, "
-                f"more than the {MAX_IGNORE_DAYS} DESIGN.md:1466 allows"
+                f"more than the {MAX_IGNORE_DAYS} DESIGN.md:1514 allows"
             )
             continue
 
@@ -312,7 +312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         not run.
     """
     parser = argparse.ArgumentParser(
-        description="Advisory-expiry gate. DESIGN.md:1454-1473."
+        description="Advisory-expiry gate. DESIGN.md:1502-1521."
     )
     parser.add_argument(
         "--pyproject",

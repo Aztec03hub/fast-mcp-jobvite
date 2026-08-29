@@ -128,17 +128,17 @@ first two agents to land will find out by conflict.
 ## H3 - The two commit-time gates are a Critical row's stated mitigation, U0 declined them, and no unit now owns them
 
 `IMPLEMENTATION-PLAN.md:255-256` lists under U0: *"Pre-commit: secret scanning and the
-committed-file-type gate (`DESIGN.md:1576-1586`)"*. `DESIGN.md:1576` is subject-correct - *"Two
+committed-file-type gate (`DESIGN.md:1624-1634`)"*. `DESIGN.md:1624` is subject-correct - *"Two
 commit-time gates, both exceeding the standard deliberately"*.
 
 **U0 did not build them.** `U0-REPORT.md` §5: *"Not built: the two commit-time gates of
-`DESIGN.md:1573-1586`... I judged it a unit of its own rather than a corner of this one. Flagging
+`DESIGN.md:1621-1634`... I judged it a unit of its own rather than a corner of this one. Flagging
 it rather than pretending U0 is complete without it. If it should be in U0, say so and I will build
 it next."* There is no `.pre-commit-config.yaml` in the tree. U0 is committed (`b53886e`) and the
 task board marks U0 completed.
 
 That question was asked and has not been answered, and the plan still reads as though U0 covers it.
-It is not cosmetic: **`DESIGN.md:1760` is C8-I1, a Critical row, and its mitigation text is
+It is not cosmetic: **`DESIGN.md:1808` is C8-I1, a Critical row, and its mitigation text is
 literally *"pre-commit secret scanning and a committed-file-type gate, both exceeding the standard
 (§10)"***. The plan's §8 says C8-I1 is *"covered in substance by #3 in U0"* - #3 covers the
 `.gitignore`/`.env.example` half only. The pre-commit half of a Critical row's mitigation is now
@@ -153,7 +153,7 @@ U0 only, parallelisable throughout beside U11, owning `.pre-commit-config.yaml` 
 `scripts/check_committed_file_types.py`; strike the pre-commit sentence from U0's build list and
 replace it with a pointer to U15; and add U15 to §3's diagram on the U11 branch. Verification:
 the file-type gate is allowlist-first and fail-closed per `:1581-1583`, so it needs a positive
-control (an ordinary `.py` commits) beside each refusal arm, and `DESIGN.md:1584-1586`'s stated
+control (an ordinary `.py` commits) beside each refusal arm, and `DESIGN.md:1632-1634`'s stated
 limit - it does nothing about confidential prose in Markdown - must be carried into U15 so a green
 gate is not read as covering the incident it was named for. U0's agent has offered to build it; the
 cheaper answer may be to say yes rather than to open a unit, but **either answer must be written
@@ -178,15 +178,15 @@ first has no row.
 services/jobvite_client.py | starts at U4 |` - and retitle the section *"Wave C - after U4"*, since
 two of its lanes now start there and only U9 waits for U5.
 
-## M2 - `DESIGN.md:407` is a wrong-subject citation, twice, and it is load-bearing for collision 4
+## M2 - `DESIGN.md:413` is a wrong-subject citation, twice, and it is load-bearing for collision 4
 
-`IMPLEMENTATION-PLAN.md:895` and `:1060` both cite `DESIGN.md:407` for the `/v1/jobFeed` page cap of
-1000 - `:1060` reads *"`DESIGN.md:407` puts it in §4.5, the client layer"*, which is the sentence
+`IMPLEMENTATION-PLAN.md:895` and `:1060` both cite `DESIGN.md:413` for the `/v1/jobFeed` page cap of
+1000 - `:1060` reads *"`DESIGN.md:413` puts it in §4.5, the client layer"*, which is the sentence
 that awards the cap to U6 and denies it to U12.
 
-`DESIGN.md:407` reads: *"On stdio there is no token and thus no `client_id`, but there is exactly
+`DESIGN.md:413` reads: *"On stdio there is no token and thus no `client_id`, but there is exactly
 one caller, so the global bucket is correct there."* That is the **rate limiter**, not the page cap.
-The page cap is at **`DESIGN.md:428`**: *"Offset-based, `start` and `count`. Page cap **500** on v2,
+The page cap is at **`DESIGN.md:434`**: *"Offset-based, `start` and `count`. Page cap **500** on v2,
 **1000** on `/v1/jobFeed`."*
 
 The plan uses `:407` correctly elsewhere - `:811`, for *"the limiter has never been exercised on
@@ -196,7 +196,7 @@ failure mode the plan's own preamble says non-blankness cannot catch. It falls i
 draft 5 declares (a cite into §4-§7 prose quoting nothing), so this is the class converging, not
 re-opening.
 
-*Suggested fix (mine, verify before adopting):* replace `DESIGN.md:407` with `DESIGN.md:428` at
+*Suggested fix (mine, verify before adopting):* replace `DESIGN.md:413` with `DESIGN.md:434` at
 both `:895` and `:1060`, and quote the fragment - *"Page cap 500 on v2, 1000 on `/v1/jobFeed`"* -
 so the cite becomes checkable against what it quotes, which is the durable form the plan already
 prefers.
@@ -274,7 +274,7 @@ describes what exists.
    that create those modules, and the CI coverage step is off until U1.
 2. The **`network` marker** does not appear in the plan at all. `pyproject.toml:78-84` declares two
    selection markers, not one, and `ci.yml:174-175` runs the network arm as its own step - because
-   §8 #11's negative arm performs a real resolve and `DESIGN.md:1185` requires the default suite to
+   §8 #11's negative arm performs a real resolve and `DESIGN.md:1227` requires the default suite to
    run with no network. §1's *"Zero skips"* paragraph (`:212-218`) describes a single credentialed
    marker.
 3. `[project.scripts]` and `readme` were deliberately omitted from the manifest and belong to U1 and
@@ -292,7 +292,7 @@ than one stale one.
 ## L2 - U2's repository-wide absence assertion is vacuous at the moment it is written
 
 `:440-441` gives U2 *"a repository-wide assertion that no `success: true/false` envelope exists
-anywhere (`DESIGN.md:491`)"*. At U2-completion the repository holds `errors.py`,
+anywhere (`DESIGN.md:497`)"*. At U2-completion the repository holds `errors.py`,
 `utils/correlation.py` and U0's skeleton. The assertion passes over a corpus that contains almost no
 code, and it will keep passing whether or not later units respect it - it is only meaningful once
 the tools exist. U2's other arms are non-vacuous, so the unit is fine; the **assertion** is the
@@ -352,7 +352,7 @@ list of files two units must touch, and they are almost disjoint sets.** Both Hi
 instances of this and I would not have found either by reading §4 more carefully.
 
 **(b) Contact with a real toolchain falsified a Critical row in the frozen design and an
-allow-list in the standards corpus, on day one, in the smallest unit.** D1 found `DESIGN.md:1760`
+allow-list in the standards corpus, on day one, in the smallest unit.** D1 found `DESIGN.md:1808`
 (C8-I1, Critical) asserting `.env.example` has *"empty values"* when seven of fifteen carry one -
 which is now ADR-0014. D3 found `quality-gates.md`'s five-id allow-list unrunnable against a clean
 tree. **Neither was findable by reading, and both needed an ADR rather than an edit.** U0 was the
