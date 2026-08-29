@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 842
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 863
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -553,7 +553,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 438
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 453
 
       # WIRED ONLY NOW THAT ITS BACKLOG IS ZERO. It reported 10 floorless
       # harnesses when written and stayed unwired through all of them,
@@ -765,6 +765,17 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-body-cap-amputation.sh \
             --amputation --min-rows 5 --row-re '^########## [A-E]\. '
+
+      # ----- the critical-path coverage rows -----
+      # **NO `--amputation` FLAG, deliberately, unlike every sibling step.** That
+      # flag makes exit 1 a FINDING rather than a failure. This harness already
+      # makes that allowance itself for its one DECLARED survivor (A1, a defensive
+      # guard that is reachable but not load-bearing), so its exit 1 means an
+      # UNDECLARED vacuous row - which must stop the build rather than be reported.
+      - name: Critical-path coverage amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-critical-coverage-amputation.sh \
+            --anchors-applied --min-rows 15 --row-re '^########## A[0-9]+ '
 
       # ADR NUMBERS ARE UNIQUE, CONTIGUOUS, AND MATCH THEIR OWN HEADINGS.
       # Two agents claimed 0027 within one hour: one checked `git log --all`
@@ -1009,7 +1020,19 @@ jobs:
       # the floor must live in ONE place, and a flag would silently win over
       # the file the ADR points at.
       - name: Coverage
-        run: uv run --frozen pytest --cov --cov-report=term-missing
+        run: uv run --frozen pytest --cov --cov-report=term-missing --cov-report=json
+
+      # ADR-0010's PER-MODULE floors, which `fail_under` cannot express and which
+      # `pyproject.toml` used to say were "enforced by the units that create those
+      # modules" - an obligation enforced by nobody. Two critical paths were under
+      # their floor on BRANCH (78.6% and 80.8% against 90) while the aggregate gate
+      # sat green at 95%.
+      #
+      # It parses the floors AND the critical-path roles out of `DESIGN.md`, and
+      # joins them to modules by a `COVERAGE_ROLE` each module declares - the map is
+      # not inside the checker, and the two sets are asserted EQUAL both ways.
+      - name: ADR-0010's per-module coverage floors
+        run: python3 docs/reviews/check-coverage-floors.py
 
   # ---------------------------------------------------------------------------
   # Supply chain. NONE of the actions in this job have ever been executed - see
