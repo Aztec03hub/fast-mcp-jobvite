@@ -68,7 +68,15 @@ UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 # `B\d+[a-z]?`, not `B\d+`: B49b is a real obligation id in this project and
 # the bare form SILENTLY SKIPS its row, which is the one failure this file
 # exists to prevent - a row that looks tracked and is never verified.
-ROW = re.compile(r"\|\s*(B\d+[a-z]?)\s*\|")
+#
+# `BASH-\d+` is a SECOND namespace, and it is separate on purpose. The `B`
+# numbers are CONF-6's corpus; `devops/bash.md` is not in that corpus at all
+# (`grep -i bash docs/reviews/CONF-6-PROPAGATION-AUDIT.md` returns nothing),
+# which is precisely why it reached this repository with zero coverage.
+# Numbering its clauses `B107`, `B108` would assert they were part of a census
+# that never enumerated them - a fabricated identifier is worse than an ugly
+# one. A new prefix says "verified here, not inherited from CONF-6".
+ROW = re.compile(r"\|\s*(B\d+[a-z]?|BASH-\d+)\s*\|")
 #: `path` or `path:line`. **The line number is OPTIONAL and deprecated.**
 #:
 #: A line number in an anchor pins nothing the SUBJECT does not already pin,

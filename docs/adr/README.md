@@ -47,6 +47,7 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0020](0020-the-30-day-advisory-budget-runs-from-the-recorded-date.md) | The 30-day advisory budget runs from the recorded date, not from now | Accepted |
 | [0021](0021-approval-mechanism-is-required-by-two-rows-and-defined-nowhere.md) | `approval_mechanism` defined in §5.3, closed to three values | Accepted |
 | [0022](0022-no-cookie-jar-is-a-disable-not-an-omission.md) | "Do not implement a cookie jar" is a DISABLE, not an omission | Accepted |
+| [0023](0023-harnesses-drop-e-from-strict-mode.md) | The `scripts/` harnesses run `set -uo pipefail`; `-e` would destroy the measurement and strand mutations | Proposed |
 
 ## Acknowledged non-conformances without an ADR
 
