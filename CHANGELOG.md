@@ -332,6 +332,17 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **A harness's two row floors could disagree, and one of them did.** A floor lives in two places:
+  `ROW_FLOOR=<n>` inside the harness and `--min-rows <n>` on its gate line in `ci.yml`. They are
+  derived at different times by different people, so where a harness carries both they are two
+  independent opinions about one number - and `check-critical-coverage-amputation.sh` held 18
+  against 15 for as long as both existed, the external floor tolerating the loss of three rows the
+  internal one would have caught. The wired floor checker now requires them to agree wherever both
+  exist. It reports how many harnesses each of its two claims actually reaches (9 and 8 of 24),
+  because a check that does not name its blind spot reads as a whole one, and it refuses to report
+  a verdict at all when its ci.yml join comes up short - a wrong join here produces a reassuring
+  zero rather than an error. (2026-08-29 11:48 AM CDT)
+
 - **Three CI floors were behind the tree they gate.** The suite floor said 863 against 867 passing
   tests, the harness-anchor floor 453 against 456 resolving anchors, and the critical-path
   amputation's `--min-rows` 15 against a harness that runs 18 rows. A floor below its live count is

@@ -22,12 +22,26 @@ carries it. A second copy of that table is precisely the defect the
 floors themselves keep producing - a number typed twice diverges at the
 first merge.
 
+**THE SECOND CLAIM: TWO FLOORS FOR ONE HARNESS MUST AGREE.** A floor
+lives in two places - `ROW_FLOOR=<n>` inside the harness, and
+`--min-rows <n>` on its `ci-harness-gate.sh` line in `ci.yml`. They are
+derived at different times by different people, so where a harness has
+both, they are two independent opinions about one number and any
+disagreement is a defect in at least one of them.
+
+This is not hypothetical either: `check-critical-coverage-amputation.sh`
+carried `ROW_FLOOR=18` against `--min-rows 15` for as long as both
+existed, and the external floor tolerated the loss of three rows the
+internal one would have caught.
+
 **WHAT THIS DOES NOT COVER, stated because a partial check selects for
 the form it cannot see.** 24 harnesses carry a literal `ROW_FLOOR`. The
-control table names 9 of them, so this checks 9. The remaining 15 have
-never had their live row count compared to their floor by anything, and
-any one of them may be as slack as u7 was. That gap is task #102; it is
-not closed by this file, and this file passing does not mean it is.
+control table names 9, so the exactness claim covers 9. Only 8 harnesses
+carry BOTH floors, so the agreement claim covers 8 - the other 16 have a
+single number with nothing to check it against, and 8 more are floored
+only in `ci.yml`. **Neither claim reaches the majority of harnesses.**
+That gap is task #102; it is not closed by this file, and this file
+passing does not mean it is.
 """
 
 from __future__ import annotations
@@ -39,6 +53,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONTROLS = ROOT / "docs/reviews/check-row-floor-controls.sh"
 SCRIPTS = ROOT / "scripts"
+CI = ROOT / ".github/workflows/ci.yml"
 
 #: The floor as the harness declares it. Deliberately the same anchored
 #: form `check-row-floors.py` uses, so a harness cannot satisfy one
@@ -67,6 +82,38 @@ def _table() -> list[tuple[str, str, int]]:
         rest, extra = rest.rsplit("|", 1)
         rows.append((name, rest, int(extra)))
     return rows
+
+
+def _external_floors() -> dict[str, int]:
+    """`--min-rows` per harness, read off its `ci-harness-gate.sh` line.
+
+    Continuations are folded first: every one of these invocations wraps
+    with a trailing backslash, so a line-at-a-time scan sees the harness
+    name and its flags as separate lines and pairs nothing.
+
+    The count is asserted against the number of `--min-rows` FLAGS, not
+    every occurrence of the string - three sit inside comments, and
+    counting those made a correct join look broken.
+    """
+    raw = CI.read_text(encoding="utf-8")
+    joined = re.sub(r"\\\n\s*", " ", raw)
+    found: dict[str, int] = {}
+    for name, tail in re.findall(r"ci-harness-gate\.sh\s+(\S+)([^\n]*)", joined):
+        flag = re.search(r"--min-rows\s+(\d+)", tail)
+        if flag:
+            found[name] = int(flag.group(1))
+    flags = sum(
+        1
+        for line in raw.splitlines()
+        if "--min-rows" in line and not line.lstrip().startswith("#")
+    )
+    if len(found) != flags:
+        raise SystemExit(
+            f"parsed {len(found)} --min-rows values but ci.yml carries {flags} "
+            "as flags. The join is wrong, and a wrong join here reports a "
+            "reassuring zero rather than an error."
+        )
+    return found
 
 
 def main() -> int:
@@ -104,7 +151,27 @@ def main() -> int:
                 "harness cannot pass its own floor."
             )
 
-    print(f"\nHarnesses checked: {len(table)}")
+    external = _external_floors()
+    paired = 0
+    for name in sorted(set(external)):
+        path = SCRIPTS / name
+        if not path.exists():
+            continue
+        found = FLOOR_RE.search(path.read_text(encoding="utf-8"))
+        if found is None:
+            continue
+        paired += 1
+        internal = int(found.group(1))
+        if internal != external[name]:
+            bad.append(
+                f"{name}: ROW_FLOOR={internal} but ci.yml passes "
+                f"--min-rows {external[name]}. Two independent opinions "
+                "about one number, and the lower one tolerates losing "
+                f"{abs(internal - external[name])} row(s) the other catches."
+            )
+
+    print(f"\nHarnesses checked for exactness: {len(table)}")
+    print(f"Harnesses carrying BOTH floors, checked for agreement: {paired}")
     if not bad:
         print("Every floor equals its harness's live row count. OK.")
         return 0
