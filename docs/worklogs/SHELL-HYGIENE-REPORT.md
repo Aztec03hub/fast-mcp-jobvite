@@ -358,6 +358,55 @@ Suggested replacement:
 
 ---
 
+## 3b. Task #39 - `--anchors-applied` passed a harness that ran zero rows
+
+Added to my scope by the team lead after the first report; found by `r4-fixes`,
+which took the per-harness half. This is the generic half.
+
+`scripts/ci-harness-gate.sh:207` tested `[ "$rows" -ne "$applied" ]`. At
+`rows=0, applied=0` that is FALSE, so a harness that ran **no rows at all**
+passed the gate. It affects every harness gated that way, not only U5's.
+
+**The script disagreed with itself**, which is what makes it a defect rather
+than a decision. Its two sibling branches already refuse their own zero:
+
+| flag | guard | line |
+|---|---|---|
+| `--controls-fired` | `[ "$total" -eq 0 ]` | 174 |
+| `--result-killed` | `[ "$killed" -eq 0 ]` | 190 |
+| `--anchors-applied` | **none** | 207 |
+
+I swept the rest of the script for the same shape rather than fixing only the
+reported line. `--min-rows` is safe (`0 < N` is true, and the branch is guarded
+by `min_rows > 0`); the `--require` loop is a presence check, which fails
+correctly on absence. `--anchors-applied` was the only one.
+
+**The control was written FIRST and confirmed to fail against the unfixed
+script**, which is the only thing that distinguishes it from a row that would
+have passed all along:
+
+    $ bash scripts/ci-harness-gate-controls.sh     # unfixed
+      SURVIVED C24 zero rows is caught, though 0 == 0 (exit 0, wanted 1)
+    23/24 controls fired.                                          exit 1
+
+    $ bash scripts/ci-harness-gate-controls.sh     # fixed
+    24/24 controls fired.                                          exit 0
+
+C24 is deliberately named and worded to sit beside its siblings C11 ("zero
+controls held is caught, though 0 == 0") and C14 ("zero mutations killed is
+caught, though 0 survived"). Those two existed; the third did not, and its
+absence WAS the defect.
+
+The one live consumer is `ci.yml:445`. Run through the real gate on this branch:
+
+    $ bash scripts/ci-harness-gate.sh check-u5-jobs-amputation.sh --anchors-applied
+    ########## ROWS: 11   ANCHORS APPLIED: 11                       exit 0
+
+`git status --porcelain` after that mutation run showed only my own two edits -
+the harness restored everything it touched.
+
+---
+
 ## 4. Gates, by exit code, on their own line
 
 Run at the tip of `chore/shell-hygiene`.

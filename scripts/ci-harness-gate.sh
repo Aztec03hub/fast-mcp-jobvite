@@ -204,7 +204,15 @@ if [ "$want_anchors_applied" -eq 1 ]; then
   else
     rows=$(printf '%s\n' "$line" | grep -oE 'ROWS: [0-9]+' | grep -oE '[0-9]+')
     applied=$(printf '%s\n' "$line" | grep -oE 'APPLIED: [0-9]+' | grep -oE '[0-9]+')
-    if [ "$rows" -ne "$applied" ]; then
+    # ZERO FIRST, because `rows -ne applied` is FALSE at 0 == 0 and a harness
+    # that ran NOTHING would sail through the comparison below. The two sibling
+    # branches above already refuse their own zero - `total -eq 0` for
+    # --controls-fired, `killed -eq 0` for --result-killed - so without this the
+    # script disagreed with ITSELF about whether an empty run is acceptable,
+    # depending only on which flag you passed. The generic form of R4-M4.
+    if [ "$rows" -eq 0 ]; then
+      echo "::error::$harness ran ZERO rows; a green from it means nothing"; fail=1
+    elif [ "$rows" -ne "$applied" ]; then
       echo "::error::$harness: only $applied of $rows anchors applied"; fail=1
     fi
   fi
