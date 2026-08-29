@@ -227,6 +227,28 @@ jobs:
             echo "::error::the harness ran no probes; its green means nothing"; exit 1; }
 
       # Likewise: the property is "0 escapes are holes", not a count of rows.
+      # R3 flagged this script as referenced by NOTHING - not CI, not
+      # pre-commit, not CONTRIBUTING.md - unlike the three other unwired
+      # checkers, which each carry a stated reason for being unwired. It parses
+      # CONFORMANCE-RESWEEP.md and asserts the row tally against the count the
+      # document states about ITSELF, which is the property that matters: that
+      # table has already produced a wrong population once, in a report that
+      # then drove a work assignment.
+      #
+      # Wiring it rather than documenting why it is unwired, because it exits 0
+      # today and takes no measurable time. A checker nothing invokes is
+      # indistinguishable from one that always passes - the sixth instance of
+      # that shape in this repository.
+      - name: Resweep verdicts agree with the document's own count
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-resweep-verdicts.py 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the resweep parser exited $rc"; exit 1; }
+          printf '%s\n' "$out" | grep -q "tally and section 1's stated counts agree" || {
+            echo "::error::the parser exited 0 without reporting agreement; a"
+            echo "::error::selector fault would look exactly like this"; exit 1; }
+
       - name: Coupling mutation sweep, no holes
         run: |
           set -uo pipefail

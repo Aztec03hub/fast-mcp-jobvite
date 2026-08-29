@@ -132,6 +132,7 @@ python3 docs/reviews/check-coupling-sweep.py
 python3 docs/reviews/check-obligations.py
 python3 docs/reviews/check-obligations.py --controls
 python3 docs/reviews/check-plan-measurements.py
+python3 docs/reviews/check-resweep-verdicts.py  # the resweep's tally checks itself
 ```
 
 ## Measurements a human runs, which are NOT gates
