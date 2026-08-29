@@ -331,22 +331,43 @@ steps. **The steps you need:**
             exit 1
           fi
 
-      # #94's amputation harness. --min-rows 15, DERIVED from the run recorded
-      # in docs/worklogs/CRITICAL-COVERAGE-REPORT.md (15/15 applied, exit 0).
-      # It also carries an internal ROW_FLOOR=15, so it is floored at both
-      # layers; check-row-floors.py needs only one, and needs ci.yml to MENTION
-      # the harness at all, which is what this step supplies.
+      # #94's amputation harness. --min-rows 15 is DERIVED from the run
+      # recorded in docs/worklogs/CRITICAL-COVERAGE-REPORT.md (15/15 applied,
+      # exit 0); the harness also carries an internal ROW_FLOOR=15.
+      #
+      # `--amputation` is DELIBERATELY NOT PASSED, and this is the one place
+      # this step differs from its siblings. That flag makes exit 1 a FINDING
+      # rather than a failure, because survivors are output. This harness has
+      # already made that allowance itself, for exactly one declared row, and
+      # exits 1 only on an UNDECLARED vacuous row - a deleted behaviour nothing
+      # noticed, which must stop the build rather than be reported and passed.
       - name: Critical-path amputations, all rows applied
-        run: bash scripts/ci-harness-gate.sh scripts/check-critical-coverage-amputation.sh --min-rows 15
+        run: |
+          bash scripts/ci-harness-gate.sh check-critical-coverage-amputation.sh \
+            --anchors-applied --min-rows 15 --row-re '^########## A[0-9]+ '
 ```
 
-I did not verify that `ci-harness-gate.sh` parses this harness's summary lines,
-because I could not run the gate against a wired `ci.yml` without editing it.
-Task #96's report records that its own suggested steps were wrong twice; treat
-these the same way and run them before trusting them. The harness's summary
-format is copied from `check-u14-arguments-amputation.sh`, which that gate
-already drives, with two lines added (`UNDECLARED VACUOUS ROWS`, and the `killed:`
-list).
+**MY FIRST VERSION OF THAT THIRD STEP WAS WRONG, TWICE, and I am recording it
+because task #96's report says its own suggested steps were wrong twice and I
+wrote mine the same way - from the shape of the neighbours rather than from the
+gate's usage block.** I wrote
+`ci-harness-gate.sh scripts/check-critical-coverage-amputation.sh --min-rows 15`.
+It takes a bare NAME, not a path, so it answered
+`::error::no such harness: scripts/scripts/check-critical-coverage-amputation.sh`;
+and `--min-rows` requires `--row-re`, so the corrected form then answered
+`::error::--min-rows needs --row-re`. Both were found by RUNNING it, which I
+could do after all - the gate does not need a wired `ci.yml`, only the harness
+name. The form above exits **0**, verified:
+
+```
+GATE EXIT: 0
+########## ROWS: 15   ANCHORS APPLIED: 15
+########## VACUOUS ROWS: 1 (declared survivors included)
+########## UNDECLARED VACUOUS ROWS: 0
+```
+
+The first two steps are still unverified: both live inside `ci.yml` and I cannot
+run a workflow step without editing that file.
 
 The **suite floor** in this branch's `ci.yml` reads 810 and this branch measures
 **831**. `main` has since moved to 831 independently (#96), so after a merge the
@@ -415,18 +436,17 @@ have; recorded so the next reader does not have to re-derive it.
 
 ## 7. What I could NOT settle
 
-- **Whether the three `ci.yml` steps in §4 actually work.** I could not run them:
-  editing `ci.yml` is out of scope for this task and `ci-harness-gate.sh` reads a
-  wired workflow. Task #96's report had its suggested steps wrong twice. Run them
-  before trusting them.
-- **Whether `ci-harness-gate.sh` parses this harness's output.** Same reason. Its
-  summary block matches `check-u14-arguments-amputation.sh`'s, which that gate
-  drives today, but "same shape" is an argument and not a measurement - which is
-  the standing complaint in task #91 about nine row floors nobody has watched
-  fire. Mine has been watched fire in one direction only: I saw A15 go vacuous and
-  the harness exit 1 because of it, so the `UNDECLARED VACUOUS` gate is proven.
-  The `ROWS -lt ROW_FLOOR` gate is **not** proven - I never deleted a row and
-  watched the floor catch it.
+- **The first two `ci.yml` steps in §4 are unverified.** They are workflow steps
+  and I cannot run one without editing `ci.yml`. The third one IS verified - see
+  §4 - and I had assumed it was not, which is how both of its errors survived
+  into a first draft of this report.
+- **The harness's `ROWS -lt ROW_FLOOR` arm has never been watched fire.** Its
+  sibling has: I saw A15 go vacuous and the harness exit 1 on it, so the
+  `UNDECLARED VACUOUS` gate is proven by observation. The row floor is proven
+  only by reading, which is the standing complaint in task #91 about nine row
+  floors nobody has watched fire - I did not delete a row and watch the floor
+  catch it, and "same shape as one that works" is an argument, not a
+  measurement.
 - **Whether the merged anchor and suite floors are right.** My branch is based at
   `a44ce90` and `main` has moved twice since (#81, #96). Both floors must be
   re-derived from the merged tree; §4 says so and deliberately does not name a
