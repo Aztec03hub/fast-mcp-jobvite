@@ -346,13 +346,28 @@ def _on_audit_write_failure(
 
 
 def _warn_on_stderr(message: str) -> None:
-    """Write one line to stderr.
+    """Write one line to stderr, best effort.
 
     `sys.stderr.write` and not `print`: ruff's `T20` is on for `src/`
     (`pyproject.toml`, `observability.md:642`), and `print` would be the wrong
     call anyway - it is the audit stream's failure channel, not output.
+
+    **The write is best effort, and this is a policy requirement rather than
+    defensiveness.** Since `__main__.configure_logging` puts the one log sink
+    on stderr, the commonest cause of an audit-write failure - a full disk, a
+    closed pipe - is a cause that fails the stderr write too. If that OSError
+    escaped, the `READ` branch would fail a read tool and the `AFTER_WRITE`
+    branch would raise instead of returning its warning, and DESIGN.md:712-718
+    says neither may happen: losing the tool is worse than losing one audit
+    line, and an error after a successful write makes the model retry and
+    email a second live candidate. There is no further channel to report the
+    failure of the failure channel on, so it is swallowed here and nowhere
+    else - `BEFORE_SIDE_EFFECT` never reaches this function.
     """
-    sys.stderr.write(f"{message}\n")
+    try:
+        sys.stderr.write(f"{message}\n")
+    except OSError:
+        return
 
 
 def attach_audit_warnings(

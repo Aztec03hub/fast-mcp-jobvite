@@ -49,11 +49,16 @@ hang above is still closed and nothing about the SIGTERM mitigation changes;
 only the constant moves. `70` is `EX_SOFTWARE`, matching the `EX_CONFIG` 78
 already used on the refusal path.
 
-**Untested by side effect, and that is the gap.** ADR-0018 requires a case that
-forces `mcp.run` to fail for a real reason - a bound port is the cheapest - and
-reads the process's exit status, on the same reasoning SS8 #18 applies to
-teardown. Nothing that can crash `mcp.run` exists yet; U9's HTTP hardening is
-where a bound port becomes reachable.
+**And it is tested BY THE SIDE EFFECT, which it was not before.** ADR-0018
+requires a case that forces `mcp.run` to fail for a real reason and reads the
+process's exit status, on the same reasoning SS8 #18 applies to teardown; until
+that case existed, the discharge was a test asserting that this file's SOURCE
+contains the string `os._exit(status)`, which is the weakest possible way to
+settle a defect about exit codes.
+`test_a_crashing_mcp_run_exits_70_read_from_the_process` binds a port, starts
+the HTTP transport on it, and reads the status a
+supervisor would read: **measured 70**, with `address already in use` on the
+stream and a clean-stop arm measuring 0 on the same construction.
 """
 
 from __future__ import annotations
@@ -63,8 +68,12 @@ import os
 import signal
 import sys
 from types import FrameType
+from typing import TYPE_CHECKING
 
 from loguru import logger as _loguru
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from loguru import Record
 
 # A LEAF import, taken before the framework imports on purpose. It pulls in
 # `urllib.parse` and nothing of this project's, so it cannot drag the server
@@ -93,7 +102,7 @@ from fast_mcp_jobvite.utils.redaction import redact_text
 _LOG_LEVEL = "INFO"
 
 
-def _redact_message(record: dict[str, object]) -> bool:
+def _redact_message(record: Record) -> bool:
     """Redact every record's message at the sink, and never drop one.
 
     **A containment control, not an allow-list.** Routing stdlib records into
@@ -126,8 +135,7 @@ def _redact_message(record: dict[str, object]) -> bool:
 class _InterceptHandler(logging.Handler):
     """Forward stdlib `logging` records into loguru.
 
-    **The reconciliation of the two logging systems** (H-3 of the review's
-    "two logging systems writing to one stream" finding). `audit.py` and
+    **The reconciliation of the two logging systems.** `audit.py` and
     `services/jobvite_client.py` write through loguru; `__main__`, uvicorn,
     httpx and the framework write through stdlib `logging`. Two libraries
     formatting independently onto one fd is two record shapes interleaved in
@@ -146,7 +154,8 @@ class _InterceptHandler(logging.Handler):
             level: str | int = _loguru.level(record.levelname).name
         except ValueError:
             level = record.levelno
-        frame, depth = logging.currentframe(), 2
+        frame: FrameType | None = logging.currentframe()
+        depth = 2
         while frame is not None and frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
