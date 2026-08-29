@@ -196,22 +196,43 @@ amputate "A4  the per-attempt timeout clamp is deleted" \
 
 amputate "A5  stop_after_delay is deleted, leaving only the attempt cap" \
   "$CLIENT" \
-  '        stop = stop_after_attempt(self._retry_max_attempts) | stop_after_delay(
-            max(remaining or 0.0, 0.0)
-        )' \
-  '        stop = stop_after_attempt(self._retry_max_attempts)'
+  '            | stop_after_delay(max(remaining or 0.0, 0.0))' \
+  '            | stop_after_attempt(self._retry_max_attempts)'
+
+# R6-M1's third arm. Deleting it puts the behaviour back to the clamp
+# alone, which sleeps the whole budget away and buys an attempt
+# `_attempt` refuses before the transport sees it.
+amputate "A19 the Retry-After-exceeds-budget stop arm is deleted" \
+  "$CLIENT" \
+  '            | _retry_after_exceeds_budget' \
+  '            | stop_after_attempt(self._retry_max_attempts)'
 
 # ===========================================================================
 # THE BREAKER - DESIGN.md:64-68 names it as NEVER EXECUTED. These rows
 # are what turn that from a claim into a measurement.
 # ===========================================================================
 
-amputate "A6  the breaker is removed from the call path entirely" \
+# THE CALL NO LONGER RUNS INSIDE THE BREAKER'S CONTEXT (R6-H1), so
+# "remove the breaker from the call path" is now "never tell it about a
+# failure". Same amputation, one layer down: the counter can never
+# reach the threshold and the circuit can never open.
+amputate "A6  the breaker is never told about a failure and can never open" \
   "$CLIENT" \
   '            with _JOBVITE_BREAKER:
-                return await self._attempt_with_retry(' \
+                raise' \
   '            if True:
-                return await self._attempt_with_retry('
+                raise'
+
+# THE OTHER HALF OF THE SAME MECHANISM, and it did not exist before
+# R6-H1's fix: a success is now what resets the counter, explicitly.
+# Deleting it leaves a breaker that only ever accumulates, so a server
+# that recovers stays one failure away from open forever.
+amputate "A18 a success no longer resets the breaker" \
+  "$CLIENT" \
+  '            with _JOBVITE_BREAKER:
+                pass' \
+  '            if True:
+                pass'
 
 amputate "A7  the open-breaker short circuit is deleted" \
   "$CLIENT" \
@@ -281,6 +302,19 @@ amputate "A15 the 5xx-to-retryable wrapping is deleted" \
                 raise _RetryableUpstream(' \
   '            if False:
                 raise _RetryableUpstream('
+
+# R6-H2. The non-retrying branch's conversion is deleted, so the
+# module-private `_RetryableUpstream` leaves `request()` again and
+# ADR-0017 maps it to `/problems/internal-error` 500 with the private
+# class name in the detail. IT WAS VACUOUS BEFORE THE CASES THAT NAME
+# IT: no test in the suite drove a non-retryable METHOD against a
+# retryable STATUS.
+amputate "A17 the non-retrying branch's _RetryableUpstream conversion is deleted" \
+  "$CLIENT" \
+  '            except _RetryableUpstream as exc:
+                raise exc.public_error() from None' \
+  '            except _RetryableUpstream:
+                raise'
 
 amputate "A16 Retry-After parsing is deleted and always returns None" \
   "$CLIENT" \

@@ -70,6 +70,7 @@ from defusedxml.common import DefusedXmlException
 from defusedxml.ElementTree import fromstring as defused_fromstring
 from loguru import logger
 from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, stop_after_delay
+from tenacity.stop import stop_base
 from tenacity.wait import wait_exponential_jitter
 
 from ..errors import JobviteUnavailableError, JobviteUpstreamError
@@ -781,9 +782,20 @@ class JobviteRetryLaterError(JobviteUnavailableError):
 class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
     """A 5xx or 429, wrapped so `tenacity` can select on it alone.
 
-    **Module-private and it never reaches a caller.** `_attempt` raises
-    it, `_attempt_with_retry` converts it back into the public typed
-    error the moment retries are exhausted, and nothing else may see it.
+    **Module-private, with exactly TWO exits, both in
+    `_attempt_with_retry`.** `_attempt` raises it whatever the method;
+    the non-retrying branch converts it immediately and the retrying
+    branch converts it the moment retries are exhausted. Those are the
+    only two conversion sites, and they are named rather than counted by
+    a grep, because every grep short enough to write here also matches
+    this sentence - which is the tautological-control shape R6-M2 found
+    one file over.
+
+    The sentence this replaces said only that it "never reaches a
+    caller", and it did: there was one converter, not two, so a POST
+    meeting a 5xx raised this class out of `request()` and the caller
+    was told `/problems/internal-error` 500. R6-H2 measured it.
+
     It exists because the retry predicate has to separate a 5xx from a
     4xx, and both arrive as `JobviteUpstreamError` - which is correct
     for the caller and useless as a selector.
@@ -843,12 +855,22 @@ def _retry_after_seconds(headers: Mapping[str, str]) -> float | None:
     comparison against a server whose clock we have never observed, and
     a wrong date silently becomes a wrong wait.
 
+    **A zero is FLOORED, not trusted and not rejected.** `0` is `>= 0`,
+    so it used to be returned verbatim and `_wait_for_retry` took it in
+    preference to the jittered schedule - every retry then fired with no
+    delay at all, which is `backend/resilience.md:79-82`'s stated
+    failure ("fixed-interval or jitter-free retries synchronize clients
+    into a thundering herd that amplifies the outage") produced on
+    demand by a header value the UPSTREAM controls. Flooring honours
+    the back-pressure without letting it switch jitter off.
+
     Args:
         headers: The response headers.
 
     Returns:
-        The non-negative delay in seconds, or `None` if the header is
-        absent, not an integer, or negative.
+        The delay in seconds, never below
+        `DEFAULT_RETRY_INITIAL_BACKOFF`, or `None` if the header is
+        absent, not a number, or negative.
     """
     raw = headers.get("Retry-After")
     if raw is None:
@@ -857,7 +879,59 @@ def _retry_after_seconds(headers: Mapping[str, str]) -> float | None:
         value = float(raw.strip())
     except ValueError:
         return None
-    return value if value >= 0 else None
+    return max(value, DEFAULT_RETRY_INITIAL_BACKOFF) if value >= 0 else None
+
+
+class _RetryAfterExceedsBudget(stop_base):
+    """A `tenacity` stop: the upstream asks for longer than we have.
+
+    **THE CLAMP ALONE BOUGHT AN ATTEMPT `_attempt` REFUSES** (R6-M1).
+    `min(900, remaining)` **is** `remaining`, so honouring a
+    `Retry-After` larger than the budget slept the budget to zero and
+    the attempt it paid for was then rejected by `_attempt`'s own
+    `remaining <= 0` check before the transport saw it. Measured at
+    1.00s of a 1.0s budget by
+    `docs/reviews/probe-r6-wait-burns-budget.py`, and it holds at any
+    budget because the clamp always yields exactly `remaining`.
+
+    **A stop, not a shorter sleep, and this too was measured.** The
+    first fix returned `0.0` from `_wait_for_retry` on the reasoning
+    that `stop_after_delay` would then fire on the next loop. It does
+    not: `stop_after_delay` fires on ELAPSED time, so a zero wait
+    advances the clock by nothing and the loop instead burns the whole
+    attempt cap back to back - hammering an upstream that had just
+    asked us to wait fifteen minutes, which is the opposite of
+    `backend/resilience.md:95-97`. Stopping here ends the call after the
+    attempt that carried the header, with no further request, and the
+    conversion in `_attempt_with_retry` surfaces the 429's own
+    `Retry-After` to the caller.
+
+    **A `stop_base` subclass rather than a bare function** because
+    `stop_base.__or__` is what composes the three arms, and `|` on a
+    plain callable is not that operator.
+    """
+
+    def __call__(self, retry_state: RetryCallState) -> bool:
+        """Whether to stop before taking a wait we cannot afford.
+
+        Args:
+            retry_state: `tenacity`'s state for the failed attempt.
+
+        Returns:
+            `True` when the last attempt carried a `Retry-After` we
+            cannot afford. `False` when there is no header, or no
+            budget scope - the other two stop arms still apply.
+        """
+        outcome = retry_state.outcome
+        exc = outcome.exception() if outcome is not None else None
+        if not isinstance(exc, _RetryableUpstream) or exc.retry_after is None:
+            return False
+        remaining = outbound_budget_remaining()
+        return remaining is not None and exc.retry_after >= remaining
+
+
+#: The singleton of the arm above. One instance: it holds no state.
+_retry_after_exceeds_budget: Final = _RetryAfterExceedsBudget()
 
 
 def _is_outage(_exc_type: type[BaseException], exc: BaseException) -> bool:
@@ -1373,19 +1447,36 @@ class JobviteClient:
                 counts_toward_breaker=False,
             )
         try:
-            # `CircuitBreaker.__exit__` consults `_is_outage` and counts
-            # or resets accordingly, so the 4xx exclusion is enforced by
-            # the predicate rather than by anything at this call site.
-            with _JOBVITE_BREAKER:
-                return await self._attempt_with_retry(
-                    method,
-                    url,
-                    params=params,
-                    headers=headers,
-                    json_body=json_body,
-                    jobfeed=jobfeed,
-                    path=path,
-                )
+            # THE CALL RUNS OUTSIDE THE BREAKER'S CONTEXT AND ITS
+            # OUTCOME IS REPORTED AFTERWARDS. `CircuitBreaker.__exit__`
+            # (`circuitbreaker.py:113-120`) has exactly two outcomes: an
+            # exception its predicate ACCEPTS counts, and everything
+            # else - a clean exit AND an exception the predicate
+            # DECLINES - calls `reset()`, which sets `_failure_count =
+            # 0` and `_state = CLOSED`.
+            #
+            # So wrapping the call in `with _JOBVITE_BREAKER:` cannot
+            # express "this failure is not evidence": it can only say
+            # "this call succeeded". Measured at 4 -> 0 by
+            # `docs/reviews/probe-r6-breaker-reset.py`, with a 4 -> 5
+            # control on a real outage. A 4xx, an exhausted budget and a
+            # 429 that does not count each HEALED the breaker, so
+            # traffic that mixes 4xx with outages could hold it closed
+            # forever.
+            #
+            # NOT TRIPPING IT AND HEALING IT ARE DIFFERENT BEHAVIOURS
+            # and DESIGN.md:354-355 asks for the first. Three outcomes
+            # are needed and the context manager offers two, so the
+            # third - NEUTRAL - is expressed by never entering it.
+            result = await self._attempt_with_retry(
+                method,
+                url,
+                params=params,
+                headers=headers,
+                json_body=json_body,
+                jobfeed=jobfeed,
+                path=path,
+            )
         except CircuitBreakerError:
             # Defensive: the `opened` check above short-circuits first,
             # so reaching here would mean the breaker tripped between
@@ -1397,6 +1488,33 @@ class JobviteClient:
                 retry_after=_breaker_retry_after(),
                 counts_toward_breaker=False,
             ) from None
+        except Exception as exc:
+            # `_is_outage` REMAINS THE SINGLE AUTHORITY on which
+            # failures are signals; what changed is what a declined one
+            # now costs. A declined failure never reaches the breaker at
+            # all, so the counter it had is the counter it keeps, and a
+            # breaker in `half_open` stays there rather than being
+            # closed by a call that never reached Jobvite.
+            #
+            # `except Exception`, not `BaseException`: a
+            # `CancelledError` is the caller going away and says nothing
+            # about Jobvite, so it too must leave the breaker untouched
+            # - which it does by not being caught here.
+            if not _is_outage(type(exc), exc):
+                raise
+            # ACCEPTED: re-raised INSIDE the context so `__exit__` sees
+            # it and counts it, which is the one thing the context
+            # manager does that we want.
+            with _JOBVITE_BREAKER:
+                raise
+        else:
+            # A SUCCESS, and the only thing that may reset the counter.
+            # An empty body is the honest spelling of "report a
+            # success": `__exit__(None, None, None)` is exactly
+            # `reset()`.
+            with _JOBVITE_BREAKER:
+                pass
+            return result
         finally:
             # The `closed->open` and `half_open->closed` lines. Written
             # here rather than inside `__exit__`: `circuitbreaker`
@@ -1445,15 +1563,30 @@ class JobviteClient:
         if method.upper() not in RETRYABLE_METHODS:
             # ONE await, and no loop exists on this branch to run a
             # second one. That is the construction.
-            return await self._attempt(
-                method,
-                url,
-                params=params,
-                headers=headers,
-                json_body=json_body,
-                jobfeed=jobfeed,
-                path=path,
-            )
+            #
+            # THE CONVERSION IS HERE BECAUSE `_attempt` WRAPS A
+            # RETRYABLE STATUS WHATEVER THE METHOD (see `:_attempt`'s
+            # `raise _RetryableUpstream`), and this branch is the other
+            # place that wrapper has to come off. Without it a POST
+            # meeting a 5xx or a 429 raised the module-private type
+            # straight out of `request()`, ADR-0017 routed it to
+            # `/problems/internal-error` **500**, and the detail read
+            # `An unexpected _RetryableUpstream occurred.` - the wrong
+            # status, and a private class name reaching an API consumer,
+            # which `backend/error-handling.md:383` forbids. Measured by
+            # `docs/reviews/probe-r6-post-escape.py`.
+            try:
+                return await self._attempt(
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json_body=json_body,
+                    jobfeed=jobfeed,
+                    path=path,
+                )
+            except _RetryableUpstream as exc:
+                raise exc.public_error() from None
 
         remaining = outbound_budget_remaining()
         # BOTH caps, OR-ed (`backend/resilience.md:88-90`).
@@ -1461,8 +1594,13 @@ class JobviteClient:
         # given what is left of the invocation's budget rather than a
         # constant of its own - otherwise a retry loop on the last page
         # of a scan could outlive the budget every other layer respects.
-        stop = stop_after_attempt(self._retry_max_attempts) | stop_after_delay(
-            max(remaining or 0.0, 0.0)
+        stop = (
+            stop_after_attempt(self._retry_max_attempts)
+            | stop_after_delay(max(remaining or 0.0, 0.0))
+            # THE THIRD ARM (R6-M1). The other two fire on a count and
+            # on elapsed time; neither can see a wait we have not taken
+            # yet, and a `Retry-After` we cannot afford is exactly that.
+            | _retry_after_exceeds_budget
         )
         retrying = AsyncRetrying(
             retry=_should_retry,

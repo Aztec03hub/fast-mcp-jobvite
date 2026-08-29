@@ -203,8 +203,31 @@ mutate "M4  Retry-After is ignored in favour of the local backoff" \
 mutate "M5  a negative Retry-After is trusted" \
   "$CLIENT" \
   "$SUITE::test_a_retry_after_we_cannot_trust_is_ignored_rather_than_guessed" \
-  '    return value if value >= 0 else None' \
-  '    return value'
+  '    return max(value, DEFAULT_RETRY_INITIAL_BACKOFF) if value >= 0 else None' \
+  '    return max(value, DEFAULT_RETRY_INITIAL_BACKOFF)'
+
+# R6-M3. `0` is `>= 0`, so it used to be returned verbatim and
+# `_wait_for_retry` preferred it to the jittered schedule - every retry
+# then fired with NO delay, which is `backend/resilience.md:79-82`'s
+# thundering herd switched on by a header the UPSTREAM controls. This
+# row reverts the floor. Its NEW text is what the code used to say, and
+# the case that covered this function checked absent, malformed,
+# negative and the HTTP-date form - a true statement about a set with
+# no `0` in it.
+mutate "M25 a Retry-After of 0 is trusted and disables jitter" \
+  "$CLIENT" \
+  "$SUITE::test_a_retry_after_we_cannot_trust_is_ignored_rather_than_guessed" \
+  '    return max(value, DEFAULT_RETRY_INITIAL_BACKOFF) if value >= 0 else None' \
+  '    return value if value >= 0 else None'
+
+# R6-M1. The stop condition becomes the old clamp again, so a
+# `Retry-After` larger than the budget sleeps the budget to zero and
+# buys an attempt `_attempt` refuses before the transport sees it.
+mutate "M24 a Retry-After we cannot afford is slept out anyway" \
+  "$CLIENT" \
+  "$SUITE::test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping" \
+  '    return remaining is not None and exc.retry_after >= remaining' \
+  '    return False'
 
 # ===========================================================================
 # §8 #21 - `create_candidate` excluded BY CONSTRUCTION. The measurement
@@ -343,6 +366,33 @@ mutate "M17 an open breaker reports the outage detail" \
     "This is an open circuit breaker, not an upstream failure in flight."
 )' \
   'UNAVAILABLE_BREAKER_DETAIL: Final = UNAVAILABLE_TRANSPORT_DETAIL'
+
+# R6-H1. THE ROW THAT PINS "NEUTRAL" AGAINST "HEALTHY". Deleting the
+# guard sends every declined exception into `with _JOBVITE_BREAKER:`,
+# where `__exit__` calls `reset()` on it - which is the pre-fix
+# behaviour, measured at 4 -> 0. The two exclusion cases beside it
+# CANNOT kill this row: both start from a closed breaker and assert
+# `failure_count == 0`, and `0` is what "not counted" and "reset to
+# zero" both produce from a start of `0`. The case named here starts
+# from `threshold - 1`, which is the only start the two hypotheses
+# disagree about.
+mutate "M23 a non-outage RESETS the breaker instead of being ignored" \
+  "$CLIENT" \
+  "$SUITE::test_a_non_outage_does_not_RESET_the_breakers_accumulated_failures" \
+  '            if not _is_outage(type(exc), exc):
+                raise' \
+  '            if False:
+                raise'
+
+# R6-H3, and it SURVIVED THE WHOLE SUITE at 562 passed before the case
+# named here existed. M12 and M13 pin the two `False` directions of this
+# predicate arm; neither direction of the `True` case was pinned, so a
+# 429 could stop counting toward the breaker with nothing noticing.
+mutate "M23b a 429's counts_toward_breaker is ignored" \
+  "$CLIENT" \
+  "$SUITE::test_a_429_counts_toward_the_breaker_but_an_exhausted_budget_does_not" \
+  '        return exc.counts_toward_breaker' \
+  '        return False'
 
 # ===========================================================================
 # CORRELATED LOGGING (DESIGN.md:614-620, §8 #13)
