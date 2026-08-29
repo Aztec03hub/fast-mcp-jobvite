@@ -167,7 +167,7 @@ amputate "A1  the approval guard does not exist at all" "$APPROVAL" \
 
 # ---------------------------------------------------------------------------
 # A2 - THE ERA BRANCH DOES NOT EXIST. Every call takes the MRTR path,
-# which DESIGN.md:1085-1086 measured as raising on EVERY arm of the
+# which DESIGN.md:1138-1139 measured as raising on EVERY arm of the
 # handshake era. A single-mechanism guard is broken on one era whichever
 # it picks, and this is the picking.
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ amputate "A3  any response whatsoever authorises the write" "$APPROVAL" \
 # ---------------------------------------------------------------------------
 # A4 - THE UNIDENTIFIABLE-ERA REFUSAL DOES NOT EXIST. A version nobody
 # has measured falls through to `ctx.elicit()` on the strength of being
-# unrecognised, which is exactly the quiet degradation DESIGN.md:1126-1130
+# unrecognised, which is exactly the quiet degradation DESIGN.md:1179-1183
 # forbids.
 # ---------------------------------------------------------------------------
 amputate "A4  an unrecognised era falls through instead of refusing" "$APPROVAL" \
@@ -206,7 +206,7 @@ amputate "A4  an unrecognised era falls through instead of refusing" "$APPROVAL"
 # ---------------------------------------------------------------------------
 # A5 - THE APPROVAL REQUEST DESCRIBES NOTHING. The host is asked to
 # authorise "this write" with no candidate, no job and no mention of the
-# email. DESIGN.md:1061-1071: an approver shown a database row
+# email. DESIGN.md:1114-1124: an approver shown a database row
 # authorises an email nobody named.
 # ---------------------------------------------------------------------------
 amputate "A5  the approval request names neither the person nor the email" "$APPROVAL" \

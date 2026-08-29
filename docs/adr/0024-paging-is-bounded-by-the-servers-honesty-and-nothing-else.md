@@ -6,7 +6,7 @@
 > Paging terminates on a short page and never on `total`. That rule is right about `total` and
 > **silent about non-advancement**: a server that ignores `start` and answers a full page every time
 > is paged forever. The design removed one loop condition and supplied no replacement, and U6
-> implemented it faithfully. This ADR proposes that §7.3 name a bound that does not read `total`.
+> implemented it faithfully. This ADR proposes that §4.5 name a bound that does not read `total`.
 
 ## Context
 
@@ -53,7 +53,9 @@ harness and not as a property of production.**
 
 ## Decision
 
-**§7.3 should name a bound that does not read `total`.** Two mechanisms, and the recommendation is
+**§4.5 should name a bound that does not read `total`.** (This ADR said §7.3, which is
+*Configuration*. The sentence it quotes at `DESIGN.md:486-487` is in §4.5 *Pagination*, and that is
+where the bound landed. Corrected in place.) Two mechanisms, and the recommendation is
 both:
 
 1. **A zero-progress break.** Track new records per page; a FULL page that adds nothing to `seen`

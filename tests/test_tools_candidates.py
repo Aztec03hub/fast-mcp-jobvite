@@ -21,7 +21,7 @@ cannot ship, so this tier is shape assertions and there is no fixture
 file for it.
 
 A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260).
+self-consistent, not that it speaks Jobvite (DESIGN.md:1319-1321).
 Every candidate fixture in this file is **synthetic**: invented, a
 hypothesis in JSON, and never a capture.
 """
@@ -133,7 +133,7 @@ def client_factory(
 
     No third-party mocking library, which matters because a
     credential-free test strategy cannot afford to depend on one
-    (DESIGN.md:1359-1360).
+    (DESIGN.md:1420-1421).
     """
 
     def make() -> JobviteClient:
@@ -265,7 +265,7 @@ async def test_positive_control_a_populated_candidate_round_trips() -> None:
     assert application["last_updated_date"] == "2023-11-14"
 
     # THE FENCED FIELD, FENCED. The résumé body is the attacker-authored
-    # class of DESIGN.md:738-745 and it arrives wrapped.
+    # class of DESIGN.md:791-798 and it arrives wrapped.
     resume = application["resume"]
     assert resume is not None
     assert resume["format"] == "Text"
@@ -360,7 +360,7 @@ def test_structural_total_is_the_result_set_size_not_the_page_size() -> None:
 
     `JOBVITE-API.md:398`: 5 requested, a `total` in the hundreds of
     thousands returned. So `total` is read from the envelope and is
-    never `len(page)`, and never a loop condition (DESIGN.md:486-487).
+    never `len(page)`, and never a loop condition (DESIGN.md:505-506).
     """
     # The shape assertion, on a page deliberately SMALLER than `total`.
     result = CandidateSearchResult(candidates=[], total=250_000)
@@ -389,7 +389,7 @@ def test_structural_the_application_is_one_object_not_an_array() -> None:
 # ======================================================================
 # 3. §8 #6 - EEO FIELDS NEVER APPEAR IN ANY TOOL RESULT, **ASSERTED
 #    AGAINST THE OUTPUT MODELS**, not by inspection. C6-I1, Critical.
-#    DESIGN.md:756-783, ADR-0008.
+#    DESIGN.md:809-836, ADR-0008.
 #
 #    A grep of a result for these names passes on an empty result. A
 #    test that the MODEL CANNOT CARRY THEM does not, and that is the
@@ -408,7 +408,7 @@ def _candidate_models() -> tuple[type[BaseModel], ...]:
 
 
 def test_case6_no_output_model_declares_an_eeo_field() -> None:
-    """The allow-list is the mechanism (DESIGN.md:780-783).
+    """The allow-list is the mechanism (DESIGN.md:833-836).
 
     Asserted over the SNAKE_CASE attribute and over the Jobvite key
     each field carries, because the two live in different key spaces
@@ -444,7 +444,7 @@ def test_case6_eeo_fields_in_the_payload_do_not_reach_the_result() -> None:
     This is the arm that would pass vacuously on an empty page, so it
     asserts the record is populated FIRST. The fixture carries
     `gender`, `race` and `veteranStatus` on every application, which is
-    what DESIGN.md:758 records about our own fixtures.
+    what DESIGN.md:811 records about our own fixtures.
     """
     body = fixture_json(CANDIDATE_LIST_SUCCESS)
     raw = body["candidates"][0]
@@ -473,7 +473,7 @@ def test_case6_no_generated_fencing_path_names_an_eeo_field() -> None:
 
 
 # ======================================================================
-# 4. PATH-KEYED, NOT NAME-KEYED (DESIGN.md:747-749).
+# 4. PATH-KEYED, NOT NAME-KEYED (DESIGN.md:800-802).
 #
 #    "Name-keying collides: `title` and `eId` each appear at multiple
 #    depths in our own fixtures". So the case is a payload where the
@@ -577,7 +577,7 @@ def test_fencing_is_applied_by_path_and_a_colliding_name_is_unaffected() -> None
 def test_a_wildcard_path_matches_an_open_ended_key() -> None:
     """A wildcard segment matches a key nobody enumerated.
 
-    DESIGN.md:747 says the allow-list is path-keyed **with wildcards**,
+    DESIGN.md:800 says the allow-list is path-keyed **with wildcards**,
     and `customField[]` is the open-ended key it names.
 
     **`customField` IS NOT ADMITTED BY THIS UNIT**, so this exercises
@@ -632,7 +632,7 @@ def test_an_exact_path_is_not_shadowed_by_a_wildcard() -> None:
 
 # ======================================================================
 # 5. §8 #19 - FENCING, INCLUDING CONTENT THAT CLOSES ITS OWN FENCE.
-#    DESIGN.md:744-745 and :754 - "Red-team cases live in the main
+#    DESIGN.md:797-798 and :754 - "Red-team cases live in the main
 #    suite and are merge-gating."
 #
 #    `candidate_list_injection.json` is the SEED and the plan says it
@@ -698,7 +698,7 @@ def test_case19_the_seed_fixtures_payload_cannot_close_its_own_fence() -> None:
 def test_case19_red_team_content_cannot_close_its_own_fence(
     label: str, payload: str
 ) -> None:
-    """Merge-gating red-team cases (DESIGN.md:754).
+    """Merge-gating red-team cases (DESIGN.md:807).
 
     Every one of these asserts the SAME invariant: after fencing, the
     value contains exactly one opening delimiter at the start and
@@ -718,7 +718,7 @@ def test_case19_red_team_content_cannot_close_its_own_fence(
 
 
 def test_case19_fencing_preserves_ordinary_content_unchanged() -> None:
-    """The positive control for the stripper (DESIGN.md:1370-1371).
+    """The positive control for the stripper (DESIGN.md:1431-1432).
 
     A guard that refuses everything is not a guard. Content with no
     delimiter in it survives byte for byte, so the stripper cannot be
@@ -758,7 +758,7 @@ def test_case19_the_fence_survives_the_whole_tool_path() -> None:
 
 # ======================================================================
 # 6. §8 #20 - AN UNKNOWN NON-STRING FIELD IS **DROPPED**, NOT
-#    STRINGIFIED. DESIGN.md:751-752: "stringifying invents a
+#    STRINGIFIED. DESIGN.md:804-805: "stringifying invents a
 #    representation and collides with `strict=True` output models."
 #
 #    ASSERT THE DROP, not the type.
@@ -793,7 +793,7 @@ def test_case20_an_unknown_non_string_field_is_dropped() -> None:
 
 
 def test_case20_a_decided_field_arriving_as_a_non_string_is_dropped() -> None:
-    """Fencing is defined for STRINGS ONLY (DESIGN.md:751).
+    """Fencing is defined for STRINGS ONLY (DESIGN.md:804).
 
     A field the registry says to FENCE, arriving as an integer, cannot
     be fenced - and stringifying it is the thing the design forbids. So
@@ -826,7 +826,7 @@ def test_case20_a_string_field_the_registry_does_not_know_is_dropped() -> None:
 
     #20 is about the non-string case, and a reader could conclude a
     STRING with no decision is admitted. It is not: an unlisted path is
-    dropped until someone adds it deliberately (DESIGN.md:1788's
+    dropped until someone adds it deliberately (DESIGN.md:1856's
     path-keyed allow-list, quoted in `utils/redaction.py`).
     """
     payload = {"candidates": [{"eId": "TESTCND1", "unknownNote": "hello"}]}
@@ -836,7 +836,7 @@ def test_case20_a_string_field_the_registry_does_not_know_is_dropped() -> None:
 
 # ======================================================================
 # 7. §8 #24 - THE eId/EId CASING ASYMMETRY, PINNED.
-#    DESIGN.md:1379-1380 (§9 hazard 1) and :1353 - "it is the kind of
+#    DESIGN.md:1440-1441 (§9 hazard 1) and :1353 - "it is the kind of
 #    wart a well-meaning normalisation removes".
 # ======================================================================
 
@@ -859,7 +859,7 @@ def test_case24_reads_use_lowercase_eid_and_the_write_uses_capital_eid() -> None
 
 
 def test_case24_the_reader_accepts_both_spellings_and_prefers_the_read_one() -> None:
-    """Normalised at the boundary (DESIGN.md:1379-1380).
+    """Normalised at the boundary (DESIGN.md:1440-1441).
 
     Both spellings resolve to one identifier, so the model has one
     attribute. The read spelling wins when a body somehow carries both,
@@ -890,17 +890,17 @@ def test_case24_the_client_default_id_key_is_the_read_spelling() -> None:
 # ======================================================================
 # 8. §8 #5 EXTENDED TO THE CANDIDATE PATH - PII REACHES THE AUDIT PATH
 #    BY CONSTRUCTION AND NONE OF IT IS EMITTED IN THE CLEAR.
-#    DESIGN.md:707-709, C6-S1 / C7-I1, Critical.
+#    DESIGN.md:760-762, C6-S1 / C7-I1, Critical.
 #
 #    Asserted against the audit event #4 proves exists, never against
-#    silence (DESIGN.md:1283-1286).
+#    silence (DESIGN.md:1344-1347).
 # ======================================================================
 
 
 async def test_case5_the_audit_event_exists_for_a_candidate_read(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """The POSITIVE half of the pair (DESIGN.md:1276-1282).
+    """The POSITIVE half of the pair (DESIGN.md:1337-1343).
 
     An absence passes trivially against a server that emits no audit
     event at all, so this asserts one exists and carries its mandated
@@ -927,7 +927,7 @@ async def test_case5_candidate_pii_never_reaches_the_audit_record(
     """The absence, asserted against the event above.
 
     The argument IS the candidate's own identifier, so PII reaches the
-    audit path by construction (DESIGN.md:707-709). What is emitted
+    audit path by construction (DESIGN.md:760-762). What is emitted
     carries none of it in the clear except the identifier class
     `NON_SENSITIVE_ARGUMENT_KEYS` admits deliberately.
     """
@@ -1014,7 +1014,7 @@ def test_epoch_milliseconds_become_the_request_sides_date_spelling() -> None:
     """Epoch milliseconds become the request-side date spelling.
 
     Responses return epoch ms; requests take `yyyy-MM-dd`
-    (DESIGN.md:1381). One concept, one spelling in the tool surface.
+    (DESIGN.md:1442). One concept, one spelling in the tool surface.
     """
     assert epoch_ms_to_date(1700000000000) == "2023-11-14"
     assert epoch_ms_to_date(0) == "1970-01-01"
@@ -1087,7 +1087,7 @@ def test_every_candidate_model_field_has_a_fencing_decision() -> None:
 
 
 def test_the_resume_body_is_the_one_fenced_by_decision() -> None:
-    """Résumé bodies are named first in DESIGN.md:740."""
+    """Résumé bodies are named first in DESIGN.md:793."""
     decision = CANDIDATE_FENCING_PATHS[
         "candidates[].application.resume.content"
     ].decision
@@ -1097,7 +1097,7 @@ def test_the_resume_body_is_the_one_fenced_by_decision() -> None:
 def test_free_text_a_candidate_typed_is_fenced_and_jobvite_taxonomy_is_not() -> None:
     """The two classes, asserted side by side.
 
-    DESIGN.md:740-742 defines the fenced class as what a candidate
+    DESIGN.md:793-795 defines the fenced class as what a candidate
     typed. An identifier, an enumerated state and an epoch timestamp
     are not that, and recording the decision is the point - a field
     nobody decided about must not be indistinguishable from one decided
@@ -1148,7 +1148,7 @@ async def test_both_tools_are_registered_and_they_are_two_tools() -> None:
 
 
 async def test_a_candidate_tool_not_named_is_not_registered() -> None:
-    """Registration is the deploy-time control (DESIGN.md:917-934)."""
+    """Registration is the deploy-time control (DESIGN.md:970-987)."""
     server = build_server(
         settings(tools=SEARCH_CANDIDATES), client_factory=client_factory(b"{}")
     )
@@ -1212,7 +1212,7 @@ async def test_an_empty_page_is_reported_as_empty_not_as_an_error() -> None:
 async def test_a_candidate_read_error_is_a_problem_object_not_a_raise(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """DESIGN.md:536-540, on this unit's path - and the row it writes.
+    """DESIGN.md:576-580, on this unit's path - and the row it writes.
 
     **Coverage was not the instrument that found the second claim.**
     `tools/candidates.py` reads 100.00% line AND 100.00% branch, and
@@ -1224,7 +1224,7 @@ async def test_a_candidate_read_error_is_a_problem_object_not_a_raise(
     harness's row for it is that measurement made permanent.
 
     Two claims, not one. The caller must get a problem object rather
-    than a raise (DESIGN.md:536-540), **and the audit row must record
+    than a raise (DESIGN.md:576-580), **and the audit row must record
     the failure as a failure**: a read that fails and is written down
     as a success is a record that lies, and the row is the only
     evidence anyone has afterwards. The sibling `get_candidate` already
@@ -1283,7 +1283,7 @@ def test_the_tool_module_names_every_route_it_asks_the_client_for() -> None:
 
 
 def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
-    """`total` is REPORTED, never recomputed (DESIGN.md:486-489).
+    """`total` is REPORTED, never recomputed (DESIGN.md:505-520).
 
     Counting the page instead would make `showing N of N` true on every
     call and delete the only signal that a page was capped - and
@@ -1420,7 +1420,7 @@ def test_a_list_of_not_free_text_scalars_passes_through() -> None:
 
     A walk that dropped every scalar element would satisfy both cases
     above and delete every legitimate list, which is the refuses-
-    everything guard DESIGN.md:1370-1371 rules out.
+    everything guard DESIGN.md:1431-1432 rules out.
     """
     registry = {
         "candidates": CANDIDATE_FENCING_PATHS["candidates"],
@@ -1664,7 +1664,7 @@ async def test_a_get_candidate_read_error_is_a_problem_object_and_an_audit_row(
     a file.
 
     Two claims, not one. The caller must get a problem object rather
-    than a raise (DESIGN.md:536-540), **and the audit row must record
+    than a raise (DESIGN.md:576-580), **and the audit row must record
     the failure as a failure**: a read that fails and is written down
     as a success is a record that lies, and the row is the only
     evidence anyone has afterwards.

@@ -12,7 +12,7 @@
 #
 # THE ROWS THAT MATTER MOST HERE ARE M1 AND M13, and they are the two
 # halves of one boundary. `backend/resilience.md:92-94` says 4xx must
-# not be retried and DESIGN.md:354-355 says 4xx must not trip the
+# not be retried and DESIGN.md:366-367 says 4xx must not trip the
 # breaker; M1 makes a 4xx retryable and M13 makes it trip the breaker.
 # A suite that only checked "a 5xx is retried and trips the breaker"
 # kills neither, because both mutations leave that behaviour intact and
@@ -170,7 +170,7 @@ mutate "M1  a 4xx becomes retryable" \
   '    return status >= ERROR_STATUS_THRESHOLD'
 
 # The other direction: a 5xx stops being retried at all, which is the
-# transient failure DESIGN.md:347-349 names first.
+# transient failure DESIGN.md:359-361 names first.
 mutate "M2  a 5xx stops being retryable" \
   "$CLIENT" \
   "$SUITE::test_a_5xx_is_retried_to_the_attempt_cap" \
@@ -181,7 +181,7 @@ mutate "M2  a 5xx stops being retryable" \
         return False
     return status >= 600'
 
-# DESIGN.md:361-364: a 429 is "retried and then mapped to 503". Dropping
+# DESIGN.md:373-383: a 429 is "retried and then mapped to 503". Dropping
 # the mapping tells a caller the upstream ERRORED when it asked us to
 # slow down, and 502 is not a status a client backs off on.
 mutate "M3  a 429 surfaces as 502 instead of 503" \
@@ -231,7 +231,7 @@ mutate "M24 a Retry-After we cannot afford is slept out anyway" \
 
 # ===========================================================================
 # §8 #21 - `create_candidate` excluded BY CONSTRUCTION. The measurement
-# this prevents is DESIGN.md:353's one call, FOUR rows created.
+# this prevents is DESIGN.md:365's one call, FOUR rows created.
 # ===========================================================================
 
 mutate "M6  POST joins the retryable methods" \
@@ -249,7 +249,7 @@ mutate "M7  the method dispatch is inverted" \
   '        if method.upper() in RETRYABLE_METHODS:'
 
 # ===========================================================================
-# THE TOTAL OUTBOUND BUDGET (DESIGN.md:373-375). It did not exist before
+# THE TOTAL OUTBOUND BUDGET (DESIGN.md:392-394). It did not exist before
 # this unit, so every row here is a behaviour with no prior coverage.
 # ===========================================================================
 
@@ -274,7 +274,7 @@ mutate "M9  the deadline is not reset when its scope closes" \
 # The per-attempt timeout stops being clamped, so the LAST attempt can
 # buy a fresh 30-second read and outlive the budget by a factor of the
 # read timeout. The budget then bounds when we stop RETRYING rather than
-# how long the caller waits, which is not what DESIGN.md:373-375 says.
+# how long the caller waits, which is not what DESIGN.md:392-394 says.
 mutate "M10 the attempt timeout is no longer clamped to the budget" \
   "$CLIENT" \
   "$SUITE::test_an_attempt_timeout_is_clamped_to_what_the_budget_has_left" \
@@ -304,7 +304,7 @@ mutate "M12 an exhausted budget trips the breaker" \
   '        return True'
 
 # ===========================================================================
-# THE BREAKER (DESIGN.md:354-358, §8 #23)
+# THE BREAKER (DESIGN.md:366-370, §8 #23)
 # ===========================================================================
 
 # §8 #23's subject. A bad candidate id becomes a health signal and one
@@ -340,7 +340,7 @@ mutate "M15 an open breaker still issues the request" \
   '        if _JOBVITE_BREAKER.opened:' \
   '        if False:'
 
-# DESIGN.md:358's `retry_after` hint disappears, so a caller has no
+# DESIGN.md:370's `retry_after` hint disappears, so a caller has no
 # number to back off on and the 503 says only "later".
 mutate "M16 the open breaker drops its retry_after hint" \
   "$CLIENT" \
@@ -357,7 +357,7 @@ mutate "M16 the open breaker drops its retry_after hint" \
                 retry_after=None,'
 
 # The two 503s stop being distinguishable, which is the whole of
-# DESIGN.md:355-358: "what distinguishes them is `detail`".
+# DESIGN.md:367-370: "what distinguishes them is `detail`".
 mutate "M17 an open breaker reports the outage detail" \
   "$CLIENT" \
   "$SUITE::test_an_open_breaker_and_an_outage_are_told_apart_by_detail" \
@@ -395,7 +395,7 @@ mutate "M23b a 429's counts_toward_breaker is ignored" \
   '        return False'
 
 # ===========================================================================
-# CORRELATED LOGGING (DESIGN.md:614-620, §8 #13)
+# CORRELATED LOGGING (DESIGN.md:654-660, §8 #13)
 # ===========================================================================
 
 # The direction is reported backwards. Every line still looks
@@ -426,7 +426,7 @@ mutate "M20 the retry line reports a constant attempt number" \
   '        attempt=state.attempt_number,' \
   '        attempt=1,'
 
-# THE URL REACHES A RETRY LINE. DESIGN.md:618-620: "a retry line is
+# THE URL REACHES A RETRY LINE. DESIGN.md:658-660: "a retry line is
 # exactly where an unredacted URL would otherwise reach a log", because
 # the v1 jobFeed URL carries `sc=` in its query string.
 mutate "M21 the retry line carries the exception's full text" \
@@ -475,7 +475,7 @@ mutate "M29 progress is sampled after the page, so the break fires always" \
   '            for item in page:'
 
 # The break stops setting `incomplete`, so a caller receives a truncated
-# result that claims to be whole - the silent under-read DESIGN.md:469-477
+# result that claims to be whole - the silent under-read DESIGN.md:488-496
 # exists to prevent, arriving by a new road.
 mutate "M30 a stalled scan reports itself as complete" \
   "$CLIENT" \

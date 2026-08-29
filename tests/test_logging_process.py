@@ -19,7 +19,7 @@ descriptors:
   `/dev/full`, which is what a full disk does to a write - rather than
   making `bind()` raise, which is not what fails when a disk fills.
   Loguru handlers default to `catch=True` and swallow it, so before
-  `catch=False` the `BEFORE_SIDE_EFFECT` branch of DESIGN.md:712-718
+  `catch=False` the `BEFORE_SIDE_EFFECT` branch of DESIGN.md:765-771
   could not fire at all.
 - Each failing-sink arm is paired with the SAME script against an
   ordinary file, because "the call raised" proves nothing if the call
@@ -236,7 +236,7 @@ def test_python_dash_m_gets_the_same_configured_sink(
 def test_a_failing_sink_fails_the_call_before_the_side_effect(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:712-713, reached through a real write failure.
+    """DESIGN.md:765-766, reached through a real write failure.
 
     `/dev/full` returns ENOSPC on every write, which is what a full disk
     does
@@ -296,7 +296,7 @@ def test_the_same_script_against_a_writable_sink_does_not_fail(
 def test_a_failing_sink_on_a_read_does_not_fail_the_read(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:714-715: a read is recoverable, a lost tool worse.
+    """DESIGN.md:767-768: a read is recoverable, a lost tool worse.
 
     This arm is why `_warn_on_stderr` is best effort. The one log sink
     IS stderr, so the failure that kills the audit write kills the
@@ -321,7 +321,7 @@ def test_a_failing_sink_on_a_read_does_not_fail_the_read(
 def test_a_failing_sink_after_a_write_returns_a_warning_not_an_error(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:716-727: success with a warning, never an error.
+    """DESIGN.md:769-780: success with a warning, never an error.
 
     An error makes the model retry, and a retry emails a second live
     human. Asserted against a real sink failure, so it is the branch
@@ -634,7 +634,7 @@ def test_the_process_publishes_no_credential_when_the_transport_fails(
 
     The consumer's `detail` carries no third-party text
     (`backend/error-handling.md:383`, `:493`) and still distinguishes an
-    upstream failure from an open breaker (DESIGN.md:356-360). The
+    upstream failure from an open breaker (DESIGN.md:368-372). The
     stream carries the exception text and the credential headers,
     redacted.
     """

@@ -161,7 +161,7 @@ amputate "A1  the tool returns an empty page whatever Jobvite sent" "$TOOLS" \
 # ---------------------------------------------------------------------------
 # A2 - FENCING DOES NOT EXIST. `fence_text` becomes the identity, so
 # every résumé body, name and self-reported field reaches the model raw
-# and DESIGN.md:744-745 is deleted outright. §8 #19 must die here.
+# and DESIGN.md:797-798 is deleted outright. §8 #19 must die here.
 # ---------------------------------------------------------------------------
 amputate "A2  fence_text is the identity function" "$REDACTION" \
   '    stripped = _FENCE_TOKENS.sub(FENCE_STRIPPED, text)
@@ -172,7 +172,7 @@ amputate "A2  fence_text is the identity function" "$REDACTION" \
 # A3 - THE DELIMITER STRIPPER IS GONE, THE WRAPPER STAYS. This is the
 # HALF-amputation and it is the one that looks safest: every value is
 # still fenced, so a test asserting "the value is wrapped" passes, and
-# content can close its own fence. DESIGN.md:744-745's second clause,
+# content can close its own fence. DESIGN.md:797-798's second clause,
 # deleted alone.
 # ---------------------------------------------------------------------------
 amputate "A3  content is wrapped but delimiters are no longer stripped" "$REDACTION" \
@@ -229,7 +229,7 @@ amputate "A7  epoch milliseconds are never converted to a date" "$NORMALISE" \
 
 # ---------------------------------------------------------------------------
 # A8 - THE WRITE SPELLING IS GONE (§8 #24). `ID_KEY_WRITE` collapses
-# onto the read one, which is the tidy-up DESIGN.md:1353 says a
+# onto the read one, which is the tidy-up DESIGN.md:1414 says a
 # well-meaning refactor performs. The asymmetry is Jobvite's and this
 # deletes our record of it.
 # ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ amputate "A9  every EEO field is admitted to the application model" "$MODELS" \
 # ---------------------------------------------------------------------------
 # A10 - THE PER-DEPTH DECISION IS GONE. Both `title` fields take the
 # same decision, which is what a name-keyed registry would produce and
-# what DESIGN.md:747-749 exists to prevent. Every OTHER path stays
+# what DESIGN.md:800-802 exists to prevent. Every OTHER path stays
 # correct, so only a case written at the collision can see it.
 # ---------------------------------------------------------------------------
 amputate "A10 both title fields take one decision, as name-keying would" \
@@ -302,7 +302,7 @@ amputate "A12 the get_candidate success result carries no _meta" "$TOOLS" \
 
 # ---------------------------------------------------------------------------
 # A13 - THE REGISTRATION GATE IS GONE. Both tools register whatever
-# `JOBVITE_TOOLS` says, so the deploy-time control DESIGN.md:917-934
+# `JOBVITE_TOOLS` says, so the deploy-time control DESIGN.md:970-987
 # describes does not exist.
 # ---------------------------------------------------------------------------
 # U10 ADDED `create_candidate` TO THIS SET AND THE OLD ANCHOR WENT

@@ -14,7 +14,7 @@ conditional on `http`, and keeping it separate makes "this code does not
 run on stdio" a property of an import rather than of a branch a reader
 has to trace.
 
-**stdio is unauthenticated by design** (DESIGN.md:844-848): anything
+**stdio is unauthenticated by design** (DESIGN.md:897-901): anything
 able to spawn the process may call every tool, and the trust boundary is
 the operating system's. That is not a gap this module closes - it is the
 reason `require_scopes` is applied only when the transport is `http`.
@@ -75,7 +75,7 @@ from .config import (
 from .errors import VALIDATION_ERROR, build_problem
 from .utils.correlation import request_id_scope
 
-#: The three data classes of DESIGN.md §4.1, which DESIGN.md:828-829
+#: The three data classes of DESIGN.md §4.1, which DESIGN.md:881-882
 #: also writes out as the token map's example scope list. The scope
 #: names are the design's, not invented here - B15's lesson is that
 #: guessing a name that happens to match is still guessing.
@@ -92,11 +92,11 @@ SCOPE_FEED: Final = "feed:read"
 #: measured most often.
 #:
 #: `create_candidate` writes candidate records, so it holds the
-#: candidate-PII class. DESIGN.md:833-835 records that the earlier axis
+#: candidate-PII class. DESIGN.md:886-888 records that the earlier axis
 #: - "a read-only token never sees the write tool" - COLLAPSED whenever
 #: the write was out of scope, and that the surviving axis is the data
 #: class. On stdio the write rests on the deploy-time flag plus
-#: approval rather than on this scope (DESIGN.md:846-848).
+#: approval rather than on this scope (DESIGN.md:899-901).
 TOOL_SCOPES: Final[dict[str, str]] = {
     SEARCH_CANDIDATES: SCOPE_CANDIDATES,
     GET_CANDIDATE: SCOPE_CANDIDATES,
@@ -134,7 +134,7 @@ _assert_total()
 #: invented here (B15).
 #:
 #: **`+ 2` is FastMCP's own client's connect sequence, not a protocol
-#: constant** (DESIGN.md:395-403). The limiter counts every MCP request,
+#: constant** (DESIGN.md:414-422). The limiter counts every MCP request,
 #: not just tool calls, and the two are `server/discover` plus
 #: `tools/list`. **A client whose connect sequence is heavier burns
 #: more, and this sizing then UNDER-PROVISIONS and refuses real tool
@@ -143,7 +143,7 @@ _assert_total()
 #: design, not established here.
 DESIRED_TOOL_CALLS_PER_BURST: Final = 10
 INBOUND_BURST_CAPACITY: Final = DESIRED_TOOL_CALLS_PER_BURST + 2
-#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -154,7 +154,7 @@ INBOUND_MAX_REQUESTS_PER_SECOND: Final = 5.0
 
 #: The `client_id` a caller with no access token is billed to. stdio has
 #: no token and thus no client id, but it has exactly one caller, so one
-#: bucket is correct there. **DESIGN.md:413-416 calls that REASONING,
+#: bucket is correct there. **DESIGN.md:432-435 calls that REASONING,
 #: not measurement** - every limiter arm was run in-memory or over HTTP
 #: and the limiter has never been exercised on stdio at all.
 ANONYMOUS_CLIENT_ID: Final = "anonymous"
@@ -234,7 +234,7 @@ def build_token_verifier(settings: Settings) -> StaticTokenVerifier | None:
     """Build the `StaticTokenVerifier` from `JOBVITE_HTTP_TOKENS`.
 
     **Returns `None` on stdio, which is not the same as an empty
-    verifier.** DESIGN.md:844-848 makes stdio unauthenticated by design;
+    verifier.** DESIGN.md:897-901 makes stdio unauthenticated by design;
     a verifier holding no tokens would refuse every call on a transport
     the design says is fully authorised.
 
@@ -281,7 +281,7 @@ def rate_limit_client_id(context: MiddlewareContext[Any]) -> str:
     with it unset `_get_client_identifier` returns the literal string
     `"global"` (`rate_limiting.py:157`) despite the docstring implying
     per-client. One noisy integrator would then throttle everyone,
-    which is DESIGN.md:392-394's first constraint and the defect the
+    which is DESIGN.md:411-413's first constraint and the defect the
     per-client test exists for.
 
     Args:
@@ -307,7 +307,7 @@ class RequestIdMiddleware(Middleware):
     **The transport half of `resolve_request_id`.** `audit.py` owns the
     validation - an inbound `X-Request-ID` is echoed only if it is a
     valid UUIDv4, and anything else is discarded and replaced (C7-T1,
-    DESIGN.md:1797). Nothing reached that function from a header
+    DESIGN.md:1865). Nothing reached that function from a header
     before this class: `get_http_headers` is the only place the header
     exists, and it is an HTTP-transport dependency.
 
@@ -359,7 +359,7 @@ def build_middleware(settings: Settings) -> list[Middleware]:
     return [
         RequestIdMiddleware(),
         TimingMiddleware(),
-        # `include_payloads=False` is C2-I1's value (DESIGN.md:1732)
+        # `include_payloads=False` is C2-I1's value (DESIGN.md:1800)
         # and is passed EXPLICITLY. The framework's default is also
         # `False` today, so this keyword changes no behaviour right
         # now - it is here so that a framework default flipping, or
@@ -403,7 +403,7 @@ def apply_tool_scopes(server: FastMCP[Any], settings: Settings) -> None:
 
     **`require_scopes` removes an unauthorised tool from `tools/list`
     entirely, and a direct call returns "Unknown tool" rather than a
-    permission error** (DESIGN.md:836-839). Good behaviour, confusing
+    permission error** (DESIGN.md:889-892). Good behaviour, confusing
     failure mode; the README documents it or every support conversation
     starts in the wrong place.
 
@@ -411,7 +411,7 @@ def apply_tool_scopes(server: FastMCP[Any], settings: Settings) -> None:
     an optimisation.** `_RequireScopes.__call__` returns `False` for an
     absent token (`authorization.py:76-77`), and stdio has no token at
     all, so applying it there would hide every tool on the transport
-    DESIGN.md:844-848 declares fully authorised.
+    DESIGN.md:897-901 declares fully authorised.
 
     Args:
         server: The instance whose tools are already registered.
@@ -481,7 +481,7 @@ class BodySizeLimitMiddleware:
     closed - "every entry is a verbatim row of `error-contract.md`;
     nothing here is minted locally" - and that table has **no 413 row**
     at all. Choosing 413 means minting `/problems/payload-too-large`,
-    and DESIGN.md:510-511 makes a published `type` URI a contract owed
+    and DESIGN.md:541-542 makes a published `type` URI a contract owed
     forever, which is exactly the invention the registry is closed
     against. ADR-0031 already ruled this once, for the refused-approval
     condition: **add the row's use, not a new slug.**

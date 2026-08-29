@@ -1,4 +1,4 @@
-"""The dual-era approval guard for the one write (DESIGN.md:1049-1130).
+"""The dual-era approval guard for the one write (DESIGN.md:1102-1183).
 
 **WHAT THIS MODULE ESTABLISHES, STATED EXACTLY.** It establishes that
 *the server requires an approval response from the host and refuses to
@@ -8,11 +8,11 @@ auto-respond to an elicitation with no person present - Claude Code
 documents a hook that does exactly this - and the MCP specification
 places human-in-the-loop on the host, not on the server. That is
 **C4-S1**, a **High residual** which is **not mitigable server-side**
-(DESIGN.md:1754, ADR-0009). The honest claim is the one in the first
+(DESIGN.md:1822, ADR-0009). The honest claim is the one in the first
 sentence and there is no stronger one available.
 
 **TWO MECHANISMS, EXACTLY COMPLEMENTARY, AND A SINGLE-MECHANISM GUARD IS
-BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1080-1086, executed at
+BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1133-1139, executed at
 `FASTMCP-SPIKE-4.md:2118-2143`):
 
 | Era | MRTR | `ctx.elicit()` |
@@ -55,7 +55,7 @@ convenience of the fake and not an observation about the framework.
 
 **AN UNIDENTIFIABLE ERA REFUSES.** The discriminator is correct for the
 two eras that have been measured; a third case exists - the version
-absent, or an era nobody has seen - and DESIGN.md:1126-1130 rules that
+absent, or an era nobody has seen - and DESIGN.md:1179-1183 rules that
 it must not degrade quietly. There is no weaker fallback to reach for
 now that the confirmation token is cut (§7.6), so the rule is explicit:
 **refuse, and log the observed value**, so an operator learns approval
@@ -63,7 +63,7 @@ could not be established from a log line rather than from a candidate's
 inbox.
 
 **THE GUARD CHECKS THE ACTION AND THE VALUE, AND THE CONJUNCTION IS NOT
-OPTIONAL** (DESIGN.md:1075-1078). An *accepted* elicitation carrying
+OPTIONAL** (DESIGN.md:1128-1131). An *accepted* elicitation carrying
 `approve: false` is still an acceptance, so
 `action == "accept" and content.get("approve") is True` is the whole
 test and either half alone admits a refusal as an approval.
@@ -72,7 +72,7 @@ test and either half alone admits a refusal as an approval.
 A tool cannot swallow the era guard - returning an `InputRequiredResult`
 merely constructs an object, and the era check fires in FastMCP's
 result-serialization layer *after* the tool has returned, outside any
-scope a `try/except` in the tool controls (DESIGN.md:1098-1106). That
+scope a `try/except` in the tool controls (DESIGN.md:1151-1159). That
 protects the **first leg only**. A tool that reaches its second leg and
 mis-validates the answer is on its own, which is what the conjunction
 above exists for.
@@ -97,7 +97,7 @@ from fast_mcp_jobvite.utils.constraints import InboundModel
 #: The sessionless era, and the tuple FastMCP's own guard compares
 #: against (`FASTMCP-SPIKE-4.md:2085`). MRTR is available here and
 #: `ctx.elicit()` raises.
-#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -107,10 +107,10 @@ COVERAGE_ROLE: Final = "approval"
 MODERN_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2026-07-28",)
 
 #: The handshake era. `ctx.elicit()` is available here and MRTR raises
-#: on **every** arm including approve (DESIGN.md:1085-1086).
+#: on **every** arm including approve (DESIGN.md:1138-1139).
 #:
 #: **THIS TUPLE IS DELIBERATELY NOT "everything that is not modern".**
-#: DESIGN.md:1126-1130 requires an unrecognised version to REFUSE rather
+#: DESIGN.md:1179-1183 requires an unrecognised version to REFUSE rather
 #: than fall through to whichever branch happens to be last, and an
 #: `else` would silently hand a future era to `ctx.elicit()` on the
 #: strength of never having been measured.
@@ -190,30 +190,30 @@ class ApprovalMechanism(enum.StrEnum):
     """Which approval path produced the response (ADR-0021).
 
     **The set is CLOSED**, for the reason `error-contract.md`'s registry
-    is closed (DESIGN.md:510-511): a value emitted into an audit record
+    is closed (DESIGN.md:541-542): a value emitted into an audit record
     is a contract, and an open string invites a fourth spelling of the
     first three. ADR-0021 defines exactly these three and §8's
     audit-event case asserts the emitted value is one of them.
 
-    **`SAMPLING` NAMES THE MRTR PATH, AND THAT IS A DEFECT IN THE CLOSED
-    SET RATHER THAN A CHOICE MADE HERE.** The sessionless path is Multi
-    Round-Trip Requests - `InputRequiredResult` plus
-    `ctx.input_responses` - and is not sampling in the MCP sense at all.
-    ADR-0021's own context paragraph describes §7.5 as *"elicitation on
-    one era, sampling with `ctx.input_responses` on the other"*, which
-    is where the wrong noun entered, and the vocabulary it then closed
-    has no slot for MRTR. The set is closed by an applied ADR against a
-    frozen design, so this unit emits the value the contract names and
-    raises the mismatch as **ADR-0028 (Proposed)** rather than inventing
-    a fourth string the audit reader has never been told about.
+    **THE SESSIONLESS MEMBER IS `MRTR`, AND IT WAS `SAMPLING` UNTIL
+    ADR-0028.** The path is Multi Round-Trip Requests -
+    `InputRequiredResult` plus `ctx.input_responses` - and is not
+    sampling in the MCP sense at all; this server has no MCP sampling
+    path to name. ADR-0021's context paragraph described §7.5 as
+    *"elicitation on one era, sampling with `ctx.input_responses` on
+    the other"*, which is where the wrong noun entered, and the
+    vocabulary it closed then had no slot for MRTR. U10 emitted the
+    contract's value and raised the mismatch rather than inventing a
+    fourth string the audit reader had never been told about.
+    ADR-0028 renamed the member and kept the set closed at three, so
+    the value and the mechanism now agree. The set did not grow.
     """
 
     #: `ctx.elicit()` answered - the handshake era's path.
     ELICITATION = "elicitation"
-    #: The MRTR second leg answered - the sessionless era's path. See
-    #: the class docstring and ADR-0028: the name is the contract's, not
-    #: the mechanism's.
-    SAMPLING = "sampling"
+    #: The MRTR second leg answered - the sessionless era's path.
+    #: Renamed from `SAMPLING` by ADR-0028; see the class docstring.
+    MRTR = "mrtr"
     #: No approval path could run at all: no client handler, or an era
     #: this server does not recognise. Always a refusal.
     NO_HANDLER = "no_handler"
@@ -222,13 +222,24 @@ class ApprovalMechanism(enum.StrEnum):
 class ApprovalState(enum.StrEnum):
     """What the approval response said.
 
-    **ADR-0021 explicitly does NOT settle this vocabulary** - it records
+    **ADR-0021 explicitly did NOT settle this vocabulary** - it recorded
     `approval_state`'s own contents as a second gap in the same
-    paragraph and declines to fold it in, because one ADR resolving two
+    paragraph and declined to fold it in, because one ADR resolving two
     things is how the half nobody was looking at ships unreviewed
-    (ADR-0017, `U2-REPORT.md` D1). These three values are this unit's
-    choice, named here so they are visible as one, and they are reported
-    rather than presented as settled.
+    (ADR-0017, `U2-REPORT.md` D1). U10 chose the values below and
+    reported them rather than presenting them as settled. **ADR-0033
+    then settled them**: the set is CLOSED, the design names it, and a
+    fifth value is an ADR.
+
+    **`PENDING` and `UNAVAILABLE` must not be collapsed.** One is an
+    abandoned conversation and the other a conversation that never
+    started, and collapsing them makes an abandoned approval
+    indistinguishable from an unconfigured host in the only record
+    either leaves.
+
+    The prose above names no count on purpose. A number here is a second
+    statement of a set the members below already are, and it goes stale
+    on the change that adds one.
     """
 
     #: `action == "accept"` **and** `approve is True`. The only value
@@ -262,7 +273,7 @@ class ApprovalPending:
     #: produces a pending result - and it is carried rather than assumed
     #: at the call site so the audit record on this leg reads the same
     #: field as the audit record on the next one.
-    mechanism: ApprovalMechanism = ApprovalMechanism.SAMPLING
+    mechanism: ApprovalMechanism = ApprovalMechanism.MRTR
 
 
 @dataclasses.dataclass(frozen=True)
@@ -341,7 +352,7 @@ def _approved_by_conjunction(response: object) -> bool:
 
     Both halves, always. An accepted elicitation carrying
     `approve: false` is still an acceptance, and an action check alone
-    would admit it (DESIGN.md:1075-1078).
+    would admit it (DESIGN.md:1128-1131).
 
     `is True` rather than a truth test: a JSON `"true"`, a `1` or a
     non-empty dict are all truthy and none of them is the boolean the
@@ -372,7 +383,7 @@ def build_approval_message(
 
     **IT MUST NAME THE EMAIL AND NOT ONLY THE RECORD**, and this is the
     one place the strongest gate can be satisfied honestly and still
-    produce the outcome it exists to prevent (DESIGN.md:1061-1071). An
+    produce the outcome it exists to prevent (DESIGN.md:1114-1124). An
     approver shown *"create candidate Jane Doe"* approves a database row
     and thereby authorises **an email to Jane Doe that nobody
     mentioned**. `ai/agent-guardrails.md:70-73` lists *"outbound message
@@ -474,7 +485,7 @@ async def resolve_approval(
         approved = _approved_by_conjunction(response)
         return ApprovalDecision(
             approved=approved,
-            mechanism=ApprovalMechanism.SAMPLING,
+            mechanism=ApprovalMechanism.MRTR,
             state=ApprovalState.APPROVED if approved else ApprovalState.REFUSED,
             protocol_version=version,
         )
@@ -486,7 +497,7 @@ async def resolve_approval(
         # action, and `.approve is True` is the value half. A
         # `isinstance` check alone would admit an acceptance carrying
         # `approve: false`, which is the arm people drop
-        # (DESIGN.md:1075-1078).
+        # (DESIGN.md:1128-1131).
         approved = (
             isinstance(result, AcceptedElicitation)
             and isinstance(result.data, ApprovalAnswer)
@@ -499,7 +510,7 @@ async def resolve_approval(
             protocol_version=version,
         )
 
-    # THE THIRD CASE. DESIGN.md:1126-1130: the version is absent, or is
+    # THE THIRD CASE. DESIGN.md:1179-1183: the version is absent, or is
     # an era nobody has measured. Refuse, and LOG THE OBSERVED VALUE, so
     # an operator learns that approval could not be established from a
     # log line rather than from a candidate's inbox.

@@ -1,4 +1,4 @@
-"""U7 - resilience: DESIGN.md:342-364, :373-375, :601-620.
+"""U7 - resilience: DESIGN.md:354-383, :373-375, :601-620.
 
 §8 #13, #21 and #23.
 
@@ -8,7 +8,7 @@ credibility. Everything asserted here is executed; what is NOT executed
 is stated in `docs/worklogs/U7-IMPL-REPORT.md` rather than left to be
 inferred from the presence of a file called `test_resilience.py`.
 
-**THE ONE CASE A SINGLE CALL CANNOT SATISFY.** DESIGN.md:1313-1315 says
+**THE ONE CASE A SINGLE CALL CANNOT SATISFY.** DESIGN.md:1374-1376 says
 of §8 #13 that "a single-call version of this test passes against a
 module global, which is the bug `request_id_var` exists to prevent, so
 the concurrent arm is the case and the single call is not sufficient".
@@ -26,7 +26,7 @@ at all, so the positive control - repeated 5xx DOES trip it - sits
 beside it and is what makes the negative arm mean anything.
 
 **§8 #21 IS ASSERTED WITH A ROW COUNTER**, never by reading
-configuration. DESIGN.md:350-353 records the measurement it exists to
+configuration. DESIGN.md:362-365 records the measurement it exists to
 prevent - one `create_candidate` call, **four rows created** - so the
 assertion is how many requests reached the transport, which is the same
 quantity the spike counted.
@@ -189,7 +189,7 @@ def counting(responses: list[httpx2.Response | Exception]) -> tuple[Handler, lis
 
 
 def test_the_timeout_is_per_phase_and_none_of_it_is_an_sdk_default() -> None:
-    """DESIGN.md:346: explicit and per-phase, no SDK default, no scalar.
+    """DESIGN.md:358: explicit and per-phase, no SDK default, no scalar.
 
     Asserted on the four phases separately rather than on the object,
     because `httpx2.Timeout(5.0)` also produces a `Timeout` and would
@@ -212,7 +212,7 @@ def test_the_timeout_is_per_phase_and_none_of_it_is_an_sdk_default() -> None:
 def test_an_attempt_timeout_is_clamped_to_what_the_budget_has_left() -> None:
     """A read timeout may not outlive the invocation's total budget.
 
-    This is the join between DESIGN.md:346 and DESIGN.md:373-375: the
+    This is the join between DESIGN.md:358 and DESIGN.md:392-394: the
     per-phase read timeout is 30 seconds and the budget can be smaller,
     in which case the LAST attempt must not be allowed to buy a fresh
     30 seconds. Without the clamp the budget is an upper bound on when
@@ -229,7 +229,7 @@ def test_an_attempt_timeout_is_clamped_to_what_the_budget_has_left() -> None:
 
 
 # ======================================================================
-# THE TOTAL OUTBOUND BUDGET (DESIGN.md:373-375). It did not exist before
+# THE TOTAL OUTBOUND BUDGET (DESIGN.md:392-394). It did not exist before
 # this unit; `config.py`'s `outbound_rate_limit` is a DIFFERENT quantity
 # and satisfying one does not satisfy the other.
 # ======================================================================
@@ -241,7 +241,7 @@ def test_the_budget_is_not_the_rate_limit_and_they_are_different_units() -> None
     A rate limit is requests per minute; a budget is a time bound on one
     invocation. Six requests per minute is satisfied perfectly by ONE
     request that never returns, which is the unbounded wait
-    DESIGN.md:373-375 exists to prevent. This case exists so the two
+    DESIGN.md:392-394 exists to prevent. This case exists so the two
     cannot be quietly collapsed by a later edit that notices they are
     both "limits".
     """
@@ -286,7 +286,7 @@ def test_the_deadline_does_not_leak_out_of_its_scope() -> None:
 
 
 async def test_a_slow_upstream_becomes_a_typed_503_not_an_unbounded_wait() -> None:
-    """DESIGN.md:373-375's promise, driven end to end.
+    """DESIGN.md:392-394's promise, driven end to end.
 
     The handler is slow AND failing, so the client retries; the budget
     runs out mid-retry and the caller gets
@@ -310,7 +310,7 @@ async def test_a_slow_upstream_becomes_a_typed_503_not_an_unbounded_wait() -> No
     problem = problem_from_exception(caught.value, RID_A)
     assert problem["type"] == "/problems/service-unavailable"
     assert problem["status"] == 503
-    # DISTINGUISHED BY DETAIL, not by a minted type (DESIGN.md:355-358).
+    # DISTINGUISHED BY DETAIL, not by a minted type (DESIGN.md:367-370).
     assert "not an open circuit breaker" in problem["detail"]
 
 
@@ -340,7 +340,7 @@ async def test_an_exhausted_budget_does_not_trip_the_breaker() -> None:
 async def test_a_whole_scan_shares_one_budget_rather_than_one_per_page() -> None:
     """The amputation harness found this missing (row A2).
 
-    DESIGN.md:373-375 bounds "all attempts for ONE TOOL INVOCATION". A
+    DESIGN.md:392-394 bounds "all attempts for ONE TOOL INVOCATION". A
     scan of a 1,240-record resource makes 25 requests, so a budget
     opened per REQUEST would bound each page and bound the invocation at
     `pages x seconds` - unbounded in exactly the direction this exists
@@ -413,7 +413,7 @@ def test_the_retry_stop_caps_both_attempts_and_elapsed_time() -> None:
 
 
 # ======================================================================
-# RETRY (DESIGN.md:347-349). Connection errors, timeouts and 5xx ONLY.
+# RETRY (DESIGN.md:359-361). Connection errors, timeouts and 5xx ONLY.
 # ======================================================================
 
 
@@ -430,7 +430,7 @@ async def test_a_5xx_is_retried_to_the_attempt_cap() -> None:
 
 
 async def test_a_timeout_is_retried_and_a_transport_error_is_retried() -> None:
-    """DESIGN.md:347-349's "connection errors, timeouts" arm.
+    """DESIGN.md:359-361's "connection errors, timeouts" arm.
 
     Both httpx2 shapes are driven, because `_should_retry` selects on
     `JobviteUnavailableError` and a mapping that lost one of the two
@@ -513,7 +513,7 @@ def test_the_backoff_is_exponential_with_jitter() -> None:
 
 # ======================================================================
 # §8 #21 - `create_candidate` excluded from retry BY CONSTRUCTION,
-# asserted with a ROW COUNTER (DESIGN.md:350-353, measured: one call,
+# asserted with a ROW COUNTER (DESIGN.md:362-365, measured: one call,
 # FOUR rows created).
 # ======================================================================
 
@@ -521,7 +521,7 @@ def test_the_backoff_is_exponential_with_jitter() -> None:
 async def test_a_write_that_times_out_reaches_the_transport_exactly_once() -> None:
     """§8 #21. **The assertion is the row count**, not a config read.
 
-    DESIGN.md:353 records the measurement: one `create_candidate` call,
+    DESIGN.md:365 records the measurement: one `create_candidate` call,
     **four rows created**, because a retry re-issued a write that had
     already succeeded. A timeout is the worst case - the write may well
     have landed and we cannot know - so this is the shape asserted.
@@ -554,7 +554,7 @@ async def test_the_same_failure_on_a_read_IS_retried() -> None:
 
 
 def test_the_exclusion_is_a_method_set_and_not_a_tool_name_list() -> None:
-    """By construction (DESIGN.md:350) rather than by configuration.
+    """By construction (DESIGN.md:362) rather than by configuration.
 
     A hand-kept list of exempt TOOL NAMES is blind to the write tool
     nobody added to it. A method set is not: a tool written next year
@@ -567,13 +567,13 @@ def test_the_exclusion_is_a_method_set_and_not_a_tool_name_list() -> None:
 
 
 # ======================================================================
-# 429 (DESIGN.md:361-364). Retried, then mapped to 503, honouring
+# 429 (DESIGN.md:373-383). Retried, then mapped to 503, honouring
 # `Retry-After`. NEVER OBSERVED against Jobvite - see the report.
 # ======================================================================
 
 
 async def test_a_429_is_retried_and_then_mapped_to_503() -> None:
-    """DESIGN.md:361-364, and the type change is the point.
+    """DESIGN.md:373-383, and the type change is the point.
 
     A 429 that surfaced as `/problems/external-service-error` 502 would
     tell a caller the upstream errored when it asked us to slow down.
@@ -680,7 +680,7 @@ def test_a_retry_after_we_cannot_trust_is_ignored_rather_than_guessed() -> None:
 
 
 # ======================================================================
-# THE BREAKER (DESIGN.md:354-358, §8 #23). BOTH ARMS.
+# THE BREAKER (DESIGN.md:366-370, §8 #23). BOTH ARMS.
 # ======================================================================
 
 
@@ -796,7 +796,7 @@ async def test_a_non_outage_does_not_RESET_the_breakers_accumulated_failures() -
             await c.aclose()
         assert jc._JOBVITE_BREAKER.failure_count == threshold - 1  # noqa: SLF001
 
-    # ARM 1 - a 4xx. DESIGN.md:354-355 says it "must not trip it"; it
+    # ARM 1 - a 4xx. DESIGN.md:366-367 says it "must not trip it"; it
     # must not HEAL it either, and those are different behaviours.
     await drive_to_one_below_threshold()
     handler, _ = counting([httpx2.Response(404, content=b'{"status":{"code":404}}')])
@@ -922,7 +922,7 @@ async def test_a_write_that_meets_a_5xx_surfaces_502_and_not_an_internal_error()
     detail read `An unexpected _RetryableUpstream occurred.`
 
     Three defects from one cause, all asserted here: the status
-    (DESIGN.md:346-349 requires 502 for a Jobvite 5xx, and 500 is the
+    (DESIGN.md:358-361 requires 502 for a Jobvite 5xx, and 500 is the
     one status a caller must not diagnose upstream), the private class
     name reaching an API consumer (`backend/error-handling.md:383`),
     and the breaker never seeing the failure at all.
@@ -1046,7 +1046,7 @@ async def test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping() -> Non
 
 
 async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:
-    """DESIGN.md:355-358: same 503, same type URI, different `detail`.
+    """DESIGN.md:367-370: same 503, same type URI, different `detail`.
 
     "An earlier revision minted two slugs for this. The distinction is
     real and worth making; a new contract-bearing type URI is not the
@@ -1077,13 +1077,13 @@ async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:
     assert outage_problem["status"] == open_problem["status"] == 503
     assert outage_problem["detail"] != open_problem["detail"]
     assert open_problem["detail"] == jc.UNAVAILABLE_BREAKER_DETAIL
-    # The `retry_after` HINT (DESIGN.md:358), on the open-breaker arm.
+    # The `retry_after` HINT (DESIGN.md:370), on the open-breaker arm.
     assert open_problem["retry_after"] is not None
     assert open_problem["retry_after"] > 0
 
 
 async def test_every_breaker_transition_is_logged_with_direction_and_counter() -> None:
-    """DESIGN.md:614-616 and `backend/resilience.md:224-226`.
+    """DESIGN.md:654-656 and `backend/resilience.md:224-226`.
 
     All three directions are driven in one case, because the `open ->
     half_open` line is the one that only exists at all because
@@ -1160,7 +1160,7 @@ async def test_a_breaker_transition_line_carries_no_url() -> None:
 
 
 # ======================================================================
-# §8 #13 - THE CONCURRENT CASE. DESIGN.md:1313-1315: a single call
+# §8 #13 - THE CONCURRENT CASE. DESIGN.md:1374-1376: a single call
 # PASSES against a module global, so a single call is not the case.
 # ======================================================================
 
@@ -1224,7 +1224,7 @@ async def test_two_concurrent_invocations_each_log_their_own_request_id() -> Non
 async def test_no_retry_line_carries_a_url() -> None:
     """The same §8 case's second half, on the route that matters.
 
-    DESIGN.md:618-620: "a retry line is exactly where an unredacted URL
+    DESIGN.md:658-660: "a retry line is exactly where an unredacted URL
     would otherwise reach a log", because the v1 `jobFeed` URL carries
     `sc=` in its query string.
     """
@@ -1264,7 +1264,7 @@ async def test_no_retry_line_carries_a_url() -> None:
 #
 # `scan()` had NO bound of any kind. R5 measured it against a server
 # that ignores `start` and aborted its own probe at 200 requests.
-# `DESIGN.md:486-487` removed `total` as a loop condition and named no
+# `DESIGN.md:505-506` removed `total` as a loop condition and named no
 # replacement, so U6 implemented it faithfully and unbounded at once.
 #
 # **THE OUTBOUND BUDGET DOES NOT FIX IT, and that is measured rather
@@ -1534,7 +1534,7 @@ async def test_neither_bound_fires_on_healthy_paging() -> None:
 async def test_a_fully_duplicate_page_is_still_not_a_short_page() -> None:
     """The interaction U6 warned about, kept true by the new break.
 
-    DESIGN.md:465-468's clamping hypothesis means a boundary record
+    DESIGN.md:484-487's clamping hypothesis means a boundary record
     arrives twice, and U6's comment at the short-page exit says a
     "fully duplicate full-length page is not a short page, and stopping
     on it would end a scan early". The zero-progress break stops on
@@ -1605,7 +1605,7 @@ def test_the_scan_bounds_probe_still_reproduces_its_measurements() -> None:
 def test_the_breaker_rejection_test_still_passes_against_the_pinned_library() -> None:
     """`scripts/probe-breaker-call-path.py`, run rather than cited.
 
-    DESIGN.md:617 requires half-open expiry on the CALL PATH. That was
+    DESIGN.md:657 requires half-open expiry on the CALL PATH. That was
     settled by measurement against `circuitbreaker` 2.1.3, and a
     measurement recorded only in prose decays into a CLAIM about one.
     Running the probe here means a bump that moves expiry onto a

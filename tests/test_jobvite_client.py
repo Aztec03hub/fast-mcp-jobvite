@@ -1,4 +1,4 @@
-"""DESIGN.md §8 case #1 and U4's contract (DESIGN.md:308-340).
+"""DESIGN.md §8 case #1 and U4's contract (DESIGN.md:308-352).
 
 **Every assertion here is on BEHAVIOUR, not on source text.** U3's
 amputation harness found a test that still passed with the behaviour
@@ -9,14 +9,14 @@ AST (`test_no_module_grep_...` below is the one place, and it is
 checking for the *absence* of a construct, not for prose).
 
 **A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite** (DESIGN.md:1258-1260). The
+self-consistent, not that it speaks Jobvite** (DESIGN.md:1319-1321). The
 five recorded fixtures are the ground truth and are asserted byte-exact.
 The two malformed fixtures are INVENTED (`JOBVITE-CONTRACT.md` §1), so
 they are asserted to fail loudly and are given no ground-truth weight:
 their bytes are not pinned.
 
 Transport substitution is `httpx2`'s built-in `MockTransport`
-(DESIGN.md:1359-1360, ADR-0007). No third-party mocking library is used.
+(DESIGN.md:1420-1421, ADR-0007). No third-party mocking library is used.
 """
 
 from __future__ import annotations
@@ -124,7 +124,7 @@ def test_the_recorded_200_with_401_body_fixture_is_byte_exact() -> None:
 
 
 async def test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success() -> None:
-    """DESIGN.md:332-333 arm 1, against the recorded fixture VERBATIM.
+    """DESIGN.md:344-345 arm 1, against the recorded fixture VERBATIM.
 
     This is the whole reason the module exists. A client branching on
     `response.status_code` returns this body as a success, finds no
@@ -136,7 +136,7 @@ async def test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success() -> None:
         with pytest.raises(JobviteUpstreamError) as caught:
             await c.request("GET", "/candidate")
 
-    # Jobvite's OWN status is preserved (DESIGN.md:532-534)...
+    # Jobvite's OWN status is preserved (DESIGN.md:572-574)...
     assert caught.value.upstream_status == 401
     assert "Invalid api/secret" in caught.value.upstream_message
     # ...and it maps to the registry's row, NOT to a 401 for the caller.
@@ -149,7 +149,7 @@ async def test_positive_control_a_200_with_status_code_200_SUCCEEDS() -> None:
     """The paired positive control for the case above.
 
     A guard that refuses everything is not a guard
-    (DESIGN.md:1370-1372). Without this, an `evaluate_response` that
+    (DESIGN.md:1431-1433). Without this, an `evaluate_response` that
     raised on every input would pass the C5-S1 case. This body is
     SYNTHETIC - no success body has ever been observed
     (`JOBVITE-CONTRACT.md` §3.2) - so it is a hypothesis and carries no
@@ -247,7 +247,7 @@ async def test_a_json_envelope_401_on_an_http_401_fails() -> None:
 
 
 async def test_a_tomcat_html_error_page_fails_loudly() -> None:
-    """`error_task_400.html` - the third encoding (DESIGN.md:335-337).
+    """`error_task_400.html` - the third encoding (DESIGN.md:347-349).
 
     HTML is not well-formed XML, so `defusedxml` refuses it; the point
     is that it becomes an error rather than being decoded, sniffed, or
@@ -370,7 +370,7 @@ async def test_valid_json_that_is_not_an_object_fails() -> None:
 
 
 # ======================================================================
-# THE INVARIANT'S SECOND ARM, in isolation. DESIGN.md:332-333 says BOTH.
+# THE INVARIANT'S SECOND ARM, in isolation. DESIGN.md:344-345 says BOTH.
 # ======================================================================
 
 
@@ -424,7 +424,7 @@ def test_a_boolean_status_code_is_not_read_as_an_integer() -> None:
 
 
 # ======================================================================
-# HR-XML: a HARDENED FALLBACK, not a handled case (DESIGN.md:337-340).
+# HR-XML: a HARDENED FALLBACK, not a handled case (DESIGN.md:349-352).
 # ======================================================================
 
 
@@ -531,7 +531,7 @@ async def test_the_jobfeed_route_refuses_without_a_company_id() -> None:
     returned status none: ..."* - telling the caller the upstream failed
     when the deployment is misconfigured and Jobvite was never called.
 
-    `errors.py` has no configuration row and DESIGN.md:510-511 forbids
+    `errors.py` has no configuration row and DESIGN.md:541-542 forbids
     minting a slug, so the honest answer is an exception outside the
     hierarchy, which ADR-0017 routes to `/problems/internal-error` 500.
     **The problem object is asserted, not just the exception class**:
@@ -575,7 +575,7 @@ async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
 
     The absence assertion has a paired positive below: against a silent
     logger every "the secret is not in the log" test passes vacuously,
-    which is the failure mode DESIGN.md:1370-1372 pairs controls to
+    which is the failure mode DESIGN.md:1431-1433 pairs controls to
     prevent.
     """
     records: list[str] = []
@@ -652,7 +652,7 @@ async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
     # httpx2's. --
     detail = caught.value.detail
     assert detail == jc.UNAVAILABLE_TIMEOUT_DETAIL
-    # The negative arm DESIGN.md:356-360 requires: `detail` still
+    # The negative arm DESIGN.md:368-372 requires: `detail` still
     # distinguishes an upstream failure from an open breaker, so the fix
     # did not make it useless in the course of making it safe.
     assert "not an open circuit breaker" in detail
@@ -786,7 +786,7 @@ async def test_the_jar_is_cleared_even_when_the_call_RAISED() -> None:
 
 
 def test_the_module_declares_an_explicit_per_phase_timeout() -> None:
-    """DESIGN.md:346 - "explicit and per-phase.
+    """DESIGN.md:358 - "explicit and per-phase.
 
     No SDK default, no single scalar".
 
@@ -805,7 +805,7 @@ def test_the_module_declares_an_explicit_per_phase_timeout() -> None:
 
 
 def test_no_third_party_mocking_library_is_imported_anywhere_in_the_suite() -> None:
-    """ADR-0007 and DESIGN.md:1359-1360, enforced by walking the AST.
+    """ADR-0007 and DESIGN.md:1420-1421, enforced by walking the AST.
 
     Not a grep: a grep for "respx" matches this docstring, which is
     exactly the failure U3's amputation found - a test that asserted its

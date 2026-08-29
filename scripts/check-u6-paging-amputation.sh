@@ -147,7 +147,7 @@ PY
 
 # ---------------------------------------------------------------------------
 # A1 - DE-DUPLICATION IS GONE ENTIRELY. Every record a clamped page
-# re-serves is returned again. DESIGN.md:465-466 deleted outright.
+# re-serves is returned again. DESIGN.md:484-485 deleted outright.
 # ---------------------------------------------------------------------------
 amputate "A1  the seen set does not exist; nothing is de-duplicated" \
   "$CLIENT" \
@@ -173,7 +173,7 @@ amputate "A2  the completeness check never runs at all" \
             return False'
 
 # ---------------------------------------------------------------------------
-# A3 - THE OPPOSITE AMPUTATION, and the one DESIGN.md:474 names. The
+# A3 - THE OPPOSITE AMPUTATION, and the one DESIGN.md:493 names. The
 # check fires on EVERY call, so the default capped path reports an
 # anomaly and everyone learns to ignore the alarm. A suite with only
 # arm one survives this completely.
@@ -205,7 +205,7 @@ amputate "A4  the scan issues exactly one request and stops" \
 # ---------------------------------------------------------------------------
 # A5 - BASE-AGNOSTICISM IS GONE. Every scan starts at the vendor's
 # claimed base. On a 0-based server record zero is never requested,
-# which DESIGN.md:463-464 says is the one choice that silently loses a
+# which DESIGN.md:482-483 says is the one choice that silently loses a
 # record.
 # ---------------------------------------------------------------------------
 amputate "A5  every scan starts at the vendor's claimed base of 1" \
@@ -268,7 +268,7 @@ amputate "A7b the caller's limit does not truncate the result" \
 
 # ---------------------------------------------------------------------------
 # A8 - RECORDS WITHOUT AN ID ARE DROPPED. A silent under-read produced by
-# the de-duplication path, which is the failure DESIGN.md:465-468 warns
+# the de-duplication path, which is the failure DESIGN.md:484-487 warns
 # about arriving from the other side.
 # ---------------------------------------------------------------------------
 amputate "A8  records carrying no id are discarded" \

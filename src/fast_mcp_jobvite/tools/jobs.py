@@ -12,7 +12,7 @@ redaction, or red-team fencing content. It is the smallest end-to-end
 path through every cross-cutting mechanism on the least dangerous data
 class.
 
-**The IN-TOOL half of the result cap only** (DESIGN.md:469-477).
+**The IN-TOOL half of the result cap only** (DESIGN.md:488-496).
 `JOBVITE_MAX_RESULTS` is applied here to a single page's items, and
 the result reports `showing N of total` from the envelope's own
 `total` rather than truncating silently. **The
@@ -21,18 +21,18 @@ one behaviour is not built twice: U6 owns the outbound page cap and
 the `min()` that composes them, and does not re-implement this
 module's reporting string.
 
-**The error path returns, never raises** (DESIGN.md:536-540). Every
+**The error path returns, never raises** (DESIGN.md:576-580). Every
 typed failure becomes an RFC 9457 problem object carried in
 `ToolResult(structured_content=problem, is_error=True)`. Measured on
 this stack rather than assumed: a problem object returned that way
 reaches the wire **unvalidated against the output schema**, so the
 seven required members survive even though they satisfy no field of
-`JobSearchResult`. That is the property DESIGN.md:536-540 claims and
+`JobSearchResult`. That is the property DESIGN.md:576-580 claims and
 it is what makes a problem object the one error shape no
 configuration can distort.
 
 **`request_id` is stamped into `_meta`, not into the model**
-(DESIGN.md:629-637). `_meta` is the protocol's own channel and the
+(DESIGN.md:669-677). `_meta` is the protocol's own channel and the
 result validator never inspects it, whereas an undeclared top-level
 key in structured content is rejected outright.
 """
@@ -70,7 +70,7 @@ from ..services.jobvite_client import JOBFEED_PATH, JobviteClient
 from ..utils.constraints import InboundModel, JobviteIdentifier
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
-#: (DESIGN.md:624-627). `io.modelcontextprotocol/*` is reserved, and
+#: (DESIGN.md:664-667). `io.modelcontextprotocol/*` is reserved, and
 #: the spec's own `SERVER_INFO_META_KEY` is the precedent: server
 #: stamped, and documented as display and debugging only, never
 #: behaviour or security - which is exactly this value's class.
@@ -85,7 +85,7 @@ JOBS_PATH: Final = "/job"
 #:
 #: `JOBVITE_PAGINATION_START_BASE` is a SCALAR
 #: (`config.py:pagination_start_base`) and the client takes a per-route
-#: `Mapping` (DESIGN.md:478-480), so something has to name the routes
+#: `Mapping` (DESIGN.md:497-499), so something has to name the routes
 #: the scalar applies to. A list written beside the call site would be
 #: blind to the route nobody added to it - the defect this project has
 #: recorded seven times - so
@@ -172,18 +172,18 @@ def _to_job(raw: dict[str, Any]) -> Job:
 
 
 def build_result(payload: dict[str, Any], max_results: int) -> JobSearchResult:
-    """Apply the in-tool result cap to one page (DESIGN.md:469-477).
+    """Apply the in-tool result cap to one page (DESIGN.md:488-496).
 
     **Reports rather than truncates.** A capped result is a mismatch
-    against `total` **by design** - DESIGN.md:474-476's own worked
+    against `total` **by design** - DESIGN.md:493-495's own worked
     example is `showing 50 of 1,240` - so the cap is surfaced in the
     result's `summary` and is explicitly *not* an anomaly to be
-    logged. DESIGN.md:469-473 is emphatic that wiring a completeness
+    logged. DESIGN.md:488-492 is emphatic that wiring a completeness
     alarm to every call would fire it on the default path and train
     everyone to ignore it.
 
     **`total` comes from the envelope, never from `len(items)`.**
-    DESIGN.md:487-489: `total` is reported and never trusted as a loop
+    DESIGN.md:506-520: `total` is reported and never trusted as a loop
     condition. Counting the returned items instead would make
     `showing N of N` true on every call and delete the only signal
     that a page was capped.
@@ -191,7 +191,7 @@ def build_result(payload: dict[str, Any], max_results: int) -> JobSearchResult:
     Args:
         payload: The decoded Jobvite envelope.
         max_results: `JOBVITE_MAX_RESULTS`, the configured half of
-            DESIGN.md:436-438's `min(transport_cap,
+            DESIGN.md:455-457's `min(transport_cap,
             configured_result_cap)`. U6 adds the transport half.
 
     Returns:
@@ -218,7 +218,7 @@ def register(
     holds. The dispatch is a pair of calls rather than one function
     with two early returns, because `search_jobs` being disabled must
     not stop `get_job_feed` registering: the two tools take
-    **different credentials** (DESIGN.md:312-321), so a deployment
+    **different credentials** (DESIGN.md:312-333), so a deployment
     holding only the feed credential is a configuration
     `validate_settings` accepts and this function has to serve.
 
@@ -228,7 +228,7 @@ def register(
             `validate_settings`.
         client_factory: Builds the `JobviteClient` for one invocation.
             Substituted in tests to inject `httpx2.MockTransport`
-            (DESIGN.md:1359-1360). `None` uses the real client.
+            (DESIGN.md:1420-1421). `None` uses the real client.
     """
     _register_search_jobs(server, settings, client_factory=client_factory)
     _register_get_job_feed(server, settings, client_factory=client_factory)
@@ -243,7 +243,7 @@ def _register_search_jobs(
     """Register `search_jobs`, if it is enabled.
 
     **The gate is `settings.enabled_tools`, and it is checked here**
-    rather than inside the tool body: DESIGN.md:917-934 makes
+    rather than inside the tool body: DESIGN.md:970-987 makes
     registration the deploy-time control, and a tool that registers
     and then refuses is a tool a client can still see.
 
@@ -253,12 +253,12 @@ def _register_search_jobs(
             `validate_settings`.
         client_factory: Builds the `JobviteClient` for one invocation.
             Substituted in tests to inject `httpx2.MockTransport`
-            (DESIGN.md:1359-1360). `None` uses the real client.
+            (DESIGN.md:1420-1421). `None` uses the real client.
     """
     if SEARCH_JOBS not in settings.enabled_tools:
         return
 
-    # DESIGN.md:698-700's two spellings, and they agree with U1's
+    # DESIGN.md:751-753's two spellings, and they agree with U1's
     # `mcp_transport` literal by construction rather than by luck:
     # `Transport` is a StrEnum whose members are exactly `"stdio"` and
     # `"http"`, and `Literal["stdio", "http"]` is what config.py
@@ -302,11 +302,11 @@ def _register_search_jobs(
         # its own default, so `JOBVITE_MAX_RESULTS=200` moved one half
         # and not the other - and NO TEST COULD SEE IT, because each
         # half is correct in isolation. That is the exact shape
-        # DESIGN.md:434-436 warns about when it says neither unit owns
+        # DESIGN.md:453-455 warns about when it says neither unit owns
         # all of it.
         #
         # `company_id` is passed for the same reason and is latent
-        # today: only `jobFeed` needs it (DESIGN.md:320-321) and this
+        # today: only `jobFeed` needs it (DESIGN.md:332-333) and this
         # tool does not call that route. Wiring it here rather than
         # when U12 arrives keeps the factory's argument list a
         # description of the settings, not of the current caller.
@@ -331,6 +331,7 @@ def _register_search_jobs(
             api_secret=api_secret,
             company_id=settings.company_id,
             max_results=settings.max_results,
+            outbound_budget_seconds=settings.outbound_budget_seconds,
             start_base_overrides=(
                 None
                 if settings.pagination_start_base is None
@@ -411,7 +412,7 @@ def _register_search_jobs(
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:713-715). The warnings it can return are
+                # (DESIGN.md:766-768). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -511,22 +512,22 @@ def _to_feed_job(raw: dict[str, Any]) -> FeedJob:
 
 
 def build_feed_result(payload: dict[str, Any], max_results: int) -> JobFeedResult:
-    """Apply the in-tool result cap to a feed page (DESIGN.md:469-477).
+    """Apply the in-tool result cap to a feed page (DESIGN.md:488-496).
 
     The same shape as `build_result`, reading `JOB_FEED_ENVELOPE_KEY`
     where that one reads `JOBS_ENVELOPE_KEY` - **the whole of the
     difference between the two routes' envelopes** (§9 hazard 3).
 
     **`total` comes from the envelope, never from `len(items)`**
-    (DESIGN.md:487-489). Counting the returned items would make
+    (DESIGN.md:506-520). Counting the returned items would make
     `showing N of N` true on every call and delete the only signal
     that a page was capped.
 
     **THE TRANSPORT CAP IS NOT APPLIED HERE AND MUST NOT BE.** The
     1000-record `/v1/jobFeed` page cap is stated once, in the client
-    layer (DESIGN.md:434), and `services/jobvite_client.py` enforces
+    layer (DESIGN.md:453), and `services/jobvite_client.py` enforces
     it at `JOBFEED_PAGE_CAP`. This is the *configured result cap*, the
-    other half of DESIGN.md:436-438's `min(transport_cap,
+    other half of DESIGN.md:455-457's `min(transport_cap,
     configured_result_cap)`. Re-applying 1000 here would be a second
     copy of one number in a file that does not own it.
 
@@ -586,7 +587,7 @@ def _register_get_job_feed(
     """Register `get_job_feed`, if it is enabled.
 
     **The separate credential class, resolved once at registration**
-    (DESIGN.md:320-321). `feed_key`, `feed_secret` and `company_id`
+    (DESIGN.md:332-333). `feed_key`, `feed_secret` and `company_id`
     are a different class from `search_jobs`' `api_key`/`api_secret`,
     and `TOOL_REQUIREMENTS[GET_JOB_FEED]` already refuses a deployment
     that enables this tool without all three - so reaching the
@@ -630,7 +631,7 @@ def _register_get_job_feed(
         # (`jobvite_client.py:jobfeed_params`). Passing the v2 pair
         # would authenticate the feed with a credential the design
         # keeps separate precisely so the two can be scoped apart
-        # (DESIGN.md:320-321, §7.2).
+        # (DESIGN.md:332-333, §7.2).
         #
         # `company_id` IS NOT LATENT ON THIS PATH, unlike the
         # `search_jobs` factory: the route refuses without it, and the
@@ -641,6 +642,7 @@ def _register_get_job_feed(
             api_secret=feed_secret,
             company_id=company_id,
             max_results=settings.max_results,
+            outbound_budget_seconds=settings.outbound_budget_seconds,
             start_base_overrides=(
                 None
                 if settings.pagination_start_base is None

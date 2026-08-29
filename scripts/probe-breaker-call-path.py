@@ -3,7 +3,7 @@
 
 `STANDARDS.md:374-375` blesses `circuitbreaker ^2` and B37 requires one
 breaker per dependency using it, so the procedure is a **rejection test
-against one library**, not a survey. `DESIGN.md:617` states the single
+against one library**, not a survey. `DESIGN.md:657` states the single
 criterion:
 
     The breaker must evaluate transitions on the call path, not from a
@@ -50,7 +50,7 @@ have been read as a rejection. Arm 3's control used
 `loop.call_later`, and **asyncio callbacks capture the scheduling
 context**, so the "timer" transition saw the caller's `request_id`
 and the control passed when it had to fail. It uses `threading.Timer`
-now, which is the shape `DESIGN.md:617` actually describes: a
+now, which is the shape `DESIGN.md:657` actually describes: a
 transition running somewhere the invocation's ContextVar does not
 reach.
 
@@ -221,7 +221,7 @@ RECOVERY_SECONDS: float = 0.2
 class TimerDrivenBreaker:
     """THE POSITIVE CONTROL - a breaker that expires from a timer.
 
-    This is what `DESIGN.md:617` rejects, written out so the two arms
+    This is what `DESIGN.md:657` rejects, written out so the two arms
     above can be shown to fail against it. It flips itself half-open
     from a `threading.Timer`, which is the shape the design names: the
     transition runs somewhere the invocation's ContextVar does not
@@ -331,7 +331,7 @@ def arm_3_positive_control() -> str | None:
     Returns:
         Whatever `probe_request_id` held when the transition ran. The
         design's claim is that this is `None`; if it ever comes back
-        bound, the criterion in `DESIGN.md:617` is wrong and this probe
+        bound, the criterion in `DESIGN.md:657` is wrong and this probe
         is how we would find out. The `"<never fired>"` sentinel means
         the timer did not run at all and the arm measured nothing.
     """
@@ -395,13 +395,13 @@ def main() -> int:
     print(f"ARM 3  request_id visible to a TIMER-fired transition: {seen!r}")
     if seen is not None:
         print("       *** BROKEN CONTROL *** a timer transition saw a request id;")
-        print("           DESIGN.md:617's stated reason would then be wrong.")
+        print("           DESIGN.md:657's stated reason would then be wrong.")
         ok = False
     else:
         print("       PASS - the control fails exactly as the design predicts")
 
     verdict = "ADOPTED" if ok else "REJECTED"
-    print(f"\nVERDICT: circuitbreaker 2.x is {verdict} by DESIGN.md:617's criterion.")
+    print(f"\nVERDICT: circuitbreaker 2.x is {verdict} by DESIGN.md:657's criterion.")
     return 0 if ok else 1
 
 

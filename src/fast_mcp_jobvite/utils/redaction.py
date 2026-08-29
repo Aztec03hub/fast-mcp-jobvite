@@ -17,7 +17,7 @@ drifts is the one nobody reads.
 
 **Three parameters are redacted, not one.** DESIGN.md:315-316
 names `api`, `sc` and `companyId` as the three the URL
-structurally carries, and DESIGN.md:320-321 makes `companyId` a
+structurally carries, and DESIGN.md:332-333 makes `companyId` a
 credential class of its own ("the job feed's separate `companyId`
 credential"). §8's required case names
 `sc=` because that is the one an implementer is most likely to reach
@@ -26,12 +26,12 @@ in the log line, so the case is the floor here and not the
 specification.
 
 **Arguments are redacted by allow-list, and the direction is
-deliberate.** DESIGN.md:1799 rates C7-I1 - candidate PII written to logs
+deliberate.** DESIGN.md:1867 rates C7-I1 - candidate PII written to logs
 in the clear - **Critical**, and `ai/tool-calling.md:171-172` requires
 the audit event to carry "validated arguments (PII redacted)". A
 deny-list of known PII key names fails *open*: the argument nobody
 thought of is emitted in the clear, which is the failure mode
-DESIGN.md:1788 (C6-I2) already rejects for output fields in favour of
+DESIGN.md:1856 (C6-I2) already rejects for output fields in favour of
 "path-keyed allow-list fails closed: an unlisted field is dropped until
 someone adds it deliberately". The same reasoning applies with more
 force on the audit path, because `create_candidate`'s arguments **are**
@@ -135,7 +135,7 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         "page",
         "eId",
         # ADMITTED BY THE FOURTH CLAUSE ABOVE, AND IT IS THE ONE
-        # ARGUMENT HERE WITH A THREAT ROW OF ITS OWN. DESIGN.md:1719
+        # ARGUMENT HERE WITH A THREAT ROW OF ITS OWN. DESIGN.md:1786
         # C1-T1 names flipping `send_email` to `true` a HIGH threat and
         # DESIGN.md:242 makes its `false` default a safety property.
         # Redacted to `[REDACTED:bool]` the audit event - the artefact a
@@ -144,14 +144,14 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         # question that row exists to make answerable.
         #
         # AND THE DESIGN ALREADY REQUIRES THE VALUE TO BE DISCLOSED.
-        # DESIGN.md:1070-1071: the elicitation payload "names the
+        # DESIGN.md:1123-1124: the elicitation payload "names the
         # candidate, the target job, and **whether `send_email` is
         # true**, in those terms" - so the value is shown to the
         # approver at the moment of approval. A value the design
         # mandates showing to the approver cannot coherently be a secret
         # in the record of what was approved.
         #
-        # **There is no tension with DESIGN.md:1072, and reading half of
+        # **There is no tension with DESIGN.md:1125, and reading half of
         # it manufactured one.** That line says `send_email` "is also an
         # argument like any other AND IS SUBJECT TO §2.1's SCHEMA RULES;
         # it defaults to `false` (§2.2)". It is scoped to schema and
@@ -173,7 +173,7 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         # holds `companyid`, so the identical value was REDACTED in a
         # URL and published IN THE CLEAR as a tool argument - two lists
         # eighty lines apart in one module, disagreeing. The docstring
-        # above says so outright: DESIGN.md:321, "the job feed's
+        # above says so outright: DESIGN.md:333, "the job feed's
         # separate `companyId` credential", and :1692 classifies it
         # Restricted.
         #
@@ -380,7 +380,7 @@ def _redacted_value(value: JsonValue) -> str:
           "[REDACTED:str]"}}
 
     The `job_id` survived because `job_id` is allow-listed, even though
-    nothing had allowed `secretBlob`. DESIGN.md:1788 calls C6-I2's
+    nothing had allowed `secretBlob`. DESIGN.md:1856 calls C6-I2's
     mechanism a **path-keyed** allow-list for exactly this reason:
     membership has to be judged on the path, not on the leaf name in
     isolation.
@@ -535,12 +535,12 @@ def install_log_redaction(logger_name: str = HTTPX_LOGGER_NAME) -> bool:
 # field can be correctly admitted and still carry an injection payload.
 #
 # **The allow-list is PATH-KEYED WITH WILDCARDS, NOT NAME-KEYED**
-# (DESIGN.md:747-749), and the design says why in its own words:
+# (DESIGN.md:800-802), and the design says why in its own words:
 # "Name-keying collides: `title` and `eId` each appear at multiple
 # depths in our own fixtures, and `customField[]` is open-ended. Keys
 # are paths like `candidates[].application.job.title`."
 #
-# **Fencing is defined for STRINGS ONLY** (DESIGN.md:751-752). An
+# **Fencing is defined for STRINGS ONLY** (DESIGN.md:804-805). An
 # unknown non-string field is DROPPED, not stringified - "stringifying
 # invents a representation and collides with `strict=True` output
 # models".
@@ -557,7 +557,7 @@ def install_log_redaction(logger_name: str = HTTPX_LOGGER_NAME) -> bool:
 FENCE_OPEN: Final = "<jobvite_candidate_data>"
 
 #: The closing delimiter. Content containing this is what
-#: DESIGN.md:744-745 means by "content cannot close its own fence".
+#: DESIGN.md:797-798 means by "content cannot close its own fence".
 FENCE_CLOSE: Final = "</jobvite_candidate_data>"
 
 #: Every delimiter token stripped from content before it is wrapped.
@@ -582,7 +582,7 @@ _FENCE_TOKENS: Final = re.compile(
 FENCE_STRIPPED: Final = "[stripped]"
 
 #: The wildcard segment. `customField[]` is open-ended
-#: (DESIGN.md:748), so its members cannot be enumerated and a registry
+#: (DESIGN.md:801), so its members cannot be enumerated and a registry
 #: that tried would be a hand-kept list beside a container it cannot
 #: see the whole of.
 PATH_WILDCARD: Final = "*"
@@ -591,7 +591,7 @@ PATH_WILDCARD: Final = "*"
 def fence_text(text: str) -> str:
     """Wrap attacker-authored content so it cannot close its own fence.
 
-    DESIGN.md:744-745: "Every such field is fenced before it reaches a
+    DESIGN.md:797-798: "Every such field is fenced before it reaches a
     tool result, and delimiter tokens occurring inside the content are
     stripped so content cannot close its own fence."
 
@@ -671,7 +671,7 @@ def fence_payload(
     - the path decides `FENCE` and the value is a `str` -> fenced;
     - the path decides `NOT_FREE_TEXT` -> passed through;
     - **anything else -> DROPPED.** That covers an unregistered path
-      (the path-keyed allow-list failing closed, DESIGN.md:1788) *and*
+      (the path-keyed allow-list failing closed, DESIGN.md:1856) *and*
       a `FENCE` decision arriving as a non-string, which cannot be
       fenced and must not be stringified.
 
@@ -709,12 +709,12 @@ def fence_payload(
         decision = _lookup(path, registry)
         if decision is None:
             # UNREGISTERED. Dropped until someone admits it
-            # deliberately - the direction DESIGN.md:1788 requires and
+            # deliberately - the direction DESIGN.md:1856 requires and
             # the one a deny-list gets backwards.
             continue
         # §9 HAZARD 4 IS APPLIED HERE, AND THE POSITION IS THE POINT.
         # Jobvite uses `""` where a null belongs and both mean absent
-        # (DESIGN.md:1384-1385). Unifying AFTER fencing would turn `""`
+        # (DESIGN.md:1445-1446). Unifying AFTER fencing would turn `""`
         # into a fenced empty string - a present value carrying nothing
         # - and the absence the unification exists to express would be
         # gone. So it happens before the decision is applied, in one
@@ -764,7 +764,7 @@ def _fence_list(
         if decision is None:
             continue
         if decision.decision is FencingDecision.FENCE:
-            # Strings only (DESIGN.md:751-752); a non-string element is
+            # Strings only (DESIGN.md:804-805); a non-string element is
             # dropped rather than stringified, exactly as a field is.
             if isinstance(item, str):
                 out.append(fence_text(item))

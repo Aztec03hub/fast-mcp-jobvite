@@ -1,8 +1,8 @@
-"""The Jobvite client: auth and error detection (DESIGN.md:308-340).
+"""The Jobvite client: auth and error detection (DESIGN.md:308-352).
 
 **The load-bearing behaviour in this codebase is `evaluate_response`
 below, and everything else in this module exists to feed it.**
-DESIGN.md:332-333 states the invariant this module is built around:
+DESIGN.md:344-345 states the invariant this module is built around:
 
     a response is successful only if the body carries no
     `status.code >= 400` **and** the HTTP status is below 400. Both,
@@ -26,11 +26,11 @@ Either one alone passes a plausible-looking test suite:
 * Drop the HTTP arm and a transport-level failure carrying a body that
   has no `status` block at all is reported as a success.
 
-`DESIGN.md:332-333` says *both, every call*, so both are here and each
+`DESIGN.md:344-345` says *both, every call*, so both are here and each
 has a case of its own that dies when it is removed.
 
 **Decoding cannot assume JSON and cannot dispatch on content type
-either** (DESIGN.md:335-337). Three error encodings are handled on the
+either** (DESIGN.md:347-349). Three error encodings are handled on the
 routes we call - a JSON status envelope, plain text with **no
 `Content-Type` header at all**, and a Tomcat HTML page.
 `JOBVITE-CONTRACT.md` §3.3 records that the v1 `jobFeed` 401 sends no
@@ -38,7 +38,7 @@ routes we call - a JSON status envelope, plain text with **no
 dispatch.
 
 **HR-XML is a hardened fallback, not a handled case**
-(DESIGN.md:337-340). It appears on `/v1/candidate`, which we do not
+(DESIGN.md:349-352). It appears on `/v1/candidate`, which we do not
 call. If XML ever arrives it is parsed with `defusedxml` and treated as
 an **error body** - never as a success - because entity expansion on
 attacker-reachable input is not a risk worth taking for a route that
@@ -102,7 +102,7 @@ API_SECRET_HEADER: Final = "x-jvi-sc"  # noqa: S105
 JOBFEED_PATH: Final = "/jobFeed"
 
 #: The threshold in `status.code >= 400` and `http_status < 400`
-#: (DESIGN.md:332-333). Named rather than inlined twice, so the two arms
+#: (DESIGN.md:344-345). Named rather than inlined twice, so the two arms
 #: cannot drift apart under a later edit.
 ERROR_STATUS_THRESHOLD: Final = 400
 
@@ -132,7 +132,7 @@ MAX_BODY_EXCERPT_CHARS: Final = 500
 # credential-shaped and all of which are third-party internals arriving
 # at a consumer.
 #
-# **What the design actually requires is preserved**: DESIGN.md:356-360
+# **What the design actually requires is preserved**: DESIGN.md:368-372
 # says an open breaker and an outage share
 # `/problems/service-unavailable` 503 and "what distinguishes them is
 # `detail`, which says whether Jobvite failed or whether we have stopped
@@ -191,7 +191,7 @@ class SecretValue(Protocol):
     """The one method this module needs from a secret holder.
 
     **Structural rather than nominal, and that is deliberate.**
-    DESIGN.md:323-324 requires credentials to be `SecretStr` throughout,
+    DESIGN.md:335-336 requires credentials to be `SecretStr` throughout,
     resolved with `.get_secret_value()` only when building a request -
     and `SecretStr` is pydantic's. `pydantic` is present in the resolve
     only as a transitive of `fastmcp`, and U4's dependency slot is
@@ -212,7 +212,7 @@ class SecretValue(Protocol):
 
 
 # ======================================================================
-# THE INVARIANT (DESIGN.md:332-333). Everything below this block is
+# THE INVARIANT (DESIGN.md:344-345). Everything below this block is
 # plumbing.
 # ======================================================================
 
@@ -220,7 +220,7 @@ class SecretValue(Protocol):
 def evaluate_response(http_status: int, body: bytes) -> dict[str, Any]:
     """Apply the error-detection rule to one response, and decode it.
 
-    **The invariant (DESIGN.md:332-333): a response is successful only
+    **The invariant (DESIGN.md:344-345): a response is successful only
     if the body carries no `status.code >= 400` AND the HTTP status is
     below 400. Both, every call.**
 
@@ -287,7 +287,7 @@ def _envelope_message(payload: Mapping[str, Any]) -> str:
     """Join Jobvite's own `status.messages` into one line for `detail`.
 
     Jobvite's message is preserved rather than discarded -
-    DESIGN.md:532-534 puts it in `detail` - but it never reaches the
+    DESIGN.md:572-574 puts it in `detail` - but it never reaches the
     problem object's `status`, which comes from the registry
     (`errors.py`).
     """
@@ -306,7 +306,7 @@ def _decode_json_object(http_status: int, body: bytes) -> dict[str, Any]:
     """Decode the body as a JSON object, or raise the right typed error.
 
     **This is the "cannot assume JSON, cannot dispatch on content type"
-    half** (DESIGN.md:335-337). Dispatch is on the bytes themselves,
+    half** (DESIGN.md:347-349). Dispatch is on the bytes themselves,
     because the v1 `jobFeed` 401 sends no `Content-Type` header at all
     (`JOBVITE-CONTRACT.md` §3.3), so a content-type dispatch has nothing
     to read on exactly the route that needs it most.
@@ -351,7 +351,7 @@ def _raise_from_markup(http_status: int, text: str) -> NoReturn:
     """Treat any markup body as an error, parsing XML with `defusedxml`.
 
     **HR-XML is a hardened fallback, not a handled case**
-    (DESIGN.md:337-340). It appears on `/v1/candidate`, which we do not
+    (DESIGN.md:349-352). It appears on `/v1/candidate`, which we do not
     call. So this function's job is not to support XML - it is to make
     sure that if XML ever does arrive, the parse that touches it cannot
     be turned into a denial of service by entity expansion, and that
@@ -418,13 +418,13 @@ def _excerpt(text: str) -> str:
 # ======================================================================
 # U6 - PAGING. Base-agnostic offset scanning around `request` below.
 #
-# THE WHOLE MECHANISM IS ONE CHARACTER (DESIGN.md:455-464): every scan
+# THE WHOLE MECHANISM IS ONE CHARACTER (DESIGN.md:474-483): every scan
 # starts at `start=0`. A 0-based server returns record zero; a 1-based
 # server returns the same first page it would have returned anyway.
 # Starting at 1 is the only choice that can silently lose a record.
 #
 # WHAT IS OBSERVED, and it is narrower than the design's own first
-# sentence. DESIGN.md:451 says `start` is 1-based *per Jobvite's own v1
+# sentence. DESIGN.md:470 says `start` is 1-based *per Jobvite's own v1
 # documentation, which is the only statement from the vendor*. That is
 # a VENDOR CLAIM. The observation is `JOBVITE-API.md:399`: `start=0` is
 # accepted and returns records, in one genuine `200`. That falsifies
@@ -432,7 +432,7 @@ def _excerpt(text: str) -> str:
 # "1-based with clamping" both remain live, and `start=0` is safe under
 # both, which is the point of being base-agnostic.
 #
-# WHY DE-DUPLICATION IS NOT THE SAFETY MECHANISM (DESIGN.md:465-468).
+# WHY DE-DUPLICATION IS NOT THE SAFETY MECHANISM (DESIGN.md:484-487).
 # The seen set defends against OVER-reading only. Under the
 # 1-based-with-clamping hypothesis `start=0` is clamped to 1, so
 # advancing by `count` re-reads one boundary record per page and the
@@ -451,19 +451,19 @@ def _excerpt(text: str) -> str:
 # 0-based server, which is the loss this whole section exists to avoid.
 # ======================================================================
 
-#: The v2 transport page cap (DESIGN.md:434). **Not observed.** No call
+#: The v2 transport page cap (DESIGN.md:453). **Not observed.** No call
 #: in our evidence requested more than 5 records, so whether 500 is a
 #: real server limit is unknown; it is the design's figure, and this
 #: constant is where a measurement would land.
 V2_PAGE_CAP: Final = 500
 
-#: The `/v1/jobFeed` transport page cap (DESIGN.md:434). Unobserved for
+#: The `/v1/jobFeed` transport page cap (DESIGN.md:453). Unobserved for
 #: the same reason as `V2_PAGE_CAP`.
 JOBFEED_PAGE_CAP: Final = 1000
 
 #: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
-#: `min(transport_cap, configured_result_cap)` (DESIGN.md:434-436,
-#: DESIGN.md:1572-1575). 50 agrees with the `showing 50 of 1,240`
+#: `min(transport_cap, configured_result_cap)` (DESIGN.md:453-455,
+#: DESIGN.md:1633-1636). 50 agrees with the `showing 50 of 1,240`
 #: string a caller already reads, which makes it internally consistent
 #: and NOT a measurement of anything.
 DEFAULT_MAX_RESULTS: Final = 50
@@ -484,7 +484,7 @@ DEFAULT_MAX_RESULTS: Final = 50
 #: `scripts/probe-scan-bounds.py` measures both halves of that: equal
 #: records held at the two page sizes, a tenfold difference in requests.
 #:
-#: **It is NOT `total` and does not read `total`** (DESIGN.md:486-487),
+#: **It is NOT `total` and does not read `total`** (DESIGN.md:505-506),
 #: so the clause that "`total` is reported and never trusted as a loop
 #: condition" is intact. It is a constant of ours.
 #:
@@ -500,12 +500,12 @@ DEFAULT_MAX_RESULTS: Final = 50
 #:   The budget does not bound the request count at all, which is the
 #:   ADR's load-bearing point; it cannot be what sizes this.
 #: * **Not "5.5 hours at 6/min".** `JOBVITE_OUTBOUND_RATE_LIMIT`
-#:   (DESIGN.md:1576-1583) is a documented default whose self-throttle
+#:   (DESIGN.md:1637-1642) is a documented default whose self-throttle
 #:   is NOT IMPLEMENTED (task #43 measured its absence). Sizing a
 #:   ceiling against machinery that does not exist is sizing it
 #:   against nothing.
 #:
-#: What it IS sized against is the resource: DESIGN.md:474 records the
+#: What it IS sized against is the resource: DESIGN.md:493 records the
 #: largest real one as `showing 50 of 1,240`, so 100,000 is roughly
 #: eighty times the biggest scan this project has ever named, and no
 #: legitimate scan comes near it. What it COSTS when it does fire is
@@ -517,7 +517,7 @@ DEFAULT_MAX_RESULTS: Final = 50
 #: only shape that can produce it cheaply.
 MAX_SCAN_RECORDS: Final = 100_000
 
-#: Where every scan starts (DESIGN.md:455). Named rather than inlined
+#: Where every scan starts (DESIGN.md:474). Named rather than inlined
 #: so a future edit is a visible one-line diff with this comment
 #: attached, instead of a `0` quietly becoming a `1` inside a call.
 SCAN_START: Final = 0
@@ -526,12 +526,12 @@ SCAN_START: Final = 0
 #: `JOBVITE-API.md:398`: `total` is the size of the whole result set,
 #: not of the page - a call requesting 5 reported a `total` in the
 #: hundreds of thousands. It is REPORTED and never a loop condition
-#: (DESIGN.md:486-487).
+#: (DESIGN.md:505-506).
 TOTAL_KEY: Final = "total"
 
 #: The default per-record identifier. `eId` is an opaque 8-character
 #: id, which is why completeness is a COUNT against `total` and not a
-#: search for a hole (DESIGN.md:469-472).
+#: search for a hole (DESIGN.md:488-491).
 DEFAULT_ID_KEY: Final = "eId"
 
 
@@ -571,7 +571,7 @@ class ScanResult:
         Args:
             items: The de-duplicated records, in arrival order.
             total: The envelope's `total`, reported and never trusted
-                as a loop condition (DESIGN.md:486-487). `None` when
+                as a loop condition (DESIGN.md:505-506). `None` when
                 no page carried one.
             pages: How many requests the scan issued.
             duplicates_dropped: Records the seen set rejected. Under
@@ -586,7 +586,7 @@ class ScanResult:
             capped: The scan stopped because it reached its limit.
             exhaustive: The caller requested no limit.
             incomplete: The completeness check fired. Only ever `True`
-                on an exhaustive scan (DESIGN.md:469-477).
+                on an exhaustive scan (DESIGN.md:488-496).
         """
         self.items = items
         self.total = total
@@ -604,7 +604,7 @@ class ScanResult:
 
 
 # ======================================================================
-# U7 - RESILIENCE (DESIGN.md:342-358, :373-375, :617).
+# U7 - RESILIENCE (DESIGN.md:354-370, :373-375, :617).
 #
 # THE COMPOSITION ORDER IS FIXED AND IT IS NOT A PREFERENCE.
 # `backend/resilience.md:216-222` states it innermost to outermost:
@@ -621,10 +621,10 @@ class ScanResult:
 #
 # THE TOTAL OUTBOUND BUDGET EXISTS BECAUSE THE CLAUSE IT DISCHARGES HAS
 # NO REFERENT HERE. `backend/resilience.md:74-76` requires timeouts
-# "shorter than the inbound request's own deadline". DESIGN.md:367-372
+# "shorter than the inbound request's own deadline". DESIGN.md:386-391
 # records that MCP gives us no inbound deadline to be shorter than -
 # there is no HTTP request worker to hang and no caller-supplied
-# timeout - so DESIGN.md:373-375 supplies the deadline the transport
+# timeout - so DESIGN.md:392-394 supplies the deadline the transport
 # does not: "a total outbound budget, configured, that bounds all
 # attempts for one tool invocation, so a slow Jobvite surfaces as a
 # typed 503 rather than an unbounded wait".
@@ -636,17 +636,17 @@ class ScanResult:
 # ======================================================================
 
 #: `JOBVITE_OUTBOUND_BUDGET_SECONDS`. The total wall-clock bound on ALL
-#: outbound attempts for one tool invocation (DESIGN.md:373-375).
+#: outbound attempts for one tool invocation (DESIGN.md:392-394).
 #:
 #: **60 is a choice, not a measurement**, and it is recorded as one for
-#: the same reason DESIGN.md:1576-1583 records the 6/min rate limit as a
+#: the same reason DESIGN.md:1637-1642 records the 6/min rate limit as a
 #: guess. No Jobvite response-time distribution has ever been observed
 #: on this project, so there is nothing to derive a percentile from. It
 #: is sized to be comfortably longer than one 30-second read timeout
 #: plus a retry, and short enough that an MCP host does not appear hung.
 DEFAULT_OUTBOUND_BUDGET_SECONDS: Final = 60.0
 
-#: The per-phase timeouts (DESIGN.md:346, and
+#: The per-phase timeouts (DESIGN.md:358, and
 #: `backend/resilience.md:67-70`).
 #: **Explicit and per-phase: no SDK default and no single scalar.**
 #: httpx2's own default is a 5-second scalar, which is a resilience
@@ -668,7 +668,7 @@ DEFAULT_POOL_TIMEOUT: Final = 5.0
 #: first version of this comment left the checker at four findings.
 #:
 #: The frozen design names no variable
-#: for it - unlike the budget at DESIGN.md:373-375, which says
+#: for it - unlike the budget at DESIGN.md:392-394, which says
 #: "configured" and now is. Naming a variable is the design's call:
 #: §U9 records a whole unit that was UNBUILDABLE because three
 #: variables had no names, and a reviewer's guesses were correctly not
@@ -696,7 +696,7 @@ DEFAULT_RETRY_MAX_BACKOFF: Final = 5.0
 DEFAULT_BREAKER_FAILURE_THRESHOLD: Final = 5
 DEFAULT_BREAKER_RECOVERY_SECONDS: Final = 30.0
 
-#: Jobvite's rate-limit status. **Never observed** (DESIGN.md:361-364):
+#: Jobvite's rate-limit status. **Never observed** (DESIGN.md:373-383):
 #: "no 429 has ever been observed and no rate-limit header is returned,
 #: so this path is written defensively and is unexercised" - against
 #: Jobvite. It IS exercised by this project's tests.
@@ -710,7 +710,7 @@ RATE_LIMITED_STATUS: Final = 429
 SERVER_ERROR_STATUS_FLOOR: Final = 500
 
 #: The methods a retry may re-issue. **THIS IS HOW `create_candidate` IS
-#: EXCLUDED FROM RETRY BY CONSTRUCTION** (DESIGN.md:350-353), and the
+#: EXCLUDED FROM RETRY BY CONSTRUCTION** (DESIGN.md:362-365), and the
 #: word "construction" is load-bearing: there is no setting that adds
 #: `POST` to this set, no tool-name allow-list to keep in step with
 #: `tools/`, and a tool added tomorrow that writes is excluded the
@@ -718,20 +718,20 @@ SERVER_ERROR_STATUS_FLOOR: Final = 500
 #: list it. A hand-kept list of exempt tool names would be blind to the
 #: tool nobody added to it.
 #:
-#: DESIGN.md:350-353 records the measurement this prevents: **one call,
+#: DESIGN.md:362-365 records the measurement this prevents: **one call,
 #: four rows created**, when FastMCP's `RetryMiddleware` retried a write
 #: that had already succeeded. That is why the case for this asserts a
 #: ROW COUNT at the transport rather than reading a configuration value.
 RETRYABLE_METHODS: Final = frozenset({"GET", "HEAD"})
 
-#: The `retry_after` hint on an open breaker (DESIGN.md:356-358). It is
+#: The `retry_after` hint on an open breaker (DESIGN.md:368-370). It is
 #: the breaker's own remaining open window, so it is computed rather
 #: than constant - see `_breaker_retry_after`.
 UNAVAILABLE_BREAKER_DETAIL: Final = (
     "We have stopped calling Jobvite because it has been failing. "
     "This is an open circuit breaker, not an upstream failure in flight."
 )
-#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -749,7 +749,7 @@ UNAVAILABLE_RATE_LIMITED_DETAIL: Final = (
 )
 
 #: THE BUDGET'S CARRIER, and it is a `ContextVar` for the same reason
-#: `request_id_var` is (DESIGN.md:608-612): `asyncio` runs invocations
+#: `request_id_var` is (DESIGN.md:648-652): `asyncio` runs invocations
 #: concurrently on one thread, and a module global would let two
 #: invocations share one deadline - the first to start would bound the
 #: second, and the corruption would be silent because every call still
@@ -770,7 +770,7 @@ def outbound_budget_scope(
 ) -> Iterator[float]:
     """Bound every outbound attempt in this scope to `seconds` total.
 
-    **This is what DESIGN.md:373-375 promises and what nothing in `src/`
+    **This is what DESIGN.md:392-394 promises and what nothing in `src/`
     implemented until now.** One scope per tool invocation: the deadline
     it sets is shared by every `request` beneath it, including the many
     a `scan` makes, which is the difference between a budget and a
@@ -819,7 +819,7 @@ def outbound_budget_remaining() -> float | None:
 class JobviteRetryLaterError(JobviteUnavailableError):
     """A 503 that carries RFC 9457's `retry_after` extension member.
 
-    **No new type URI is minted** (DESIGN.md:355-358): `kind` is
+    **No new type URI is minted** (DESIGN.md:367-370): `kind` is
     inherited, so an open breaker, an exhausted budget and a 429 all
     still answer `/problems/service-unavailable` at 503. What
     distinguishes them is `detail`, exactly as the design requires. This
@@ -896,7 +896,7 @@ class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
 
         Returns:
             A `JobviteRetryLaterError` (503) for a 429, honouring
-            `Retry-After` - DESIGN.md:361-364 says a 429 is "retried and
+            `Retry-After` - DESIGN.md:373-383 says a 429 is "retried and
             then mapped to 503, honouring `Retry-After` when present" -
             and the original `JobviteUpstreamError` (502) otherwise.
         """
@@ -1016,7 +1016,7 @@ _retry_after_exceeds_budget: Final = _RetryAfterExceedsBudget()
 def _is_outage(_exc_type: type[BaseException], exc: BaseException) -> bool:
     """The breaker's predicate. **4xx MUST NOT trip it** (§8 #23).
 
-    DESIGN.md:354-355: "one circuit breaker for Jobvite. 4xx must not
+    DESIGN.md:366-367: "one circuit breaker for Jobvite. 4xx must not
     trip it - a bad candidate id is the caller's problem, not a health
     signal." `backend/resilience.md:161-163` says the same and adds that
     this "mirrors the retry predicate above", which is why this function
@@ -1041,7 +1041,7 @@ def _is_outage(_exc_type: type[BaseException], exc: BaseException) -> bool:
     return False
 
 
-#: **ONE breaker for Jobvite** (DESIGN.md:354, B37,
+#: **ONE breaker for Jobvite** (DESIGN.md:366, B37,
 #: `backend/resilience.md:156-159`: "one breaker per dependency ...
 #: never a single global breaker"). Jobvite is this server's only
 #: outbound dependency, so one module-level instance IS one per; a
@@ -1096,7 +1096,7 @@ def _report_breaker_state() -> None:
     """Log a breaker transition **if one happened**, on the call path.
 
     **This function IS the reason `circuitbreaker` had to evaluate
-    expiry on the call path** (DESIGN.md:617). It reads
+    expiry on the call path** (DESIGN.md:657). It reads
     `_JOBVITE_BREAKER.state`, which for an expired open window is a
     DERIVED read computed in this frame - so the `open->half_open` line
     is written by the invocation's own task, with its `request_id_var`
@@ -1107,7 +1107,7 @@ def _report_breaker_state() -> None:
 
     The line carries the direction, the triggering counter and
     `request_id`, which is what `backend/resilience.md:224-226` and
-    DESIGN.md:614-616 require. **It carries no URL**, for the same
+    DESIGN.md:654-656 require. **It carries no URL**, for the same
     reason a retry line does not: the v1 `jobFeed` URL is itself a
     secret.
     """
@@ -1144,7 +1144,7 @@ def _should_retry(state: RetryCallState) -> bool:
     * `_RetryableUpstream` - a 429 or a 5xx, already classified by
       `_attempt` where the response was still in scope;
     * `JobviteUnavailableError` - every transport failure httpx2 raises,
-      which is DESIGN.md:347-349's "connection errors, timeouts";
+      which is DESIGN.md:359-361's "connection errors, timeouts";
     * and **not** `JobviteRetryLaterError`, which is the subclass this
       module raises for an open breaker and an exhausted budget. Both
       are fail-fast signals we produced ourselves.
@@ -1174,7 +1174,7 @@ def _log_retry_attempt(state: RetryCallState) -> None:
 
     `backend/resilience.md:224-226`: "log every retry attempt (at
     WARNING) ... each carrying the `request_id` correlation field. Never
-    retry or trip silently." DESIGN.md:614-616 adds the fields: the
+    retry or trip silently." DESIGN.md:654-656 adds the fields: the
     attempt number, the elapsed delay and the exception type.
 
     **THE ABSENT FIELD IS THE LOAD-BEARING ONE.** No URL and no route
@@ -1187,7 +1187,7 @@ def _log_retry_attempt(state: RetryCallState) -> None:
 
     `request_id` is read from `request_id_var` rather than passed,
     because `tenacity` calls this hook, not our call site
-    (DESIGN.md:601-603). It is a per-Task ContextVar, so two invocations
+    (DESIGN.md:641-643). It is a per-Task ContextVar, so two invocations
     retrying concurrently each read their own - which is §8 #13, and
     why that case runs two invocations in parallel rather than one.
 
@@ -1241,27 +1241,27 @@ class JobviteClient:
             api_secret: The v2 `x-jvi-sc` credential, and the v1 `sc`
                 parameter.
             company_id: The job feed's separate credential
-                (DESIGN.md:320-321). Required only for `jobFeed`, so it
+                (DESIGN.md:332-333). Required only for `jobFeed`, so it
                 is optional here and the failure for a missing one is
                 raised at the call.
             transport: Substituted in tests with `httpx2.MockTransport`
-                (DESIGN.md:1359-1360, ADR-0007). `None` in production.
-            timeout: Explicit and per-phase (DESIGN.md:346). **No SDK
+                (DESIGN.md:1420-1421, ADR-0007). `None` in production.
+            timeout: Explicit and per-phase (DESIGN.md:358). **No SDK
                 default and no single scalar**: `httpx2`'s own default
                 is a 5-second scalar, which is a resilience decision
                 made by a library rather than by us. The full
-                retry/breaker ordering of DESIGN.md:342-358 is U7's;
+                retry/breaker ordering of DESIGN.md:354-370 is U7's;
                 this is the timeout half, which cannot wait for it
                 because the default it would otherwise inherit is
                 silent.
             max_results: `JOBVITE_MAX_RESULTS`, the CONFIGURED half of
                 `min(transport_cap, configured_result_cap)`
-                (DESIGN.md:434-436). U5 applies the same figure
+                (DESIGN.md:453-455). U5 applies the same figure
                 in-tool in `tools/jobs.py` and owns the
                 `showing N of total` string; this half bounds what
                 leaves the transport, and neither unit owns all of it.
             start_base_overrides: `JOBVITE_PAGINATION_START_BASE`,
-                **per resource and not global** (DESIGN.md:478-480),
+                **per resource and not global** (DESIGN.md:497-499),
                 keyed by the same `path` a scan is given. Absent, every
                 resource starts at `SCAN_START`. This exists for
                 someone who has ESTABLISHED the base against a live
@@ -1270,7 +1270,7 @@ class JobviteClient:
                 0-based server.
             outbound_budget_seconds: `JOBVITE_OUTBOUND_BUDGET_SECONDS`,
                 the total wall-clock bound on ALL attempts for one tool
-                invocation (DESIGN.md:373-375). Applied by `scan`, and
+                invocation (DESIGN.md:392-394). Applied by `scan`, and
                 by a bare `request` that finds no scope already open -
                 see `outbound_budget_scope`.
             install_log_redaction: ADR-0026, option 1. Install the
@@ -1364,7 +1364,7 @@ class JobviteClient:
         """Build the v2 request headers (DESIGN.md:312).
 
         `.get_secret_value()` is called **here and only here** for v2,
-        which is DESIGN.md:323-324's "resolved only when building a
+        which is DESIGN.md:335-336's "resolved only when building a
         request".
 
         Returns:
@@ -1402,10 +1402,10 @@ class JobviteClient:
                 ..."*. Jobvite returned nothing; the call was never
                 made. Telling a caller the upstream failed when the
                 deployment is misconfigured is the same inversion
-                DESIGN.md:502-509 corrects for Jobvite's own 401.
+                DESIGN.md:533-540 corrects for Jobvite's own 401.
 
                 `errors.py` has no configuration row and
-                DESIGN.md:510-511 forbids minting a slug, so an
+                DESIGN.md:541-542 forbids minting a slug, so an
                 exception outside the
                 hierarchy is the honest answer: ADR-0017 routes it to
                 `/problems/internal-error` **500** with the class name
@@ -1462,7 +1462,7 @@ class JobviteClient:
             JobviteUnavailableError: If Jobvite could not be reached at
                 all, if the breaker is open, or if the outbound budget
                 was exhausted. The three are one problem type and are
-                told apart by `detail` (DESIGN.md:355-358).
+                told apart by `detail` (DESIGN.md:367-370).
         """
         if jobfeed:
             url = f"{V1_BASE_URL}{path}"
@@ -1568,7 +1568,7 @@ class JobviteClient:
             # forever.
             #
             # NOT TRIPPING IT AND HEALING IT ARE DIFFERENT BEHAVIOURS
-            # and DESIGN.md:354-355 asks for the first. Three outcomes
+            # and DESIGN.md:366-367 asks for the first. Three outcomes
             # are needed and the context manager offers two, so the
             # third - NEUTRAL - is expressed by never entering it.
             result = await self._attempt_with_retry(
@@ -1639,10 +1639,10 @@ class JobviteClient:
         """The middle layer: re-issue transient failures, or do not.
 
         **`create_candidate` is excluded here, BY CONSTRUCTION**
-        (DESIGN.md:350-353). The `if` below dispatches on the HTTP
+        (DESIGN.md:362-365). The `if` below dispatches on the HTTP
         METHOD, so a `POST` cannot be retried by any configuration,
         and the exclusion covers a write tool written next year that
-        nobody remembered to add to a list. DESIGN.md:353 records what
+        nobody remembered to add to a list. DESIGN.md:365 records what
         this prevents, measured: **one call, four rows created**.
 
         Args:
@@ -1731,7 +1731,7 @@ class JobviteClient:
             # error, and that error describes the attempt rather than
             # the reason: a slow upstream that answered 503 twice would
             # surface as `/problems/external-service-error` **502**
-            # while DESIGN.md:373-375 promises "a typed 503".
+            # while DESIGN.md:392-394 promises "a typed 503".
             #
             # **This was found by the test, not by reading the code.**
             # The first version of this method had no such branch and
@@ -1781,10 +1781,10 @@ class JobviteClient:
     def _attempt_timeout(self, remaining: float | None) -> httpx2.Timeout:
         """The per-phase timeout for one attempt, clamped to the budget.
 
-        **Per-phase and explicit** (DESIGN.md:346): four separate
+        **Per-phase and explicit** (DESIGN.md:358): four separate
         numbers, never httpx2's 5-second scalar default. The clamp is
         what stops a single read timeout from outliving the invocation's
-        total budget, which is the whole point of DESIGN.md:373-375.
+        total budget, which is the whole point of DESIGN.md:392-394.
 
         Args:
             remaining: Seconds left in the outbound budget, or `None`
@@ -1958,7 +1958,7 @@ class JobviteClient:
     # ------------------------------------------------------
 
     def transport_cap(self, *, jobfeed: bool = False) -> int:
-        """The transport page cap for a route (DESIGN.md:434).
+        """The transport page cap for a route (DESIGN.md:453).
 
         Args:
             jobfeed: Select the `/v1/jobFeed` route's cap.
@@ -1973,7 +1973,7 @@ class JobviteClient:
         """`min(transport_cap, configured_result_cap)`.
 
         **THE TRANSPORT HALF OF ONE BEHAVIOUR SPLIT ACROSS TWO FILES**
-        (DESIGN.md:434-436). U5's `tools/jobs.py` applies
+        (DESIGN.md:453-455). U5's `tools/jobs.py` applies
         `JOBVITE_MAX_RESULTS` to a page and owns the caller-facing
         `showing N of total` string; this is the `min()` that composes
         the two caps, and it is deliberately not a second copy of U5's
@@ -1989,11 +1989,11 @@ class JobviteClient:
         return min(self.transport_cap(jobfeed=jobfeed), self._max_results)
 
     def scan_start(self, path: str) -> int:
-        """The FIRST `start` of a scan of `path` (DESIGN.md:455-464).
+        """The FIRST `start` of a scan of `path` (DESIGN.md:474-483).
 
         `SCAN_START` unless an operator has overridden this resource.
         The override is per resource and not global
-        (DESIGN.md:478-480), and it exists for someone who has
+        (DESIGN.md:497-499), and it exists for someone who has
         established the base against a live tenant. **The vendor's
         1-based claim is not written here as a default**: a declared 1
         never requests record zero, so on a 0-based server it loses
@@ -2017,7 +2017,7 @@ class JobviteClient:
         id_key: str = DEFAULT_ID_KEY,
         limit: int | None = None,
     ) -> ScanResult:
-        """Page a resource, base-agnostically (DESIGN.md:455-487).
+        """Page a resource, base-agnostically (DESIGN.md:474-506).
 
         Args:
             path: The path below the base URL, e.g. `/job`.
@@ -2036,7 +2036,7 @@ class JobviteClient:
             JobviteUpstreamError: From `request`, unchanged.
             JobviteUnavailableError: From `request`, unchanged.
         """
-        # ONE RULE FOR THE PAGE SIZE, and it is DESIGN.md:434-436's
+        # ONE RULE FOR THE PAGE SIZE, and it is DESIGN.md:453-455's
         # `min(transport_cap, configured_result_cap)` with no branch on
         # top of it. An exhaustive scan pages at the same size and just
         # keeps going; a caller's `limit` only ever narrows it further.
@@ -2050,7 +2050,7 @@ class JobviteClient:
 
         # THE BUDGET IS OPENED HERE, AROUND THE WHOLE SCAN, and that is
         # the difference between a budget and a timeout
-        # (DESIGN.md:373-375: "bounds all attempts for ONE TOOL
+        # (DESIGN.md:392-394: "bounds all attempts for ONE TOOL
         # INVOCATION"). An exhaustive scan of a 1,240-record resource
         # makes 25 requests; each `request` below finds this scope
         # already open and shares its deadline rather than starting a
@@ -2148,7 +2148,7 @@ class JobviteClient:
             # PROGRESS IS MEASURED BEFORE THE PAGE IS CONSUMED, and
             # `unidentified` is counted alongside `seen` because an
             # id-less record IS a record the caller receives - a page of
-            # them is progress, not stalling (DESIGN.md:465-468).
+            # them is progress, not stalling (DESIGN.md:484-487).
             progress_before = len(seen) + unidentified
 
             for item in page:
@@ -2159,7 +2159,7 @@ class JobviteClient:
                     # seen set that swallowed them would DELETE
                     # records - the over-reading defence causing the
                     # under-read it exists to prevent
-                    # (DESIGN.md:465-468).
+                    # (DESIGN.md:484-487).
                     unidentified += 1
                     items.append(item)
                     continue
@@ -2170,7 +2170,7 @@ class JobviteClient:
                 items.append(item)
 
             # THE ONLY TERMINATION THAT READS THE SERVER
-            # (DESIGN.md:486-487). `len(page) < count`, on the RAW page
+            # (DESIGN.md:505-506). `len(page) < count`, on the RAW page
             # and not on the de-duplicated total: a fully duplicate
             # full-length page is not a short page, and stopping on it
             # would end a scan early on the clamping hypothesis.
@@ -2302,20 +2302,20 @@ class JobviteClient:
     ) -> bool:
         """Completeness vs `total`, ARMED ONLY BY AN EXHAUSTIVE SCAN.
 
-        DESIGN.md:469-477. The check has two required halves and the
+        DESIGN.md:488-496. The check has two required halves and the
         second is the one that gets left out:
 
         * it fires when a scan that requested EVERYTHING terminated on
           a short page and returned fewer unique records than `total`;
         * **it must NOT fire on a capped call.** A capped result is a
           mismatch BY DESIGN - `showing 50 of 1,240` is §7.7's own
-          worked example - and DESIGN.md:474 says wiring the check to
+          worked example - and DESIGN.md:493 says wiring the check to
           every call "would fire the alarm on the default path and
           train everyone to ignore it".
 
         Comparing a COUNT is the whole mechanism, because `eId` is
         opaque and you cannot find a hole in a set of opaque ids
-        (DESIGN.md:469-472).
+        (DESIGN.md:488-491).
 
         Args:
             path: The resource, for the log line.
@@ -2336,14 +2336,14 @@ class JobviteClient:
         # AS ONE (R5-M2). `unique != total` fires on both, and this
         # method's own docstring says the check is for a scan that
         # returned **fewer** records than `total` - which is what
-        # DESIGN.md:469-477 describes and all it contemplates.
+        # DESIGN.md:488-496 describes and all it contemplates.
         #
         # The over-count direction is REACHABLE and was reached: a
         # wrong `id_key` sends every record down the `unidentified`
         # branch, kept and never de-duplicated, giving `unique=10`
         # against `total=9`. That was logged as "jobvite scan
         # incomplete" - an OVER-read reported as an under-read, the
-        # same wolf with the wrong name on it. DESIGN.md:474 is
+        # same wolf with the wrong name on it. DESIGN.md:493 is
         # explicit about what crying wolf costs.
         if unique > total:
             logger.warning(

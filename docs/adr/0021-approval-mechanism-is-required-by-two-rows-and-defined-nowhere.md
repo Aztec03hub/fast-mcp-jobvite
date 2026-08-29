@@ -14,7 +14,7 @@ put the field on the wire.
 
 **Two rows require the field.**
 
-`DESIGN.md:1276-1278`, §8's required case for the audit event, states that the event carries
+`DESIGN.md:1276-1280`, §8's required case for the audit event, states that the event carries
 *"on the write `approval_state` together with the mechanism that produced it (§5.3)"*.
 
 `DESIGN.md:1756`, threat row **C4-R1**, rated **High**, states its mitigation as

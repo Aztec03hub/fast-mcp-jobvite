@@ -32,15 +32,17 @@ about exactly that defect, and the gate is what stopped me rather than my own ju
 - `DESIGN.md:373-375` - the budget is **configured**. Not "configurable in a later revision":
   configured, in the sentence that specifies it.
 - The design's variable list does not name it, and `tests/test_config.py` holds the two documents
-  equal. `tests/test_repo_hygiene.py:81` additionally hard-codes the count at fifteen.
+  equal. `tests/test_repo_hygiene.py:82` additionally hard-codes the count at fifteen.
 
 An implementation can satisfy either. It cannot satisfy both, and choosing silently is what B15's
 whole lesson forbids.
 
 ## Decision
 
-**§7.6's variable list should gain `JOBVITE_OUTBOUND_BUDGET_SECONDS`, so that §4.3's "configured"
-becomes true.** The alternative - amending `373-375` to drop the word - is available and is worse:
+**§10.1's variable list should gain `JOBVITE_OUTBOUND_BUDGET_SECONDS`, so that §4.3's "configured"
+becomes true.** (This ADR said §7.6 and §7.6 is *"Why there is no confirmation token"*, which carries
+no variable list. The enumeration is the §10.1 bullet the config tests already point at, and a second
+list in §7 would be the two-hand-kept-lists defect this ADR is about. Corrected in place.) The alternative - amending `373-375` to drop the word - is available and is worse:
 the budget is the only bound between a slow Jobvite and an unbounded wait, and a deployment that
 cannot tune it has to accept 60 seconds chosen against no measurement.
 
@@ -53,7 +55,7 @@ cannot tune it has to accept 60 seconds chosen against no measurement.
    declared and passed by two of three is a knob that works for some tools, which is worse than one
    that works for none because nothing looks wrong.
 
-### And the count in `test_repo_hygiene.py:81` must stop being a literal
+### And the count in `test_repo_hygiene.py:82` must stop being a literal
 
 `assert len(variables) == 15` is a POSITIVE CONTROL on the parser - its docstring says so, and the
 control is right to exist. **But it is a retyped constant that a legitimate addition breaks**, and

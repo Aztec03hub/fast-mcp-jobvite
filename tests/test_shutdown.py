@@ -1,6 +1,6 @@
 """§8 #18: lifespan teardown runs on SIGTERM, on BOTH transports.
 
-DESIGN.md:1340-1346. Three of the design's stated verification gaps
+DESIGN.md:1401-1407. Three of the design's stated verification gaps
 close only on this case: the upstream defect at PrefectHQ/fastmcp#4927,
 the `os._exit(0)` workaround, and the uvicorn implementation detail §12
 item 5 records.
@@ -10,7 +10,7 @@ process that dies uncleanly can still exit 0, so an exit-code assertion
 would pass against exactly the failure this case exists to catch.
 
 **Both transports, because they fail differently**
-(DESIGN.md:1038-1040). The HTTP arm passes on teardown alone; **only the
+(DESIGN.md:1091-1093). The HTTP arm passes on teardown alone; **only the
 stdio arm exercises the `os._exit(0)` half**, where teardown runs but
 the process does not die because a non-daemon AnyIO worker thread blocks
 interpreter shutdown. A single-transport test would have shipped that
@@ -75,7 +75,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
         assert "opened" in marker.read_text()
         assert "closed" not in marker.read_text()
 
-        # DESIGN.md:1037-1038: resolve the INTERPRETER via
+        # DESIGN.md:1090-1091: resolve the INTERPRETER via
         # /proc/<pid>/cmdline rather than trusting that the pid we hold
         # is the process we signalled.
         assert interpreter_of(proc.pid) == sys.executable
@@ -106,7 +106,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
 def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
     """The stdio arm's failure: teardown runs, process survives.
 
-    DESIGN.md:981-983 records that on stdio a non-daemon AnyIO worker
+    DESIGN.md:1034-1036 records that on stdio a non-daemon AnyIO worker
     thread blocks interpreter shutdown, so even an explicit
     `sys.exit(0)` never completes.
 
@@ -147,7 +147,7 @@ def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
 def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     """The arms above run `main()`, not a copy of it written in a test.
 
-    DESIGN.md:1026-1034 is explicit that the mitigation this one
+    DESIGN.md:1079-1087 is explicit that the mitigation this one
     replaced was also called verified and was not. A shutdown case
     that reimplements the handler and the `finally` proves only that
     the test author can write them - so this asserts the entry script
@@ -201,7 +201,7 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     assert handler_installs, "no signal.signal(..., _term) call in the shipped source"
 
     # The forced exit must be in a `finally`, not on the success path
-    # only: DESIGN.md:996-1010 places it there so teardown completes
+    # only: DESIGN.md:1049-1063 places it there so teardown completes
     # first. `Try.finalbody` is the structure; splitting on the text
     # "finally:" also matched the docstring's discussion of it.
     in_finally = [
@@ -255,7 +255,7 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
 
 
 def test_the_handler_does_not_read_ambient_state() -> None:
-    """DESIGN.md:969-975: `getsignal(SIGINT)` is the defect.
+    """DESIGN.md:1022-1028: `getsignal(SIGINT)` is the defect.
 
     A backgrounded process inherits `SIGINT = SIG_IGN`, so the rejected
     one-liner installs "ignore SIGTERM" - in a container the process
@@ -298,7 +298,7 @@ def test_the_handler_does_not_read_ambient_state() -> None:
 def test_a_crashing_mcp_run_exits_70_read_from_the_process(
     tmp_path: pathlib.Path,
 ) -> None:
-    """ADR-0018 and DESIGN.md:1015-1023, on the PROCESS's status.
+    """ADR-0018 and DESIGN.md:1068-1076, on the PROCESS's status.
 
     **The structural assertion above is not a discharge of this.** It
     parses `__main__.py` and finds an `os._exit(status)` call inside a
@@ -312,7 +312,7 @@ def test_a_crashing_mcp_run_exits_70_read_from_the_process(
     grepped.
 
     So this forces `mcp.run` to fail for a real reason - a bound port,
-    the cheapest one, and the one DESIGN.md:1021-1023 names - and reads
+    the cheapest one, and the one DESIGN.md:1074-1076 names - and reads
     the exit status the supervisor would read.
     """
     # Hold the port for the whole arm. The listen backlog is what makes

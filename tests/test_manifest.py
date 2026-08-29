@@ -3,7 +3,7 @@
 Three arms, and the third is the one that earns the case its keep:
 
 1. `mcp` is present in `[project].dependencies` with an `==` pin.
-   DESIGN.md:1404-1407 pins it explicitly rather than relying on
+   DESIGN.md:1465-1468 pins it explicitly rather than relying on
    `fastmcp` to hold it, because the `ResponseLimiting` regression
    arrived through the transitive SDK with zero change to the code that
    broke.
@@ -68,7 +68,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
 
     **Widen this set by APPENDING. Never relax it to a subset check**,
     and never remove or reorder the three pins - they are
-    DESIGN.md:1418-1420, and
+    DESIGN.md:1479-1481, and
     `test_removing_fastmcp_slim_breaks_the_resolve` below is the control
     that proves the second of them load-bearing.
     """
@@ -83,9 +83,9 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         # U4's, APPENDED under the same slot - the set stays CLOSED.
         # httpx2 is ADR-0007's client (fastmcp 4.0.0b4 installs no
         # `httpx` at all) and ships the MockTransport
-        # DESIGN.md:1359-1360 rests the credential-free test strategy
+        # DESIGN.md:1420-1421 rests the credential-free test strategy
         # on; defusedxml parses the HR-XML hardened fallback of
-        # DESIGN.md:337-340. Both were already resolved transitively at
+        # DESIGN.md:349-352. Both were already resolved transitively at
         # these exact versions, so `uv lock` added four lines and moved
         # nothing.
         "httpx2==2.12.0",
@@ -95,7 +95,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         # bump that dropped it.
         "pydantic-settings==2.15.0",
         # U7's, APPENDED under the same slot - the set stays CLOSED.
-        # `tenacity` is DESIGN.md:347-349's retry mechanism and
+        # `tenacity` is DESIGN.md:359-361's retry mechanism and
         # `circuitbreaker` is B37's breaker; STANDARDS.md:374-375
         # blesses both at `^9` and `^2`, confirmed against the CORPUS
         # (`standards/architecture/reference-architecture.md:95`) rather
@@ -110,7 +110,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
 def test_prerelease_is_explicit() -> None:
     """`--prerelease=allow` is global in uv; `explicit` confines it.
 
-    DESIGN.md:1437-1439.
+    DESIGN.md:1498-1500.
     """
     with PYPROJECT.open("rb") as fh:
         assert tomllib.load(fh)["tool"]["uv"]["prerelease"] == "explicit"
@@ -149,7 +149,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     Marked `network` and deselected from the default offline suite: it
     performs a real resolve. CI runs it as its own step. It is excluded
     by SELECTION, never by skipif - a skip is a green that tested
-    nothing (DESIGN.md:1229-1232).
+    nothing (DESIGN.md:1290-1293).
     """
     manifest = PYPROJECT.read_text()
     mutated = "\n".join(
@@ -165,7 +165,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     combined = proc.stdout + proc.stderr
     assert proc.returncode != 0, (
         "removing the fastmcp-slim pin STILL resolved. Either uv's behaviour changed "
-        "or the pin is no longer load-bearing; DESIGN.md:1418-1420 needs an ADR "
+        "or the pin is no longer load-bearing; DESIGN.md:1479-1481 needs an ADR "
         f"before the line is touched. Output:\n{combined}"
     )
     assert "fastmcp-slim" in combined, (
@@ -178,7 +178,7 @@ def test_the_unmutated_manifest_still_resolves(tmp_path: pathlib.Path) -> None:
     """Positive control for the arm above.
 
     A refusal-path test is not a guard unless the happy path still
-    succeeds (DESIGN.md:1370-1372). Without this, a `uv` that failed on
+    succeeds (DESIGN.md:1431-1433). Without this, a `uv` that failed on
     EVERYTHING - a broken binary, no network, a bad cache - would make
     the control above pass.
     """

@@ -1,4 +1,4 @@
-"""U2: `request_id_var` (DESIGN.md:601-612).
+"""U2: `request_id_var` (DESIGN.md:641-652).
 
 IMPLEMENTATION-PLAN.md:471-478.
 
@@ -58,7 +58,7 @@ def test_the_positive_arm_the_var_reads_back_the_id_inside_the_scope() -> None:
 
 
 def test_the_id_does_not_leak_past_the_scope() -> None:
-    """DESIGN.md:605-606 - a reused task must not inherit an id.
+    """DESIGN.md:645-646 - a reused task must not inherit an id.
 
     Paired: the positive arm inside the scope is what makes the negative
     arm after it mean anything.
@@ -83,7 +83,7 @@ def test_the_reset_is_lexically_in_a_finally() -> None:
     A `set(None)` after the `yield` would pass every behavioural test
     above on the happy path and strand the id on the error path in
     production, where the exception is not the one the test raises.
-    DESIGN.md:605-606 asks for a `finally` specifically, so the
+    DESIGN.md:645-646 asks for a `finally` specifically, so the
     `finally` is asserted directly.
     """
     tree = ast.parse(CORRELATION_PY.read_text())
@@ -103,7 +103,7 @@ def test_a_nested_scope_restores_the_enclosing_id_rather_than_erasing_it() -> No
 
 
 async def test_concurrent_invocations_never_read_each_others_id() -> None:
-    """DESIGN.md:608-612 - what a module global would cause.
+    """DESIGN.md:648-652 - what a module global would cause.
 
     Two candidates fetched in parallel would each log the other's id
     about half the time under a module global, and every line would
@@ -155,7 +155,7 @@ async def test_the_concurrency_test_would_catch_a_module_global() -> None:
 
 
 def test_correlation_declares_exactly_one_contextvar() -> None:
-    """DESIGN.md:604 - "a single ContextVar".
+    """DESIGN.md:644 - "a single ContextVar".
 
     A second one is a second truth.
     """

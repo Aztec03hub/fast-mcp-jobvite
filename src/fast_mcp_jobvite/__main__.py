@@ -31,7 +31,8 @@ forwards `exc_info` for every stdlib logger in the process, so the
 producers of an exception on this stream are not enumerable.
 
 **The SIGTERM problem, and why the obvious fix is worse than none**
-(DESIGN.md:960-1023). Lifespan teardown does not run under SIGTERM, only
+(DESIGN.md:1013-1076). Lifespan teardown does not run under
+SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on
 the previous major, filed upstream as PrefectHQ/fastmcp#4927. Docker,
 Kubernetes and Cloud Run all stop containers with SIGTERM.
@@ -47,13 +48,13 @@ SIGKILLed after the grace period, guaranteeing no teardown at all.
 never reads ambient state.
 
 **`os._exit` in the `finally` is required on stdio**
-(DESIGN.md:979-981): teardown runs there but the process does not die,
+(DESIGN.md:1032-1034): teardown runs there but the process does not die,
 because a non-daemon AnyIO worker thread blocks interpreter shutdown -
 even an explicit `sys.exit(0)` never completes. Teardown completes
 before `os._exit`, so skipping atexit handlers costs nothing we rely on.
 
 **The exit status is the one the run earned** (ADR-0018,
-DESIGN.md:990-1023). `finally` runs on every exit from the `try`, not
+DESIGN.md:1043-1076). `finally` runs on every exit from the `try`, not
 only the `KeyboardInterrupt` path, so a constant `0` would report a
 bound port, a misconfiguration or an escaping cancellation as a clean
 stop, and every supervisor that reads an exit status would believe it.
@@ -246,7 +247,7 @@ def _redacting_sink(stream: TextIO) -> Callable[[Message], None]:
     loguru; a function sink is not, and an unflushed write to a full
     disk returns normally and raises later at interpreter shutdown -
     which is exactly the failure `catch=False` exists to route into
-    `audit.emit`'s policy (DESIGN.md:712-718). Without the flush, H-2's
+    `audit.emit`'s policy (DESIGN.md:765-771). Without the flush, H-2's
     `/dev/full` arm would stop measuring anything.
 
     Args:
@@ -395,7 +396,7 @@ def _term(signum: int, frame: FrameType | None) -> None:
 
 
 def _install_shutdown_handler() -> None:
-    """Install the explicit SIGTERM handler (DESIGN.md:985-986)."""
+    """Install the explicit SIGTERM handler (DESIGN.md:1038-1039)."""
     signal.signal(signal.SIGTERM, _term)
 
 
@@ -403,8 +404,9 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     """Load configuration, select the transport, and serve.
 
     **This function does not return on the serving path.** The `finally`
-    calls `os._exit(status)`, which DESIGN.md:979-981 requires because a
-    non-daemon AnyIO thread blocks interpreter shutdown on stdio. It
+    calls `os._exit(status)`, which DESIGN.md:1032-1034 requires
+    because a non-daemon AnyIO thread blocks interpreter shutdown on
+    stdio. It
     returns a status only on the configuration-refusal path, which
     happens before the handler is installed and before anything is
     served.
@@ -456,8 +458,9 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
-        # DESIGN.md:979-981. Teardown has already completed by here, and
-        # the call is unconditional so the stdio hang stays closed
+        # DESIGN.md:1032-1034. Teardown has already completed by
+        # here, and the call is unconditional so the stdio hang stays
+        # closed
         # (ADR-0018).
         os._exit(status)
 
