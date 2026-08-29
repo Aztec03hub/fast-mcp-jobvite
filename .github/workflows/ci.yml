@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 621
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 663
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -553,7 +553,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 340
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 371
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -678,6 +678,38 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u12-jobfeed-amputation.sh \
             --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
+
+      # ----- U10, the write: approval guard and create_candidate -----
+      # THE ONLY UNIT WHOSE FAILURE MODE EMAILS A LIVING PERSON, so these two
+      # steps guard more than a schema. Row M2 is the one to read: it empties
+      # the handshake era set so every handshake call refuses, and EVERY refusal
+      # arm still passes against that tree - only the approved-write positive
+      # control goes red. That is DESIGN.md:1370-1371's guard-that-refuses-
+      # everything reproduced deliberately and killed, and it is why the row
+      # counter had to be written before any source existed.
+      - name: U10 write controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-u10-write-controls.sh --controls-fired
+
+      - name: U10 write amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-u10-write-amputation.sh \
+            --amputation --min-rows 10 --row-re '^########## A[0-9]+ '
+
+      # ADR NUMBERS ARE UNIQUE, CONTIGUOUS, AND MATCH THEIR OWN HEADINGS.
+      # Two agents claimed 0027 within one hour: one checked `git log --all`
+      # before choosing and was correct when it looked; the other created its
+      # ADR afterwards on a different branch. BOTH MERGED CLEANLY, because the
+      # filenames differ and git has no opinion about the digits in them. An
+      # ADR number is cited from code, so two documents cannot share one.
+      - name: ADR numbers are unique and contiguous
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-adr-numbers.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::two ADRs share a number, a number is missing, or a heading disagrees"
+            exit 1
+          fi
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a

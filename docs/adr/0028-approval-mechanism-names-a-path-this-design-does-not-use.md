@@ -1,4 +1,12 @@
-# ADR-0027: `approval_mechanism`'s closed set names `sampling`, and this design has no sampling path
+# ADR-0028: `approval_mechanism`'s closed set names `sampling`, and this design has no sampling path
+
+> **This was written as ADR-0027 and renumbered on merge.** Two agents claimed 0027 within the same
+> hour: `u10-write` checked `git log --all` before choosing, found 0026 taken and 0027 free, and was
+> correct at the moment it looked - I created the other 0027 afterwards, on a different branch.
+> **Neither of us did anything wrong and the collision still happened**, which is why
+> `docs/reviews/check-adr-numbers.py` now exists. The number on main at merge time keeps its
+> identity; this one moved, and every inbound reference moved with it in the same commit.
+
 
 **Status:** Proposed
 **Type:** Design change

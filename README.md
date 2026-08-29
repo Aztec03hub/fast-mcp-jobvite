@@ -206,6 +206,31 @@ That is correct and it is confusing, so it is written here rather than left to b
 > `JOBVITE_TOOLS`.** Both produce a server that does not list the tool, and only one of them is a
 > configuration mistake.
 
+### `create_candidate` writes to a real ATS, and what the approval does NOT prove
+
+`create_candidate` is registered only when `JOBVITE_ENABLE_WRITES=true` **and** it is named in
+`JOBVITE_TOOLS`. Before it writes, the server asks the host to approve, naming the candidate, the
+target job, and whether `send_email` is true.
+
+**`send_email` defaults to `false`. Setting it `true` mails a real person.** An integrator who does
+not know that does not know what they are approving.
+
+Four limits, stated because none of them is fixable here:
+
+- **Nothing proves a human approved anything.** The server requires an approval *response from the
+  host* and refuses to write without one. **A host may auto-respond with no person present** - MCP
+  places human-in-the-loop on the host, not on us. Do not read an approved write as human consent.
+- **An abandoned approval hangs the call.** The handler runs in the client's process and there is no
+  server-side bound on it. The write stays safe and no row is created; the call simply does not
+  return.
+- **An authorised write can be made twice.** This server never retries it. A duplicate surfaces as
+  `/problems/conflict` naming the duplicate - **that is detection, not prevention**, and the `409`
+  shape is inferred rather than observed, so even the detection is a hypothesis until a live
+  credential exists. An idempotency key cannot be built: nothing establishes that Jobvite accepts
+  one.
+- **A host that cannot elicit cannot use this tool.** There is no fallback, so on such a host
+  `create_candidate` refuses. Correct, and surprising if you had not been told.
+
 ### Embedding the server rather than running it
 
 `fast_mcp_jobvite.__main__` installs the log redaction at import. **An embedder that imports

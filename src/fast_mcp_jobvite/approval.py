@@ -140,14 +140,14 @@ class ApprovalMechanism(enum.StrEnum):
     is where the wrong noun entered, and the vocabulary it then closed
     has no slot for MRTR. The set is closed by an applied ADR against a
     frozen design, so this unit emits the value the contract names and
-    raises the mismatch as **ADR-0027 (Proposed)** rather than inventing
+    raises the mismatch as **ADR-0028 (Proposed)** rather than inventing
     a fourth string the audit reader has never been told about.
     """
 
     #: `ctx.elicit()` answered - the handshake era's path.
     ELICITATION = "elicitation"
     #: The MRTR second leg answered - the sessionless era's path. See
-    #: the class docstring and ADR-0027: the name is the contract's, not
+    #: the class docstring and ADR-0028: the name is the contract's, not
     #: the mechanism's.
     SAMPLING = "sampling"
     #: No approval path could run at all: no client handler, or an era

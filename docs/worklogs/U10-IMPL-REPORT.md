@@ -123,14 +123,14 @@ person.
 the registry at `DESIGN.md:513-521` has no row for an approval refusal, so this reuses
 `/problems/forbidden`. See *Findings* F1.
 
-### Two harnesses, and ADR-0027
+### Two harnesses, and ADR-0028
 
 `scripts/check-u10-write-controls.sh` (21 rows) and `scripts/check-u10-write-amputation.sh`
 (10 rows), both driven through `scripts/ci-harness-gate.sh` with no change to that script - its
 vocabulary is derived from each harness's own source, and both print `COULD NOT APPLY`,
 `ANCHOR NOT UNIQUE` and `DID NOT LAND`.
 
-`docs/adr/0027-approval-mechanism-names-a-path-this-design-does-not-use.md`, **Proposed**. See F2.
+`docs/adr/0028-approval-mechanism-names-a-path-this-design-does-not-use.md`, **Proposed**. See F2.
 
 ---
 
@@ -204,7 +204,7 @@ forever.
 **Suggested fix (hypothesis, not an instruction):** add a registry row - *"an approval was required
 and none was returned"* -> `/problems/forbidden`, 403 - so the widening is a decision rather than an
 implementer's judgement. That is a `DESIGN.md` edit and therefore an ADR. **I did not raise one**,
-because ADR-0027 is already open against this same paragraph's neighbourhood and ADR-0021 records
+because ADR-0028 is already open against this same paragraph's neighbourhood and ADR-0021 records
 what happens when one ADR resolves two things.
 
 ### F2 (Medium) - `approval_mechanism`'s closed set names `sampling`, a path this design never uses
@@ -219,7 +219,7 @@ So the audit record's most informative field is **wrong on one of the two eras i
 distinguish**, and a checker asserting the value is one of the three passes.
 
 **Suggested fix:** rename the sessionless value to `mrtr`, keeping the set closed at three. Raised as
-**ADR-0027 (Proposed)**, which carries the full argument. **U10 emits `sampling` in the meantime**,
+**ADR-0028 (Proposed)**, which carries the full argument. **U10 emits `sampling` in the meantime**,
 because the set is closed by an applied ADR against a frozen design and a unit that invents a fourth
 string is a unit that decided a contract on its own.
 
@@ -283,7 +283,7 @@ ADR-0021 explicitly leaves `approval_state`'s contents unsettled and declines to
 emits four values - `approved`, `refused`, `pending`, `unavailable` - named in `approval.py` so they
 are visible as a choice.
 
-**Suggested fix:** an ADR of its own. **Deliberately not folded into ADR-0027**, for the reason
+**Suggested fix:** an ADR of its own. **Deliberately not folded into ADR-0028**, for the reason
 ADR-0021 gives about itself.
 
 ### F8 (nit, FIXED here) - U8's amputation anchor A13 went stale the moment I touched the gate
