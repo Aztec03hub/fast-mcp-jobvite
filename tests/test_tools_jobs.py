@@ -45,6 +45,7 @@ from fast_mcp_jobvite.models.jobs import (
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
 from fast_mcp_jobvite.tools.jobs import (
+    JOBS_PATH,
     REQUEST_ID_META_KEY,
     SearchJobsInput,
     build_result,
@@ -677,6 +678,69 @@ async def test_a_rejected_argument_fails_closed_before_the_tool_body(
 
     assert seen == [], "a rejected argument still reached the transport"
     assert not [r for r in audit_records if r["message"] == AUDIT_EVENT_NAME]
+
+
+# ======================================================================
+# THE OUTBOUND REQUEST (R4-H1).
+#
+# Nothing in this file read `seen[0].url` before these three cases:
+# the route, the query key and the query value were all unasserted,
+# so all three could be broken and the whole suite stayed green.
+# Measured by `docs/reviews/probe-r4-unmutated-anchors.sh` - rows P1,
+# P2 and P3 all SURVIVED 413 passed.
+#
+# The failure they admit is the one `SearchJobsInput`'s own docstring
+# says the date filter was withheld to avoid: Jobvite ignores a
+# parameter it does not recognise and answers with the whole first
+# page, so a caller asking for one job gets 50 and the result says so
+# - a wrong answer that explains itself.
+# ======================================================================
+
+
+async def test_the_ids_argument_reaches_the_wire_as_a_query_parameter() -> None:
+    """The route AND the query key AND the value, on the wire.
+
+    All three in one case on purpose: they are one decision - "this
+    tool asks Jobvite for this job at this route" - and splitting
+    them would let two thirds of it be deleted with one row still
+    green.
+    """
+    seen: list[httpx2.Request] = []
+    server = build_server(
+        settings(),
+        client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS), seen=seen),
+    )
+    async with Client(server) as client:
+        await client.call_tool(SEARCH_JOBS, {"params": {"ids": "TESTJOB1"}})
+
+    # THE ROUTE IS PINNED AS A LITERAL, not as JOBS_PATH. Asserting
+    # against the constant was MEASURED to survive mutating that
+    # constant - the assertion moves with it, which is the M3 defect
+    # this harness exists to catch, reappearing inside its own fix.
+    assert len(seen) == 1
+    assert JOBS_PATH == "/job"
+    assert seen[0].url.path.endswith("/job")
+    assert seen[0].url.params["ids"] == "TESTJOB1"
+
+
+async def test_omitting_ids_sends_no_ids_parameter() -> None:
+    """The paired direction, and it is not decoration.
+
+    A default call must send NO filter. An implementation that always
+    sent `ids=` - empty, or a sentinel - would pass the case above and
+    would silently filter every unfiltered listing to nothing.
+    """
+    seen: list[httpx2.Request] = []
+    server = build_server(
+        settings(),
+        client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS), seen=seen),
+    )
+    async with Client(server) as client:
+        await client.call_tool(SEARCH_JOBS, {"params": {}})
+
+    assert len(seen) == 1
+    assert "ids" not in seen[0].url.params
+    assert seen[0].url.path.endswith("/job")
 
 
 # ======================================================================
