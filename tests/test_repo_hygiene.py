@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import re
 
-from .conftest import ENV_EXAMPLE, GITIGNORE
+from .conftest import ENV_EXAMPLE, GITIGNORE, REPO_ROOT
 
 # DESIGN.md:1555-1560 counts five credential variables; §7.2 adds
 # JOBVITE_HTTP_TOKENS, the bearer-token map, as the sixth secret-class
@@ -170,4 +170,104 @@ def test_gitignore_does_not_negate_the_credential_patterns() -> None:
     }
     assert negations == {"!.env.example"}, (
         f"unexpected gitignore negations: {negations}"
+    )
+
+
+# ======================================================================
+# TWO DECLARATIONS OF ONE DEFAULT. R7-M1.
+# ======================================================================
+
+
+def _dual_declared_defaults() -> list[str]:
+    """Every model field declaring a default TWICE, as `file:line`.
+
+    A field written as `x: Annotated[T, Field(default=A)] = B` has two
+    declarations of one value. **Pydantic takes the assignment and the
+    `Field` copy is inert** - measured on the locked pydantic 2.13.5,
+    not cited: a model with `Field(default=True)` and `= False` reads
+    back `False`, with no warning and no error.
+
+    **This walks the container - every annotated field of every class
+    in the tree - rather than keeping a list of the known instances
+    beside it.** That distinction is the finding. U10's M9 first caught
+    this shape on `send_email`, the one field in this server that
+    decides whether a live person is emailed, and the fix left a note
+    saying *"these three fields"* beside the three it repaired. R7 then
+    found three MORE in `tools/jobs.py`, a file that fix never opened,
+    by walking the tree instead of reading the note.
+
+    Returns:
+        One `path:line` per offending field, empty when clean.
+    """
+    import ast
+
+    offenders: list[str] = []
+    for path in sorted(REPO_ROOT.rglob("*.py")):
+        if any(part in (".git", ".venv") for part in path.parts):
+            continue
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for stmt in node.body:
+                if not isinstance(stmt, ast.AnnAssign) or stmt.value is None:
+                    continue
+                for sub in ast.walk(stmt.annotation):
+                    is_field = (
+                        isinstance(sub, ast.Call)
+                        and (
+                            getattr(sub.func, "id", None)
+                            or getattr(sub.func, "attr", None)
+                        )
+                        == "Field"
+                    )
+                    if is_field and any(
+                        kw.arg in ("default", "default_factory") for kw in sub.keywords
+                    ):
+                        rel = path.relative_to(REPO_ROOT)
+                        offenders.append(f"{rel}:{stmt.lineno}")
+    return offenders
+
+
+def test_the_dual_default_walk_actually_reaches_the_models() -> None:
+    """POSITIVE CONTROL. An AST walk that parses nothing finds nothing.
+
+    A clean result from the case below means "no field declares its
+    default twice" only if the walk really visited the models. A bad
+    root, a rename or a swallowed parse would produce the same empty
+    list - the wrong-zero that explains itself.
+    """
+    import ast
+
+    seen = set()
+    for path in REPO_ROOT.rglob("*.py"):
+        if any(part in (".git", ".venv") for part in path.parts):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+            if isinstance(node, ast.ClassDef):
+                seen.add(node.name)
+
+    for model in ("SearchJobsInput", "GetJobFeedInput", "CreateCandidateInput"):
+        assert model in seen, f"the walk never reached {model}; a clean run is vacuous"
+
+
+def test_no_field_declares_its_default_twice() -> None:
+    """R7-M1, and it is the same defect at the width of one field.
+
+    R7's mutation M1 set the inert `Field(default=...)` copy on
+    `SearchJobsInput.ids` to a type-invalid string and the whole suite
+    passed, exit 0. Reproduced before fixing: 665 passed. All three
+    offenders were in `tools/jobs.py`; the fix is three deletions,
+    leaving the assignment as the single declaration.
+
+    The blast radius was low - all three defaults are `None`, so
+    flipping the inert copy changed no behaviour today. The defect is
+    that the MECHANISM was still live: the next field added in this
+    shape may be one that matters, and `send_email` already proved
+    which field that is.
+    """
+    offenders = _dual_declared_defaults()
+    assert not offenders, (
+        "these fields declare a default twice; pydantic takes the "
+        f"assignment and the Field copy is inert: {offenders}"
     )

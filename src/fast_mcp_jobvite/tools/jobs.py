@@ -121,7 +121,6 @@ class SearchJobsInput(BaseModel):
     ids: Annotated[
         JobviteIdentifier | None,
         Field(
-            default=None,
             description=(
                 "Fetch one job by its Jobvite `eId`. Omit to list the "
                 "first page of jobs. A single id only: whether the "
@@ -458,7 +457,6 @@ class GetJobFeedInput(BaseModel):
     job_type: Annotated[
         JobviteIdentifier | None,
         Field(
-            default=None,
             description=(
                 "Filter by employment type, e.g. `Full-time`, "
                 "`Part-time`, `Contractor`, `Intern`. Jobvite's own "
@@ -470,7 +468,6 @@ class GetJobFeedInput(BaseModel):
     available_to: Annotated[
         Literal["External", "Internal"] | None,
         Field(
-            default=None,
             description=(
                 "Which audience the postings are visible to. Jobvite "
                 "defaults to `External` when the parameter is omitted."
