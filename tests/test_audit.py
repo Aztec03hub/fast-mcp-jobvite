@@ -24,7 +24,9 @@ computes a bool first and asserts on the bool, so a red test prints
 
 from __future__ import annotations
 
+import ast
 import json
+import pathlib
 import re
 import uuid
 from collections.abc import Iterator
@@ -524,11 +526,41 @@ def test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself()
     `utils/correlation.py`'s `request_id_scope` was called by nothing. U3
     calls it, and this test is what stops a later edit quietly replacing it
     with a bare `request_id_var.set()` and losing the `finally`.
+
+    **Read through the AST, not with a substring search over the file.** The
+    first version of this test did the latter, and the amputation harness
+    caught it: `A7` deleted the call outright and this assertion still passed,
+    because the module DOCSTRING quotes that exact line as the proof that the
+    mint and the bind are one statement. The test was asserting that the
+    documentation existed. An AST walk sees code and cannot see prose.
     """
-    source = (audit.__file__,)
-    text = open(source[0], encoding="utf-8").read()  # noqa: SIM115, PTH123
-    assert "request_id_scope(resolve_request_id(" in text
-    assert "request_id_var.set(" not in text
+    tree = ast.parse(pathlib.Path(audit.__file__).read_text(encoding="utf-8"))
+    scope_fn = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "audit_scope"
+    )
+    entered = [
+        item.context_expr.func.id
+        for node in ast.walk(scope_fn)
+        if isinstance(node, ast.With)
+        for item in node.items
+        if isinstance(item.context_expr, ast.Call)
+        and isinstance(item.context_expr.func, ast.Name)
+    ]
+    assert "request_id_scope" in entered, (
+        "audit_scope no longer enters request_id_scope; the finally that resets "
+        "the var lives there and nowhere else"
+    )
+    direct_sets = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and node.attr == "set"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "request_id_var"
+    ]
+    assert not direct_sets, "audit.py sets request_id_var directly, bypassing the scope"
 
 
 def test_a_valid_inbound_uuid4_is_echoed() -> None:
