@@ -182,6 +182,14 @@ jobs:
       - name: Every Settings field is consumed by something
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-settings-are-read.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -229,6 +237,14 @@ jobs:
       - name: Standards citations resolve
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-standards-citations.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -eq 2 ]; then
@@ -249,6 +265,14 @@ jobs:
       - name: Section cross-references resolve
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-cross-references.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -268,6 +292,14 @@ jobs:
       - name: Coupling controls, all fired
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-coupling-controls.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -305,6 +337,14 @@ jobs:
       - name: Obligation anchors still resolve to their subjects
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-obligations.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -323,6 +363,14 @@ jobs:
       - name: Obligation checker controls, all fired
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-obligations.py --controls 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -366,6 +414,14 @@ jobs:
       - name: Plan measurements still reproduce
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-plan-measurements.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -390,6 +446,14 @@ jobs:
       - name: Resweep verdicts agree with the document's own count
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-resweep-verdicts.py 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::the resweep parser exited $rc"; exit 1; }
@@ -400,6 +464,14 @@ jobs:
       - name: Coupling mutation sweep, no holes
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-coupling-sweep.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -457,6 +529,14 @@ jobs:
       - name: Default suite, zero skips  # B59 - no positional path, so testpaths stays authoritative
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(uv run --frozen pytest 2>&1); rc=$?
           [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
           # THE HERE-STRING BELONGS TO THE GREP, NOT AFTER `then`. It was
@@ -494,6 +574,14 @@ jobs:
       - name: Network-dependent arms
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(uv run --frozen pytest -m network 2>&1); rc=$?
           [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
           printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 2
@@ -539,6 +627,14 @@ jobs:
       - name: Collect the credentialed suite
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(uv run --frozen pytest -m credentialed --collect-only -q 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || {
@@ -647,6 +743,14 @@ jobs:
       - name: Harness anchor checker controls, all fired
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(bash scripts/check-harness-anchors-controls.sh 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::an anchor-checker control did not fire"; exit 1; }
@@ -658,6 +762,14 @@ jobs:
       - name: Harness gate controls, all fired
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(bash scripts/ci-harness-gate-controls.sh 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::a harness-gate control did not fire"; exit 1; }
@@ -848,6 +960,14 @@ jobs:
       - name: ADR numbers are unique and contiguous
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           out=$(python3 docs/reviews/check-adr-numbers.py 2>&1); rc=$?
           echo "$out"
           if [ "$rc" -ne 0 ]; then
@@ -1025,6 +1145,14 @@ jobs:
       - name: Dependency audit
         run: |
           set -uo pipefail
+          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
+          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
+          # `out=$(cmd)` is itself the failing command, so the shell dies
+          # there and `rc=$?` never runs - every diagnostic branch below
+          # was unreachable, and the step exited with the checker's raw
+          # code. Measured: bash -e exits 2 and prints nothing; without
+          # -e the branch runs. This line is what makes `rc` reachable.
+          set +e
           flags=$(uv run --frozen python scripts/check_advisories.py); rc=$?
           if [ "$rc" -ne 0 ]; then
             echo "::error::the advisory table is invalid or an entry expired"; exit 1

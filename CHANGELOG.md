@@ -332,6 +332,18 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **Sixteen CI steps had an unreachable diagnostic branch, because GitHub runs every `run:` block
+  as `bash -e`.** The steps open with `set -uo pipefail` and then `out=$(checker); rc=$?`, intending
+  to print a tailored message for a non-zero result. `set -uo pipefail` does not clear `-e`, and
+  under `-e` the ASSIGNMENT is itself the failing command - so the shell dies at that line, `rc=$?`
+  never runs, no message is printed, and the step exits with the checker's raw code. Every one of
+  those sixteen tailored failure messages was dead code. Proved by extracting the real step out of
+  the workflow and running it under `bash -e` against a tree with no standards corpus: before, exit
+  2 and total silence; after, the diagnostic prints and the step exits 0. Also in this commit: the
+  fourteen `E501`s and one `N806` that `ruff format` created in two checkers and that had been red
+  on `main` - `ruff format` cannot split a long string literal, so format-clean and lint-clean are
+  different states. (2026-08-29 12:44 PM CDT)
+
 - **`ctypes.CDLL` ran after `fork`, where `dlopen` can deadlock the child.** The orphan fix shipped
   earlier today resolved libc inside the `preexec_fn`; `dlopen` takes loader locks, and a lock held
   by another thread at the moment of the fork is held forever in the child, which has only the

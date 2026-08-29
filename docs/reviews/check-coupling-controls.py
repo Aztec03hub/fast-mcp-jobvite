@@ -200,19 +200,23 @@ CONTROLS = [
             "a control character or bidi override in a string argument rejected before "
             "dispatch",
         ),
-        "C3-T1 names §8 case 'a control character or bidi override in a string argument "
+        "C3-T1 names §8 case 'a control character or bidi override in a string "
+        "argument "
         "rejected before dispatch', which does not appear in §8",
     ),
     (
-        "10 NEW BAND: Medium mitigated row C3-D1 swaps its §8 case for a bare 'residual'",
+        "10 NEW BAND: Medium mitigated row C3-D1 swaps its §8 case for a bare "
+        "'residual'",
         lambda t: test_cell(t, "C3-D1", "residual"),
-        "C3-D1 states a mitigation but its Test cell is 'residual', which means the row "
+        "C3-D1 states a mitigation but its Test cell is 'residual', which means the "
+        "row "
         "is NOT mitigated",
     ),
     (
         "11 NEW BAND: Low mitigated row C6-T1 swaps its §8 case for a bare 'residual'",
         lambda t: test_cell(t, "C6-T1", "residual"),
-        "C6-T1 states a mitigation but its Test cell is 'residual', which means the row "
+        "C6-T1 states a mitigation but its Test cell is 'residual', which means the "
+        "row "
         "is NOT mitigated",
     ),
     (
@@ -236,7 +240,8 @@ CONTROLS = [
         "14a KEYWORD-BLIND ROW, band laundering: C1-D1 (no literal 'Mitigated' in its "
         "prose)",
         lambda t: test_cell(t, "C1-D1", "not required (Low)"),
-        "C1-D1 is rated Medium but its disposition 'not required (Low)' claims exemption "
+        "C1-D1 is rated Medium but its disposition 'not required (Low)' claims "
+        "exemption "
         "at Low",
     ),
     (
@@ -261,7 +266,8 @@ CONTROLS = [
     (
         "14 BAND LAUNDERING: Medium row C5-T1 claims exemption at Low",
         lambda t: test_cell(t, "C5-T1", "not required (Low)"),
-        "C5-T1 is rated Medium but its disposition 'not required (Low)' claims exemption "
+        "C5-T1 is rated Medium but its disposition 'not required (Low)' claims "
+        "exemption "
         "at Low",
     ),
     # --- the status-token invariant (FIX-9): the token and the Test
@@ -280,7 +286,8 @@ CONTROLS = [
         "TLS refuses to start') but its Mitigation column carries no status token",
     ),
     (
-        "16b STATUS TOKEN STRIPPED from a keyword-added row that claims exemption (C1-D1)",
+        "16b STATUS TOKEN STRIPPED from a keyword-added row that claims exemption "
+        "(C1-D1)",
         lambda t: mitigation_cell(
             t,
             "C1-D1",
@@ -315,7 +322,8 @@ CONTROLS = [
     (
         "17b H1, HIGH: C2-R1 swaps its §8 case for 'no credible threat'",
         lambda t: test_cell(t, "C2-R1", "no credible threat"),
-        "C2-R1 is a rated High row and may not dispose of itself as 'no credible threat'",
+        "C2-R1 is a rated High row and may not dispose of itself as 'no credible "
+        "threat'",
     ),
     (
         "17c H1, MEDIUM: C7-T1 swaps its exemption for 'no credible threat'",
@@ -324,9 +332,11 @@ CONTROLS = [
         "threat'",
     ),
     (
-        "17d H1 OTHER DIRECTION: the unrated row C6-E1 disposes of itself as 'residual'",
+        "17d H1 OTHER DIRECTION: the unrated row C6-E1 disposes of itself as "
+        "'residual'",
         lambda t: test_cell(t, "C6-E1", "residual"),
-        "C6-E1 is unrated (Likelihood, Impact and Risk are all '-') but its Test cell is "
+        "C6-E1 is unrated (Likelihood, Impact and Risk are all '-') but its Test cell "
+        "is "
         "'residual'",
     ),
     # 18a is the mutation the gate's own docstring used to name as the
@@ -344,7 +354,8 @@ CONTROLS = [
     (
         "18b MATRIX: C8-E2 (L x H) rerated Medium -> Low",
         lambda t: risk_cell(t, "C8-E2", "Low"),
-        "C8-E2 is rated 'Low' but Likelihood L x Impact H yields 'Medium' by the matrix",
+        "C8-E2 is rated 'Low' but Likelihood L x Impact H yields 'Medium' by the "
+        "matrix",
     ),
     (
         "18c MATRIX FAILS LOUD rather than skipping: C9-D1's Likelihood set to 'Med'",
@@ -371,7 +382,8 @@ CONTROLS = [
     # that. Reword the phrase and the check examines nothing and passes
     # beautifully.
     (
-        "19 GATE-1 SELECTOR: the artifact-assertion phrase reworded, so the check selects "
+        "19 GATE-1 SELECTOR: the artifact-assertion phrase reworded, so the check "
+        "selects "
         "nothing",
         lambda t: t.replace(
             "against the committed files", "against the files in the repo"
@@ -420,9 +432,11 @@ CONTROLS = [
         "22 GATE-2: a case's owner citation stripped, leaving a bare unattributed test",
         lambda t: t.replace(
             "- **a 4xx not tripping the circuit breaker** - §4.3 states it and "
-            "`backend/resilience.md:166-168` (B37) requires it: a bad candidate id is the "
+            "`backend/resilience.md:166-168` (B37) requires it: a bad candidate id is "
+            "the "
             "caller's "
-            "error, not an outage, and a breaker that counts it takes the server down on "
+            "error, not an outage, and a breaker that counts it takes the server down "
+            "on "
             "a caller's typo;",
             "- a 4xx not tripping the circuit breaker;",
         ),
