@@ -1,6 +1,6 @@
 # ADR-0023: the harnesses run `set -uo pipefail`, where `bash.md:40` mandates `set -euo pipefail`
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29)
 **Type:** Standards deviation
 
 > Fifteen scripts in `scripts/*.sh` omit `-e` from the strict-mode line that
@@ -189,3 +189,32 @@ set -uo pipefail
 - **It does not cover `ci.yml`.** `bash.md` is `applicable_to: ci-cd`, and every `run:` block in
   the workflow is shell that no strict-mode line governs at all. That is a separate and unmeasured
   gap, recorded in the report rather than decided here.
+
+## Ruling, 2026-08-29
+
+**ACCEPTED**, including the scope stated by PURPOSE rather than by path, and including the `ci.yml`
+`run:` blocks the first draft left out.
+
+The scoping correction is the part worth keeping. The draft said *"any SCRIPT here"* - a rule shaped
+by ARTIFACT TYPE - which left 18 workflow blocks already practising this discipline while sitting
+outside the ADR that authorises it, deviating from `bash.md:36-41` with nothing covering them. **A
+rule named for the kind of file it applies to is a rule that misses the next kind of file**, which is
+this project's most-repeated shape in a new costume.
+
+### Re-measured at `5eb64b0`, because the ADR's evidence was taken at `2d20ed6` and I have added
+### blocks to that file since
+
+```
+multi-line run: blocks      30      (was 18)
+  carry `set -uo pipefail`  19      (was 16)
+  capture rc=$?             16      (was 13)
+  COMBINE -e WITH rc=$?      0      (was 0)
+```
+
+**The file has grown by twelve blocks and the invariant still holds at zero.** That is the number the
+ADR turns on: `-e` together with `rc=$?` is the combination that makes a measurement of an expected
+failure unreadable, and nothing in twelve new blocks introduced one.
+
+The ADR is right that this is a deviation and not a licence. **`-u` and `-o pipefail` are kept
+everywhere and are not in question; only `-e`, and only where the measurement IS the exit code of a
+command expected to fail.** Everything else in this repository gets `set -euo pipefail`.

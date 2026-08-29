@@ -1,6 +1,6 @@
 # ADR-0025: the page size, the outbound budget and the self-throttle contradict each other
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29) - and the three questions are ANSWERED below
 **Type:** Design change
 
 > Three defaults were chosen separately and cannot all hold. At `JOBVITE_MAX_RESULTS=50`,
@@ -96,3 +96,68 @@ documented in `.env.example` and covered by config tests - all of which pass on 
 reads. `check-design-citation-shape.py`, the obligations map and the harnesses are all silent about
 it, because none of them asks "does anything consume this?". That question has now produced two
 findings in one day and is worth a checker of its own.
+
+## Ruling, 2026-08-29 - accepted, and answered rather than re-deferred
+
+**Accepting this ADR as a framing and stopping there would relabel the deferral, not end it.** The
+three questions are answered here. They are answered together because, as the ADR argues, each one
+alone falsifies the other two - and the arithmetic below is what shows that is literally true rather
+than rhetorical.
+
+### Q1. An exhaustive scan uses the RAW TRANSPORT CAP
+
+`min(transport_cap, configured_result_cap)` conflates two different axes. **The result cap bounds
+what the CALLER gets back; the transport cap bounds what we ASK JOBVITE FOR.** The design already
+names this exact confusion in the other direction at `DESIGN.md:166-169`, where it warns that §4.5's
+page caps are *"outbound transport limits ... and bound nothing about what a caller sends us"*.
+Letting a caller's `max_results` shrink our wire page is the same mistake pointing the other way.
+
+The measured cost decides it. `V2_PAGE_CAP = 500`, `DEFAULT_MAX_RESULTS = 50`, and the ADR's own
+worked example is a 1,240-record resource:
+
+```
+min(500, 50) =  50 per page  ->  25 requests  ->  4m 10s at 6/min
+raw cap      = 500 per page  ->   3 requests  ->  ~30s   at 6/min
+```
+
+**U6 was right to delete its invented branch** - the design stated no policy and an implementation
+must not invent one. The design now states one.
+
+### Q2. The throttle is PER-PROCESS
+
+The throttle exists to protect Jobvite from us, and **Jobvite sees our process, not our scans.** A
+per-scan throttle lets N concurrent scans each spend 6/min, so the rate arriving at Jobvite is 6N and
+the limit means nothing.
+
+This is the same argument the tree already makes for the breaker at `jobvite_client.py:994` - one
+instance per dependency, module-level, because it records what the DEPENDENCY has been doing.
+Scoping the throttle differently from the breaker would give two mechanisms with the same purpose
+opposite ideas of what they are protecting.
+
+### Q3. The budget bounds wall-clock INCLUDING throttle waiting
+
+Half of this is already settled by the frozen design and I nearly ruled past it: `DESIGN.md:373-375`
+says the budget *"bounds all attempts for one tool invocation"*. **The budget is per-invocation, not
+per-process**, and that was never open.
+
+What was open is whether throttle waiting spends it. **It does.** The budget's stated purpose is that
+*"a slow Jobvite surfaces as a typed 503 rather than an unbounded wait"*, and a bound that excludes
+the term which dominates the wait is not a bound. A caller does not care whether we were waiting on
+Jobvite or waiting on ourselves.
+
+**This is the answer that would be unaffordable under Q1's rejected alternative, which is the ADR's
+thesis made concrete.** At 50 records per page an exhaustive scan spends 4m10s in throttle waiting
+and a 60s budget fails every time - the failure mode the ADR predicts, *"a 503 that looks like
+Jobvite being slow and is actually three of our own defaults disagreeing"*. At 500 it costs ~30s and
+fits. **Q1 is what makes Q3 payable.**
+
+### What this ruling still does not settle, and deliberately
+
+**None of the three constants.** 6/min is recorded in the design as a conservative guess and not a
+vendor figure; 60s and the retry counts are U7's choices with nothing observed about Jobvite's
+latency; 500 is unobserved as a server limit. This ADR was always about the composition, and the
+composition is now decided for any values those rows eventually produce.
+
+**The throttle is still unimplemented.** The ADR's warning stands and is now more pointed: implementing
+it before this composition landed would have turned a latent contradiction into a live one. Whoever
+implements it implements this ruling with it, not before it.

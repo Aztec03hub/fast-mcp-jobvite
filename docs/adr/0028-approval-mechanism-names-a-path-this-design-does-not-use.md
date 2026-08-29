@@ -8,7 +8,7 @@
 > identity; this one moved, and every inbound reference moved with it in the same commit.
 
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29)
 **Type:** Design change
 
 > **Found by BUILDING U10**, the unit that emits the field. ADR-0021 defined the vocabulary before
@@ -94,3 +94,31 @@ later reads as a decision, and so is one changed by the unit that could.
 - **It does not audit the rest of the corpus for the same shape.** One vocabulary was found because
   U10 had to emit it. **A sweep for other closed sets whose members name things this design does not
   do has not been run**, and it is a different sweep from the citation one.
+
+## Ruling, 2026-08-29
+
+**ACCEPTED. `sampling` becomes `mrtr`, and the set stays closed at three.**
+
+All three amendments land together - `DESIGN.md` §5.3's vocabulary, the §8 arm at `:1276-1278`, and
+`approval.py`'s `ApprovalMechanism.SAMPLING` with the two era-parameterised expectations in
+`tests/test_approval_write.py`. A vocabulary amended in the design and not in the code is the same
+disagreement pointing the other way.
+
+### U10's restraint was correct and is the reason this ADR is cheap
+
+U10 emitted the wrong value **deliberately**, with the mismatch documented at its definition, rather
+than inventing a fourth string. The set was closed by an applied ADR against a frozen design, and a
+unit that widens a closed set has decided a contract on its own. Because it did not, the fix is a
+rename and three call sites rather than an archaeology exercise.
+
+**And the reason it did not rename unilaterally is the reason to keep applying:** a vocabulary settled
+by the unit that could not exercise it is a guess that later reads as a decision. That cuts both ways,
+which is why ADR-0021's restraint about `ApprovalState` is being honoured separately at task #84 and
+NOT folded in here.
+
+### The one thing the implementing work must not do
+
+**Do not rename the value and leave the documented mismatch in place.** The comment at the definition
+exists to tell a reader the emitted string disagrees with the design; once it agrees, that comment is
+false. Rewrite it in place to record the history, or delete it - do not leave two claims where the
+code now contradicts its own note.

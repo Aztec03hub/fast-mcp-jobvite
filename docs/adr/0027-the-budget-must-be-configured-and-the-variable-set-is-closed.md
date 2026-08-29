@@ -1,6 +1,6 @@
 # ADR-0027: the design requires the budget "configured" and closes the variable set without it
 
-**Status:** Proposed
+**Status:** Accepted (orchestrator, 2026-08-29)
 **Type:** Design change
 
 > `DESIGN.md:373-375` requires **"a total outbound budget, *configured*, that bounds all attempts for
@@ -88,3 +88,54 @@ itself.
 not a variable at all. Exempted with that reason rather than narrowing the pattern, because a pattern
 that tried to tell a tag from a variable would start guessing. The first such class was a private
 module-level `_JOBVITE_BREAKER`.
+
+## Ruling, 2026-08-29
+
+**ACCEPTED as written, including all three landing conditions and the count fix.**
+
+The alternative - amending `373-375` to drop the word "configured" - is rejected for the reason the
+ADR gives: the budget is the only bound between a slow Jobvite and an unbounded wait, and a
+deployment that cannot tune it has to accept 60 seconds chosen against no measurement.
+
+### Re-measured before ruling, and the backlog is smaller than the raising task says
+
+Task #60 is titled *"Four `JOBVITE_*` env vars ... declared nowhere"*. That was true when it was
+filed. Measured now at `5eb64b0` with `docs/reviews/check-env-vars-are-declared.py`:
+
+```
+`Settings` declares: 15
+`JOBVITE_*` names appearing in src/: 12
+  UNDECLARED   JOBVITE_OUTBOUND_BUDGET_SECONDS
+               services/jobvite_client.py:586, :729, :1211
+1 undeclared name(s), 0 stale exemption(s).
+```
+
+**One, at three sites.** The other three were closed as other work landed and nobody updated the
+task. This is the reason a ruling re-measures instead of inheriting: the ADR would otherwise have
+been accepted against a backlog that no longer exists.
+
+### The three-things-together requirement is the load-bearing part
+
+I tried the one-line version of this earlier and it failed correctly:
+`test_env_example_and_design_declare_the_same_variables` went red, because the frozen design named no
+such variable. **That failure is the closed set working**, and it is why the ADR insists the design's
+list, the `Settings` field, `.env.example`, the README table and `server.json` land together.
+
+**And all THREE client factories** - `tools/jobs.py` twice, `tools/candidates.py` once. A knob wired
+into two of three is worse than one wired into none, because nothing looks wrong. Verify by
+enumerating the call sites, not by editing the two you remember.
+
+### On `assert len(variables) == 15`
+
+The ADR is right that this is a positive control on the parser and right that it is a retyped
+constant. **Derive it from `Settings`** rather than asserting `> 0`: the closed-set test carries the
+equality, but a `> 0` control no longer proves the parser found more than one variable, which is what
+it exists to prove. Deriving keeps the control and removes the literal - this project has now watched
+a retyped constant decay in a brief, in two obligation rows, in a CI comment and in three harness
+floors.
+
+### What this ruling does not settle
+
+The budget's VALUE. ADR-0025 holds page size, budget and throttle as one decision and is still
+Proposed. This ADR makes the number configurable; it does not choose it, and the implementing work
+must not quietly pick one and call it discharged.
