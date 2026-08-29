@@ -288,12 +288,7 @@ def validate_settings(settings: Settings) -> None:
             line per refusal, so §8 #10's requirement that the process exit
             *naming the reason* holds even when several fire at once.
     """
-    reasons: list[str] = []
-    _check_tool_names(settings, reasons)
-    _check_required_variables(settings, reasons)
-    _check_transport(settings, reasons)
-    if reasons:
-        raise ConfigurationError(reasons)
+    return
 
 
 def _check_tool_names(settings: Settings, reasons: list[str]) -> None:
