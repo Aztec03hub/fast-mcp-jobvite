@@ -342,6 +342,98 @@ async def test_case2_the_url_bearing_producer_emits_it_redacted(
     assert COMPANY_ID not in message
 
 
+async def call_feed_raising(exc: Exception) -> Any:
+    """Drive `get_job_feed` against a raising transport, and return it.
+
+    The sibling of `call_feed`. Its handler raises rather than
+    responding, which is the only way to reach the branch that turns an
+    `httpx2` transport exception into a caller-visible `detail`.
+    """
+
+    def make() -> JobviteClient:
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            raise exc
+
+        return JobviteClient(
+            api_key=SecretStr(FEED_KEY),
+            api_secret=SecretStr(FEED_SECRET),
+            company_id=SecretStr(COMPANY_ID),
+            transport=httpx2.MockTransport(handler),
+        )
+
+    server = build_server(settings(), client_factory=make)
+    async with Client(server) as client:
+        return await client.call_tool(
+            GET_JOB_FEED, {"params": {}}, raise_on_error=False
+        )
+
+
+@pytest.mark.parametrize("failure", ["read_timeout", "connect_error"])
+async def test_case2_a_jobfeed_transport_failure_carries_no_secret_to_the_caller(
+    failure: str,
+) -> None:
+    """THE CALLER-VISIBLE HALF OF C5-I1, which was never built.
+
+    The three arms above measure the LOG stream and measure it well.
+    Nothing measured the other stream: the `detail` a jobFeed failure
+    returns to the MCP caller, which reaches the model, the model's
+    host, and whatever logs that host keeps.
+
+    **The behaviour is correct today and nothing held it there.** R7
+    probed it and found no leak - `detail` is enumerated prose, never
+    `str(exc)`. But `errors.py` is one edit away from the shape
+    R2-M5/L1 already found and fixed on the log stream, and that edit
+    passed every test in the repository. This is the ratchet, not a
+    bug report.
+
+    **The positive halves come first**, because an absence assertion
+    over a call that never failed, or over a URL that never carried the
+    secret, passes perfectly while measuring nothing.
+
+    **And it asserts the VALUE, not the token.** `f"sc={FEED_SECRET}"`
+    absent, never `"sc="` absent - the arm above records by measurement
+    why the literal-token form is the wrong assertion: it fails on a
+    compliant redacted line and passes on a line that never carried the
+    parameter at all.
+    """
+    url = (
+        f"{V1_BASE_URL}{JOBFEED_PATH}"
+        f"?api={FEED_KEY}&sc={FEED_SECRET}&companyId={COMPANY_ID}"
+    )
+    # POSITIVE HALF 1: the exception text really does carry the secret
+    # before anything redacts it. Without this the absence below could
+    # pass against a probe that never had a secret to leak.
+    assert f"sc={FEED_SECRET}" in url, (
+        "the probe URL carries no secret; this arm would be vacuous"
+    )
+
+    request = httpx2.Request("GET", url)
+    message = f"timed out for url {url}"
+    exc: Exception = (
+        httpx2.ReadTimeout(message, request=request)
+        if failure == "read_timeout"
+        else httpx2.ConnectError(message, request=request)
+    )
+    assert f"sc={FEED_SECRET}" in str(exc), (
+        "the exception does not carry the secret; this arm would be vacuous"
+    )
+
+    result = await call_feed_raising(exc)
+
+    # POSITIVE HALF 2: the call really did fail. An absence measured
+    # over a SUCCESSFUL call says nothing about the failure path.
+    assert result.is_error, (
+        "the call succeeded, so the failure branch never ran and the "
+        "absence below would be vacuous"
+    )
+
+    text = json.dumps([block.text for block in result.content])
+    assert FEED_SECRET not in text, text
+    assert f"sc={FEED_SECRET}" not in text, text
+    assert FEED_KEY not in text, text
+    assert COMPANY_ID not in text, text
+
+
 async def test_case2_the_url_never_reaches_a_log_record_whole(
     log_records: list[dict[str, Any]],
 ) -> None:
