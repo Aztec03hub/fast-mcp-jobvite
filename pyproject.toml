@@ -40,6 +40,14 @@ dependencies = [
   # expansion on attacker-reachable input is not a risk worth taking for a route
   # that should never respond to us.
   "defusedxml==0.7.1",
+  # U1's, and it was MISSING while config.py imported it directly. It arrives
+  # transitively through fastmcp-slim, so the server ran perfectly on an
+  # UNDECLARED dependency - the exact failure class the three pins above exist
+  # for. A fastmcp bump that drops it breaks `from pydantic_settings import
+  # BaseSettings` at import time, with nothing in the manifest to have stopped
+  # it. Declared because we import it DIRECTLY, not because the resolve needs
+  # the name. Found by impl-u1-boot after its unit had already merged.
+  "pydantic-settings==2.15.0",
 ]
 
 # U1's key, and only this key (IMPLEMENTATION-PLAN.md:1273). U0 deliberately

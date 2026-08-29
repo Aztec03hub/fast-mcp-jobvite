@@ -78,6 +78,10 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         # versions, so `uv lock` added four lines and moved nothing.
         "httpx2==2.12.0",
         "defusedxml==0.7.1",
+        # U1's. config.py imports pydantic_settings directly; it had been
+        # arriving transitively, so nothing would have noticed a bump that
+        # dropped it.
+        "pydantic-settings==2.15.0",
     }
 
 

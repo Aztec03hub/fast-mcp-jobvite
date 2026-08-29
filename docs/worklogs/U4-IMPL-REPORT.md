@@ -215,9 +215,12 @@ either. `test_positive_control_httpx2_DOES_carry_cookies_by_default` pins the de
 the main assertion cannot go vacuous if `httpx2` ever changes - and it fails with a message naming
 the clearing as possibly-dead-code rather than going quietly green.
 
-**Note on ADR numbering:** `docs/adr/` has **no `0018`**. The directory jumps 0017 -> 0019, while
-the brief lists 0018 among the Proposed-and-not-in-force set. Either the file is missing or the
-list is wrong. Not mine to settle; reporting it.
+**Note on ADR numbering - RETRACTED, and worth recording why.** At my pinned base `5db4252`,
+`docs/adr/` jumped 0017 -> 0019 with **no `0018`**, and I wrote this section up as a possible
+missing file. **That was true of my base and false of the tree.** U1 landed
+`0018-forced-exit-masks-a-crash-as-a-clean-stop.md`, and after rebasing onto `origin/main` the
+numbering is complete 0001-0022 with no gap. `0022` was still free and is mine. The finding was an
+artefact of reading a pinned worktree as though it were current.
 
 ---
 
@@ -230,7 +233,7 @@ uv lock --check                                     exit=0
 ruff check                                          exit=0
 ruff format --check                                 exit=0
 mypy                                                exit=0     <- the type gate, not pyright
-pytest (default offline)                            exit=0     <- 226 passed, 2 deselected, 0 skipped
+pytest (default offline)                            exit=0     <- 294 passed, 2 deselected, 0 skipped
 check-u0-test-controls                              exit=0
 check-u15-gate-controls                             exit=0
 check-u15-gate-amputation                           exit=0
@@ -251,8 +254,11 @@ check-obligations                                   exit=1     <- SIX ANCHORS MO
 `check-cross-references.py` exits 1 on `DESIGN.md:603`, held for ADR-0019. Confirmed to be that
 one failure and nothing else; not reported as a problem and not touched.
 
-**Suite: 226 passed, 2 deselected, 0 skipped.** Baseline was 189/2/0, so U4 adds **37** and removes
-none.
+**Suite: 294 passed, 2 deselected, 0 skipped**, POST-REBASE onto `origin/main` at **`a51ffc0`**.
+U4's own file contributes **37**. (Against my pinned base `5db4252` and its 189/2/0 baseline the
+suite was 226/2/0 - also 37 added. `main` moved twice while I worked: U1 landed at `742aff9` and
+the advisory-gate fix at `a51ffc0`, so I rebased and re-ran the whole gate a second time rather
+than reporting the first run's numbers.)
 
 (Recorded because it is the mistake this project keeps catching: I first wrote 230 and 41 into this
 report from prediction, then ran the suite and copied 226 and 37 off the terminal. The gate goes
@@ -260,18 +266,23 @@ before the message, not after it.)
 
 ### `docs/OBLIGATIONS.md` - six anchors moved, NOT repointed by me
 
+**These are the POST-REBASE numbers**, re-run after rebasing onto `origin/main` at `a51ffc0`. The
+pre-rebase run named different line numbers for the same six obligations, because U1's changes
+shifted them too - which is why this block is the checker's output pasted whole rather than a
+pair I typed.
+
 Adding two dependencies plus a mypy override to `pyproject.toml`, and two steps to `ci.yml`,
 shifted six anchored lines. **The checker's own output, verbatim:**
 
 ```
 Mappings: 28  |  anchors verified against their subject: 15  |  recorded as absent: 7
 
-FAIL: B49: pyproject.toml:154 no longer contains 'line-length = 88' - it is now at pyproject.toml:172. Repoint the anchor.
-FAIL: B50: pyproject.toml:183 no longer contains 'convention = "google"' - it is now at pyproject.toml:201. Repoint the anchor.
-FAIL: B51: pyproject.toml:176 no longer contains 'no datetime.utcnow' - it is now at pyproject.toml:194. Repoint the anchor.
-FAIL: B52: pyproject.toml:170 no longer contains 'pep8-naming' - it is now at pyproject.toml:188. Repoint the anchor.
-FAIL: B75: .github/workflows/ci.yml:500 no longer contains '# - name: Capability drift diff' - it is now at .github/workflows/ci.yml:530. Repoint the anchor.
-FAIL: B82: .github/workflows/ci.yml:653 no longer contains 'Relative links resolve' - it is now at .github/workflows/ci.yml:683. Repoint the anchor.
+FAIL: B49: pyproject.toml:159 no longer contains 'line-length = 88' - it is now at pyproject.toml:177. Repoint the anchor.
+FAIL: B50: pyproject.toml:188 no longer contains 'convention = "google"' - it is now at pyproject.toml:206. Repoint the anchor.
+FAIL: B51: pyproject.toml:181 no longer contains 'no datetime.utcnow' - it is now at pyproject.toml:199. Repoint the anchor.
+FAIL: B52: pyproject.toml:175 no longer contains 'pep8-naming' - it is now at pyproject.toml:193. Repoint the anchor.
+FAIL: B75: .github/workflows/ci.yml:509 no longer contains 'name: Capability drift report' - it is now at .github/workflows/ci.yml:539. Repoint the anchor.
+FAIL: B82: .github/workflows/ci.yml:679 no longer contains 'Relative links resolve' - it is now at .github/workflows/ci.yml:709. Repoint the anchor.
 
 6 failure(s).
 ```
@@ -320,5 +331,6 @@ Things I could not settle, rather than things I did not try.
 git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite merge --no-ff impl/u4-client
 ```
 
-Rebased onto `origin/main` and the full gate re-run after the rebase; results above are the
-post-rebase run. Worktree `/tmp/impl-u4-work` removed.
+Rebased onto `origin/main` at `a51ffc0` and the full gate re-run after that rebase; every number
+above is from the post-rebase run. The branch is three commits, 13 files, **insertions only** - it
+deletes and modifies nothing outside its own subject. Worktree `/tmp/impl-u4-work` removed.
