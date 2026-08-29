@@ -2,7 +2,7 @@ name: CI
 
 # U0. Before this file existed, every gate in DESIGN.md was hand-run and every
 # "CI runs X" sentence in the design was a specification rather than a report
-# (DESIGN.md:1466-1472). This workflow is what turns those sentences true.
+# (DESIGN.md §10's "No CI pipeline exists yet"). This workflow is what turns those sentences true.
 #
 # WHAT HAS AND HAS NOT BEEN EXECUTED, stated here because the alternative is a
 # workflow that reads as tested and is not:
@@ -37,7 +37,7 @@ name: CI
 #       NEVER `uv run --with pip-audit` - that resolves unpinned outside the lock,
 #       which is exactly the defect ADR-0015 records for pip-licenses.
 #     fastmcp inspect capability-drift diff -> U1 (`fastmcp inspect` takes a
-#       server spec; server.py is U1's file). Note DESIGN.md:1494-1497: standing
+#       server spec; server.py is U1's file). Note DESIGN.md §10's "reasoning, not an executed result": standing
 #       this up in CI does NOT execute it. A diff that has never seen a real
 #       capability change has only ever compared a build to itself.
 
@@ -164,7 +164,7 @@ jobs:
         run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
 
       # Wired the day it went green, and not one commit before. It exited 1 on
-      # exactly one finding - `DESIGN.md:603`'s `SS5.4`, a section that does not
+      # exactly one finding - DESIGN.md §5.3's `SS5.4`, a section that does not
       # exist - and was deliberately left unwired, because a knowingly red gate
       # trains everyone to ignore the gate. ADR-0019 fixed the finding and this
       # step lands in the same commit.
@@ -175,7 +175,7 @@ jobs:
       # original one. Nothing else would have caught that.
       # EVERY DECLARED SETTING IS CONSUMED BY SOMETHING. Added after the
       # question "does anything READ this?" produced two findings in one day
-      # and no gate here asked it: DESIGN.md:373-375's outbound budget was
+      # and no gate here asked it: DESIGN.md §4.3's outbound budget was
       # unimplemented until U7, and `outbound_rate_limit` is STILL read by
       # nothing - declared, typed, defaulted, documented in .env.example and
       # covered by config tests, every one of which passes on a setting no
@@ -512,7 +512,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # The lockfile is the cure, not the hand-written pins (DESIGN.md:1426-1430).
+      # The lockfile is the cure, not the hand-written pins (DESIGN.md §10, the lockfile-not-hand-written-pins clause).
       # --frozen installs exactly uv.lock and fails rather than resolving.
       - name: Install from the frozen lock
         run: uv sync --frozen
@@ -532,7 +532,7 @@ jobs:
       - name: Types
         run: uv run --frozen mypy
 
-      # ZERO SKIPS (DESIGN.md:1229-1232). A skip counts as a failure, so the
+      # ZERO SKIPS (DESIGN.md §8's zero-skips clause). A skip counts as a failure, so the
       # credentialed and network arms are excluded by SELECTION - the `-m` in
       # addopts - and never by skipif. The grep is the enforcement: pytest itself
       # exits 0 on a run full of skips, so the exit code alone cannot see this.
@@ -599,7 +599,7 @@ jobs:
       # The credentialed suite is never run and never skipped, but it MUST be
       # collected: a suite that is excluded and never collected rots silently, and
       # an import error in it is invisible until the day someone has a credential
-      # (DESIGN.md:1244-1249).
+      # (DESIGN.md §8's one-declared-list rule).
       #
       # TIGHTENED BY U5, which is the first unit to add an arm here.
       #
@@ -792,7 +792,7 @@ jobs:
       - name: U5 jobs amputation, every anchor applied
         run: bash scripts/ci-harness-gate.sh check-u5-jobs-amputation.sh --anchors-applied
 
-      # ----- U6, base-agnostic offset paging (DESIGN.md:455-480) -----
+      # ----- U6, base-agnostic offset paging (DESIGN.md §4.5, "Every scan starts at `start=0`") -----
       # WIRED IN THE SAME COMMIT AS THE MERGE, because a harness that runs
       # nowhere is not a control - the fifth instance of that shape recorded in
       # this file. U6 delivered both harnesses green and neither had a step.
@@ -813,9 +813,9 @@ jobs:
       - name: U6 paging amputation, every anchor applied
         run: bash scripts/ci-harness-gate.sh check-u6-paging-amputation.sh --anchors-applied
 
-      # ----- U7, resilience: timeout, retry, breaker (DESIGN.md:342-358) -----
+      # ----- U7, resilience: timeout, retry, breaker (DESIGN.md §4.3 Resilience) -----
       # WIRED IN THE MERGE COMMIT, like U6's. A harness that runs nowhere is not
-      # a control, and this is the unit DESIGN.md:64-68 names as one of two
+      # a control, and this is the unit DESIGN.md's never-executed-mechanisms list names as one of two
       # mechanisms NEVER EXECUTED - sitting among measured results and borrowing
       # their credibility. These two steps are what stops it drifting back there.
       #
@@ -895,7 +895,7 @@ jobs:
       # steps guard more than a schema. Row M2 is the one to read: it empties
       # the handshake era set so every handshake call refuses, and EVERY refusal
       # arm still passes against that tree - only the approved-write positive
-      # control goes red. That is DESIGN.md:1370-1371's guard-that-refuses-
+      # control goes red. That is DESIGN.md §8's guard-that-refuses-
       # everything reproduced deliberately and killed, and it is why the row
       # counter had to be written before any source existed.
       - name: U10 write controls, all fired
@@ -934,7 +934,7 @@ jobs:
           bash scripts/ci-harness-gate.sh check-log-redaction-amputation.sh \
             --amputation --anchors-applied --min-rows 6 --row-re '^########## A[0-9]+ '
 
-      # ----- ADR-0029 / DESIGN.md:165: the 1 MiB body cap at the ASGI seat -----
+      # ----- ADR-0029 / DESIGN.md §2.1's 1 MiB max request body: the cap at the ASGI seat -----
       # Row counts DERIVED from the harnesses' own ROW_FLOOR (12 and 5), each
       # set from a run. NOTE the amputation's rows are LETTERED `A.` to `E.`,
       # not `A1`..`A5`, so the usual `--row-re '^########## A[0-9]+ '` would
@@ -1000,7 +1000,7 @@ jobs:
       - name: U0 test controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u0-test-controls.sh --controls-fired
 
-      # ----- U15, the two commit-time gates (DESIGN.md:1627-1637, C8-I1) -----
+      # ----- U15, the two commit-time gates (DESIGN.md §10.1's two commit-time gates, C8-I1) -----
       # The pre-commit hooks are the primary control and they run on a
       # developer machine, which means they can be skipped with --no-verify or
       # simply not installed. These steps are the backstop that notices.
@@ -1107,7 +1107,7 @@ jobs:
       # LANDED BY U11. pip-audit has no severity threshold: one advisory anywhere
       # in the transitive tree turns a required check red, and we pinned a beta
       # stack deliberately, so we expect this and owe it a sanctioned response
-      # (DESIGN.md:1499-1529). scripts/check_advisories.py is that response - it
+      # (DESIGN.md §10's advisory policy). scripts/check_advisories.py is that response - it
       # reads the [tool.fast-mcp-jobvite.advisory-ignores] table (landed empty in
       # pyproject.toml), emits pip-audit's --ignore-vuln flags from it, and exits
       # non-zero on any expired entry.
@@ -1145,7 +1145,7 @@ jobs:
 
       # The audit half. The flags come from the table via the script, so the
       # table is the single source for both, and a hand-maintained flag list
-      # cannot drift from it - the two-lists defect DESIGN.md:1520-1522 names.
+      # cannot drift from it - the two-lists defect DESIGN.md §10 names, where the table is the single source.
       #
       # The script's STDOUT IS the flag list and nothing else, which is why this
       # captures it directly. I first wrote `--flags-only` here, an option that
@@ -1175,7 +1175,7 @@ jobs:
             echo "::error::pip-audit found an advisory with no sanctioned ignore."
             echo "::error::Fix or remove the dependency. If genuinely unreachable,"
             echo "::error::add a time-boxed single-advisory entry to"
-            echo "::error::[tool.fast-mcp-jobvite.advisory-ignores] per DESIGN.md:1505-1524."
+            echo "::error::[tool.fast-mcp-jobvite.advisory-ignores] per DESIGN.md §10's advisory policy."
             echo "::error::NEVER a blanket ignore and NEVER a raised threshold."
             exit 1; }
 
@@ -1183,7 +1183,7 @@ jobs:
 
       # `fastmcp inspect` takes a server spec and server.py is U1's file. The
       # report is emitted and uploaded so the NEXT build can diff against it,
-      # which is what DESIGN.md:1492-1497 asks for.
+      # which is what DESIGN.md §10's diffed-between-builds clause asks for.
       #
       # UNVERIFIED, and U1 does not remove the marker: standing this up does
       # NOT execute it. A diff that has never seen a real capability change
@@ -1246,7 +1246,7 @@ jobs:
       security-events: write
     steps:
       # TruffleHog needs FULL history: a secret removed in a later commit is still
-      # compromised, and a shallow clone cannot see it (DESIGN.md:1490-1491).
+      # compromised, and a shallow clone cannot see it (DESIGN.md §10's CI-must-also-run list).
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -1296,7 +1296,7 @@ jobs:
       # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
       # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
       # produced from an unfrozen resolve documents a build nobody shipped
-      # (DESIGN.md:1431-1435).
+      # (DESIGN.md §10's "The lockfile is the actual cure").
       - name: SBOM (CycloneDX)
         uses: anchore/sbom-action@v0
         with:
@@ -1372,6 +1372,10 @@ jobs:
   #
   # STATED CEILING, so this gate is not over-trusted. This project cites almost
   # entirely as BARE TEXT - `DESIGN.md:1534`, `quality-gates.md:76-81` - not as
+  #     (those two are ILLUSTRATIONS OF THE FORM, not pointers to content.
+  #     They are the only citations in this file that keep a line number,
+  #     and they must: converting them to subject phrases would delete the
+  #     very thing the sentence is showing. Do not repoint them either.)
   # markdown links. Only 27 links in the whole tree are even in scope. So this
   # satisfies readme-standard.md:69 and it is NOT the control for this project's
   # citation decay: the coupling gates in docs/reviews/ and the citation audits
