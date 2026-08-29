@@ -72,10 +72,12 @@ _NAMES_A_DOCUMENT = re.compile(r"[A-Za-z0-9_-]+\.md")
 # rots exactly like the citation it exempts - which is the failure this whole
 # script exists to catch, reproduced inside its own suppression list.
 _EXEMPT: dict[str, list[tuple[str, str]]] = {
-    "docs/plans/IMPLEMENTATION-PLAN.md": [
-        # FASTMCP-SPIKE-4.md's §16.3. The line names "the spike", not the file.
-        ("16.3", "the spike records"),
-    ],
+    # No entry for IMPLEMENTATION-PLAN.md. It had one, for a §16.3 that named "the
+    # spike" and not the file. impl-plan-draft9 FIXED THE CITATION INSTEAD - the
+    # line now reads `FASTMCP-SPIKE-4.md:1431` with the section title quoted - which
+    # is strictly better than exempting it: a reader following the pointer now
+    # arrives somewhere. An exemption should be the last resort, not the first, and
+    # this one lasted two commits.
     "docs/DESIGN.md": [
         # FASTMCP-SPIKE-4.md's §20.2, the executed spike the dual-era guard rests
         # on. Verified by reading the surrounding paragraph, which is entirely

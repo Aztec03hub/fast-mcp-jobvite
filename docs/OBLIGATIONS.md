@@ -76,9 +76,9 @@ the map exists to make visible.
 | B75 | CONTRADICTED | `.github/workflows/ci.yml:402` | `# - name: Capability drift diff` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out blocks; U11 enabled the advisory one, so two remain and both are U1's** - the capability-drift diff and the coverage floors. Deliberate and reasoned, still with no ADR. Needs a decision, not a deletion |
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
 | B77 | SUPERSEDED | `docs/DESIGN.md:1484` | `not written yet, deliberately` | `documentation/readme-standard.md:43` | Deferred with a recorded reason; scheduled as U13 |
-| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1307` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
+| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1308` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
 | B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
-| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1352` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
+| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1353` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
 | B82 | MET | `.github/workflows/ci.yml:555` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | SUPERSEDED | `pyproject.toml:6` | `license = "Apache-2.0"` | `documentation/readme-standard.md:57` | Substance settled; only the README section is deferred with B77 |
