@@ -344,7 +344,7 @@ async def test_the_discriminator_is_protocol_version_and_not_transport_or_sessio
     It is now driven through `resolve_approval`, the function it names:
 
     1. Two contexts differing ONLY in `protocol_version` must resolve to
-       DIFFERENT mechanisms - `SAMPLING` on the sessionless era,
+       DIFFERENT mechanisms - `MRTR` on the sessionless era,
        `ELICITATION` on the handshake era. A guard keyed on `transport`
        or `session_id` cannot produce two answers here, because those
        are identical on both.
@@ -389,7 +389,7 @@ async def test_the_discriminator_is_protocol_version_and_not_transport_or_sessio
     assert sessionless.transport == handshake.transport
     assert sessionless.session_id == handshake.session_id
 
-    assert await mechanism_of(sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(sessionless) == ApprovalMechanism.MRTR
     assert await mechanism_of(handshake) == ApprovalMechanism.ELICITATION
 
     # NEGATIVE CONTROL. Make both traps DIFFER and require the same two
@@ -404,7 +404,7 @@ async def test_the_discriminator_is_protocol_version_and_not_transport_or_sessio
     assert varied_sessionless.transport != varied_handshake.transport
     assert varied_sessionless.session_id != varied_handshake.session_id
 
-    assert await mechanism_of(varied_sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(varied_sessionless) == ApprovalMechanism.MRTR
     assert await mechanism_of(varied_handshake) == ApprovalMechanism.ELICITATION
 
 
@@ -619,7 +619,7 @@ async def test_case22_the_second_leg_actually_consumes_ctx_input_responses() -> 
     )
     assert isinstance(approved, ApprovalDecision)
     assert approved.approved is True
-    assert approved.mechanism is ApprovalMechanism.SAMPLING
+    assert approved.mechanism is ApprovalMechanism.MRTR
 
     # THE SAME CALL, A DIFFERENT ANSWER. If the verdict did not come
     # from `ctx.input_responses`, these two would agree.
@@ -827,7 +827,7 @@ async def test_case16_the_audit_failure_warning_branch_carries_request_id(
 
 @pytest.mark.parametrize(
     ("mode", "expected_mechanism"),
-    [(SESSIONLESS_MODE, "sampling"), (HANDSHAKE_MODE, "elicitation")],
+    [(SESSIONLESS_MODE, "mrtr"), (HANDSHAKE_MODE, "elicitation")],
 )
 async def test_c4r1_the_audit_event_records_approval_state_and_its_mechanism(
     mode: str,
@@ -1696,7 +1696,7 @@ async def test_a_context_with_no_request_context_refuses() -> None:
     and carries no version.
 
     **The assertion is the whole decision, not just `approved`.** A
-    refusal recorded as `SAMPLING`/`REFUSED` would be a different
+    refusal recorded as `MRTR`/`REFUSED` would be a different
     claim - that a mechanism was consulted and said no - and ADR-0033
     publishes this vocabulary, so the mechanism and the state are part
     of the contract rather than diagnostics.
@@ -1761,9 +1761,9 @@ async def test_an_input_responses_container_of_an_unreadable_shape_refuses() -> 
         "an approval was read out of a container shape the server does not "
         "understand, which authorises a write on an unparsed response"
     )
-    # The era WAS identified, so this is a refusal by the sampling
+    # The era WAS identified, so this is a refusal by the MRTR
     # mechanism and not the no-handler case above.
-    assert unreadable.mechanism is ApprovalMechanism.SAMPLING
+    assert unreadable.mechanism is ApprovalMechanism.MRTR
     assert unreadable.state is ApprovalState.REFUSED
 
     readable = await resolve_approval(

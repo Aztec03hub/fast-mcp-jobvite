@@ -79,7 +79,8 @@ values for the secret-class entries.
 | `JOBVITE_HTTP_TOKENS` | No | *(none)* | Bearer tokens accepted on the `http` transport. |
 | `JOBVITE_TLS_TERMINATED_BY_PROXY` | No | `false` | Asserts that a proxy terminates TLS. The server refuses to bind off-loopback in plaintext without it. |
 | `JOBVITE_MAX_RESULTS` | No | `50` | Upper bound on results returned by any tool, minimum 1. |
-| `JOBVITE_OUTBOUND_RATE_LIMIT` | No | `6` | Outbound requests per second to Jobvite, minimum 1. |
+| `JOBVITE_OUTBOUND_RATE_LIMIT` | No | `6` | Outbound requests per **minute** to Jobvite, minimum 1. |
+| `JOBVITE_OUTBOUND_BUDGET_SECONDS` | No | `60` | Total wall-clock budget for all outbound attempts in one tool invocation. Greater than 0. |
 | `JOBVITE_PAGINATION_START_BASE` | No | *(unset)* | Overrides the detected pagination base. Leave unset unless a measurement says otherwise. |
 
 **"Per tool" means what it says.** A credential is required only when a tool that needs it is

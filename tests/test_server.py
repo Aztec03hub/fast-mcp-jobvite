@@ -1,7 +1,7 @@
-"""The `FastMCP` instance and lifespan composition (DESIGN.md:1013-1014).
+"""The `FastMCP` instance and lifespan composition (see below).
 
-DESIGN.md:1013-1014 states "startup in order, teardown in strict reverse,
-verified". That property had no test, and its two halves fail
+DESIGN.md:1013-1014 states "startup in order, teardown in strict
+reverse, verified". That property had no test, and its two halves fail
 differently: an out-of-order startup is usually visible, an out-of-order
 teardown is usually not.
 """
@@ -243,10 +243,12 @@ async def test_the_live_middleware_stack_is_five_and_the_fifth_is_injected() -> 
     """ADR-0032: `build_middleware` returns four and FIVE run.
 
     `FastMCP.__init__` appends `DereferenceRefsMiddleware()` whenever
-    `dereference_schemas` is true, which is its default. The threat
-    model at `DESIGN.md:1792` names the stack it analysed as
-    `Timing, StructuredLogging, RateLimiting` - so C2 was written
-    against a stack that is not the one that runs.
+    `dereference_schemas` is true, which is its default. C2 was written
+    against a stack that is not the one that runs; ADR-0032 ADOPTED the
+    fifth rather than disabling it, so the threat model at
+    `DESIGN.md:1792` now names all four - `Timing, StructuredLogging,
+    RateLimiting, DereferenceRefs` - and carries its own row, C2-T2.
+    This test is what keeps that heading honest about what runs.
 
     Asserting the WHOLE list rather than "the fifth is present": a
     membership check cannot see a sixth arriving, and a framework bump

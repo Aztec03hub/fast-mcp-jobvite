@@ -331,6 +331,7 @@ def _register_search_jobs(
             api_secret=api_secret,
             company_id=settings.company_id,
             max_results=settings.max_results,
+            outbound_budget_seconds=settings.outbound_budget_seconds,
             start_base_overrides=(
                 None
                 if settings.pagination_start_base is None
@@ -641,6 +642,7 @@ def _register_get_job_feed(
             api_secret=feed_secret,
             company_id=company_id,
             max_results=settings.max_results,
+            outbound_budget_seconds=settings.outbound_budget_seconds,
             start_base_overrides=(
                 None
                 if settings.pagination_start_base is None

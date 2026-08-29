@@ -186,9 +186,10 @@ set -uo pipefail
 - **It does not enumerate the twelve sites as safe.** They were located
   (`grep -n '=\$?' scripts/*.sh`) and three were read in full. The other nine were not individually
   audited for what else `-e` would have caught in them.
-- **It does not cover `ci.yml`.** `bash.md` is `applicable_to: ci-cd`, and every `run:` block in
-  the workflow is shell that no strict-mode line governs at all. That is a separate and unmeasured
-  gap, recorded in the report rather than decided here.
+- **An earlier draft scoped this by artifact type and excluded `ci.yml`.** The Ruling below brings
+  the `run:` blocks in, so `ci.yml` IS in scope and the Decision's by-purpose scope is the operative
+  one. The bullet that said otherwise was a survivor of that draft and is removed rather than left
+  standing beside the sentence contradicting it.
 
 ## Ruling, 2026-08-29
 

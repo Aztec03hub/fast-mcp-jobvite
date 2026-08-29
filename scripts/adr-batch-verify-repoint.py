@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
-"""Verify a citation repoint by CONTENT, not by re-running the map that made it.
+"""Verify a citation repoint by CONTENT, not by its own map.
 
 ONE-SHOT, for task #95, and deliberately not the inverse of
-`adr-batch-repoint.py`: re-running that script over already-repointed files
-re-maps the new numbers as if they were old ones and prints a confident,
-meaningless second answer. That is the instrument agreeing with itself.
+`adr-batch-repoint.py`: re-running that script over already-repointed
+files re-maps the new numbers as if they were old ones and prints a
+confident, meaningless second answer. That is the instrument agreeing
+with itself.
 
-This joins on TEXT instead. For every citation in a repointed file it pairs the
-number the file carried BEFORE with the number it carries NOW, then asserts
-that the old design's text at the old range is byte-identical to the new
-design's text at the new range. A citation that resolves is not the claim; a
-citation that still covers the words its author read is.
+This joins on TEXT instead. For every citation in a repointed file it
+pairs the number the file carried BEFORE with the number it carries NOW,
+then asserts that the old design's text at the old range is
+byte-identical to the new design's text at the new range. A citation
+that resolves is not the claim; a citation that still covers the words
+its author read is.
 
-    old_design[old_start : old_end]  ==  new_design[new_start : new_end]
+old_design[old_start : old_end] == new_design[new_start : new_end]
 
 Pairing is positional within a file: the Nth citation before is the Nth
 citation after. A repoint that adds or drops a citation breaks that
-assumption, so the count is asserted per file and a mismatch is a failure
-rather than a silent realignment - a realigned pairing would compare the wrong
-two ranges and could report either a false pass or a false failure.
+assumption, so the count is asserted per file and a mismatch is a
+failure rather than a silent realignment - a realigned pairing would
+compare the wrong two ranges and could report either a false pass or a
+false failure.
 
 Exit 0 when every pair matches, 1 otherwise.
 """
@@ -34,8 +37,11 @@ CITATION = re.compile(r"DESIGN\.md:(\d+)(?:-(\d+))?")
 
 
 def git_show(ref: str, path: str) -> str | None:
-    result = subprocess.run(
-        ["git", "show", f"{ref}:{path}"],
+    # S603/S607: a fixed argv, no shell, and `git` from PATH. This is a
+    # one-shot developer script whose whole job is reading git objects;
+    # an absolute git path would be less portable, not safer.
+    result = subprocess.run(  # noqa: S603
+        ["git", "show", f"{ref}:{path}"],  # noqa: S607
         capture_output=True,
         text=True,
         check=False,
@@ -44,7 +50,7 @@ def git_show(ref: str, path: str) -> str | None:
 
 
 def citations(text: str) -> list[tuple[int, int]]:
-    """Every citation in the file, as (start, end) with end==start when bare."""
+    """Citations as (start, end); end == start when bare."""
     found = []
     for match in CITATION.finditer(text):
         start = int(match.group(1))
@@ -62,10 +68,10 @@ def slice_lines(lines: list[str], start: int, end: int) -> list[str] | None:
 def contains(haystack: list[str], needle: list[str]) -> bool:
     """Is `needle` a CONTIGUOUS run of lines inside `haystack`?
 
-    Contiguity is the point. A subsequence test would call a range "still
-    covering its subject" when the batch had inserted a paragraph into the
-    MIDDLE of the cited sentences, which is a different and worse outcome than
-    growing around them.
+    Contiguity is the point. A subsequence test would call a range
+    "still covering its subject" when the batch had inserted a
+    paragraph into the MIDDLE of the cited sentences, which is a
+    different and worse outcome than growing around them.
     """
     if not needle or len(needle) > len(haystack):
         return False
@@ -78,11 +84,12 @@ def contains(haystack: list[str], needle: list[str]) -> bool:
 def absorbs(haystack: list[str], needle: list[str]) -> bool:
     """Is every line of `needle` still inside `haystack`, in order?
 
-    Weaker than `contains`, and the distinction is the whole point. When a
-    batch inserts a paragraph in the MIDDLE of a cited range, the citer's lines
-    are all still covered but no longer adjacent. Nothing has fallen outside
-    the citation - which is the property that matters - but the range now says
-    more than its author did, so it is reported rather than passed in silence.
+    Weaker than `contains`, and the distinction is the whole point.
+    When a batch inserts a paragraph in the MIDDLE of a cited range,
+    the citer's lines are all still covered but no longer adjacent.
+    Nothing has fallen outside the citation - which is the property
+    that matters - but the range now says more than its author did,
+    so it is reported rather than passed in silence.
     """
     if not needle:
         return False
@@ -95,9 +102,7 @@ def main() -> int:
     paths = sys.argv[3:]
 
     old_design = (git_show(design_old_ref, "docs/DESIGN.md") or "").splitlines()
-    new_design = pathlib.Path("docs/DESIGN.md").read_text(
-        encoding="utf-8"
-    ).splitlines()
+    new_design = pathlib.Path("docs/DESIGN.md").read_text(encoding="utf-8").splitlines()
     if not old_design:
         print(f"FATAL: no docs/DESIGN.md at {design_old_ref}", file=sys.stderr)
         return 2
@@ -135,19 +140,21 @@ def main() -> int:
             elif was == now:
                 pass
             elif contains(now, was) or absorbs(now, was):
-                # The range grew around an insertion of this batch's own. Every
-                # line the citer read is still inside the range it now names,
-                # with new adjacent material alongside. That is the outcome a
-                # repoint is SUPPOSED to produce when a section gains a
-                # paragraph, and it is the opposite of the contraction hazard:
-                # nothing the author cited has fallen outside.
+                # The range grew around an insertion of this batch's
+                # own. Every line the citer read is still inside the
+                # range it now names, with new adjacent material
+                # alongside. That is the outcome a repoint is SUPPOSED
+                # to produce when a section gains a paragraph, and it is
+                # the opposite of the contraction hazard: nothing the
+                # author cited has fallen outside.
                 widened += 1
                 shape = "WIDENED" if contains(now, was) else "ABSORBED"
                 print(f"{shape} {path}: {o_start}-{o_end} -> {n_start}-{n_end}")
             else:
-                # The cited TEXT itself was edited. No number is the right
-                # answer here - the citing prose has to be read and, where it
-                # asserts something the edit falsified, rewritten in place.
+                # The cited TEXT itself was edited. No number is the
+                # right answer here - the citing prose has to be read
+                # and, where it asserts something the edit falsified,
+                # rewritten in place.
                 print(
                     f"FAIL {path}: {o_start}-{o_end} -> {n_start}-{n_end} "
                     f"SUBJECT TEXT CHANGED"

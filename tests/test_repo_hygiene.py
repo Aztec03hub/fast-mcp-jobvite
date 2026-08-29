@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import re
 
+from fast_mcp_jobvite.config import Settings
+
 from .conftest import ENV_EXAMPLE, GITIGNORE, REPO_ROOT
 
 # DESIGN.md:1616-1621 counts five credential variables; §7.2 adds
@@ -79,8 +81,18 @@ def test_the_parser_actually_found_variables() -> None:
     that matched nothing would make all of them pass vacuously.
     """
     variables = _declared_variables()
-    assert len(variables) == 15, (
-        f"expected fifteen variables, parsed {len(variables)}: {sorted(variables)}"
+    expected = {f"JOBVITE_{name.upper()}" for name in Settings.model_fields}
+    assert set(variables) == expected, (
+        f"parsed {sorted(variables)} from .env.example, "
+        f"Settings declares {sorted(expected)}"
+    )
+    # The equality above is the claim; this is the positive control
+    # ON IT. Two empty sets are equal, so the equality alone would pass
+    # against a parser that matched nothing AND a Settings that
+    # declared nothing.
+    assert len(variables) > 1, (
+        f"the parser found {len(variables)} variables, so every assertion in "
+        f"this file that iterates it is vacuous"
     )
 
 

@@ -584,6 +584,7 @@ def register(
             api_secret=api_secret,
             company_id=settings.company_id,
             max_results=settings.max_results,
+            outbound_budget_seconds=settings.outbound_budget_seconds,
             start_base_overrides=(
                 None
                 if settings.pagination_start_base is None

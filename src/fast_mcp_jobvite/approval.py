@@ -195,25 +195,25 @@ class ApprovalMechanism(enum.StrEnum):
     first three. ADR-0021 defines exactly these three and §8's
     audit-event case asserts the emitted value is one of them.
 
-    **`SAMPLING` NAMES THE MRTR PATH, AND THAT IS A DEFECT IN THE CLOSED
-    SET RATHER THAN A CHOICE MADE HERE.** The sessionless path is Multi
-    Round-Trip Requests - `InputRequiredResult` plus
-    `ctx.input_responses` - and is not sampling in the MCP sense at all.
-    ADR-0021's own context paragraph describes §7.5 as *"elicitation on
-    one era, sampling with `ctx.input_responses` on the other"*, which
-    is where the wrong noun entered, and the vocabulary it then closed
-    has no slot for MRTR. The set is closed by an applied ADR against a
-    frozen design, so this unit emits the value the contract names and
-    raises the mismatch as **ADR-0028 (Proposed)** rather than inventing
-    a fourth string the audit reader has never been told about.
+    **THE SESSIONLESS MEMBER IS `MRTR`, AND IT WAS `SAMPLING` UNTIL
+    ADR-0028.** The path is Multi Round-Trip Requests -
+    `InputRequiredResult` plus `ctx.input_responses` - and is not
+    sampling in the MCP sense at all; this server has no MCP sampling
+    path to name. ADR-0021's context paragraph described §7.5 as
+    *"elicitation on one era, sampling with `ctx.input_responses` on
+    the other"*, which is where the wrong noun entered, and the
+    vocabulary it closed then had no slot for MRTR. U10 emitted the
+    contract's value and raised the mismatch rather than inventing a
+    fourth string the audit reader had never been told about.
+    ADR-0028 renamed the member and kept the set closed at three, so
+    the value and the mechanism now agree. The set did not grow.
     """
 
     #: `ctx.elicit()` answered - the handshake era's path.
     ELICITATION = "elicitation"
-    #: The MRTR second leg answered - the sessionless era's path. See
-    #: the class docstring and ADR-0028: the name is the contract's, not
-    #: the mechanism's.
-    SAMPLING = "sampling"
+    #: The MRTR second leg answered - the sessionless era's path.
+    #: Renamed from `SAMPLING` by ADR-0028; see the class docstring.
+    MRTR = "mrtr"
     #: No approval path could run at all: no client handler, or an era
     #: this server does not recognise. Always a refusal.
     NO_HANDLER = "no_handler"
@@ -222,13 +222,24 @@ class ApprovalMechanism(enum.StrEnum):
 class ApprovalState(enum.StrEnum):
     """What the approval response said.
 
-    **ADR-0021 explicitly does NOT settle this vocabulary** - it records
+    **ADR-0021 explicitly did NOT settle this vocabulary** - it recorded
     `approval_state`'s own contents as a second gap in the same
-    paragraph and declines to fold it in, because one ADR resolving two
+    paragraph and declined to fold it in, because one ADR resolving two
     things is how the half nobody was looking at ships unreviewed
-    (ADR-0017, `U2-REPORT.md` D1). These three values are this unit's
-    choice, named here so they are visible as one, and they are reported
-    rather than presented as settled.
+    (ADR-0017, `U2-REPORT.md` D1). U10 chose the values below and
+    reported them rather than presenting them as settled. **ADR-0033
+    then settled them**: the set is CLOSED, the design names it, and a
+    fifth value is an ADR.
+
+    **`PENDING` and `UNAVAILABLE` must not be collapsed.** One is an
+    abandoned conversation and the other a conversation that never
+    started, and collapsing them makes an abandoned approval
+    indistinguishable from an unconfigured host in the only record
+    either leaves.
+
+    The prose above names no count on purpose. A number here is a second
+    statement of a set the members below already are, and it goes stale
+    on the change that adds one.
     """
 
     #: `action == "accept"` **and** `approve is True`. The only value
@@ -262,7 +273,7 @@ class ApprovalPending:
     #: produces a pending result - and it is carried rather than assumed
     #: at the call site so the audit record on this leg reads the same
     #: field as the audit record on the next one.
-    mechanism: ApprovalMechanism = ApprovalMechanism.SAMPLING
+    mechanism: ApprovalMechanism = ApprovalMechanism.MRTR
 
 
 @dataclasses.dataclass(frozen=True)
@@ -474,7 +485,7 @@ async def resolve_approval(
         approved = _approved_by_conjunction(response)
         return ApprovalDecision(
             approved=approved,
-            mechanism=ApprovalMechanism.SAMPLING,
+            mechanism=ApprovalMechanism.MRTR,
             state=ApprovalState.APPROVED if approved else ApprovalState.REFUSED,
             protocol_version=version,
         )

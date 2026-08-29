@@ -356,7 +356,7 @@ mutate "M17 the write advertises itself as read-only" \
 mutate "M18 the audit mechanism is hardcoded to one era's path" \
   "$APPROVAL" \
   "$SUITE::test_c4r1_the_audit_event_records_approval_state_and_its_mechanism" \
-  '            mechanism=ApprovalMechanism.SAMPLING,' \
+  '            mechanism=ApprovalMechanism.MRTR,' \
   '            mechanism=ApprovalMechanism.ELICITATION,'
 
 # A refused write leaves no trace at all - R2-H1's shape on a new tool.

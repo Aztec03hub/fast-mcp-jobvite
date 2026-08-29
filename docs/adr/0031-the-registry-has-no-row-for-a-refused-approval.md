@@ -25,7 +25,7 @@ because a new error appeared; it is a repair of a statement the design makes abo
 ### What the implementation did, and why it was right to flag it
 
 `src/fast_mcp_jobvite/errors.py:201-213` raises `ApprovalRefusedError` against `FORBIDDEN`, with the
-reasoning written into the class: no new slug, because `DESIGN.md:509` makes a published `type` a
+reasoning written into the class: no new slug, because `DESIGN.md:510` makes a published `type` a
 promise owed forever; and not `/problems/internal-error`, because that would report a working control
 as a broken server.
 

@@ -88,9 +88,10 @@ ADOPTED_MIDDLEWARE = frozenset(
 #: **Found by the equality assertion below on its first run, not by
 #: reading.** `server.py:477-482` appends `DereferenceRefsMiddleware()`
 #: whenever `dereference_schemas` is true, and it defaults to true, so
-#: the live stack is FOUR framework middleware and ours - not the three
-#: DESIGN.md §7.7 enumerates and not the three the C2 threat-model
-#: heading (`DESIGN.md:1792`) names as the stack it analysed.
+#: the live stack is FOUR framework middleware and ours. §7.7 and the C2
+#: threat-model heading (`DESIGN.md:1792`) each enumerated three when
+#: this constant was written; ADR-0032 adopted the fourth and both now
+#: name it, so this constant and the design agree.
 #:
 #: It is pinned here rather than waved through: this constant is what
 #: makes a framework bump that injects a SECOND such middleware a red

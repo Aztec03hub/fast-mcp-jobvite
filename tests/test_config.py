@@ -239,8 +239,8 @@ def test_http_with_tokens_starts(clean_env: pytest.MonkeyPatch) -> None:
 def test_stdio_without_tokens_starts(clean_env: pytest.MonkeyPatch) -> None:
     """The token requirement is keyed on the TRANSPORT, not on a tool.
 
-    DESIGN.md:1001-1006 sets that row of the matrix apart for this reason,
-    so the negative belongs here: stdio must not inherit an HTTP
+    DESIGN.md:1001-1006 sets that row of the matrix apart for this
+    reason, so the negative belongs here: stdio must not inherit an HTTP
     obligation.
     """
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")

@@ -31,7 +31,8 @@ forwards `exc_info` for every stdlib logger in the process, so the
 producers of an exception on this stream are not enumerable.
 
 **The SIGTERM problem, and why the obvious fix is worse than none**
-(DESIGN.md:1013-1076). Lifespan teardown does not run under SIGTERM, only
+(DESIGN.md:1013-1076). Lifespan teardown does not run under
+SIGTERM, only
 SIGINT - verified 3 of 3 with process identity checks and reproduced on
 the previous major, filed upstream as PrefectHQ/fastmcp#4927. Docker,
 Kubernetes and Cloud Run all stop containers with SIGTERM.
@@ -403,8 +404,9 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     """Load configuration, select the transport, and serve.
 
     **This function does not return on the serving path.** The `finally`
-    calls `os._exit(status)`, which DESIGN.md:1032-1034 requires because a
-    non-daemon AnyIO thread blocks interpreter shutdown on stdio. It
+    calls `os._exit(status)`, which DESIGN.md:1032-1034 requires
+    because a non-daemon AnyIO thread blocks interpreter shutdown on
+    stdio. It
     returns a status only on the configuration-refusal path, which
     happens before the handler is installed and before anything is
     served.
@@ -456,8 +458,9 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
-        # DESIGN.md:1032-1034. Teardown has already completed by here, and
-        # the call is unconditional so the stdio hang stays closed
+        # DESIGN.md:1032-1034. Teardown has already completed by
+        # here, and the call is unconditional so the stdio hang stays
+        # closed
         # (ADR-0018).
         os._exit(status)
 

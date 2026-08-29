@@ -226,6 +226,13 @@ class Settings(BaseSettings):
     #: figure** - Jobvite documents no numeric limit at all. Checklist
     #: row 9 is what replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)
+    #: DESIGN.md:1643-1649 (ADR-0027). §4.3 requires the total outbound
+    #: budget to be **configured**, and until ADR-0027 named it the
+    #: design demanded a variable no other section admitted existed.
+    #: The default mirrors `DEFAULT_OUTBOUND_BUDGET_SECONDS` and is a
+    #: choice, not a measurement - nothing about Jobvite's latency has
+    #: ever been observed on this project.
+    outbound_budget_seconds: float = Field(default=60.0, gt=0)
 
     # --- Jobvite quirks
     # ----------------------------------------------------

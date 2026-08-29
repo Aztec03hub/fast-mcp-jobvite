@@ -40,12 +40,12 @@ WHAT THIS CAN AND CANNOT DO, stated plainly because the gap matters:
   three defects above survive.
 
 THE `--since` MODE IS THE POINT. `docs/DESIGN.md` is frozen at
-`c15b138`, where the eight-ADR batch re-froze it. REPOINT-EXEMPT for the
+`8a9d63c`, where the ten-ADR batch re-froze it. REPOINT-EXEMPT for the
 addresses above. That edit shifts an unknown number of the citations in
 this tree, and there are 841 of them (counted by this script, not by the
 grep I first reached for, which said 836). Run:
 
-    python3 docs/reviews/check-design-citations.py --since c15b138
+    python3 docs/reviews/check-design-citations.py --since 8a9d63c
 
 before and after, and it maps old line numbers to new ones through a
 real diff, then reports every citation whose target moved. Without it,

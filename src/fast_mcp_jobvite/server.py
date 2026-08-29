@@ -30,8 +30,8 @@ side effect** - the resource the lifespan opened is released - and not
 the exit code, because a process that dies uncleanly can still exit 0.
 U1 opens no resource, so without a composition point the case would have
 to reimplement the shutdown path in the test and assert against its own
-copy. This parameter is the composition point DESIGN.md:1013-1014 already
-requires (`|` composition), used by the test today and by U4's
+copy. This parameter is the composition point DESIGN.md:1013-1014
+already requires (`|` composition), used by the test today and by U4's
 connection pool and U9's HTTP resources next.
 """
 

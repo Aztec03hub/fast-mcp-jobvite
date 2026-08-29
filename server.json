@@ -111,6 +111,13 @@
           "default": "6"
         },
         {
+          "name": "JOBVITE_OUTBOUND_BUDGET_SECONDS",
+          "description": "Total wall-clock budget for all outbound attempts in one tool invocation, in seconds. Not a per-request timeout: a scan making twenty-five requests shares one budget. A choice, not a measured figure.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "60"
+        },
+        {
           "name": "JOBVITE_PAGINATION_START_BASE",
           "description": "Pagination base per resource. Ships 1-based on Jobvite's own v1 documentation; scans start at 0 regardless so a 0-based server cannot lose record zero. Override only against a live tenant.",
           "isSecret": false,

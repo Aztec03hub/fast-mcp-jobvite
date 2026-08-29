@@ -24,7 +24,7 @@
 **ADR-0021 closed the `approval_mechanism` vocabulary at three values** and made the set closed
 deliberately, for the reason `error-contract.md`'s registry is closed (`DESIGN.md:510-511`): a value
 emitted into an audit record is a contract, and an open string invites a fourth spelling of the first
-three. `DESIGN.md:1276-1278` carries the applied result - the write's audit event records
+three. `DESIGN.md:1276-1280` carries the applied result - the write's audit event records
 `approval_mechanism`, *"present and one of `elicitation`, `sampling`, `no_handler`"*.
 
 **This server has no sampling path.** `DESIGN.md` §7.5 specifies exactly two mechanisms and neither
@@ -58,7 +58,10 @@ down, in a vocabulary rather than a reference.
 **Rename the sessionless value from `sampling` to `mrtr`, and keep the set closed at three.**
 
 1. Amend the vocabulary in `DESIGN.md` §5.3 to `elicitation`, `mrtr`, `no_handler`.
-2. Amend `DESIGN.md:1276-1278`'s §8 arm to the same three.
+2. Amend `DESIGN.md:1276-1280`'s §8 arm to the same three. **`:1276-1278` is what this ADR
+   said and it does not contain `sampling`**, which is on `:1280` at `c15b138`: `:1279` ends at
+   "`elicitation`,". An applier editing only the cited range changes nothing and the shape checker
+   still passes. Corrected here; anchor on the word, not the range.
 3. `src/fast_mcp_jobvite/approval.py`'s `ApprovalMechanism.SAMPLING` becomes `MRTR`, and
    `tests/test_approval_write.py`'s two era-parameterised expectations follow.
 
@@ -99,7 +102,7 @@ later reads as a decision, and so is one changed by the unit that could.
 
 **ACCEPTED. `sampling` becomes `mrtr`, and the set stays closed at three.**
 
-All three amendments land together - `DESIGN.md` §5.3's vocabulary, the §8 arm at `:1276-1278`, and
+All three amendments land together - `DESIGN.md` §5.3's vocabulary, the §8 arm at `:1276-1280`, and
 `approval.py`'s `ApprovalMechanism.SAMPLING` with the two era-parameterised expectations in
 `tests/test_approval_write.py`. A vocabulary amended in the design and not in the code is the same
 disagreement pointing the other way.

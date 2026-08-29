@@ -209,21 +209,20 @@ class ApprovalRefusedError(FastMcpJobviteError):
     """The host returned no approval for `create_candidate`.
 
     **NO NEW SLUG IS MINTED HERE, and that is the decision.**
-    `DESIGN.md:540` makes a published `type` URI a promise this project
-    owes forever, and the registry at `DESIGN.md:544-553` has no row for
-    an approval refusal. Of the rows it does have, `/problems/forbidden`
-    is the one whose semantics fit - the write was not authorised - and
-    `/problems/internal-error` is the alternative the "anything
-    unmapped" row would otherwise select, which would tell a caller this
-    server is broken when a refusal is the control working exactly as
-    designed. Reusing `FORBIDDEN` is therefore a deliberate widening of
-    that row past the *"caller's token lacks the scope"* condition its
-    table names.
+    `DESIGN.md:541-542` makes a published `type` URI a promise this
+    project owes forever, and `/problems/internal-error` is the
+    alternative the "anything unmapped" row would otherwise select -
+    which would tell a caller this server is broken when a refusal is
+    the control working exactly as designed.
 
-    **This IS a gap in the registry rather than a clean fit**, it is
-    reported rather than glossed, and it is not settled by an ADR
-    because the design is frozen. `detail` carries the distinction the
-    slug cannot.
+    **U10 reported this as a GAP in the registry, and ADR-0031 closed
+    it.** The registry at `DESIGN.md:544-553` now carries its own row -
+    *"An approval was required and none was returned"* -> 403 - so
+    `/problems/forbidden` names two conditions under one slug and
+    `detail` carries the distinction the slug cannot. Reusing
+    `FORBIDDEN` is no longer a widening of the scope row past the
+    *"caller's token lacks the scope"* condition its table names; it is
+    the row the registry now has for this.
 
     It never names a person: the refusal is *no approval response from
     the host*, and C4-S1 means an approval that DID arrive would not

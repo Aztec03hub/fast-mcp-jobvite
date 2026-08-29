@@ -255,7 +255,7 @@ def _schema_aliases(tree: ast.Module) -> dict[str, str]:
 
     **THE MRTR LEG REACHES ITS MODEL THROUGH EXACTLY THIS INDIRECTION**
     (`approval.py`), so a route that only reads a bare `Name` off the
-    keyword sees the elicitation leg and not the sampling one. It
+    keyword sees the elicitation leg and not the MRTR one. It
     would have found `ApprovalAnswer` anyway today, by the other
     keyword, and the day those two stop naming the same model is the
     day that coincidence stops covering for the gap.
