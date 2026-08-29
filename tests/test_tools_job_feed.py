@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import logging as stdlib_logging
+import pathlib
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -52,6 +53,7 @@ from fast_mcp_jobvite.models.job_feed import JOB_FEED_ENVELOPE_KEY
 from fast_mcp_jobvite.models.jobs import JOBS_ENVELOPE_KEY
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import (
+    JOBFEED_PAGE_CAP,
     JOBFEED_PATH,
     V1_BASE_URL,
     JobviteClient,
@@ -613,8 +615,80 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
     assert build_feed_result(payload, 1).total == 900
 
 
+def _numeric_literals(path: pathlib.Path) -> list[int | float]:
+    """Every numeric literal in a module, by VALUE not by spelling.
+
+    `ast` normalises `1000`, `1_000` and `0x3E8` to the same `int`, so a
+    caller comparing against `JOBFEED_PAGE_CAP` cannot be evaded by
+    respelling the number. Booleans are excluded: `True` is an `int`
+    subclass and would otherwise compare equal to 1.
+
+    **Docstrings and comments do not appear here**, which preserves the
+    original assertion's deliberate allowance that the number may be
+    mentioned in PROSE explaining whose cap it is. A comment is not in
+    the tree at all, and a docstring is a `str` constant, not a numeric
+    one.
+
+    Args:
+        path: The module to parse.
+
+    Returns:
+        Every numeric literal, in tree order.
+    """
+    import ast
+
+    return [
+        node.value
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path)))
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+    ]
+
+
+#: `tools/jobs.py`, the module that must not restate the transport cap.
+_JOBS_MODULE = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "fast_mcp_jobvite"
+    / "tools"
+    / "jobs.py"
+)
+
+#: The client module, which is where the cap legitimately lives. Used
+#: as the positive control for the walk above.
+_CLIENT_MODULE = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "fast_mcp_jobvite"
+    / "services"
+    / "jobvite_client.py"
+)
+
+
+def test_positive_control_the_literal_walk_finds_the_cap_where_it_lives() -> None:
+    """R7-M2's failure mode: an `ast` walk that finds nothing passes.
+
+    The case below asserts the cap's value is ABSENT from
+    `tools/jobs.py`. That absence means nothing unless the same walk
+    can be shown finding the value where it really is - a broken path,
+    a swallowed parse or a wrong predicate all produce an empty list
+    that reads exactly like a clean module.
+
+    So the walk is pointed at `services/jobvite_client.py`, which
+    declares `JOBFEED_PAGE_CAP`, and must find it there.
+    """
+    assert _CLIENT_MODULE.exists(), f"the path does not resolve: {_CLIENT_MODULE}"
+    literals = _numeric_literals(_CLIENT_MODULE)
+    assert literals, "the walk found no numeric literals at all; it is not parsing"
+    assert JOBFEED_PAGE_CAP in literals, (
+        "the walk cannot find the cap in the module that declares it, so "
+        "its absence from tools/jobs.py would be vacuous"
+    )
+
+
 def test_the_transport_cap_is_not_reimplemented_here() -> None:
-    """U6 owns the 1000 cap; this unit consumes it.
+    """U6 owns the page cap; this unit consumes it.
 
     The design states the `/v1/jobFeed` page cap once, in the client
     layer (DESIGN.md:434), and `services/jobvite_client.py` is not this
@@ -622,22 +696,25 @@ def test_the_transport_cap_is_not_reimplemented_here() -> None:
     made the RESULT cap wrong in two halves that were each correct
     alone (U6's F1), so this asserts the absence **by reading the
     module's own source** rather than by trusting that nobody typed it.
-    """
-    import pathlib
 
-    source = (
-        pathlib.Path(__file__).resolve().parents[1]
-        / "src"
-        / "fast_mcp_jobvite"
-        / "tools"
-        / "jobs.py"
-    ).read_text()
-    # The number may appear in PROSE explaining whose it is; what must
-    # not appear is a comparison or slice using it.
-    for forbidden in ("[:1000]", "min(1000", "1000)", "= 1000"):
-        assert forbidden not in source, (
-            f"`{forbidden}` in tools/jobs.py: the transport cap is the client's"
-        )
+    **It matches on VALUE, not on spelling, and that is R7-M2.** This
+    was four literal substrings - `[:1000]`, `min(1000`, `1000)` and
+    `= 1000` - and R7 inserted a genuine reimplementation of the cap
+    into `build_feed_result` spelt `_LOCAL_TRANSPORT_CAP = 1_000`. It
+    contains none of the four, and the whole file passed: 68 passed,
+    exit 0, reproduced here before this was changed. Neither would
+    `items[0:1000]`, `if n > 1000:`, `cap=1000` or `0x3E8`.
+
+    The cap is IMPORTED rather than typed, so this case follows the
+    value if U6 ever changes it instead of pinning a number of its own -
+    which would be the two-declarations defect all over again, in the
+    test written to prevent it.
+    """
+    assert _JOBS_MODULE.exists(), f"the path does not resolve: {_JOBS_MODULE}"
+    assert JOBFEED_PAGE_CAP not in _numeric_literals(_JOBS_MODULE), (
+        f"the value {JOBFEED_PAGE_CAP} is a literal in tools/jobs.py: "
+        "the transport cap is the client's, whatever it is spelt or named"
+    )
 
 
 # ======================================================================
