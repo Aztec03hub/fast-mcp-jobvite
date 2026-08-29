@@ -51,7 +51,16 @@ NAME = re.compile(r"(?<![\w])JOBVITE_[A-Z][A-Z0-9_]*")
 #: Names that are deliberately not `Settings` fields, each with the
 #: reason a reader needs. A bare name is refused: the reason IS the
 #: exemption, the same shape `.file-type-allowlist` uses.
-EXEMPT: dict[str, str] = {}
+EXEMPT: dict[str, str] = {
+    "JOBVITE_CANDIDATE_DATA": (
+        "Not a variable at all: it is the FENCE TAG `utils/redaction.py` wraps "
+        "untrusted candidate content in. The checker matches any JOBVITE_* "
+        "literal, so a fence name reads like a setting - the second "
+        "false-positive class it has produced, after a private module "
+        "variable. Exempted rather than narrowed, because a pattern that "
+        "tried to tell a tag from a variable would start guessing."
+    ),
+}
 
 
 def declared() -> set[str]:

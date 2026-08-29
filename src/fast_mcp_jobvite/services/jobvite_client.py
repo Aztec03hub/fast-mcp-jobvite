@@ -604,10 +604,25 @@ DEFAULT_READ_TIMEOUT: Final = 30.0
 DEFAULT_WRITE_TIMEOUT: Final = 30.0
 DEFAULT_POOL_TIMEOUT: Final = 5.0
 
-#: `JOBVITE_RETRY_MAX_ATTEMPTS`. The attempt cap, the other half of
-#: `backend/resilience.md:88-90`'s "cap BOTH the maximum attempt count
-#: AND the total elapsed time". The elapsed-time half is the outbound
-#: budget above, so the two `stop` conditions are OR-ed.
+#: The attempt cap, the other half of `backend/resilience.md:88-90`'s
+#: "cap BOTH the maximum attempt count AND the total elapsed time". The
+#: elapsed-time half is the outbound budget above, so the two `stop`
+#: conditions are OR-ed.
+#:
+#: **NOT CONFIGURABLE, and this comment used to name an environment
+#: variable that does not exist.** It cannot name it again even to say
+#: so - the checker matches literals, so an explanation that quotes the
+#: invented name reproduces the finding it is explaining. Measured: the
+#: first version of this comment left the checker at four findings.
+#:
+#: The frozen design names no variable
+#: for it - unlike the budget at DESIGN.md:373-375, which says
+#: "configured" and now is. Naming a variable is the design's call:
+#: §U9 records a whole unit that was UNBUILDABLE because three
+#: variables had no names, and a reviewer's guesses were correctly not
+#: adopted on that basis. Inventing one in a comment is that defect
+#: from the other side - a knob an operator can set and nothing reads.
+#: Making it configurable is an ADR, not an edit.
 DEFAULT_RETRY_MAX_ATTEMPTS: Final = 4
 
 #: Backoff, exponential WITH jitter (`backend/resilience.md:79-82`):
@@ -616,11 +631,16 @@ DEFAULT_RETRY_MAX_ATTEMPTS: Final = 4
 DEFAULT_RETRY_INITIAL_BACKOFF: Final = 0.2
 DEFAULT_RETRY_MAX_BACKOFF: Final = 5.0
 
-#: `JOBVITE_BREAKER_FAILURE_THRESHOLD` and
-#: `JOBVITE_BREAKER_RECOVERY_SECONDS`. The figures in
-#: `backend/resilience.md:180-181`'s worked example, taken as-is because
-#: nothing about Jobvite's availability has been observed that would
-#: justify moving them.
+#: The figures in `backend/resilience.md:180-181`'s worked example,
+#: taken as-is because nothing about Jobvite's availability has been
+#: observed that would justify moving them.
+#:
+#: **NOT CONFIGURABLE.** These two constants each carried an invented
+#: environment-variable name in this comment, neither of which exists
+#: and neither of which the frozen design names. The names are not
+#: repeated here, for the reason given on the retry cap above: an
+#: invented variable is a knob that does nothing, and quoting it keeps
+#: it findable as though it were real.
 DEFAULT_BREAKER_FAILURE_THRESHOLD: Final = 5
 DEFAULT_BREAKER_RECOVERY_SECONDS: Final = 30.0
 
@@ -1193,10 +1213,12 @@ class JobviteClient:
                 invocation (DESIGN.md:373-375). Applied by `scan`, and
                 by a bare `request` that finds no scope already open -
                 see `outbound_budget_scope`.
-            retry_max_attempts: `JOBVITE_RETRY_MAX_ATTEMPTS`, the
-                attempt half of `backend/resilience.md:88-90`'s "cap
-                BOTH the maximum attempt count AND the total elapsed
-                time". The elapsed half is the budget above.
+            retry_max_attempts: The attempt half of
+                `backend/resilience.md:88-90`'s "cap BOTH the maximum
+                attempt count AND the total elapsed time". The elapsed
+                half is the budget above. A constructor argument only -
+                NOT settable from the environment; see the constant's
+                own note.
         """
         self._api_key = api_key
         self._api_secret = api_secret
