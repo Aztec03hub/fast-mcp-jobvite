@@ -1006,3 +1006,65 @@ def test_no_module_scope_credential_read_in_the_tool_module() -> None:
             }:
                 offenders.append(ast.unparse(inner))
     assert offenders == []
+
+
+# ======================================================================
+# The result cap is ONE behaviour split across TWO files (U6-F1)
+# ======================================================================
+
+
+async def test_the_default_client_factory_carries_the_configured_result_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """U6-F1: both halves of the cap must hold the same number.
+
+    `DESIGN.md:434-436` makes the cap `min(transport_cap,
+    configured_result_cap)` and says neither unit owns all of it. This
+    module applies the configured half in-tool; the client bounds what
+    leaves the transport. The default factory omitted `max_results`,
+    so the client fell back to its own default and
+    `JOBVITE_MAX_RESULTS=200` moved one half and not the other.
+
+    **NO OTHER TEST IN THIS FILE CAN SEE IT.** Each half is correct in
+    isolation, and every other case supplies its own `client_factory`,
+    so none of them ever reaches the branch that builds the real
+    client. `client_factory=None` is the whole point of this case.
+
+    `company_id` is asserted here for the same reason. It is latent
+    today - only `jobFeed` needs it (DESIGN.md:320-321) - and a latent
+    omission is the kind that surfaces in U12 rather than here.
+    """
+    seen: list[dict[str, Any]] = []
+
+    def recording(**kwargs: Any) -> JobviteClient:
+        seen.append(dict(kwargs))
+        handler = _static_handler(fixture_bytes(JOB_LIST_SUCCESS))
+        return JobviteClient(**{**kwargs, "transport": httpx2.MockTransport(handler)})
+
+    # Patched by dotted path, and `JobviteClient` above is the class
+    # imported from `services`, NOT the name being replaced - so the
+    # substitute builds a real client rather than recursing.
+    monkeypatch.setattr("fast_mcp_jobvite.tools.jobs.JobviteClient", recording)
+
+    server = build_server(
+        settings(max_results=7, company_id=SecretStr("test-company")),
+        client_factory=None,
+    )
+    async with Client(server) as client:
+        await client.call_tool(SEARCH_JOBS, {"params": {}})
+
+    assert seen, "the default factory was never reached; this case would prove nothing"
+    assert seen[0]["max_results"] == 7, (
+        "the client did not get JOBVITE_MAX_RESULTS, so the transport half of the "
+        "cap holds a different number from the in-tool half"
+    )
+    assert seen[0]["company_id"] is not None
+
+
+def _static_handler(body: bytes) -> Callable[[httpx2.Request], httpx2.Response]:
+    """One 200 with `body`, for a case whose subject is construction."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=body)
+
+    return handler

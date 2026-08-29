@@ -389,7 +389,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 421
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 447
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -496,10 +496,10 @@ jobs:
       # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
       # shape stops matching, every anchor that still parses resolves perfectly
       # and the checker reports OK on a fraction of its coverage. Measured:
-      # deleting one shape drops 171 to 156 with an exit code of 0. Lowering
+      # deleting one shape drops 197 to 182 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 171
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 197
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -526,6 +526,27 @@ jobs:
 
       - name: U5 jobs amputation, every anchor applied
         run: bash scripts/ci-harness-gate.sh check-u5-jobs-amputation.sh --anchors-applied
+
+      # ----- U6, base-agnostic offset paging (DESIGN.md:455-480) -----
+      # WIRED IN THE SAME COMMIT AS THE MERGE, because a harness that runs
+      # nowhere is not a control - the fifth instance of that shape recorded in
+      # this file. U6 delivered both harnesses green and neither had a step.
+      #
+      # THREE OF U6'S ROWS DID NOT PASS FIRST TIME AND ALL THREE WERE REAL
+      # DEFECTS IN ITS OWN TESTS, which is what these steps exist to keep
+      # finding: M8's named case compared a recomputed total against a last page
+      # of one and agreed by coincidence; M9's second arm was a capped call that
+      # FILLS its limit, so it never reached a short page and the `not
+      # exhaustive` condition it was meant to pin was doing nothing; and A7 was
+      # VACUOUS because the final truncation still returned 50 records, so
+      # nothing could tell a capped call that STOPS from one that pages the
+      # whole resource and throws the rest away. A7's missing assertion was the
+      # request COUNT.
+      - name: U6 paging controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-u6-paging-controls.sh --controls-fired
+
+      - name: U6 paging amputation, every anchor applied
+        run: bash scripts/ci-harness-gate.sh check-u6-paging-amputation.sh --anchors-applied
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a

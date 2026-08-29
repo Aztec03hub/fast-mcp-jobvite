@@ -244,7 +244,29 @@ def register(
         # `SecretValue` Protocol rather than importing pydantic. This
         # is the first shipped code that passes one through, and mypy
         # checks the satisfaction here.
-        return JobviteClient(api_key=api_key, api_secret=api_secret)
+        #
+        # `max_results` IS PASSED, and leaving it out was U6's F1. The
+        # result cap is one behaviour split across two files: this
+        # module applies it in-tool at :317 and owns the
+        # `showing N of total` string, while the client bounds what
+        # leaves the transport. With it omitted the client fell back to
+        # its own default, so `JOBVITE_MAX_RESULTS=200` moved one half
+        # and not the other - and NO TEST COULD SEE IT, because each
+        # half is correct in isolation. That is the exact shape
+        # DESIGN.md:434-436 warns about when it says neither unit owns
+        # all of it.
+        #
+        # `company_id` is passed for the same reason and is latent
+        # today: only `jobFeed` needs it (DESIGN.md:320-321) and this
+        # tool does not call that route. Wiring it here rather than
+        # when U12 arrives keeps the factory's argument list a
+        # description of the settings, not of the current caller.
+        return JobviteClient(
+            api_key=api_key,
+            api_secret=api_secret,
+            company_id=settings.company_id,
+            max_results=settings.max_results,
+        )
 
     @server.tool(
         name=SEARCH_JOBS,
