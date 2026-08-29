@@ -1683,11 +1683,16 @@ the surfaces that actually collide are the ones nobody classified as code:
    `DESIGN.md:289-291` puts input models beside their tools, so U14's subject lives in files U5, U8
    and U12 own. It is **sequenced last rather than parallelised**. See
    [Q5](#q5---answered-and-landed-input-models-live-beside-their-tools), and note that **no unit
-   plans a shared `utils/constraints.py`** until **ADR-0012 is ACCEPTED**. *It EXISTS - filed at
-   `fcc2341`, Status **Proposed**. Drafts 5-7 gated on existence, which an agent discharges by
-   running `ls docs/adr/`: it would find the file and be licensed to build the very module this gate
-   was written to prevent. **The operative property is Accepted, never existence**, and this is the
-   same error in both places the plan gates on an ADR.*
+   plans a shared `utils/constraints.py`** until **ADR-0012 is ACCEPTED**. *Drafts 5-7 gated on
+   existence, which an agent discharges by running `ls docs/adr/`: it would find the file and be
+   licensed to build the very module this gate was written to prevent. **The operative property is
+   Accepted, never existence**, and this was the same error in both places the plan gates on an ADR.*
+
+   **THE GATE IS NOW DISCHARGED, and by the design rather than by this sentence.** ADR-0012 reads
+   `Status: Accepted` as of `a39bd2a`, and - which is what actually settles it - `DESIGN.md:295` and
+   `:300` at the frozen `c15b138` list `utils/constraints.py` and require every input model to import
+   from it. The frozen design is the authority; this plan is subordinate to it. The module exists and
+   U5 built on it, correctly reading the ADR and the design rather than this paragraph.
 9. **`tests/conftest.py` is one file that every test-bearing unit must write, in the widest wave.**
    U0 owns it and it already carries module-level shared state, not just fixtures. U4 needs an
    accessor per recorded fixture; U5 and U8 both need a `MockTransport` factory; U9 needs a
@@ -2175,12 +2180,21 @@ unit here plans a shared constraints module**; U14 is specified against per-tool
 down because the duplication is the first thing an implementer would factor out on sight, and because
 after the freeze doing it without the ADR is a design change made by whoever happened to notice.
 
-**ADR-0012 now EXISTS and is `Proposed` (`fcc2341`), which does not lift this gate and is exactly how
-the gate could have been defeated.** An agent told "until that ADR exists" runs `ls docs/adr/`, sees
+**ADR-0012 was filed `Proposed` (`fcc2341`), and that is exactly how this gate could have been
+defeated.** An agent told "until that ADR exists" runs `ls docs/adr/`, sees
 `0012-shared-inbound-constraints-module.md`, and builds the module - **discharging the gate by
 finding the artifact that records the question, not the one that answers it.** The wording is
-corrected here and in collision 8 to gate on **Accepted**. Nothing about the substance has changed:
-0012 is still Proposed, and until Phil accepts it the per-tool specification stands.
+corrected here and in collision 8 to gate on **Accepted**.
+
+**It is now Accepted (`a39bd2a`) and the gate is lifted.** The per-tool specification no longer
+stands: `DESIGN.md:295,300` at the frozen `c15b138` list the module and require every input model to
+import from it, so the shared module is the design, not a licence granted by this paragraph.
+
+*One thing this text can no longer assert, and says so rather than implying it: the earlier wording
+was "until **Phil** accepts it". Every commit in this repository carries Phil's git identity,
+including those an agent authored, so **authorship does not establish who decided**. What can be
+shown is that the status is Accepted and that the frozen design incorporates the module. If the
+distinction matters for a future gate, the gate needs a signal git authorship cannot provide.*
 
 ### Q6 - §8 #2 asserts an absence with no paired positive in the design
 
