@@ -450,5 +450,19 @@ mutate "M22 the breaker is skipped and the retry becomes outermost" \
   '            return await self._attempt_with_retry('
 
 echo "$FIRED/$TOTAL controls fired."
-[ "$TOTAL" -gt 0 ] && [ "$FIRED" -eq "$TOTAL" ] && exit 0
+
+# THE ROW FLOOR. `TOTAL -gt 0` catches only TOTAL deletion; `FIRED -eq
+# TOTAL` is satisfied by 0 == 0. Neither sees PARTIAL deletion, which is
+# the realistic shape: a refactor that drops rows, or an anchor that
+# stops matching so a row silently stops being counted. DERIVED: this
+# harness printed "26/26 controls fired." at 2b31e82. Lowering this
+# number is a visible diff that has to be defended.
+ROW_FLOOR=26
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
+[ "$FIRED" -eq "$TOTAL" ] && exit 0
 exit 1
