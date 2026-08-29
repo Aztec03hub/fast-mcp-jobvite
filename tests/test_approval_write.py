@@ -35,6 +35,8 @@ contract `[INFERRED]`, and checklist row 10 is what replaces it.
 from __future__ import annotations
 
 import json
+import pathlib
+import re
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -48,6 +50,12 @@ from fast_mcp_jobvite.audit import AUDIT_EVENT_NAME
 from fast_mcp_jobvite.config import CREATE_CANDIDATE, Settings
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
+from fast_mcp_jobvite.tools.candidates import (
+    CANDIDATES_PATH,
+    REQUEST_ID_META_KEY,
+    CreateCandidateResult,
+    build_create_result,
+)
 
 from .conftest import FIXTURES_DIR
 
@@ -249,3 +257,1021 @@ async def test_positive_control_an_approved_write_moves_the_row_counter_by_one(
     assert content is not None
     assert content["candidate_eid"] == "TESTCND9"
     assert content["application_eid"] == "TESTAPP9"
+
+
+# ======================================================================
+# 2. THE ERA DISCRIMINATOR. IT IS `protocol_version` AND IT IS NOT
+#    `ctx.transport` OR `session_id` - BOTH MEASURED TRAPS.
+#    FASTMCP-SPIKE-4.md:2066-2074.
+# ======================================================================
+
+
+class _FakeRequestContext:
+    """A request context carrying all three candidate discriminators.
+
+    **The two traps are POPULATED HERE ON PURPOSE**, and with the values
+    the spike measured: `transport` is `'streamable-http'` on both eras
+    and `session_id` is a real string on both. An implementation that
+    read either of them would sail through the arms below, because both
+    look exactly as they do on a working call.
+    """
+
+    def __init__(self, protocol_version: str | None) -> None:
+        if protocol_version is not None:
+            self.protocol_version = protocol_version
+        self.transport = "streamable-http"
+        self.session_id = "3bd41cb2-0000-0000-0000-000000000000"
+        self.meta = None
+
+
+class _FakeContext:
+    """The minimum `resolve_approval` reads, and nothing else."""
+
+    def __init__(
+        self,
+        protocol_version: str | None,
+        input_responses: Any = None,
+    ) -> None:
+        self.request_context = _FakeRequestContext(protocol_version)
+        self.input_responses = input_responses
+        self.transport = "streamable-http"
+        self.session_id = "3bd41cb2-0000-0000-0000-000000000000"
+
+    async def elicit(self, message: str, response_type: Any) -> Any:  # noqa: ANN401
+        from fastmcp.server.elicitation import AcceptedElicitation
+
+        self.elicited = message
+        return AcceptedElicitation(data=response_type(approve=True))
+
+
+class _Answer:
+    """One MRTR response, in the shape the second leg reads."""
+
+    def __init__(self, action: str, content: Any) -> None:  # noqa: ANN401
+        self.action = action
+        self.content = content
+
+
+def test_the_discriminator_is_protocol_version_and_not_transport_or_session_id() -> (
+    None
+):
+    """The three candidates, separated.
+
+    `ctx.transport` and `session_id` are IDENTICAL on the two contexts
+    below and only `protocol_version` differs, so a guard keyed on
+    either trap cannot tell them apart. This is the assertion that stops
+    a later refactor swapping the discriminator for one of the two
+    things that look like it and are not.
+    """
+    from fast_mcp_jobvite.approval import observed_protocol_version
+
+    sessionless = _FakeContext("2026-07-28")
+    handshake = _FakeContext("2025-11-25")
+
+    assert sessionless.transport == handshake.transport
+    assert sessionless.session_id == handshake.session_id
+    assert observed_protocol_version(sessionless) == "2026-07-28"  # type: ignore[arg-type]
+    assert observed_protocol_version(handshake) == "2025-11-25"  # type: ignore[arg-type]
+
+
+async def test_an_unidentifiable_era_refuses_and_logs_the_observed_value(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """A version in neither tuple refuses. DESIGN.md:1126-1130.
+
+    **There is no fallback to fall through to** now that the
+    confirmation token is cut, so an era nobody has measured must not
+    degrade quietly into whichever branch happens to be last. The
+    observed value is logged so an operator learns approval could not be
+    established from a log line rather than from a candidate's inbox.
+    """
+    from fast_mcp_jobvite.approval import (
+        ApprovalDecision,
+        ApprovalMechanism,
+        ApprovalState,
+        resolve_approval,
+    )
+
+    ctx = _FakeContext("2099-01-01")
+    decision = await resolve_approval(ctx, message="m", request_state="s")  # type: ignore[arg-type]
+
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is False
+    assert decision.mechanism is ApprovalMechanism.NO_HANDLER
+    assert decision.state is ApprovalState.UNAVAILABLE
+
+    refusals = [
+        r
+        for r in audit_records
+        if r["extra"].get("observed_protocol_version") == "2099-01-01"
+    ]
+    assert refusals, "the refusal did not log the version it observed"
+
+
+async def test_an_absent_protocol_version_refuses() -> None:
+    """The other half of the third case: the attribute is not there."""
+    from fast_mcp_jobvite.approval import ApprovalDecision, resolve_approval
+
+    decision = await resolve_approval(
+        _FakeContext(None),  # type: ignore[arg-type]
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is False
+    assert decision.protocol_version is None
+
+
+async def test_positive_control_a_recognised_era_approves() -> None:
+    """The pairing for the two refusals above.
+
+    **It belongs to the era test and not to §8 #22 or #25**, which is
+    why `IMPLEMENTATION-PLAN.md` §U10 lists it as its own arm: without
+    it, "an unrecognised era refuses" and "an absent version refuses"
+    both pass against a guard that refuses every era there is.
+    """
+    from fast_mcp_jobvite.approval import (
+        ApprovalDecision,
+        ApprovalMechanism,
+        resolve_approval,
+    )
+
+    decision = await resolve_approval(
+        _FakeContext("2025-11-25"),  # type: ignore[arg-type]
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is True
+    assert decision.mechanism is ApprovalMechanism.ELICITATION
+
+
+# ======================================================================
+# 3. §8 #22 - FOUR ARMS. THE SECOND IS THE ONE PEOPLE DROP.
+# ======================================================================
+
+
+@pytest.mark.parametrize("mode", BOTH_ERAS)
+async def test_case22_a_denied_approval_refuses_and_no_row_is_created(
+    mode: str,
+) -> None:
+    """Arm 1: deny refuses, on both eras."""
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+
+    async with Client(server, mode=mode, elicitation_handler=deny_everything) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+    assert ats.count == 0, "a denied approval created a row"
+
+
+@pytest.mark.parametrize("mode", BOTH_ERAS)
+async def test_case22_an_acceptance_carrying_approve_false_refuses(mode: str) -> None:
+    """Arm 2, **the arm people drop**.
+
+    `action == "accept"` with `approve: false` is still an acceptance.
+    An action-only check admits it and writes, which is why
+    DESIGN.md:1075-1078 makes the guard a conjunction.
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+
+    async with Client(
+        server, mode=mode, elicitation_handler=accept_but_refuse
+    ) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+    assert ats.count == 0, "an acceptance carrying approve:false created a row"
+
+
+async def test_case22_the_second_leg_actually_consumes_ctx_input_responses() -> None:
+    """Arm 4: the MRTR second leg reads the answer it was given.
+
+    Driven at the guard rather than through the client, because that is
+    the only place the two legs are separable: leg one sees
+    `ctx.input_responses is None` and returns a pending result **without
+    writing**; leg two sees the populated container and decides. A guard
+    that ignored the answer would return the same verdict for both of
+    the second-leg calls below.
+    """
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        ApprovalMechanism,
+        ApprovalPending,
+        resolve_approval,
+    )
+
+    first_leg = await resolve_approval(
+        _FakeContext("2026-07-28", input_responses=None),  # type: ignore[arg-type]
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(first_leg, ApprovalPending)
+
+    approved = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses={
+                APPROVAL_REQUEST_KEY: _Answer("accept", {"approve": True})
+            },
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(approved, ApprovalDecision)
+    assert approved.approved is True
+    assert approved.mechanism is ApprovalMechanism.SAMPLING
+
+    # THE SAME CALL, A DIFFERENT ANSWER. If the verdict did not come
+    # from `ctx.input_responses`, these two would agree.
+    refused = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses={
+                APPROVAL_REQUEST_KEY: _Answer("accept", {"approve": False})
+            },
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(refused, ApprovalDecision)
+    assert refused.approved is False
+
+
+async def test_case22_an_answer_filed_under_another_key_refuses() -> None:
+    """A populated container with no answer for us fails closed."""
+    from fast_mcp_jobvite.approval import ApprovalDecision, resolve_approval
+
+    decision = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses={"something-else": _Answer("accept", {"approve": True})},
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is False
+
+
+# ======================================================================
+# 4. §8 #25 - NO HANDLER, BOTH ERAS.
+#
+#    **THIS CASE ASSERTS THE ROW COUNT AND NOT THE ERROR SHAPE.** The
+#    no-handler arm RAISES `MCPError` on sessionless and RETURNS
+#    `is_error=True` on handshake (FASTMCP-SPIKE-4.md:2153-2165), so
+#    `pytest.raises(MCPError)` passes on one era and fails on the other,
+#    and `assert result.is_error` does the reverse. The invariant that
+#    actually matters is the same on both: nothing was written.
+# ======================================================================
+
+
+@pytest.mark.parametrize("mode", BOTH_ERAS)
+async def test_case25_no_client_handler_fails_closed_on_both_eras(mode: str) -> None:
+    """No handler, no approval, no row - whatever shape the error takes.
+
+    The two eras surface this differently and **neither shape is
+    asserted here on purpose**. Both are caught, and the assertion is
+    that the server-side row counter did not move.
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    shape = await _no_handler_shape(server, mode)
+
+    # THE REFUSAL HAPPENED IN ONE OF THE TWO KNOWN SHAPES. Asserting
+    # membership rather than a specific shape is what makes one case
+    # cover both eras; asserting that SOMETHING refused is what stops
+    # this passing against a call that silently succeeded.
+    assert shape in {"raised", "is_error"}, shape
+    assert ats.count == 0, f"a call with no elicitation handler wrote a row on {mode}"
+
+
+async def _no_handler_shape(server: Any, mode: str) -> str:  # noqa: ANN401
+    """Drive one no-handler call and name the shape it produced.
+
+    Returns:
+        `"raised"`, `"is_error"`, or `"succeeded"`.
+    """
+    async with Client(server, mode=mode) as client:
+        try:
+            result = await client.call_tool(
+                CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+            )
+        except Exception:  # noqa: BLE001 - the sessionless era RAISES here
+            return "raised"
+    return "is_error" if result.is_error else "succeeded"
+
+
+async def test_case25_the_two_eras_refuse_in_DIFFERENT_shapes() -> None:
+    """The asymmetry the case above is written around, pinned.
+
+    **This is NOT §8 #25** - it is the measurement #25's wording
+    depends on. `FASTMCP-SPIKE-4.md:2153-2165` records that sessionless
+    raises `MCPError` and handshake returns `is_error=True`, and that is
+    the whole reason #25 asserts the row count instead of an error
+    shape. If the two ever agree, #25's justification has moved and
+    somebody should be told - by a red test, not by a paragraph nobody
+    re-reads.
+    """
+    shapes = {}
+    for mode in BOTH_ERAS:
+        ats = _JobviteRows()
+        server = build_server(settings(), client_factory=ats.factory())
+        shapes[mode] = await _no_handler_shape(server, mode)
+        assert ats.count == 0
+
+    assert shapes[SESSIONLESS_MODE] == "raised", shapes
+    assert shapes[HANDSHAKE_MODE] == "is_error", shapes
+    assert shapes[SESSIONLESS_MODE] != shapes[HANDSHAKE_MODE]
+
+
+# ======================================================================
+# 5. §8 #16 - `request_id` ON THE WIRE, ON THE WRITE'S TWO ARMS.
+#
+#    **ASSERTED ON THE WIRE RESULT, NEVER ON THE `ToolResult` THE TOOL
+#    RETURNED.** DESIGN.md:1327-1330: asserting the object would pass
+#    while the wire carried nothing.
+# ======================================================================
+
+
+@pytest.mark.parametrize("mode", BOTH_ERAS)
+async def test_case16_a_successful_write_carries_request_id_on_the_wire(
+    mode: str,
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """The success arm, matched against the audit event's own id."""
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+
+    async with Client(
+        server, mode=mode, elicitation_handler=approve_everything
+    ) as client:
+        result = await client.call_tool(CREATE_CANDIDATE, {"params": VALID_ARGS})
+
+    assert ats.count == 1
+    wire_id = (result.meta or {}).get(REQUEST_ID_META_KEY)
+    assert wire_id, "no request_id reached the wire on a successful write"
+
+    events = audit_events(audit_records)
+    assert events, "the write emitted no audit event"
+    assert wire_id in {event["request_id"] for event in events}
+
+    # THE STRUCTURED CONTENT STILL VALIDATES. An undeclared top-level
+    # key is rejected by the output validator, which is why the id
+    # travels in `_meta` and not in the payload.
+    assert result.structured_content is not None
+    CreateCandidateResult.model_validate(result.structured_content)
+
+
+async def test_case16_the_audit_failure_warning_branch_carries_request_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The post-write audit-failure arm. DESIGN.md:721-727.
+
+    **SUCCESS WITH A WARNING, NEVER AN ERROR.** A post-write audit
+    failure returned as a problem object would tell the caller the
+    operation failed when it did not, and the caller's reasonable answer
+    to that is to retry - which creates a second record and may email
+    the candidate a second time. Preventing exactly that is why this
+    branch exists, so its shape is asserted here and not only its id.
+
+    The sink is broken on its SECOND use, which is the post-write
+    emission: the first is `BEFORE_SIDE_EFFECT`, whose failure must
+    instead fail the call.
+    """
+    calls = {"n": 0}
+
+    class _Sink:
+        def info(self, message: str) -> None:
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                msg = "the audit sink is gone"
+                raise RuntimeError(msg)
+
+    class _BrokenLogger:
+        def bind(self, **record: Any) -> _Sink:  # noqa: ANN401
+            return _Sink()
+
+    # PATCHED BY DOTTED PATH, not by `setattr(audit.logger, ...)`.
+    # `logger` is re-exported rather than declared by `audit`, and mypy
+    # refuses the attribute form - correctly, because a module that does
+    # not export a name is a module whose name can move.
+    monkeypatch.setattr("fast_mcp_jobvite.audit.logger", _BrokenLogger())
+
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert ats.count == 1, "the write did not happen, so this branch is vacuous"
+    assert calls["n"] >= 2, (
+        f"the broken sink was used {calls['n']} times; the post-write emission "
+        f"never happened and this branch was never entered"
+    )
+    assert result.is_error is False, "a post-write audit failure became an ERROR"
+    assert (result.meta or {}).get(REQUEST_ID_META_KEY)
+    content = result.structured_content
+    assert content is not None
+    assert content["warnings"], "the audit failure produced no warning for the caller"
+    assert "Do not retry" in content["warnings"][0]
+
+
+# ======================================================================
+# 6. C4-R1 - `approval_state` AND THE MECHANISM THAT PRODUCED IT ARE IN
+#    THE AUDIT EVENT. ADR-0021 defines the closed vocabulary.
+# ======================================================================
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_mechanism"),
+    [(SESSIONLESS_MODE, "sampling"), (HANDSHAKE_MODE, "elicitation")],
+)
+async def test_c4r1_the_audit_event_records_approval_state_and_its_mechanism(
+    mode: str,
+    expected_mechanism: str,
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """Both fields, on both eras, from the closed set.
+
+    **The mechanism differs by era and that is the point of recording
+    it**: `elicitation` on handshake, the MRTR path on sessionless. A
+    field that read the same on both would say nothing about which path
+    answered, which is what ADR-0021 exists to make recordable.
+    """
+    from fast_mcp_jobvite.approval import ApprovalMechanism
+
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=mode, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(CREATE_CANDIDATE, {"params": VALID_ARGS})
+
+    assert ats.count == 1
+    events = audit_events(audit_records)
+    approved = [e for e in events if e.get("approval_state") == "approved"]
+    assert approved, f"no audit event recorded an approval; got {events}"
+
+    for event in approved:
+        assert event["approval_mechanism"] == expected_mechanism
+        # THE SET IS CLOSED (ADR-0021). An open string invites a fourth
+        # spelling of the first three.
+        assert event["approval_mechanism"] in {m.value for m in ApprovalMechanism}
+
+
+async def test_c4r1_a_refusal_is_audited_too_and_names_the_mechanism(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """A refused write leaves a record. The absence would be R2-H1."""
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=deny_everything
+    ) as client:
+        await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert ats.count == 0
+    events = audit_events(audit_records)
+    refusals = [e for e in events if e.get("approval_state") == "refused"]
+    assert refusals, f"a refused write left no audit record; got {events}"
+    assert refusals[0]["approval_mechanism"] == "elicitation"
+    assert refusals[0]["result_status"] == "error"
+
+
+async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """C6-* : the write's arguments ARE candidate PII by construction.
+
+    Asserted against the audit event the case above proves exists, not
+    against an empty stream (DESIGN.md:1273-1281).
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(CREATE_CANDIDATE, {"params": VALID_ARGS})
+
+    events = audit_events(audit_records)
+    assert events, "the stream is empty; this absence would be vacuous"
+    serialised = json.dumps([e["arguments"] for e in events])
+    assert VALID_ARGS["email"] not in serialised, serialised
+
+
+# ======================================================================
+# 7. THE TWO DEPLOY-TIME GATES (DESIGN.md:923-927). BOTH DIRECTIONS.
+# ======================================================================
+
+
+async def test_the_write_is_not_registered_without_the_writes_flag() -> None:
+    """Named in `JOBVITE_TOOLS`, flag off: no write tool exists."""
+    server = build_server(
+        settings(enable_writes=False), client_factory=_JobviteRows().factory()
+    )
+    async with Client(server) as client:
+        names = {tool.name for tool in await client.list_tools()}
+    assert CREATE_CANDIDATE not in names, names
+
+
+async def test_the_write_is_not_registered_when_it_is_not_named() -> None:
+    """Flag on, not named: still no write tool.
+
+    DESIGN.md:923-927 states the conjunction in BOTH directions, and a
+    single-direction test passes against an implementation that dropped
+    one of them.
+    """
+    server = build_server(
+        settings(
+            tools=None,
+            enable_writes=True,
+            # `JOBVITE_TOOLS` unset means every READ tool, and
+            # `get_job_feed` refuses to register without the v1
+            # credential class. Supplying it here keeps this case about
+            # the write's second gate rather than about the feed's
+            # credentials.
+            feed_key=SecretStr("test-feed-key"),
+            feed_secret=SecretStr("test-feed-secret"),
+            company_id=SecretStr("test-company-id"),
+        ),
+        client_factory=_JobviteRows().factory(),
+    )
+    async with Client(server) as client:
+        names = {tool.name for tool in await client.list_tools()}
+    assert CREATE_CANDIDATE not in names, names
+    # The READS are still registered; withholding the write is not
+    # withholding the server.
+    assert names, "both gates off registered nothing at all"
+
+
+async def test_positive_control_both_gates_satisfied_registers_the_write() -> None:
+    """The pairing: with both gates met, the tool IS there."""
+    server = build_server(settings(), client_factory=_JobviteRows().factory())
+    async with Client(server) as client:
+        names = {tool.name for tool in await client.list_tools()}
+    assert CREATE_CANDIDATE in names, names
+
+
+async def test_the_write_declares_all_three_annotations() -> None:
+    """`destructiveHint`/`idempotentHint`/`readOnlyHint`.
+
+    `readOnlyHint` is asserted FALSE rather than merely absent: an
+    absent hint and a false one are not the same claim, and this is the
+    one tool where the difference reaches a live person.
+    """
+    server = build_server(settings(), client_factory=_JobviteRows().factory())
+    async with Client(server) as client:
+        tool = next(t for t in await client.list_tools() if t.name == CREATE_CANDIDATE)
+    annotations = tool.annotations
+    assert annotations is not None
+    assert annotations.destructiveHint is True
+    assert annotations.idempotentHint is False
+    assert annotations.readOnlyHint is False
+
+
+# ======================================================================
+# 8. THE ELICITATION PAYLOAD NAMES THE CANDIDATE, THE JOB, AND WHETHER
+#    `send_email` IS TRUE (DESIGN.md:1061-1071).
+#
+#    **THIS IS THE ONE PLACE THE STRONGEST GATE CAN BE SATISFIED
+#    HONESTLY AND STILL PRODUCE THE OUTCOME IT EXISTS TO PREVENT.** An
+#    approver shown "create candidate Jane Doe" approves a database row
+#    and thereby authorises an email to Jane Doe that nobody mentioned.
+#    `ai/agent-guardrails.md:70-73` lists an outbound message to a third
+#    party as destructive in its own right, so the email is separately a
+#    gated action.
+# ======================================================================
+
+
+def test_the_approval_message_names_the_candidate_the_job_and_the_email() -> None:
+    """All three, in the true-`send_email` direction."""
+    from fast_mcp_jobvite.approval import build_approval_message
+
+    message = build_approval_message(
+        candidate="Testcandidate Omega", job="TESTJOB1", send_email=True
+    )
+    assert "Testcandidate Omega" in message
+    assert "TESTJOB1" in message
+    assert "send_email=true" in message
+    assert "EMAIL" in message.upper()
+
+
+def test_the_approval_message_says_so_when_no_email_will_be_sent() -> None:
+    """Both arms are required, and this is the second.
+
+    A message that always mentions email and one that never does each
+    pass a single-arm test, and the second is the failure that matters:
+    a caller told "no email will be sent" on a call that sends one has
+    been misinformed by the control itself.
+    """
+    from fast_mcp_jobvite.approval import build_approval_message
+
+    message = build_approval_message(
+        candidate="Testcandidate Omega", job="TESTJOB1", send_email=False
+    )
+    assert "send_email=false" in message
+    assert "send_email=true" not in message
+
+
+async def test_the_approval_message_reaches_the_host_with_the_email_named() -> None:
+    """End to end: the text the host actually receives.
+
+    The two cases above test the builder. This one tests that its output
+    is what travels, because a builder nothing calls is a string
+    function with a good docstring.
+    """
+    seen: list[str] = []
+
+    async def recording_handler(
+        message: str,
+        response_type: type | None,
+        params: Any,  # noqa: ANN401 - the framework's own params union
+        context: Any,  # noqa: ANN401 - the SDK's client request context
+    ) -> dict[str, Any]:
+        seen.append(message)
+        return {"approve": True}
+
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=recording_handler
+    ) as client:
+        await client.call_tool(
+            CREATE_CANDIDATE, {"params": {**VALID_ARGS, "send_email": True}}
+        )
+
+    assert ats.count == 1
+    assert seen, "no approval request reached the host"
+    assert "send_email=true" in seen[0]
+    assert VALID_ARGS["job_eid"] in seen[0]
+    assert "Testcandidate" in seen[0]
+
+
+# ======================================================================
+# 9. `send_email` DEFAULTS TO FALSE (DESIGN.md:239). THE DANGEROUS VALUE
+#    IS NEVER THE ONE REACHED BY OMISSION.
+# ======================================================================
+
+
+async def test_send_email_defaults_to_false_on_the_wire() -> None:
+    """Omitted by the caller, `false` in the body Jobvite receives."""
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(CREATE_CANDIDATE, {"params": VALID_ARGS})
+
+    assert ats.count == 1
+    assert ats.rows[0]["candidate"]["sendEmail"] is False
+
+
+async def test_send_email_true_is_forwarded_and_not_quietly_dropped() -> None:
+    """The paired direction.
+
+    Without it, "the default is false" passes against a tool that hard-
+    codes `false` and ignores the argument - which would be safe and
+    would also make the disclosure in the approval request a lie.
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(
+            CREATE_CANDIDATE, {"params": {**VALID_ARGS, "send_email": True}}
+        )
+
+    assert ats.rows[0]["candidate"]["sendEmail"] is True
+
+
+async def test_the_body_reaches_the_wire_under_jobvites_own_keys() -> None:
+    """`JOBVITE-CONTRACT.md:269-300`, nesting included."""
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(CREATE_CANDIDATE, {"params": VALID_ARGS})
+
+    candidate = ats.rows[0]["candidate"]
+    assert candidate["firstName"] == VALID_ARGS["first_name"]
+    assert candidate["lastName"] == VALID_ARGS["last_name"]
+    assert candidate["email"] == VALID_ARGS["email"]
+    assert candidate["application"]["jobEId"] == VALID_ARGS["job_eid"]
+    # THE REQUEST DIRECTION OF THE ""/null UNIFICATION (§9 hazard 4):
+    # Jobvite's own fields use `""` where a null belongs, so a body we
+    # SEND uses the vendor's spelling.
+    assert candidate["mobile"] == ""
+    assert candidate["application"]["source"] == ""
+    assert ats.requests[0].method == "POST"
+    assert ats.requests[0].url.path.endswith(CANDIDATES_PATH)
+
+
+# ======================================================================
+# 10. THE `eId`/`EId` CASING ASYMMETRY, PINNED (§9 hazard 1).
+#     The WRITE response spells it `EId`; every READ spells it `eId`.
+#     It is Jobvite's inconsistency and a well-meaning normalisation
+#     would turn it into a bug.
+# ======================================================================
+
+
+def test_the_write_response_capital_eid_is_read() -> None:
+    """The `201` body's spelling, from the contract's own example."""
+    result = build_create_result(
+        {"application": {"EId": "TESTAPP9", "candidate": {"EId": "TESTCND9"}}}
+    )
+    assert result.application_eid == "TESTAPP9"
+    assert result.candidate_eid == "TESTCND9"
+
+
+def test_the_read_spelling_is_accepted_on_the_write_route_too() -> None:
+    """The other half of the asymmetry.
+
+    One reader serves both spellings, so a tenant that answers the write
+    with the read casing is not a silent `None`.
+    """
+    result = build_create_result(
+        {"application": {"eId": "TESTAPP9", "candidate": {"eId": "TESTCND9"}}}
+    )
+    assert result.application_eid == "TESTAPP9"
+    assert result.candidate_eid == "TESTCND9"
+
+
+def test_an_envelope_carrying_neither_spelling_yields_none_not_an_error() -> None:
+    """The `201` shape is `[INFERRED]` throughout.
+
+    Guessing a shape for a response nobody has observed is how a wrong
+    answer acquires an explanation, so an absent id is `None`.
+    """
+    assert build_create_result({}).candidate_eid is None
+    assert build_create_result({"application": "not a dict"}).application_eid is None
+
+
+# ======================================================================
+# 11. C4-D2 - A `409` IS `/problems/conflict` WITH THE DUPLICATE NAMED
+#     IN `detail`. **DETECTION, NOT PREVENTION** (DESIGN.md:1390-1393).
+# ======================================================================
+
+
+async def test_a_409_surfaces_as_problems_conflict_naming_the_duplicate() -> None:
+    """The one thing we can do about C4-D2, and its exact limit.
+
+    None of §2.2's gates stops an AUTHORISED write being made twice.
+    This surfaces the duplicate rather than preventing it, and even the
+    `409` shape is `[INFERRED]` rather than observed.
+    """
+    ats = _JobviteRows(
+        status=409,
+        body=b'{"status": {"code": 409, "messages": ["Candidate already exists"]}}',
+    )
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+    problem = result.structured_content
+    assert problem is not None
+    assert problem["type"] == "/problems/conflict"
+    assert problem["status"] == 409
+    assert "already exists" in problem["detail"]
+    # THE `detail` MUST TELL THE CALLER NOT TO RETRY, because a retry is
+    # what creates the second record and the second email.
+    assert "not retried" in problem["detail"].lower()
+
+
+async def test_a_non_409_upstream_failure_is_not_dressed_up_as_a_conflict() -> None:
+    """The paired direction.
+
+    `conflict_or_original` returning a conflict for everything would
+    make the case above pass while telling every caller their candidate
+    was a duplicate.
+    """
+    ats = _JobviteRows(
+        status=500,
+        body=b'{"status": {"code": 500, "messages": ["Server exploded"]}}',
+    )
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    problem = result.structured_content
+    assert problem is not None
+    assert problem["type"] != "/problems/conflict"
+
+
+# ======================================================================
+# 12. THE WRITE IS NEVER RETRIED (§4.3, DESIGN.md:1349).
+#     **BY CONSTRUCTION**: `RETRYABLE_METHODS` admits GET and HEAD only,
+#     so no configuration and no tool-name allow-list can turn it back
+#     on. Without this case the caller-replay ceiling (C4-D2, B108) is
+#     untested, and it is the one property that makes it honest.
+# ======================================================================
+
+
+async def test_an_approved_write_that_times_out_is_attempted_exactly_once() -> None:
+    """A retried write would email a SECOND live human."""
+    attempts: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        attempts.append(request)
+        raise httpx2.ConnectTimeout("timed out", request=request)
+
+    def factory() -> Callable[[], JobviteClient]:
+        def make() -> JobviteClient:
+            return JobviteClient(
+                api_key=SecretStr("test-api-key"),
+                api_secret=SecretStr("test-api-secret"),
+                transport=httpx2.MockTransport(handler),
+            )
+
+        return make
+
+    server = build_server(settings(), client_factory=factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        result = await client.call_tool(
+            CREATE_CANDIDATE, {"params": VALID_ARGS}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+    assert len(attempts) == 1, (
+        f"the write was attempted {len(attempts)} times; a retried write "
+        f"creates a second record and may email a second live human"
+    )
+
+
+def test_the_write_method_is_not_in_the_retryable_set() -> None:
+    """The exclusion read at its source, not inferred from a run.
+
+    The arm above measures the behaviour; this one pins the *mechanism*
+    the design calls "by construction", so a change that made POST
+    retryable is visible even if the timing arm were ever weakened.
+    """
+    from fast_mcp_jobvite.services.jobvite_client import RETRYABLE_METHODS
+
+    assert "POST" not in RETRYABLE_METHODS
+    assert RETRYABLE_METHODS == frozenset({"GET", "HEAD"})
+
+
+# ======================================================================
+# 13. THE WORDING RULE, ENFORCED BY A TEST RATHER THAN BY REVIEW.
+#     C4-S1 is a High residual and is NOT mitigable server-side.
+# ======================================================================
+
+
+#: The phrasings this unit may never assert (C4-S1).
+#:
+#: **ASSEMBLED FROM FRAGMENTS, NOT WRITTEN OUT**, so the intact phrase
+#: never appears in this file. Spelling them literally made the scanner
+#: below report its OWN pattern list and its own function names as
+#: claims - a checker that cannot be run over the file it lives in is a
+#: checker with a hole exactly where its author was standing.
+_CLAIMANTS = ("a human", "human", "a person")
+_HUMAN_CLAIMS = tuple(f"{who} approved" for who in _CLAIMANTS) + tuple(
+    f"approved by {who}" for who in _CLAIMANTS
+)
+
+#: A denial reads as a claim to a substring search, so an occurrence is
+#: read together with the text before it.
+_NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't")
+_NEGATION_WINDOW = 160
+
+
+def _unnegated_claims(text: str) -> list[str]:
+    """Every claim of human approval NOT inside a denial of one.
+
+    **A bare substring search cannot do this job, and the first version
+    of it proved so**: it fired on this unit's own sentence saying the
+    guard does not establish that anything of the sort happened, which
+    is the sentence the rule exists to require.
+
+    Markdown emphasis is stripped and whitespace collapsed before
+    anything is matched. The second version searched the raw text and
+    reported a denial as a claim, because the negator it was looking for
+    was spelt with asterisks around it and a line break sat inside the
+    phrase. **A scanner that reads formatting as content finds claims
+    nobody made.**
+
+    **This is a TRIPWIRE, not a proof.** It errs toward flagging: a
+    denial phrased with its negator further back than the window is
+    reported, and the fix is to tighten the sentence rather than widen
+    the window. It cannot see a claim made in words it does not know,
+    which is why review still applies.
+
+    Args:
+        text: The lower-cased source of one owned file.
+
+    Returns:
+        One excerpt per unnegated claim.
+    """
+    flat = re.sub(r"\s+", " ", text.replace("*", ""))
+    found = []
+    for phrase in _HUMAN_CLAIMS:
+        offset = flat.find(phrase)
+        while offset != -1:
+            before = flat[max(0, offset - _NEGATION_WINDOW) : offset]
+            if not any(negator in before for negator in _NEGATORS):
+                found.append(flat[max(0, offset - 60) : offset + len(phrase)])
+            offset = flat.find(phrase, offset + 1)
+    return found
+
+
+def test_the_wording_rule_holds_across_every_file_this_unit_owns(
+    repo_root: pathlib.Path,
+) -> None:
+    """Nothing this unit wrote may assert that a person was involved.
+
+    **A review catches this once; a test catches it on every commit.**
+    The honest claim is *"the server requires an approval response from
+    the host and refuses to write without one"*. A host may auto-respond
+    with no person present (C4-S1, ADR-0009), so the stronger phrasing
+    is one this design cannot support - and it would be written into a
+    record a compliance reader later treats as authoritative.
+
+    **This file is one of the files it scans**, which is why the
+    patterns above are assembled rather than spelt.
+    """
+    owned = [
+        repo_root / "src" / "fast_mcp_jobvite" / "approval.py",
+        repo_root / "src" / "fast_mcp_jobvite" / "tools" / "candidates.py",
+        repo_root / "tests" / "test_approval_write.py",
+        repo_root / "docs" / "worklogs" / "U10-IMPL-REPORT.md",
+    ]
+    for path in owned:
+        assert path.exists(), f"the path does not resolve: {path}"
+        text = path.read_text().lower()
+        assert text.strip(), f"{path.name} is empty; this absence would be vacuous"
+        claims = _unnegated_claims(text)
+        assert not claims, f"{path.name} asserts human approval: {claims}"
+
+
+def test_positive_control_the_wording_tripwire_can_actually_fire() -> None:
+    """The pairing for the case above.
+
+    An absence assertion over a search that matches nothing passes
+    perfectly, and this unit's whole ordering exists because of that
+    failure mode. So the tripwire is shown catching an assertion, and
+    shown NOT catching the two denials that broke its first two
+    versions.
+    """
+    assert _unnegated_claims(f"the write proceeded because {_HUMAN_CLAIMS[0]} it")
+    assert _unnegated_claims(f"the record was {_HUMAN_CLAIMS[3]} before it was sent")
+    assert not _unnegated_claims(
+        f"this does **not** establish that {_HUMAN_CLAIMS[0]} anything"
+    )
+    assert not _unnegated_claims(
+        f"we never claim {_HUMAN_CLAIMS[0]} it, only that a response came back"
+    )
+
+
+async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:
+    """The ACTION half of the conjunction, on the MRTR leg.
+
+    **This case exists because a mutation survived without it.** U10's
+    M6 deletes the action check, and every arm of
+    `test_case22_the_second_leg_actually_consumes_ctx_input_responses`
+    sends `action="accept"` - so the deletion changed nothing any of
+    them could see. `DESIGN.md:1075-1078` requires BOTH halves and this
+    is the one nothing exercised.
+    """
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        resolve_approval,
+    )
+
+    decision = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses={
+                APPROVAL_REQUEST_KEY: _Answer("decline", {"approve": True})
+            },
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is False, "a DECLINED response authorised the write"

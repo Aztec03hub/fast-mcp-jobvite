@@ -12,7 +12,7 @@ places human-in-the-loop on the host, not on the server. That is
 sentence and there is no stronger one available.
 
 **TWO MECHANISMS, EXACTLY COMPLEMENTARY, AND A SINGLE-MECHANISM GUARD IS
-BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1082-1088, executed at
+BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1080-1086, executed at
 `FASTMCP-SPIKE-4.md:2118-2143`):
 
 | Era | MRTR | `ctx.elicit()` |
@@ -56,7 +56,7 @@ test and either half alone admits a refusal as an approval.
 A tool cannot swallow the era guard - returning an `InputRequiredResult`
 merely constructs an object, and the era check fires in FastMCP's
 result-serialization layer *after* the tool has returned, outside any
-scope a `try/except` in the tool controls (DESIGN.md:1094-1102). That
+scope a `try/except` in the tool controls (DESIGN.md:1098-1106). That
 protects the **first leg only**. A tool that reaches its second leg and
 mis-validates the answer is on its own, which is what the conjunction
 above exists for.
@@ -82,7 +82,7 @@ from pydantic import BaseModel, ConfigDict
 MODERN_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2026-07-28",)
 
 #: The handshake era. `ctx.elicit()` is available here and MRTR raises
-#: on **every** arm including approve (DESIGN.md:1084-1085).
+#: on **every** arm including approve (DESIGN.md:1085-1086).
 #:
 #: **THIS TUPLE IS DELIBERATELY NOT "everything that is not modern".**
 #: DESIGN.md:1126-1130 requires an unrecognised version to REFUSE rather
@@ -140,14 +140,14 @@ class ApprovalMechanism(enum.StrEnum):
     is where the wrong noun entered, and the vocabulary it then closed
     has no slot for MRTR. The set is closed by an applied ADR against a
     frozen design, so this unit emits the value the contract names and
-    raises the mismatch as **ADR-0026 (Proposed)** rather than inventing
+    raises the mismatch as **ADR-0027 (Proposed)** rather than inventing
     a fourth string the audit reader has never been told about.
     """
 
     #: `ctx.elicit()` answered - the handshake era's path.
     ELICITATION = "elicitation"
     #: The MRTR second leg answered - the sessionless era's path. See
-    #: the class docstring and ADR-0026: the name is the contract's, not
+    #: the class docstring and ADR-0027: the name is the contract's, not
     #: the mechanism's.
     SAMPLING = "sampling"
     #: No approval path could run at all: no client handler, or an era

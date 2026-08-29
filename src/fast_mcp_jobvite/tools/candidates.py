@@ -244,18 +244,25 @@ class CreateCandidateInput(BaseModel):
         JobviteIdentifier,
         Field(description="The `eId` of the job this application attaches to."),
     ]
+    # THE DEFAULT IS DECLARED ONCE, AS THE ASSIGNMENT, AND THIS IS A
+    # MEASURED CORRECTION. These three fields carried `Field(default=X)`
+    # AND a trailing `= X`; pydantic takes the assignment, so the
+    # `Field` copy was inert. U10's M9 mutation flipped the inert one to
+    # `True` and the send_email default test passed against it - a
+    # surviving row on the one field in this server that decides whether
+    # a live person is emailed. Two declarations of one default is the
+    # two-lists defect at the width of a single field.
     mobile: Annotated[
         SafeText | None,
-        Field(default=None, description="The candidate's mobile number."),
+        Field(description="The candidate's mobile number."),
     ] = None
     source: Annotated[
         SafeText | None,
-        Field(default=None, description="Free-text name of the application source."),
+        Field(description="Free-text name of the application source."),
     ] = None
     send_email: Annotated[
         bool,
         Field(
-            default=False,
             description=(
                 "Ask Jobvite to EMAIL THIS PERSON. Defaults to false. "
                 "Setting it true sends mail to a real human being."
