@@ -332,6 +332,18 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **A row floor could sit below its harness's live row count and say nothing.**
+  `check-u7-resilience-controls.sh` carried 31 rows against `ROW_FLOOR=26`, so five of its rows
+  could have been deleted with CI green. Neither branch was wrong: the 26 was honestly derived on
+  one branch, the five extra rows arrived on another, and neither commit is an ancestor of the
+  other - **the merge produced the slack**, and nothing in the repository compared a floor to a live
+  count. A floor that is too high fails loudly on the next run; a floor that is too low is silent
+  forever, which is why only this direction needed a checker. The floor is now raised and a wired
+  step re-derives every checked floor from the harness itself, reading the row-invocation pattern
+  out of the control table rather than keeping a second copy of it. It states in its own docstring
+  that it covers 9 of the 24 floored harnesses, because a partial check that does not say so reads
+  as a whole one. (2026-08-29 11:37 AM CDT)
+
 - **A test's server outlived the harness that spawned it, twice in one day.** `spawn_marker_server`
   starts a real server in a real process; when a run was killed rather than allowed to finish, that
   server was still alive 2h02m later, holding its port and executing out of a worktree that had
