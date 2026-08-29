@@ -72,6 +72,16 @@ id and read the error.
 a production system with no documented limit. Do not run it in parallel with anything else, and
 do not "confirm" the limit by exceeding it repeatedly.
 
+**The credentialed arm needs a tenant with at least one open requisition (R4-H3).** This is a
+precondition on `tests/credentialed/test_search_jobs_live.py`, not on a numbered row, and it is
+recorded here because it is what makes that arm non-vacuous. The tool drops Jobvite's envelope,
+so `search_jobs` against a tenant whose payload arrives under a *different* envelope key returns
+`showing 0 of 0` — indistinguishable from a tenant that genuinely has no open jobs, and every
+assertion in the tool-level live cases passes against it. `test_the_live_envelope_uses_the_
+inferred_keys` therefore asserts on the raw payload, and the two tool-level cases assert
+`total >= 1` and `showing == 1`, which only mean anything if the tenant actually holds a job.
+**Record which tenant was used and how many open requisitions it had** when ticking rows 1-4.
+
 **Row 10 — there is no sandbox.** This creates a real candidate record in a real applicant
 tracking system, and Jobvite's create endpoint can email a human candidate. It requires the
 customer's explicit agreement, a named test job, and an agreed cleanup path **before** it runs,
