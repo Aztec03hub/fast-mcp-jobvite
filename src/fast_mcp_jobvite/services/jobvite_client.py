@@ -57,16 +57,23 @@ point DESIGN.md:312-318 requires, and this module calls it.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
+from time import monotonic
 from types import TracebackType
 from typing import Any, Final, NoReturn, Protocol, Self
 
 import httpx2
+from circuitbreaker import CircuitBreaker, CircuitBreakerError
 from defusedxml.common import DefusedXmlException
 from defusedxml.ElementTree import fromstring as defused_fromstring
 from loguru import logger
+from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, stop_after_delay
+from tenacity.wait import wait_exponential_jitter
 
 from ..errors import JobviteUnavailableError, JobviteUpstreamError
+from ..utils.correlation import request_id_var
 from ..utils.redaction import redact_headers, redact_text, redact_url
 
 # ----------------------------------------------------------------------
@@ -543,6 +550,506 @@ class ScanResult:
 # ======================================================================
 
 
+# ======================================================================
+# U7 - RESILIENCE (DESIGN.md:342-358, :373-375, :617).
+#
+# THE COMPOSITION ORDER IS FIXED AND IT IS NOT A PREFERENCE.
+# `backend/resilience.md:216-222` states it innermost to outermost:
+#
+#     timeout (innermost) -> retry -> circuit breaker (outermost)
+#
+# and gives the reason the order matters: "the breaker wraps the retried
+# call, so retries count toward the breaker and a tripped breaker
+# short-circuits BEFORE any retry budget is spent. Never let a retry
+# loop sit outside the breaker - that lets retry storms defeat the
+# breaker and keep hammering a down upstream." `_attempt` below is the
+# timeout, `_attempt_with_retry` is the retry, and `_through_breaker`
+# wraps both.
+#
+# THE TOTAL OUTBOUND BUDGET EXISTS BECAUSE THE CLAUSE IT DISCHARGES HAS
+# NO REFERENT HERE. `backend/resilience.md:74-76` requires timeouts
+# "shorter than the inbound request's own deadline". DESIGN.md:367-372
+# records that MCP gives us no inbound deadline to be shorter than -
+# there is no HTTP request worker to hang and no caller-supplied
+# timeout - so DESIGN.md:373-375 supplies the deadline the transport
+# does not: "a total outbound budget, configured, that bounds all
+# attempts for one tool invocation, so a slow Jobvite surfaces as a
+# typed 503 rather than an unbounded wait".
+#
+# **`config.py`'s `outbound_rate_limit` is NOT this and cannot be made
+# into it.** A rate limit is requests per minute; a budget is a time
+# bound on one invocation. Six requests per minute is satisfied
+# perfectly by one request that never returns.
+# ======================================================================
+
+#: `JOBVITE_OUTBOUND_BUDGET_SECONDS`. The total wall-clock bound on ALL
+#: outbound attempts for one tool invocation (DESIGN.md:373-375).
+#:
+#: **60 is a choice, not a measurement**, and it is recorded as one for
+#: the same reason DESIGN.md:1576-1583 records the 6/min rate limit as a
+#: guess. No Jobvite response-time distribution has ever been observed
+#: on this project, so there is nothing to derive a percentile from. It
+#: is sized to be comfortably longer than one 30-second read timeout
+#: plus a retry, and short enough that an MCP host does not appear hung.
+DEFAULT_OUTBOUND_BUDGET_SECONDS: Final = 60.0
+
+#: The per-phase timeouts (DESIGN.md:346, and
+#: `backend/resilience.md:66-70`).
+#: **Explicit and per-phase: no SDK default and no single scalar.**
+#: httpx2's own default is a 5-second scalar, which is a resilience
+#: decision made by a library rather than by us.
+DEFAULT_CONNECT_TIMEOUT: Final = 5.0
+DEFAULT_READ_TIMEOUT: Final = 30.0
+DEFAULT_WRITE_TIMEOUT: Final = 30.0
+DEFAULT_POOL_TIMEOUT: Final = 5.0
+
+#: `JOBVITE_RETRY_MAX_ATTEMPTS`. The attempt cap, the other half of
+#: `backend/resilience.md:88-90`'s "cap BOTH the maximum attempt count
+#: AND the total elapsed time". The elapsed-time half is the outbound
+#: budget above, so the two `stop` conditions are OR-ed.
+DEFAULT_RETRY_MAX_ATTEMPTS: Final = 4
+
+#: Backoff, exponential WITH jitter (`backend/resilience.md:79-82`):
+#: "fixed-interval or jitter-free retries synchronize clients into a
+#: thundering herd that amplifies the outage".
+DEFAULT_RETRY_INITIAL_BACKOFF: Final = 0.2
+DEFAULT_RETRY_MAX_BACKOFF: Final = 5.0
+
+#: `JOBVITE_BREAKER_FAILURE_THRESHOLD` and
+#: `JOBVITE_BREAKER_RECOVERY_SECONDS`. The figures in
+#: `backend/resilience.md:180-181`'s worked example, taken as-is because
+#: nothing about Jobvite's availability has been observed that would
+#: justify moving them.
+DEFAULT_BREAKER_FAILURE_THRESHOLD: Final = 5
+DEFAULT_BREAKER_RECOVERY_SECONDS: Final = 30.0
+
+#: Jobvite's rate-limit status. **Never observed** (DESIGN.md:361-364):
+#: "no 429 has ever been observed and no rate-limit header is returned,
+#: so this path is written defensively and is unexercised" - against
+#: Jobvite. It IS exercised by this project's tests.
+RATE_LIMITED_STATUS: Final = 429
+
+#: The floor for a server-side failure. `ERROR_STATUS_THRESHOLD` (400)
+#: is the invariant's floor and a DIFFERENT quantity: everything at or
+#: above 400 is an error, and only what is at or above 500 is OURS to
+#: retry. `backend/resilience.md:91-94`: "4xx validation, auth, and
+#: permission errors are not retryable and must surface immediately".
+SERVER_ERROR_STATUS_FLOOR: Final = 500
+
+#: The methods a retry may re-issue. **THIS IS HOW `create_candidate` IS
+#: EXCLUDED FROM RETRY BY CONSTRUCTION** (DESIGN.md:350-353), and the
+#: word "construction" is load-bearing: there is no setting that adds
+#: `POST` to this set, no tool-name allow-list to keep in step with
+#: `tools/`, and a tool added tomorrow that writes is excluded the
+#: moment it is written rather than the moment somebody remembers to
+#: list it. A hand-kept list of exempt tool names would be blind to the
+#: tool nobody added to it.
+#:
+#: DESIGN.md:350-353 records the measurement this prevents: **one call,
+#: four rows created**, when FastMCP's `RetryMiddleware` retried a write
+#: that had already succeeded. That is why the case for this asserts a
+#: ROW COUNT at the transport rather than reading a configuration value.
+RETRYABLE_METHODS: Final = frozenset({"GET", "HEAD"})
+
+#: The `retry_after` hint on an open breaker (DESIGN.md:356-358). It is
+#: the breaker's own remaining open window, so it is computed rather
+#: than constant - see `_breaker_retry_after`.
+UNAVAILABLE_BREAKER_DETAIL: Final = (
+    "We have stopped calling Jobvite because it has been failing. "
+    "This is an open circuit breaker, not an upstream failure in flight."
+)
+UNAVAILABLE_BUDGET_DETAIL: Final = (
+    "The total outbound time budget for this invocation was exhausted "
+    "before Jobvite answered. This is a bound we applied, not an open "
+    "circuit breaker."
+)
+UNAVAILABLE_RATE_LIMITED_DETAIL: Final = (
+    "Jobvite rate-limited this request and it did not recover within the "
+    "retry budget. This is an upstream failure, not an open circuit breaker."
+)
+
+#: THE BUDGET'S CARRIER, and it is a `ContextVar` for the same reason
+#: `request_id_var` is (DESIGN.md:607-612): `asyncio` runs invocations
+#: concurrently on one thread, and a module global would let two
+#: invocations share one deadline - the first to start would bound the
+#: second, and the corruption would be silent because every call still
+#: gets *a* deadline.
+#:
+#: It holds a `monotonic()` deadline rather than a duration, so it stays
+#: correct across the arbitrary number of `request` calls one scan
+#: makes. `monotonic` rather than wall clock: a budget must not move
+#: when NTP does.
+outbound_deadline_var: ContextVar[float | None] = ContextVar(
+    "outbound_deadline_var", default=None
+)
+
+
+@contextmanager
+def outbound_budget_scope(
+    seconds: float = DEFAULT_OUTBOUND_BUDGET_SECONDS,
+) -> Iterator[float]:
+    """Bound every outbound attempt in this scope to `seconds` total.
+
+    **This is what DESIGN.md:373-375 promises and what nothing in `src/`
+    implemented until now.** One scope per tool invocation: the deadline
+    it sets is shared by every `request` beneath it, including the many
+    a `scan` makes, which is the difference between a budget and a
+    per-call timeout.
+
+    **An already-open scope is NOT restarted.** A nested scope keeps the
+    outer deadline, because an inner scope that reset the clock would
+    turn one invocation's budget into a per-page budget and the bound
+    would be `pages x seconds` - unbounded in exactly the direction this
+    exists to bound. The `finally` resets the token so a deadline cannot
+    leak into the next invocation on a reused worker task, which is the
+    leak `correlation.request_id_scope` documents for the id.
+
+    Args:
+        seconds: The total budget. `JOBVITE_OUTBOUND_BUDGET_SECONDS`.
+
+    Yields:
+        The `monotonic()` deadline in force for this scope - the outer
+        one if a scope was already open.
+    """
+    existing = outbound_deadline_var.get()
+    deadline = existing if existing is not None else monotonic() + seconds
+    token = outbound_deadline_var.set(deadline)
+    try:
+        yield deadline
+    finally:
+        outbound_deadline_var.reset(token)
+
+
+def outbound_budget_remaining() -> float | None:
+    """Seconds left in the current budget, or `None` if none is open.
+
+    Returns:
+        The remaining seconds, which may be zero or negative when the
+        budget is spent, or `None` when no scope is open. `None` and a
+        remaining `0.0` are kept apart deliberately: "no budget" and "no
+        budget left" are opposite conditions and collapsing them would
+        make an unscoped call look exhausted.
+    """
+    deadline = outbound_deadline_var.get()
+    if deadline is None:
+        return None
+    return deadline - monotonic()
+
+
+class JobviteRetryLaterError(JobviteUnavailableError):
+    """A 503 that carries RFC 9457's `retry_after` extension member.
+
+    **No new type URI is minted** (DESIGN.md:355-358): `kind` is
+    inherited, so an open breaker, an exhausted budget and a 429 all
+    still answer `/problems/service-unavailable` at 503. What
+    distinguishes them is `detail`, exactly as the design requires. This
+    subclass exists only to carry the hint, which `errors.build_problem`
+    already accepts as an extension member and which nothing previously
+    produced.
+
+    **`counts_toward_breaker` is a property of the CAUSE, not of the
+    status.** A 429 is Jobvite telling us it is unwell and counts. An
+    exhausted budget is a bound WE applied and must not: a slow call we
+    abandoned says nothing about Jobvite's health that its own timeout
+    has not already said, and counting it would let one slow invocation
+    trip a breaker for every other caller.
+    """
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        retry_after: float | None = None,
+        counts_toward_breaker: bool = False,
+    ) -> None:
+        """Record the hint and whether this failure is an outage signal.
+
+        Args:
+            detail: The occurrence-specific explanation, which is what
+                distinguishes this 503 from the other two.
+            retry_after: Seconds the caller should wait, when we have a
+                defensible number. `None` when we do not - an invented
+                hint is worse than none.
+            counts_toward_breaker: Whether the breaker should count this
+                as a failure.
+        """
+        super().__init__(detail)
+        self.retry_after = retry_after
+        self.counts_toward_breaker = counts_toward_breaker
+
+
+class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
+    """A 5xx or 429, wrapped so `tenacity` can select on it alone.
+
+    **Module-private and it never reaches a caller.** `_attempt` raises
+    it, `_attempt_with_retry` converts it back into the public typed
+    error the moment retries are exhausted, and nothing else may see it.
+    It exists because the retry predicate has to separate a 5xx from a
+    4xx, and both arrive as `JobviteUpstreamError` - which is correct
+    for the caller and useless as a selector.
+    """
+
+    def __init__(self, cause: JobviteUpstreamError, retry_after: float | None) -> None:
+        """Wrap the public error and Jobvite's own `Retry-After`.
+
+        Args:
+            cause: The typed error this becomes if retries run out.
+            retry_after: The parsed `Retry-After` value, if any.
+        """
+        super().__init__(str(cause))
+        self.cause = cause
+        self.retry_after = retry_after
+
+    def public_error(self) -> JobviteUpstreamError | JobviteRetryLaterError:
+        """Convert to what the caller is allowed to see.
+
+        Returns:
+            A `JobviteRetryLaterError` (503) for a 429, honouring
+            `Retry-After` - DESIGN.md:361-364 says a 429 is "retried and
+            then mapped to 503, honouring `Retry-After` when present" -
+            and the original `JobviteUpstreamError` (502) otherwise.
+        """
+        if self.cause.upstream_status == RATE_LIMITED_STATUS:
+            return JobviteRetryLaterError(
+                UNAVAILABLE_RATE_LIMITED_DETAIL,
+                retry_after=self.retry_after,
+                counts_toward_breaker=True,
+            )
+        return self.cause
+
+
+def _is_retryable_status(status: int | None) -> bool:
+    """Whether an upstream status is ours to retry.
+
+    Args:
+        status: The status Jobvite reported, from the HTTP line or from
+            its own JSON envelope. `None` means it reported none.
+
+    Returns:
+        `True` for a 429 or any 5xx. **`None` is `False`**: a body that
+        failed to decode on an HTTP 200 is not a transient condition and
+        re-issuing the call would return the same undecodable body.
+    """
+    if status is None:
+        return False
+    return status >= SERVER_ERROR_STATUS_FLOOR or status == RATE_LIMITED_STATUS
+
+
+def _retry_after_seconds(headers: Mapping[str, str]) -> float | None:
+    """Parse `Retry-After`, seconds form only.
+
+    `backend/resilience.md:95-97` requires honouring it. Only the
+    delta-seconds form is parsed: the HTTP-date form would need a clock
+    comparison against a server whose clock we have never observed, and
+    a wrong date silently becomes a wrong wait.
+
+    Args:
+        headers: The response headers.
+
+    Returns:
+        The non-negative delay in seconds, or `None` if the header is
+        absent, not an integer, or negative.
+    """
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        value = float(raw.strip())
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _is_outage(_exc_type: type[BaseException], exc: BaseException) -> bool:
+    """The breaker's predicate. **4xx MUST NOT trip it** (§8 #23).
+
+    DESIGN.md:354-355: "one circuit breaker for Jobvite. 4xx must not
+    trip it - a bad candidate id is the caller's problem, not a health
+    signal." `backend/resilience.md:161-163` says the same and adds that
+    this "mirrors the retry predicate above", which is why this function
+    and `_is_retryable_status` agree on which statuses are outages.
+
+    Args:
+        _exc_type: The exception class, per `circuitbreaker`'s predicate
+            signature. Unused: the instance carries everything needed
+            and dispatching on the class alone cannot see a status.
+        exc: The exception that left the wrapped call.
+
+    Returns:
+        `True` when this failure is evidence that Jobvite is unwell.
+    """
+    if isinstance(exc, JobviteRetryLaterError):
+        return exc.counts_toward_breaker
+    if isinstance(exc, JobviteUnavailableError):
+        # Every transport failure: connect, read, write, pool, protocol.
+        return True
+    if isinstance(exc, JobviteUpstreamError):
+        return _is_retryable_status(exc.upstream_status)
+    return False
+
+
+#: **ONE breaker for Jobvite** (DESIGN.md:354, B37,
+#: `backend/resilience.md:156-159`: "one breaker per dependency ...
+#: never a single global breaker"). Jobvite is this server's only
+#: outbound dependency, so one module-level instance IS one per; a
+#: second dependency would get its own rather than share this.
+#:
+#: **Module level rather than per client instance, deliberately.** The
+#: breaker's job is to record what the DEPENDENCY has been doing, and a
+#: per-instance breaker would forget everything each time a client was
+#: rebuilt - which is once per invocation in the shapes `tools/` uses.
+#: `backend/resilience.md:196-200` records the corresponding limit: the
+#: state is in-process and per-replica, so on N replicas each observes
+#: the threshold independently.
+_JOBVITE_BREAKER: Final = CircuitBreaker(
+    failure_threshold=DEFAULT_BREAKER_FAILURE_THRESHOLD,
+    recovery_timeout=DEFAULT_BREAKER_RECOVERY_SECONDS,
+    expected_exception=_is_outage,
+    name="jobvite",
+)
+
+#: The last breaker state a transition line was written for. A
+#: transition is a CHANGE, so reporting one needs the previous value,
+#: and `circuitbreaker` exposes state but no transition hook.
+_breaker_reported_state: str = _JOBVITE_BREAKER.state
+
+
+def reset_breaker_for_test() -> None:
+    """Return the module breaker to closed - **tests only**.
+
+    The breaker is module state on purpose (see `_JOBVITE_BREAKER`), and
+    module state that survives between tests makes case order
+    load-bearing: one case tripping it would fail the next for a reason
+    that has nothing to do with the next case. Shipped code never calls
+    this - an operator wanting a closed breaker restarts the process.
+    """
+    global _breaker_reported_state  # noqa: PLW0603 - the state IS module-level
+    _JOBVITE_BREAKER.reset()
+    _breaker_reported_state = _JOBVITE_BREAKER.state
+
+
+def _breaker_retry_after() -> float | None:
+    """The breaker's remaining open window, as a `retry_after` hint.
+
+    Returns:
+        Seconds until the breaker will admit a probe, or `None` when it
+        is not open. `circuitbreaker` returns an already-rounded int.
+    """
+    remaining = _JOBVITE_BREAKER.open_remaining
+    return float(remaining) if remaining > 0 else None
+
+
+def _report_breaker_state() -> None:
+    """Log a breaker transition **if one happened**, on the call path.
+
+    **This function IS the reason `circuitbreaker` had to evaluate
+    expiry on the call path** (DESIGN.md:617). It reads
+    `_JOBVITE_BREAKER.state`, which for an expired open window is a
+    DERIVED read computed in this frame - so the `open->half_open` line
+    is written by the invocation's own task, with its `request_id_var`
+    bound. A library that flipped the state from a background timer
+    would have written that line from a task with no id, logging `None`
+    and failing §8 #13. `scripts/probe-breaker-call-path.py` is the
+    measurement that settled this, and it is run as a test.
+
+    The line carries the direction, the triggering counter and
+    `request_id`, which is what `backend/resilience.md:224-226` and
+    DESIGN.md:614-616 require. **It carries no URL**, for the same
+    reason a retry line does not: the v1 `jobFeed` URL is itself a
+    secret.
+    """
+    global _breaker_reported_state  # noqa: PLW0603 - the state IS module-level
+    current = _JOBVITE_BREAKER.state
+    if current == _breaker_reported_state:
+        return
+    logger.warning(
+        "jobvite breaker transition",
+        transition=f"{_breaker_reported_state}->{current}",
+        failure_count=_JOBVITE_BREAKER.failure_count,
+        request_id=request_id_var.get(),
+    )
+    _breaker_reported_state = current
+
+
+#: Exponential backoff WITH jitter (`backend/resilience.md:79-82`).
+#: Module level so `_wait_for_retry` composes it with `Retry-After`
+#: rather than rebuilding it per attempt - `wait_exponential_jitter`
+#: derives its delay from the attempt number on the state it is handed,
+#: so one instance is correct for every call.
+_JITTERED_BACKOFF: Final = wait_exponential_jitter(
+    initial=DEFAULT_RETRY_INITIAL_BACKOFF, max=DEFAULT_RETRY_MAX_BACKOFF
+)
+
+
+def _should_retry(state: RetryCallState) -> bool:
+    """`tenacity`'s predicate: re-issue this attempt, or surface it?
+
+    **Never a blanket `except Exception`** (`backend/resilience.md:91`).
+    Three things retry and nothing else does:
+
+    * `_RetryableUpstream` - a 429 or a 5xx, already classified by
+      `_attempt` where the response was still in scope;
+    * `JobviteUnavailableError` - every transport failure httpx2 raises,
+      which is DESIGN.md:347-349's "connection errors, timeouts";
+    * and **not** `JobviteRetryLaterError`, which is the subclass this
+      module raises for an open breaker and an exhausted budget. Both
+      are fail-fast signals we produced ourselves.
+      `backend/resilience.md:170-172` states the breaker half directly:
+      "do NOT let `tenacity` retry a `CircuitBreakerError` - it is a
+      fail-fast signal, not a transient error."
+
+    A `JobviteUpstreamError` that reaches here is a 4xx or an
+    undecodable body and surfaces immediately.
+
+    Args:
+        state: `tenacity`'s call state for the attempt just finished.
+
+    Returns:
+        `True` to retry.
+    """
+    if state.outcome is None or not state.outcome.failed:
+        return False
+    exc = state.outcome.exception()
+    if isinstance(exc, JobviteRetryLaterError):
+        return False
+    return isinstance(exc, _RetryableUpstream | JobviteUnavailableError)
+
+
+def _log_retry_attempt(state: RetryCallState) -> None:
+    """Log one retry at WARNING, carrying `request_id` and **no URL**.
+
+    `backend/resilience.md:224-226`: "log every retry attempt (at
+    WARNING) ... each carrying the `request_id` correlation field. Never
+    retry or trip silently." DESIGN.md:614-616 adds the fields: the
+    attempt number, the elapsed delay and the exception type.
+
+    **THE ABSENT FIELD IS THE LOAD-BEARING ONE.** No URL and no route
+    appear here, because the v1 `jobFeed` URL carries `sc=` in its query
+    string and is itself a secret (DESIGN.md:315-318, :618-620): "a
+    retry line is exactly where an unredacted URL would otherwise reach
+    a log". The exception is reduced to its CLASS NAME rather than its
+    text for the same reason - httpx2 puts the request URL inside the
+    message of the exceptions it raises.
+
+    `request_id` is read from `request_id_var` rather than passed,
+    because `tenacity` calls this hook, not our call site
+    (DESIGN.md:601-603). It is a per-Task ContextVar, so two invocations
+    retrying concurrently each read their own - which is §8 #13, and
+    why that case runs two invocations in parallel rather than one.
+
+    Args:
+        state: `tenacity`'s call state for the attempt just finished.
+    """
+    exc = state.outcome.exception() if state.outcome is not None else None
+    logger.warning(
+        "jobvite retry",
+        attempt=state.attempt_number,
+        elapsed=round(state.seconds_since_start or 0.0, 3),
+        error_type=type(exc).__name__ if exc is not None else "none",
+        request_id=request_id_var.get(),
+    )
+
+
 class JobviteClient:
     """An `httpx2` client for Jobvite, with one request entry point.
 
@@ -568,6 +1075,8 @@ class JobviteClient:
         timeout: httpx2.Timeout | None = None,
         max_results: int = DEFAULT_MAX_RESULTS,
         start_base_overrides: Mapping[str, int] | None = None,
+        outbound_budget_seconds: float = DEFAULT_OUTBOUND_BUDGET_SECONDS,
+        retry_max_attempts: int = DEFAULT_RETRY_MAX_ATTEMPTS,
     ) -> None:
         """Build the client.
 
@@ -604,16 +1113,37 @@ class JobviteClient:
                 tenant; it is not a place to write down the vendor's
                 claim, because a declared 1 here loses record zero on a
                 0-based server.
+            outbound_budget_seconds: `JOBVITE_OUTBOUND_BUDGET_SECONDS`,
+                the total wall-clock bound on ALL attempts for one tool
+                invocation (DESIGN.md:373-375). Applied by `scan`, and
+                by a bare `request` that finds no scope already open -
+                see `outbound_budget_scope`.
+            retry_max_attempts: `JOBVITE_RETRY_MAX_ATTEMPTS`, the
+                attempt half of `backend/resilience.md:88-90`'s "cap
+                BOTH the maximum attempt count AND the total elapsed
+                time". The elapsed half is the budget above.
         """
         self._api_key = api_key
         self._api_secret = api_secret
         self._company_id = company_id
         self._max_results = max_results
         self._start_base_overrides = dict(start_base_overrides or {})
+        self._outbound_budget_seconds = outbound_budget_seconds
+        self._retry_max_attempts = retry_max_attempts
+        # KEPT ON THE INSTANCE so an attempt can be narrowed to what
+        # remains of the outbound budget. `httpx2.Timeout` exposes the
+        # four phases as attributes but rebuilding from the values we
+        # were given is what lets `_attempt_timeout` clamp them without
+        # depending on that shape.
+        self._timeout = timeout or httpx2.Timeout(
+            connect=DEFAULT_CONNECT_TIMEOUT,
+            read=DEFAULT_READ_TIMEOUT,
+            write=DEFAULT_WRITE_TIMEOUT,
+            pool=DEFAULT_POOL_TIMEOUT,
+        )
         self._client = httpx2.AsyncClient(
             transport=transport,
-            timeout=timeout
-            or httpx2.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0),
+            timeout=self._timeout,
             # PINNED, not inherited. httpx2 2.12.0 happens to default
             # this False, so before this line the safety came from a
             # transitive default and nothing else - a review added
@@ -682,18 +1212,36 @@ class JobviteClient:
             The three credential parameters.
 
         Raises:
-            JobviteUpstreamError: If no `company_id` was configured.
-                Raised rather than sending the call without it, because
-                Jobvite would answer a missing `companyId` with the same
-                401 body as a bad credential and the operator would go
+            RuntimeError: If no `company_id` was configured. Raised
+                rather than sending the call without it, because Jobvite
+                would answer a missing `companyId` with the same 401
+                body as a bad credential and the operator would go
                 looking for the wrong fault.
+
+                **The TYPE is R2-L-4 and it was open until U7.** This
+                used to raise `JobviteUpstreamError(None, ...)`, which
+                `errors.py` maps to `/problems/external-service-error`
+                **502** and renders as *"Jobvite returned status none:
+                ..."*. Jobvite returned nothing; the call was never
+                made. Telling a caller the upstream failed when the
+                deployment is misconfigured is the same inversion
+                DESIGN.md:502-509 corrects for Jobvite's own 401.
+
+                `errors.py` has no configuration row and
+                DESIGN.md:510-511 forbids minting a slug, so an
+                exception outside the
+                hierarchy is the honest answer: ADR-0017 routes it to
+                `/problems/internal-error` **500** with the class name
+                and not the message. **The review's own suggested fix
+                said `about:blank`, and that text predates ADR-0017** -
+                the slug moved, the diagnosis did not.
         """
         if self._company_id is None:
-            raise JobviteUpstreamError(
-                None,
+            msg = (
                 "the jobFeed route requires a companyId credential and none is "
-                "configured",
+                "configured"
             )
+            raise RuntimeError(msg)
         return {
             "api": self._api_key.get_secret_value(),
             "sc": self._api_secret.get_secret_value(),
@@ -735,7 +1283,9 @@ class JobviteClient:
             JobviteUpstreamError: On either arm of the invariant, or an
                 undecodable body.
             JobviteUnavailableError: If Jobvite could not be reached at
-                all.
+                all, if the breaker is open, or if the outbound budget
+                was exhausted. The three are one problem type and are
+                told apart by `detail` (DESIGN.md:355-358).
         """
         if jobfeed:
             url = f"{V1_BASE_URL}{path}"
@@ -758,13 +1308,314 @@ class JobviteClient:
             route=redact_url(f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"),
         )
 
-        try:
-            response = await self._client.request(
+        # THE BUDGET, and the `if` is the whole of what makes it a
+        # budget rather than a per-call timeout. A `scan` has already
+        # opened the scope, so all 25 of its requests share ONE
+        # deadline; a bare `request` opens its own so that a caller who
+        # forgot still gets a bound rather than an unbounded wait.
+        with outbound_budget_scope(self._outbound_budget_seconds):
+            # THE BREAKER IS OUTERMOST and the retry sits INSIDE it
+            # (`backend/resilience.md:216-222`). Reversing the two lets
+            # a retry storm keep hammering an upstream the breaker has
+            # already given up on.
+            return await self._through_breaker(
                 method,
                 url,
                 params=query,
                 headers=headers,
+                json_body=json_body,
+                jobfeed=jobfeed,
+                path=path,
+            )
+
+    async def _through_breaker(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Mapping[str, str],
+        headers: Mapping[str, str],
+        json_body: Mapping[str, Any] | None,
+        jobfeed: bool,
+        path: str,
+    ) -> dict[str, Any]:
+        """The outermost layer: fail fast when Jobvite is known-down.
+
+        Args:
+            method: The HTTP method.
+            url: The fully-built URL. Never logged.
+            params: The query parameters, credentials included on the
+                `jobFeed` route.
+            headers: The request headers, credentials included on v2.
+            json_body: The JSON body, for POST routes.
+            jobfeed: Whether this is the v1 route, for the log line.
+            path: The route below the base URL, for the log line.
+
+        Returns:
+            The decoded body.
+
+        Raises:
+            JobviteRetryLaterError: When the breaker is open. It is
+                raised **before** the body executes, which is
+                `backend/resilience.md:165-170`'s "surface it as a fast,
+                typed error rather than letting calls queue against a
+                known-down upstream".
+        """
+        # READ THE STATE FIRST. For an expired open window this read is
+        # what computes the `open->half_open` transition, in this task,
+        # with this invocation's `request_id_var` bound - see
+        # `_report_breaker_state`.
+        _report_breaker_state()
+        if _JOBVITE_BREAKER.opened:
+            raise JobviteRetryLaterError(
+                UNAVAILABLE_BREAKER_DETAIL,
+                retry_after=_breaker_retry_after(),
+                counts_toward_breaker=False,
+            )
+        try:
+            # `CircuitBreaker.__exit__` consults `_is_outage` and counts
+            # or resets accordingly, so the 4xx exclusion is enforced by
+            # the predicate rather than by anything at this call site.
+            with _JOBVITE_BREAKER:
+                return await self._attempt_with_retry(
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json_body=json_body,
+                    jobfeed=jobfeed,
+                    path=path,
+                )
+        except CircuitBreakerError:
+            # Defensive: the `opened` check above short-circuits first,
+            # so reaching here would mean the breaker tripped between
+            # the two statements. It is mapped rather than allowed to
+            # escape, because `CircuitBreakerError` is not in
+            # `errors.py`'s hierarchy and would surface as a 500.
+            raise JobviteRetryLaterError(
+                UNAVAILABLE_BREAKER_DETAIL,
+                retry_after=_breaker_retry_after(),
+                counts_toward_breaker=False,
+            ) from None
+        finally:
+            # The `closed->open` and `half_open->closed` lines. Written
+            # here rather than inside `__exit__`: `circuitbreaker`
+            # exposes no transition hook - what it does expose is state
+            # that is correct to read at any point on the call path.
+            _report_breaker_state()
+
+    async def _attempt_with_retry(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Mapping[str, str],
+        headers: Mapping[str, str],
+        json_body: Mapping[str, Any] | None,
+        jobfeed: bool,
+        path: str,
+    ) -> dict[str, Any]:
+        """The middle layer: re-issue transient failures, or do not.
+
+        **`create_candidate` is excluded here, BY CONSTRUCTION**
+        (DESIGN.md:350-353). The `if` below dispatches on the HTTP
+        METHOD, so a `POST` cannot be retried by any configuration,
+        and the exclusion covers a write tool written next year that
+        nobody remembered to add to a list. DESIGN.md:353 records what
+        this prevents, measured: **one call, four rows created**.
+
+        Args:
+            method: The HTTP method. The retry decision reads this.
+            url: The fully-built URL. Never logged.
+            params: The query parameters.
+            headers: The request headers.
+            json_body: The JSON body, for POST routes.
+            jobfeed: Whether this is the v1 route, for the log line.
+            path: The route below the base URL, for the log line.
+
+        Returns:
+            The decoded body.
+
+        Raises:
+            JobviteUpstreamError: A 4xx immediately; a 5xx once the
+                retry budget is spent.
+            JobviteUnavailableError: A transport failure once the retry
+                budget is spent, or an exhausted outbound budget.
+        """
+        if method.upper() not in RETRYABLE_METHODS:
+            # ONE await, and no loop exists on this branch to run a
+            # second one. That is the construction.
+            return await self._attempt(
+                method,
+                url,
+                params=params,
+                headers=headers,
+                json_body=json_body,
+                jobfeed=jobfeed,
+                path=path,
+            )
+
+        remaining = outbound_budget_remaining()
+        # BOTH caps, OR-ed (`backend/resilience.md:88-90`).
+        # `stop_after_delay` measures from the first attempt, so it is
+        # given what is left of the invocation's budget rather than a
+        # constant of its own - otherwise a retry loop on the last page
+        # of a scan could outlive the budget every other layer respects.
+        stop = stop_after_attempt(self._retry_max_attempts) | stop_after_delay(
+            max(remaining or 0.0, 0.0)
+        )
+        retrying = AsyncRetrying(
+            retry=_should_retry,
+            wait=self._wait_for_retry,
+            stop=stop,
+            before_sleep=_log_retry_attempt,
+            reraise=True,
+        )
+        try:
+            return await retrying(
+                self._attempt,
+                method,
+                url,
+                params=params,
+                headers=headers,
+                json_body=json_body,
+                jobfeed=jobfeed,
+                path=path,
+            )
+        except (_RetryableUpstream, JobviteUnavailableError) as exc:
+            # THE BUDGET IS THE AUTHORITY ON WHY WE STOPPED, and this
+            # `if` is the difference between the design's promise and a
+            # near miss. `stop_after_delay` fires when the budget is
+            # spent, `reraise=True` then re-raises the LAST attempt's
+            # error, and that error describes the attempt rather than
+            # the reason: a slow upstream that answered 503 twice would
+            # surface as `/problems/external-service-error` **502**
+            # while DESIGN.md:373-375 promises "a typed 503".
+            #
+            # **This was found by the test, not by reading the code.**
+            # The first version of this method had no such branch and
+            # `test_a_slow_upstream_becomes_a_typed_503...` failed
+            # against it with `Jobvite returned status 503` - a
+            # perfectly true statement about the last attempt and the
+            # wrong answer to "why did this call end".
+            remaining = outbound_budget_remaining()
+            if remaining is not None and remaining <= 0:
+                raise JobviteRetryLaterError(
+                    UNAVAILABLE_BUDGET_DETAIL,
+                    retry_after=None,
+                    counts_toward_breaker=False,
+                ) from None
+            if isinstance(exc, _RetryableUpstream):
+                raise exc.public_error() from None
+            raise
+
+    def _wait_for_retry(self, state: RetryCallState) -> float:
+        """How long to sleep before the next attempt.
+
+        **`Retry-After` beats the local schedule** when Jobvite sent one
+        (`backend/resilience.md:95-97`: "respect the server's
+        back-pressure rather than the local backoff schedule when the
+        header is present"), and the value is CLAMPED to what remains of
+        the outbound budget - an upstream asking for 900 seconds must
+        not be able to make us wait past a bound we promised the caller.
+
+        Args:
+            state: `tenacity`'s call state for the attempt that failed.
+
+        Returns:
+            Seconds to sleep. Exponential with jitter by default;
+            jitter-free retries synchronise clients into a thundering
+            herd that amplifies the outage.
+        """
+        exc = state.outcome.exception() if state.outcome is not None else None
+        remaining = outbound_budget_remaining()
+        if isinstance(exc, _RetryableUpstream) and exc.retry_after is not None:
+            wait = exc.retry_after
+        else:
+            wait = _JITTERED_BACKOFF(state)
+        if remaining is not None:
+            wait = min(wait, max(remaining, 0.0))
+        return wait
+
+    def _attempt_timeout(self, remaining: float | None) -> httpx2.Timeout:
+        """The per-phase timeout for one attempt, clamped to the budget.
+
+        **Per-phase and explicit** (DESIGN.md:346): four separate
+        numbers, never httpx2's 5-second scalar default. The clamp is
+        what stops a single read timeout from outliving the invocation's
+        total budget, which is the whole point of DESIGN.md:373-375.
+
+        Args:
+            remaining: Seconds left in the outbound budget, or `None`
+                when no scope is open.
+
+        Returns:
+            The timeout to apply to this attempt.
+        """
+        if remaining is None:
+            return self._timeout
+        bound = max(remaining, 0.0)
+        return httpx2.Timeout(
+            connect=min(self._timeout.connect or DEFAULT_CONNECT_TIMEOUT, bound),
+            read=min(self._timeout.read or DEFAULT_READ_TIMEOUT, bound),
+            write=min(self._timeout.write or DEFAULT_WRITE_TIMEOUT, bound),
+            pool=min(self._timeout.pool or DEFAULT_POOL_TIMEOUT, bound),
+        )
+
+    async def _attempt(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Mapping[str, str],
+        headers: Mapping[str, str],
+        json_body: Mapping[str, Any] | None,
+        jobfeed: bool,
+        path: str,
+    ) -> dict[str, Any]:
+        """The innermost layer: ONE bounded call, and the invariant.
+
+        Args:
+            method: The HTTP method.
+            url: The fully-built URL. Never logged - `path` is.
+            params: The query parameters.
+            headers: The request headers.
+            json_body: The JSON body.
+            jobfeed: Whether this is the v1 route, for the log line.
+            path: The route below the base URL, for the log line.
+
+        Returns:
+            The decoded body, when both arms of the invariant hold.
+
+        Raises:
+            JobviteRetryLaterError: If the outbound budget is already
+                spent. Checked BEFORE the call, so an exhausted budget
+                cannot buy one more full read timeout.
+            _RetryableUpstream: On a 429 or a 5xx. Module-private; the
+                retry layer converts it before anything else sees it.
+            JobviteUpstreamError: On a 4xx or an undecodable body.
+            JobviteUnavailableError: On a transport failure.
+        """
+        remaining = outbound_budget_remaining()
+        if remaining is not None and remaining <= 0:
+            raise JobviteRetryLaterError(
+                UNAVAILABLE_BUDGET_DETAIL,
+                retry_after=None,
+                counts_toward_breaker=False,
+            )
+
+        try:
+            response = await self._client.request(
+                method,
+                url,
+                params=dict(params),
+                headers=dict(headers),
                 json=dict(json_body) if json_body is not None else None,
+                # PER-ATTEMPT, and narrowed to what is left of the
+                # invocation's budget. The client-level timeout is
+                # already explicit and per-phase; this is the layer that
+                # keeps the LAST attempt inside the total bound.
+                timeout=self._attempt_timeout(remaining),
             )
         except (
             httpx2.HTTPError,
@@ -816,7 +1667,7 @@ class JobviteClient:
                 "jobvite transport failure",
                 method=method,
                 route=redact_url(f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"),
-                headers=redact_headers(headers),
+                headers=redact_headers(dict(headers)),
                 error=redact_text(f"{type(exc).__name__}: {exc}"),
             )
             raise JobviteUnavailableError(_unavailable_detail(exc)) from None
@@ -835,7 +1686,32 @@ class JobviteClient:
             # raised cannot leave a jar behind either.
             self._client.cookies.clear()
 
-        return evaluate_response(response.status_code, response.content)
+        try:
+            return evaluate_response(response.status_code, response.content)
+        except JobviteUpstreamError as exc:
+            # THE RETRY PREDICATE'S ONE DECISION, and it is made here
+            # rather than in `tenacity` because this is the only frame
+            # that still has the RESPONSE - and `Retry-After` lives on
+            # the response, not on the exception.
+            #
+            # **A 4xx falls straight through**, unwrapped, which is what
+            # makes `backend/resilience.md:91-94` ("4xx validation, auth
+            # and permission errors are not retryable and must surface
+            # immediately") a property of the code rather than of a
+            # configured exception list.
+            #
+            # The status is read from the EXCEPTION, not from
+            # `response.status_code`: `evaluate_response`'s first arm is
+            # the body's own envelope, and the recorded fixture that
+            # arm exists for is an HTTP **200** carrying a 401. Reading
+            # the HTTP line here would classify a 200-with-503-envelope
+            # as non-retryable and a 200-with-401-envelope as whatever
+            # the line said.
+            if _is_retryable_status(exc.upstream_status):
+                raise _RetryableUpstream(
+                    exc, _retry_after_seconds(response.headers)
+                ) from None
+            raise
 
     # -- paging (U6)
     # ------------------------------------------------------
@@ -931,6 +1807,61 @@ class JobviteClient:
         effective_limit = cap if exhaustive else min(limit or 0, cap)
         count = cap if exhaustive else max(effective_limit, 1)
 
+        # THE BUDGET IS OPENED HERE, AROUND THE WHOLE SCAN, and that is
+        # the difference between a budget and a timeout
+        # (DESIGN.md:373-375: "bounds all attempts for ONE TOOL
+        # INVOCATION"). An exhaustive scan of a 1,240-record resource
+        # makes 25 requests; each `request` below finds this scope
+        # already open and shares its deadline rather than starting a
+        # fresh one, so 25 requests cannot cost 25 budgets.
+        #
+        # A caller that has already opened a scope keeps it - see
+        # `outbound_budget_scope` - so wrapping a scan inside a tool's
+        # own invocation scope narrows nothing.
+        with outbound_budget_scope(self._outbound_budget_seconds):
+            return await self._scan_pages(
+                path,
+                params=params,
+                items_key=items_key,
+                id_key=id_key,
+                jobfeed=jobfeed,
+                exhaustive=exhaustive,
+                effective_limit=effective_limit,
+                count=count,
+            )
+
+    async def _scan_pages(
+        self,
+        path: str,
+        *,
+        params: Mapping[str, str] | None,
+        items_key: str,
+        id_key: str,
+        jobfeed: bool,
+        exhaustive: bool,
+        effective_limit: int,
+        count: int,
+    ) -> ScanResult:
+        """The paging loop itself, inside one outbound budget scope.
+
+        Split out of `scan` so the budget scope is a single statement
+        wrapping the whole loop rather than a `try/finally` threaded
+        through it. U6 wrote the loop; U7 moved it and changed nothing
+        inside it.
+
+        Args:
+            path: The resource path.
+            params: Non-credential query parameters.
+            items_key: The envelope key holding the page's records.
+            id_key: The per-record identifier the seen set reads.
+            jobfeed: Select the v1 route.
+            exhaustive: Whether the caller asked for everything.
+            effective_limit: The cap this scan stops at.
+            count: The page size requested on the wire.
+
+        Returns:
+            The scan's records and what a caller must not re-derive.
+        """
         start = self.scan_start(path)
         base_params = dict(params or {})
         seen: set[Any] = set()
