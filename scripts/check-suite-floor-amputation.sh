@@ -95,8 +95,16 @@ if ! (cd "$REPO" && uv run --frozen pytest "$TESTS" -q >/dev/null 2>&1); then
 fi
 echo "post-run re-check of the real script: exit=0"
 
-if [ "$total" -eq 0 ]; then
-  echo "::error::the harness holds zero rows; a green from it means nothing"
+# THE ROW FLOOR. `fired -ne total` is satisfied by 0 == 0, and a zero
+# test catches only TOTAL deletion. The realistic shape is PARTIAL: a
+# refactor drops rows, or an anchor stops matching and its row silently
+# stops being counted. DERIVED: this harness printed "4/4 amputations
+# killed a test." at 7d3800c. Lowering this number is a visible diff
+# that has to be defended.
+ROW_FLOOR=4
+if [ "$total" -lt "$ROW_FLOOR" ]; then
+  echo "::error::$total/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "         A harness with fewer rows than its floor is green for the wrong reason."
   exit 1
 fi
 if [ "$fired" -ne "$total" ]; then

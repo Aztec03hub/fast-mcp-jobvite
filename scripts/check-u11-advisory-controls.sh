@@ -216,8 +216,16 @@ control AMP "the whole validator is short-circuited to accept everything" \
 
 echo
 echo "$FIRED/$HELD controls fired."
-if [ "$HELD" -eq 0 ]; then
-  echo "ABORT: zero controls held. A harness that measures nothing is not a harness."
+# THE ROW FLOOR. `FIRED -eq HELD` is satisfied by 0 == 0. The zero test
+# this replaces caught only TOTAL deletion; the realistic shape is
+# PARTIAL - a refactor that drops rows, or an anchor that stops matching
+# so a row silently stops being held at all. DERIVED: this harness
+# printed "15/15 controls fired." at 71774e2. Lowering this number is a
+# visible diff that has to be defended.
+ROW_FLOOR=15
+if [ "$HELD" -lt "$ROW_FLOOR" ]; then
+  echo "ABORT: $HELD/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
   exit 6
 fi
 [ "$FIRED" -eq "$HELD" ] || exit 1

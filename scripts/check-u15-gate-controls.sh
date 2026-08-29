@@ -145,4 +145,18 @@ TOTAL=$((FIRED + HELD))
 echo
 echo "${FIRED}/${TOTAL} controls fired."
 echo "post-run re-check of the real gate: exit=${POST_RC} (must be 0)"
-[ "$FIRED" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ] && [ "$POST_RC" -eq 0 ] || exit 1
+
+# THE ROW FLOOR. `TOTAL -gt 0` catches only TOTAL deletion, and here TOTAL
+# is DERIVED from the rows that ran (FIRED + HELD) rather than declared -
+# so a row that stops being parsed out of CONTROL_SPEC lowers TOTAL and
+# takes the pass condition down with it, silently. DERIVED: this harness
+# printed "15/15 controls fired." at b9a6b1d. Lowering this number is a
+# visible diff that has to be defended.
+ROW_FLOOR=15
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "${TOTAL}/${ROW_FLOOR} ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
+[ "$FIRED" -eq "$TOTAL" ] && [ "$POST_RC" -eq 0 ] || exit 1

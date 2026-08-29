@@ -39,8 +39,17 @@ build_tree() {  # $1 = destination
   cp "$REPO_ROOT/pyproject.toml" "$1/"
 }
 
+ROWS=0
+# DERIVED - see the note beside the check at the end of this file.
+# The assignment is bare on its own line because docs/reviews/check-row-floors.py
+# matches `^\s*ROW_FLOOR=(\d+)\s*$`: a trailing comment here makes the floor
+# invisible to the checker, which is the same "a floor nobody can see is a
+# floor nobody checks" shape the floor itself exists to catch.
+ROW_FLOOR=5
+
 report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   local label="$1" tree="$2" pathenv="${3:-$PATH}"
+  ROWS=$((ROWS + 1))
   echo "########## $label"
   ( cd "$tree" && env PATH="$pathenv" "${PY[@]}" -m pytest "$SUITE_REL" \
       -p no:cacheprovider -q -o addopts="" -rA >"$WORK/out.txt" 2>&1 )
@@ -163,4 +172,29 @@ done
 ln -sf "$(command -v "${PY[0]}")" "$WORK/nogit/python3"
 report "E. git is not on PATH at all" "$WORK/E" "$WORK/nogit"
 
+echo "########## $ROWS/$ROW_FLOOR ROWS"
 echo "########## END. Survivors above are the finding, not a failure."
+
+# THE ROW FLOOR, and the counter it needs, which this harness did not have.
+#
+# Every other harness here tallies its rows. This one deliberately does not
+# fail on survivors - they are the OUTPUT - and it had NO row count at all,
+# so it had nothing a floor could be compared against and no line a reader
+# could check. Delete four of the five `report` calls and the old ending
+# printed the same closing sentence and exited 0, which is the defect this
+# whole branch is about, in its purest form: the harness cannot lose rows
+# loudly because it never counted them.
+#
+# The counter does not change what a survivor means. A survivor still does
+# not fail the run. Only a MISSING ROW does.
+#
+# DERIVED: the run at b6e8e3b printed five row headers - A, B, C, D and E -
+# counted with `grep -cE '^########## [A-E]\.'` over its output, before this
+# counter existed to print the number itself. Lowering this is a visible
+# diff that has to be defended.
+if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
+  echo "::error::$ROWS/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "         A harness with fewer rows than its floor is green for the"
+  echo "         wrong reason. Survivors are the output; a missing row is not."
+  exit 1
+fi

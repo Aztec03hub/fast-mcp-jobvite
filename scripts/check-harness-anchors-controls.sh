@@ -295,8 +295,16 @@ fi
 echo
 echo "$FIRED/$TOTAL controls fired."
 
-if [ "$TOTAL" -eq 0 ]; then
-  echo "::error::the harness holds zero rows; a green from it means nothing"
+# THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness
+# whose rows were deleted - or whose rows stopped being counted - reports
+# fully green. `TOTAL -eq 0` catches only the total case; PARTIAL deletion
+# is the realistic shape. DERIVED: this harness printed "9/9 controls
+# fired." at 20e71ed. Lowering this number is a visible diff that has to
+# be defended.
+ROW_FLOOR=9
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "         A harness with fewer rows than its floor is green for the wrong reason."
   exit 1
 fi
 if [ "$FIRED" -ne "$TOTAL" ]; then

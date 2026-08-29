@@ -309,4 +309,21 @@ run_mutation "M17 a 200 is reported as the upstream failure status" "$CLIENT" \
 
 echo
 echo "########## RESULT: $PASS killed, $FAIL not killed"
+
+# THE ROW FLOOR. `FAIL -eq 0` is satisfied by a harness with no rows at
+# all: delete every `run_mutation` call and this prints "0 killed, 0 not
+# killed" and exits 0. The row count is PASS + FAIL, since every row
+# lands in exactly one of them. DERIVED: this harness printed
+# "########## RESULT: 19 killed, 0 not killed" at cf30446 - NINETEEN,
+# while its labels run M01..M17, because M12 carries an M12b and an M12c
+# beside it. Read the tally; the highest M-number is not the row count.
+# Lowering this number is a visible diff that has to be defended.
+ROW_FLOOR=19
+ROWS=$((PASS + FAIL))
+if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
+  echo "########## $ROWS/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
 [ "$FAIL" -eq 0 ] || exit 1
