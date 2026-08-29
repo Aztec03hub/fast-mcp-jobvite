@@ -353,6 +353,16 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **A harness baseline could hang forever and CI would just sit there.** Five harnesses bound their
+  ROW runs at 900s - with a comment saying why, *"a row that hangs anyway must report rather than
+  stall the gate"* - and ran the BASELINE pytest above them with no bound at all. The protection had
+  been applied to the rows and not to the sibling run thirty lines up. Measured consequence: two
+  consecutive CI runs sat on one step for over thirty minutes each, printing nothing, where a hang
+  is indistinguishable from a slow harness from outside - and under the old cancel-on-push it left
+  no record either. All five baselines are now bounded, and a hang gets its OWN message and its OWN
+  exit code (4, against 3 for a red suite), because "never finished" and "finished red" need
+  different diagnoses. Proved on all three arms: hang -> 4, red -> 3, green -> 0. (2026-08-29 01:14 PM CDT)
+
 - **Sixteen CI steps had an unreachable diagnostic branch, because GitHub runs every `run:` block
   as `bash -e`.** The steps open with `set -uo pipefail` and then `out=$(checker); rc=$?`, intending
   to print a tailored message for a non-zero result. `set -uo pipefail` does not clear `-e`, and

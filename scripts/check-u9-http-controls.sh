@@ -57,7 +57,23 @@ cp "$HARDENING" "$PRISTINE_DIR/http_hardening.py" ||
   { echo "COULD NOT TAKE PRISTINE COPY of $HARDENING"; exit 3; }
 
 echo "########## BASELINE - the intact tree"
-if ! uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1; then
+# BOUNDED, exactly as the rows below are, and for the same reason. This was
+# unbounded until a CI job sat on ONE step for thirty minutes with no output,
+# twice, and a hang is indistinguishable from a slow harness from outside.
+# `timeout` returns 124, which is why a hang and a red suite get DIFFERENT
+# messages and DIFFERENT exit codes: "never finished" and "finished red" need
+# different diagnoses, and this project has been bitten before by two states
+# that render identically.
+timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+baseline_rc=$?
+if [ "$baseline_rc" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "       This is not a red suite. Nothing below ran, and the harness is"
+  echo "       not at fault until this is explained. Last 20 lines:"
+  tail -20 "$OUT"
+  exit 4
+fi
+if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact suite is red; every row below would be meaningless."
   tail -20 "$OUT"
   exit 3
