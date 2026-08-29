@@ -181,17 +181,29 @@ MUST_J=(
   "tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read"
 )
 MUST_K=("${MUST_J[@]}")
+# Row L is the RECORD half and row N is the RENDERED half, and the two are
+# genuinely separable: measured, each row kills exactly ONE arm, and it is not
+# the same arm. `test_a_third_party_log_line_is_redacted_at_the_sink` survives
+# row L - not vacuously, but because row N's sink still redacts what it
+# renders, so the stream that arm reads is clean either way. It is declared
+# under neither. That separation is the point of the split main made.
 MUST_L=(
   "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
-  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
 )
 # Row N arrived with the sink-level redaction split (main). Its subject is the
 # RENDERED half - the serialised `text` and `exception` fields the record
 # filter cannot reach - so the arms that must notice it are the ones that read
 # a real process's stream and look for a credential in it.
+# `test_the_process_publishes_no_credential_when_the_transport_fails` is NOT
+# declared here, and the reason is worth recording rather than just omitting.
+# It survives row N because its credentials travel in HEADERS, which
+# `redact_headers` scrubs at the PRODUCER before the record is ever built
+# (M-5/L-1). The sink is not the layer protecting that arm, so requiring it to
+# notice a sink amputation would be declaring an expectation the code does not
+# owe. It was declared here first, the harness caught it, and this comment is
+# the result.
 MUST_N=(
   "tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink"
-  "tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails"
 )
 MUST_M=(
   "tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink"

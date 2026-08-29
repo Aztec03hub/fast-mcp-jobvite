@@ -1,6 +1,8 @@
 # HARNESS-INTEGRITY - task #20
 
-Agent: `harness-integrity`. Branch: `fix/harness-integrity`. Base SHA: `667db50`.
+Agent: `harness-integrity`. Branch: `fix/harness-integrity`. Base SHA: `667db50`, **rebased onto
+`main` at `0291bac`** - see "The rebase, and what it caught" near the end; the numbers in Item 1's
+two survivor tables are from `667db50` and `1e04ae3`, which is where the question was asked.
 Worktrees: `/tmp/harness-work` (667db50, my branch), `/tmp/harness-base` (`1e04ae3`, the commit
 before `c7809f6`), `/tmp/harness-pid1` (667db50, controls only, never committed from).
 Nothing was checked out in the shared checkout.
@@ -308,19 +310,21 @@ transports", which was too strong at 667db50 and is now true. No edit needed.
 
 ## Verification
 
-Run in `/tmp/harness-pid1` (667db50 + this branch's `tests/boot_process.py` and both scripts), each
-gate on its own line, judged by exit code:
+Run in `/tmp/harness-work` on the rebased branch, each gate on its own line, judged by exit code:
 
 ```
-uv run --frozen pytest -q          355 passed, 2 deselected in 34.99s   PYTEST_EXIT=0
+uv run --frozen pytest -q          362 passed, 2 deselected in 24.24s   PYTEST_EXIT=0
 uv run --frozen ruff check .       All checks passed!                   RUFF_EXIT=0
-uv run --frozen ruff format --check .  50 files already formatted       FMT_EXIT=0
+uv run --frozen ruff format --check .  51 files already formatted       FMT_EXIT=0
 uv run --frozen mypy .             Success: no issues found in 38 source files   MYPY_EXIT=0
 bash -n scripts/check-u1-pid1-shutdown.sh                               SYNTAX OK
 bash -n scripts/check-u1-boot-amputation.sh                             SYNTAX OK
 ```
 
-**355 passed, 2 deselected, 0 skipped.** `shellcheck` is **not installed on this host**, so the shell
+**362 passed, 2 deselected, 0 skipped**, run on the RESTORED tree after the final amputation run
+finished - an earlier gate pass overlapped a running harness, which mutates `src/` in place, so its
+result was not trustworthy and was re-run rather than reported. `shellcheck` is **not installed on
+this host**, so the shell
 changes are syntax-checked by `bash -n` and by running them, not linted.
 
 `docs/reviews/check-obligations.py`, verbatim:
@@ -333,49 +337,82 @@ OBLIGATIONS_EXIT=0
 
 **PREAMBLE.md's suite baseline line is stale.** It says "322 passed, 2 deselected, 0 skipped
 (measured at `0d34c66`)". The measured figure at 667db50 is **355**, which is what `4322fd2`
-("ratchet the suite floor 348 -> 355") set the floor to. Reporting it as the preamble instructs.
+("ratchet the suite floor 348 -> 355") set the floor to, and **362** after the rebase onto
+`0291bac`. Reporting it as the preamble instructs; the line has now been stale across at least three
+ratchets, which suggests it wants to be derived rather than retyped - the same argument the preamble
+itself makes about retyped constants.
 
-**Amputation harness, full 13-row run on this branch, `HARNESS_EXIT=0`:**
+**Amputation harness, full 14-row run on the REBASED branch, `HARNESS_EXIT=0`:**
 
 ```
-########## BASELINE - the intact tree
-============================= 83 passed in 13.36s ==============================
+########## BASELINE - the intact tree              87 passed in 15.26s
   all declared MUST_DIE ids pass on the intact tree.
-########## A. config.py does not exist at all
-  every declared assertion died (2 of 2)          | everything else: NOTHING passed
-########## B. config.py exists but is ZERO BYTES
-  every declared assertion died (2 of 2)          | everything else: NOTHING passed
-########## C. validate_settings() refuses nothing        30 failed, 53 passed
-  every declared assertion died (3 of 3)
-########## D. _check_transport is never called           13 failed, 70 passed
-  every declared assertion died (3 of 3)
-########## E. TOOL_REQUIREMENTS is an EMPTY table        14 failed, 69 passed
-  every declared assertion died (2 of 2)
-########## F. KNOWN_TOOLS is EMPTY                       40 failed, 43 passed
-  every declared assertion died (2 of 2)
-########## G. _term and the handler installation GONE     6 failed, 77 passed
-  every declared assertion died (2 of 2)
-########## H. the finally block GONE                      3 failed, 80 passed
-  every declared assertion died (2 of 2)
-########## I. build_server returns a BARE FastMCP        11 failed, 72 passed
-  every declared assertion died (3 of 3)
-########## J. configure_logging() is never called         7 failed, 76 passed
-  every declared assertion died (3 of 3)
-########## K. configure_logging() configures NOTHING      7 failed, 76 passed
-  every declared assertion died (3 of 3)
-########## L. the sink's redactor redacts nothing         1 failed, 82 passed
-  every declared assertion died (1 of 1)
-########## M. stdlib never bridged into loguru            2 failed, 81 passed
-  every declared assertion died (2 of 2)
+########## A. config.py does not exist               every declared assertion died (2 of 2)
+########## B. config.py is ZERO BYTES                every declared assertion died (2 of 2)
+########## C. validate_settings() refuses nothing    30 failed, 57 passed   (3 of 3)
+########## D. _check_transport never called          13 failed, 74 passed   (3 of 3)
+########## E. TOOL_REQUIREMENTS is EMPTY             54 failed, 33 passed   (2 of 2)
+########## F. KNOWN_TOOLS is EMPTY                   41 failed, 46 passed   (2 of 2)
+########## G. _term + handler GONE                    6 failed, 81 passed   (2 of 2)
+########## H. the finally block GONE                  3 failed, 84 passed   (2 of 2)
+########## I. build_server returns a BARE FastMCP    11 failed, 76 passed   (3 of 3)
+########## J. configure_logging() never called       10 failed, 77 passed   (3 of 3)
+########## K. configure_logging() configures NOTHING 10 failed, 77 passed   (3 of 3)
+########## L. the record filter redacts nothing       1 failed, 86 passed   (1 of 1)
+########## N. the sink writes it unredacted           1 failed, 86 passed   (1 of 1)
+########## M. stdlib never bridged into loguru        4 failed, 83 passed   (2 of 2)
 ########## END
 Every declared assertion died under its own amputation.
 The 'everything else that passed' lists are context, not findings.
 HARNESS_EXIT=0
 ```
 
-**The failed/passed counts are identical, row for row, to the pre-change run** in the table at the
-top of Item 1. The rework changed what the harness *says and returns*, not what it amputates. No row
-timed out; the 300s cap was never reached (slowest row: I, 158.99s).
+No row timed out; the 300s cap was never approached (slowest row: I, 162.16s). The pre-rebase run
+of the same rework at `667db50` was also `HARNESS_EXIT=0` across its 13 rows, with failed/passed
+counts identical row for row to the ORIGINAL harness at that SHA - the rework changed what the
+harness says and returns, not what it amputates.
+
+---
+
+## The rebase, and what it caught
+
+`main` moved 15 commits while I worked, and four of those touch files I changed. I rebased rather
+than hand over a conflict, because the file the conflict lands in is the one this task reworked.
+
+**One content conflict**, in `scripts/check-u1-boot-amputation.sh`: `main` had renamed row L to "the
+record FILTER redacts nothing" and added a **row N** for the rendered half. Resolved by keeping
+`main`'s rows verbatim and wiring both to `MUST_DIE` arrays.
+
+**Then the new harness immediately failed on its own author.** Three of my declarations were wrong
+after the rebase, and each was caught rather than shipped:
+
+1. `MUST_F` named `tests/test_boot.py::test_the_default_loopback_bind_starts`, which `45a60b8`
+   (R3-N1) renamed to `..._starts_a_real_process`. Caught by the **baseline id check**, `EXIT=3`.
+   This is the check earning its place on its first real encounter: a rename is exactly how a
+   declared expectation goes silently vacuous.
+2. `MUST_L` also named `test_a_third_party_log_line_is_redacted_at_the_sink`. Caught as an
+   `UNEXPECTED SURVIVOR`. **Measured** (`/tmp/probe-LN.sh`): row L kills exactly one arm,
+   `test_a_sink_this_project_did_not_install_sees_a_redacted_record`, and the third-party arm
+   survives because row N's sink still redacts what it renders - so the stream that arm reads is
+   clean either way. Not vacuous; declared under neither row now, with the reason in a comment.
+3. `MUST_N` also named `test_the_process_publishes_no_credential_when_the_transport_fails`. Caught
+   the same way. Row N kills exactly `test_an_exception_carrying_a_credential_is_redacted_at_the_sink`.
+   The transport arm survives because its credentials travel in **headers**, which `redact_headers`
+   scrubs at the producer before the record exists (M-5/L-1) - the sink is not the layer protecting
+   it. Declaring otherwise would assert an expectation the code does not owe.
+
+I am recording these as findings against myself rather than quietly correcting them, because the
+tempting repair for all three - delete the declaration until the run is green - is the defect this
+task exists to remove. Each was resolved by measuring which arm actually dies.
+
+`docs/reviews/check-obligations.py` after the rebase, verbatim:
+
+```
+Mappings: 29  |  anchors verified against their subject: 22  |  recorded as absent: 7
+Every mapped anchor still contains its subject. OK.
+```
+
+Post-rebase suite: **362 passed, 2 deselected, 0 skipped**. (`main`'s own `45a60b8` reports 362 too.)
 
 ---
 
