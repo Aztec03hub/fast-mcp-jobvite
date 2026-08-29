@@ -74,7 +74,15 @@ on:
 # the trunk had been broken for hours. Every push simply cancelled the evidence
 # that the previous one was broken.
 #
-# So main keeps its runs and every other ref still cancels.
+# So main's RUNNING run is never cancelled, and every other ref still
+# cancels. **This does NOT mean every commit to main gets a run.** Measured
+# after the change: GitHub keeps at most ONE PENDING run per concurrency
+# group and cancels older queued ones regardless of this setting - two such
+# runs were cancelled with `total_count: 0` jobs, having never scheduled a
+# runner. What this buys is that the trunk always has a run that will REACH
+# A CONCLUSION, where before it had 54 cancellations and none. A commit can
+# still land with no run of its own; that is a smaller problem than a trunk
+# with no record at all, and it is a known one rather than a surprise.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
