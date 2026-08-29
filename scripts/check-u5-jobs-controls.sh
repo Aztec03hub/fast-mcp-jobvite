@@ -39,7 +39,20 @@ CONSTRAINTS="src/fast_mcp_jobvite/utils/constraints.py"
 SUITE="tests/test_tools_jobs.py"
 OUT=/tmp/u5-mut.txt
 BACKUP_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR"' EXIT
+PRISTINE_DIR=$(mktemp -d)
+trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+
+# THE PRISTINE COPIES, TAKEN ONCE BEFORE ROW 1 (R4-N1). The restore check
+# used to be `cp backup file; cmp file backup`, which compares equal BY
+# CONSTRUCTION after the copy: it could only ever detect a failed `cp`,
+# never the thing its message claims - "the tree still carries this row's
+# mutation". A CORRUPTED BACKUP passes that check and hands every later
+# row a mutated tree. Comparing against a copy taken before any row ran
+# is the only form that can see it.
+for f in "$TOOLS" "$MODELS" "$FENCING" "$CONSTRAINTS"; do
+  cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
+    { echo "COULD NOT TAKE PRISTINE COPY of $f"; exit 3; }
+done
 
 echo "########## BASELINE - the intact tree"
 if ! uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1; then
@@ -63,7 +76,28 @@ mutate() {
   echo "########## $label"
   echo "  target: $selector"
 
-  local backup="$BACKUP_DIR/$(echo "$file" | tr / _)"
+  # DOES THE SELECTOR STILL RESOLVE? (R4-M3). pytest exits 4 when a
+  # selector matches nothing, and this harness treats ANY non-zero exit
+  # as a kill - so a renamed, moved or misspelled test made its row
+  # report KILLED on every run, forever, while testing nothing. A green
+  # that tested nothing, sitting inside the harness whose whole purpose
+  # is to find greens that tested nothing.
+  #
+  # TOTAL is already incremented, so returning here makes fired != total
+  # and the run exits 1. That is deliberate: a harness that cannot aim
+  # must fail, not report.
+  if ! uv run --frozen pytest "$selector" --collect-only -q \
+       -p no:cacheprovider >/dev/null 2>&1; then
+    echo "  SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
+    echo "  This row has been reporting KILLED without running. Fix the harness."
+    echo
+    return
+  fi
+
+  # SC2155: declared and assigned separately, so a failing `echo`/`tr`
+  # cannot be masked by `local`'s own exit status (task #38).
+  local backup
+  backup="$BACKUP_DIR/$(echo "$file" | tr / _)"
   cp "$file" "$backup" || { echo "  COULD NOT BACK UP"; return; }
 
   if ! OLD="$old" NEW="$new" FILE="$file" python3 - <<'PY'
@@ -95,11 +129,16 @@ PY
   uv run --frozen pytest "$selector" -q -p no:cacheprovider >"$OUT" 2>&1
   local rc=$?
 
-  # RESTORED? Again with `cmp`, and the harness stops if not: every
-  # later row would run against a tree carrying this row's mutation.
+  # RESTORED? Against the PRISTINE copy taken before row 1, never
+  # against "$backup" - see the note beside PRISTINE_DIR. The harness
+  # stops if not: every later row would run against a tree carrying
+  # this row's mutation.
   cp "$backup" "$file"
-  if ! cmp -s "$file" "$backup"; then
-    echo "  RESTORE FAILED - $file still differs. STOPPING."
+  local pristine
+  pristine="$PRISTINE_DIR/$(echo "$file" | tr / _)"
+  if ! cmp -s "$file" "$pristine"; then
+    echo "  RESTORE FAILED - $file still differs from the pristine copy taken"
+    echo "  before row 1. STOPPING."
     exit 3
   fi
 
@@ -190,7 +229,7 @@ mutate "M7  a missing fencing decision defaults instead of raising" \
   "$FENCING" "$SUITE::test_deleting_a_fencing_decision_fails" \
   '    if len(found) != 1:' \
   '    if not found:
-        return Fenced(FencingDecision.FENCE, field_name, "defaulted")
+        return Fenced(FencingDecision.FENCE, name, "defaulted")
     if len(found) != 1:'
 
 # The generated path uses OUR attribute name instead of Jobvite's key.
@@ -220,7 +259,7 @@ mutate "M9a an admitted field forwards the whole raw Jobvite object" \
   '        title=raw.get("title") or "",' \
   '        title=str(raw),'
 
-# The other direction, and it is the one DESIGN.md:186-190 actually
+# The other direction, and it is the one DESIGN.md:192-195 actually
 # specifies: an unknown field must be DROPPED, not raised on. Handing
 # Jobvite's object straight to the model keeps the field out of the
 # result by taking the whole call down on a Jobvite schema change.
@@ -249,6 +288,71 @@ mutate "M11 the summary string is not derived from showing and total" \
   "$MODELS" "$SUITE::test_the_result_cap_reports_showing_n_of_total" \
   '        return f"showing {self.showing:,} of {self.total:,}"' \
   '        return f"showing {self.showing:,} of {self.showing:,}"'
+
+# ===========================================================================
+# THE OUTBOUND REQUEST (R4-H1)
+# ===========================================================================
+#
+# These three rows did not exist, and their absence was the whole of
+# R4-H1: the route, the query key and the query value could each be
+# broken with the WHOLE suite green - measured at 413 passed, three
+# survivors, by docs/reviews/probe-r4-unmutated-anchors.sh. A harness is
+# complete over the rows it declares and says nothing about the rows
+# nobody declared, so the fix is the test AND the row that stops the
+# test rotting back into a name without a body.
+
+# The argument is accepted, validated, audited - and never sent. Jobvite
+# answers with the entire first page, the tool returns it, and the
+# result says `showing 50 of 1,240`: a wrong answer that explains
+# itself. This is exactly the failure SearchJobsInput's own docstring
+# says the date filter was withheld to avoid.
+mutate "M12 the ids query parameter never reaches the wire" \
+  "$TOOLS" "$SUITE::test_the_ids_argument_reaches_the_wire_as_a_query_parameter" \
+  '                        params=(
+                            {"ids": params.ids} if params.ids is not None else None
+                        ),' \
+  '                        params=None,'
+
+# The key Jobvite reads is misspelled. Jobvite ignores a parameter it
+# does not recognise, so this is silent in production and identical to
+# M12 from the caller's side.
+mutate "M13 the ids query key is misspelled" \
+  "$TOOLS" "$SUITE::test_the_ids_argument_reaches_the_wire_as_a_query_parameter" \
+  '{"ids": params.ids} if params.ids is not None else None' \
+  '{"id": params.ids} if params.ids is not None else None'
+
+# The route. Every offline case drives a MockTransport that answers
+# whatever it is asked, so the path was free.
+mutate "M14 JOBS_PATH points at a route that does not exist" \
+  "$TOOLS" "$SUITE::test_the_ids_argument_reaches_the_wire_as_a_query_parameter" \
+  'JOBS_PATH: Final = "/job"' \
+  'JOBS_PATH: Final = "/not-a-route"'
+
+# The paired direction. An implementation that always sent a filter
+# would pass M12-M14 and silently filter every unfiltered listing.
+mutate "M15 a default call sends an ids filter anyway" \
+  "$TOOLS" "$SUITE::test_omitting_ids_sends_no_ids_parameter" \
+  '                            {"ids": params.ids} if params.ids is not None else None' \
+  '                            {"ids": params.ids or ""}'
+
+# ===========================================================================
+# THE ROW FLOOR (R4-M4)
+# ===========================================================================
+#
+# `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness whose rows were
+# all deleted - or all skipped - reported fully green. This is the same
+# argument this project already applied to the credentialed collect
+# ("FLOORED, not merely non-empty ... a count is what catches the
+# HALF-empty case") and did not apply to its own harness steps.
+#
+# Lowering this number is a visible diff that has to be defended, which
+# is the property scripts/check-suite-floor.sh already has.
+ROW_FLOOR=16
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "########## $TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
 
 echo "########## $FIRED/$TOTAL controls fired."
 if [ "$FIRED" -ne "$TOTAL" ]; then

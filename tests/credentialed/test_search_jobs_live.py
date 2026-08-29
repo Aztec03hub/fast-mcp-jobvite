@@ -1,10 +1,10 @@
 """`search_jobs` against a real Jobvite tenant.
 
 **THE FIRST CREDENTIALED ARM IN THIS REPOSITORY**, and the first test
-file whose tests are ALL marker-excluded. CI never runs these and
-never skips them: they are excluded by *selection* - the `credentialed`
-marker deselected by the `-m` in `addopts` - because a skip counts as a
-failure (DESIGN.md:1229-1232).
+file whose tests are ALL marker-excluded. CI never runs these and never
+skips them: they are excluded by *selection* - the `credentialed` marker
+deselected by the `-m` in `addopts` - because a skip counts as a failure
+(DESIGN.md:1229-1232).
 
 **CI does `--collect-only` against this file** (DESIGN.md:1244-1249). A
 suite that is excluded and never collected rots silently: an import
@@ -22,11 +22,22 @@ identically.
 
 **What these cases settle that the offline suite cannot.** The offline
 suite passes against synthetic fixtures, which proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260).
-These are the rows `docs/CREDENTIAL-CHECKLIST.md` converts from
-synthetic to recorded the day a key lands - in particular whether the
-`requisitions` envelope key, the `total` member and the requisition
-field names are what the research `[INFERRED]` them to be.
+self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260). These
+are the rows `docs/CREDENTIAL-CHECKLIST.md` converts from synthetic to
+recorded the day a key lands - in particular whether the `requisitions`
+envelope key, the `total` member and the requisition field names are
+what the research `[INFERRED]` them to be.
+
+**That conversion happens in
+`test_the_live_envelope_uses_the_inferred_keys`, against the RAW
+payload, and not in the tool-level cases.** The tool drops the envelope,
+so once it has, a wrong envelope key and an empty tenant are the same
+observation. R4-H3 measured the earlier arrangement against a payload
+under a different key: it returned `showing 0 of 0` and every assertion
+in both tool-level cases passed. **These cases require a tenant with at
+least one open requisition**; without it `showing 0 of 0` is a correct
+answer and the arm settles nothing. The precondition is stated in
+`docs/CREDENTIAL-CHECKLIST.md`.
 """
 
 from __future__ import annotations
@@ -38,9 +49,14 @@ from fastmcp import Client
 from pydantic import SecretStr
 
 from fast_mcp_jobvite.config import SEARCH_JOBS, Settings
-from fast_mcp_jobvite.models.jobs import JobSearchResult
+from fast_mcp_jobvite.models.jobs import (
+    JOBS_ENVELOPE_KEY,
+    TOTAL_ENVELOPE_KEY,
+    JobSearchResult,
+)
 from fast_mcp_jobvite.server import build_server
-from fast_mcp_jobvite.tools.jobs import REQUEST_ID_META_KEY
+from fast_mcp_jobvite.services.jobvite_client import JobviteClient
+from fast_mcp_jobvite.tools.jobs import JOBS_PATH, REQUEST_ID_META_KEY
 
 pytestmark = pytest.mark.credentialed
 
@@ -73,14 +89,65 @@ def live_settings() -> Settings:
     )
 
 
+async def test_the_live_envelope_uses_the_inferred_keys(
+    live_settings: Settings,
+) -> None:
+    """Checklist rows 1-4, asserted on the RAW payload (R4-H3).
+
+    **This is the case that converts `job_list_success.json` from
+    synthetic to recorded, and it has to live one level below the
+    tool.** The case below used to make that claim and could not
+    keep it: `build_result` reads
+    `payload.get(JOBS_ENVELOPE_KEY) or []` and falls back to
+    `len(items)` for `total`, so a payload under a DIFFERENT envelope
+    key yields `jobs=[], total=0` - which validates happily and
+    renders as `showing 0 of 0`. Measured against a tenant returning
+    1,240 real jobs under another key: every assertion in both live
+    cases passed.
+
+    That is fail-closed-on-error and **fails-open-on-empty**. The
+    error path is handled; the empty path is not, and a wrong
+    envelope key is indistinguishable from an empty tenant once the
+    tool has dropped the envelope. So the contract is settled here,
+    against what Jobvite actually sent.
+    """
+    assert live_settings.api_key is not None
+    assert live_settings.api_secret is not None
+    async with JobviteClient(
+        api_key=live_settings.api_key, api_secret=live_settings.api_secret
+    ) as client:
+        payload = await client.request("GET", JOBS_PATH)
+
+    assert JOBS_ENVELOPE_KEY in payload, (
+        f"the envelope key is not {JOBS_ENVELOPE_KEY!r}; "
+        f"the research [INFERRED] mark was wrong. Keys: {sorted(payload)}"
+    )
+    assert TOTAL_ENVELOPE_KEY in payload, (
+        f"the {TOTAL_ENVELOPE_KEY!r} member is absent. Keys: {sorted(payload)}"
+    )
+    assert isinstance(payload[TOTAL_ENVELOPE_KEY], int), (
+        f"{TOTAL_ENVELOPE_KEY!r} is {type(payload[TOTAL_ENVELOPE_KEY]).__name__}, "
+        "not an int"
+    )
+    assert isinstance(payload[JOBS_ENVELOPE_KEY], list)
+    assert payload[JOBS_ENVELOPE_KEY], (
+        "the tenant returned zero requisitions, so the two cases below prove "
+        "nothing either way - see the precondition in "
+        "docs/CREDENTIAL-CHECKLIST.md"
+    )
+
+
 async def test_search_jobs_against_a_real_tenant(live_settings: Settings) -> None:
     """The whole path, with no transport substituted.
 
-    Checklist rows 1-4 are blocking, and this is the case that
-    converts the `job_list_success.json` fixture from synthetic to
-    recorded: if the envelope key is not `requisitions`, or `total` is
-    absent, the result model refuses the payload here and the research
-    `[INFERRED]` marks were wrong.
+    **The envelope contract is NOT settled here** - see the case
+    above, which is where it is settled and why. This case asserts
+    what the tool does with a real payload, and it is non-vacuous
+    only under the precondition the checklist now states: the tenant
+    must hold at least one open requisition. `total >= 1` rather than
+    `>= 0` is what makes that precondition load-bearing instead of
+    decorative - `>= 0` is satisfied by the wrong-envelope-key
+    failure this pair exists to detect.
     """
     server = build_server(live_settings)
     async with Client(server) as client:
@@ -92,7 +159,8 @@ async def test_search_jobs_against_a_real_tenant(live_settings: Settings) -> Non
     parsed = JobSearchResult.model_validate(
         {"jobs": content["jobs"], "total": content["total"]}
     )
-    assert parsed.total >= 0
+    assert parsed.total >= 1
+    assert parsed.showing >= 1
     assert parsed.summary == f"showing {parsed.showing:,} of {parsed.total:,}"
     # SS8 #16's read arm, against the real transport rather than a mock.
     assert result.meta is not None
@@ -109,6 +177,13 @@ async def test_the_result_cap_holds_against_a_real_page(
     `total` therefore exceeds `showing` - the `showing 50 of 1,240`
     shape DESIGN.md:474-476 uses as its worked example, which no
     synthetic fixture in this repository is big enough to produce.
+
+    `showing == 1`, not `showing <= 1` (R4-H3). The `<=` form is
+    satisfied by `showing 0 of 0`, which is what a wrong envelope key
+    produces - so the assertion that exists to prove the cap holds
+    passed hardest in exactly the case the cap was never applied. It
+    is meaningful only under the checklist's stated precondition:
+    **the tenant must have at least one open requisition.**
     """
     capped = live_settings.model_copy(update={"max_results": 1})
     server = build_server(capped)
@@ -117,7 +192,7 @@ async def test_the_result_cap_holds_against_a_real_page(
 
     content = result.structured_content
     assert content is not None
-    assert content["showing"] <= 1
+    assert content["showing"] == 1
     assert content["showing"] <= content["total"]
 
 

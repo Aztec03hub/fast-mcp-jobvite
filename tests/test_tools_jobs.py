@@ -17,16 +17,18 @@ carries is the only Critical on the client.
 from __future__ import annotations
 
 import ast
+import importlib
 import json
 import pathlib
+import pkgutil
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Annotated, Any
 
 import httpx2
 import pytest
 from fastmcp import Client
 from loguru import logger
-from pydantic import SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError, computed_field
 
 from fast_mcp_jobvite.audit import AUDIT_EVENT_NAME, Transport
 from fast_mcp_jobvite.config import READ_TOOLS, SEARCH_JOBS, Settings
@@ -35,6 +37,8 @@ from fast_mcp_jobvite.models.fencing import (
     Fenced,
     FencingDecision,
     MissingFencingDecisionError,
+    _decision_of,
+    _nested_model,
     fencing_paths,
 )
 from fast_mcp_jobvite.models.jobs import (
@@ -45,8 +49,10 @@ from fast_mcp_jobvite.models.jobs import (
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
 from fast_mcp_jobvite.tools.jobs import (
+    JOBS_PATH,
     REQUEST_ID_META_KEY,
     SearchJobsInput,
+    _to_job,
     build_result,
 )
 
@@ -283,7 +289,7 @@ async def test_case16_error_arm_request_id_in_the_problem_object(
     audited = audit_event(audit_records)["request_id"]
     assert problem["request_id"] == audited
     assert problem["instance"].endswith(audited)
-    # DESIGN.md:1219-1221 requires the id on EVERY result, so the
+    # DESIGN.md:621-622 requires the id on EVERY result, so the
     # error arm carries it in `_meta` as well - but the problem
     # member is what `error-contract.md` specifies and is asserted
     # above in its own right.
@@ -417,7 +423,7 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
 
 
 def test_an_unadmitted_jobvite_field_is_dropped_not_returned() -> None:
-    """An unadmitted Jobvite field is dropped (DESIGN.md:186-190)."""
+    """An unadmitted Jobvite field is dropped (DESIGN.md:192-195)."""
     payload = {
         JOBS_ENVELOPE_KEY: [
             {
@@ -438,7 +444,7 @@ def test_an_unadmitted_jobvite_field_is_dropped_not_returned() -> None:
 def test_an_unadmitted_field_does_not_fail_the_call() -> None:
     """PAIRED with the case above, and it is the direction that matters.
 
-    DESIGN.md:186-190 requires an unknown field to be **dropped**, not
+    DESIGN.md:192-195 requires an unknown field to be **dropped**, not
     to be an error. A model handed Jobvite's object directly with
     `extra="forbid"` would also keep the field out of the result - by
     raising, and taking the whole call down on a Jobvite schema
@@ -501,9 +507,6 @@ def test_deleting_a_fencing_decision_fails() -> None:
     about the mechanism, and a mechanism that only refuses the one
     model we happen to ship is not the mechanism the design asks for.
     """
-    from typing import Annotated
-
-    from pydantic import BaseModel
 
     class Undecided(BaseModel):
         decided: Annotated[str, Fenced(FencingDecision.FENCE, "decided", "why")]
@@ -519,9 +522,6 @@ def test_a_decided_model_still_generates() -> None:
     A guard that refuses everything is not a guard and its refusals
     prove nothing (DESIGN.md:1370-1371).
     """
-    from typing import Annotated
-
-    from pydantic import BaseModel
 
     class Decided(BaseModel):
         decided: Annotated[str, Fenced(FencingDecision.FENCE, "decided", "why")]
@@ -529,6 +529,136 @@ def test_a_decided_model_still_generates() -> None:
     assert fencing_paths(Decided, "root") == {
         "root.decided": Fenced(FencingDecision.FENCE, "decided", "why")
     }
+
+
+def test_to_job_sets_every_field_the_model_declares() -> None:
+    """R4-L1: `_to_job` is a hand-kept list beside `Job`.
+
+    `tools/jobs.py` names all ten `Job` fields by hand, and being
+    explicit is right - `extra="forbid"` would take the whole call
+    down on a new Jobvite field where DESIGN.md:192-195 requires it to
+    be DROPPED. But explicit is not the same as checked: add `salary`
+    to `Job` with a `Fenced` annotation and every fencing test still
+    passes, `_to_job` never sets it, and every result silently omits
+    it.
+
+    **Driven from the model, never from a second literal list.** The
+    `Fenced.jobvite_key` annotations already carry Jobvite's spelling
+    for every field, so the raw object is derivable - which is the
+    same "enumerate the container" move the fencing registry itself
+    makes.
+    """
+    raw: dict[str, Any] = {}
+    for name in Job.model_fields:
+        key = _decision_of(Job, name).jobvite_key
+        nested, _through_list = _nested_model(Job.model_fields[name].annotation)
+        if nested is not None:
+            raw[key] = [
+                {_decision_of(nested, n).jobvite_key: "x" for n in nested.model_fields}
+            ]
+        elif name.endswith("_date"):
+            raw[key] = 1700000000000
+        else:
+            raw[key] = f"value-for-{name}"
+
+    job = _to_job(raw)
+    unset = [
+        name
+        for name in Job.model_fields
+        if getattr(job, name) in (None, "", [])  # noqa: PLR6201 - identity is wrong here
+    ]
+    assert not unset, (
+        f"_to_job never sets {unset}; those fields are silently always-null "
+        "in every result"
+    )
+
+
+def _output_models() -> dict[str, type[BaseModel]]:
+    """Every `BaseModel` DEFINED in `fast_mcp_jobvite.models.*`.
+
+    Discovered by walking the package, never listed: a hand-kept list
+    beside a container is blind to the member nobody added to it, and
+    that is exactly the defect R4-M1 found - `fencing_paths` was only
+    ever called with `Job`, named by hand at three call sites.
+    """
+    import fast_mcp_jobvite.models
+
+    found: dict[str, type[BaseModel]] = {}
+    for info in pkgutil.iter_modules(fast_mcp_jobvite.models.__path__):
+        module = importlib.import_module(f"fast_mcp_jobvite.models.{info.name}")
+        for obj in vars(module).values():
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, BaseModel)
+                and obj.__module__ == module.__name__
+            ):
+                found[f"{info.name}.{obj.__name__}"] = obj
+    return found
+
+
+def test_every_output_model_in_the_package_has_a_registry() -> None:
+    """R4-M1: the registry is closed by construction, not by memory.
+
+    **`JobSearchResult` is the model actually serialised to the
+    caller and it was not in the set.** Every call site named `Job` by
+    hand, so `DESIGN.md:202-205`'s "a test fails when any model field
+    has no fencing decision" was, in fact, "a test fails when any
+    field of the one model somebody remembered to name has none".
+    Measured before the fix: `JobSearchResult.jobs carries 0 fencing
+    decisions`.
+
+    This enumerates the CONTAINER and asserts every member of it
+    passes, so U8's `models/candidate.py` - the model where the answer
+    is FENCE rather than NOT_FREE_TEXT - is covered on the day it
+    lands rather than on the day someone widens a literal.
+    """
+    models = _output_models()
+    assert models, "the models package yielded nothing; the walk is broken"
+    assert "jobs.JobSearchResult" in models, (
+        "the top-level output model is not in the discovered set"
+    )
+    for label, model in models.items():
+        # Raises MissingFencingDecisionError if any field - declared
+        # OR computed - carries no decision.
+        assert fencing_paths(model, model.__name__), f"{label} generated no paths"
+
+
+def test_the_computed_fields_carry_decisions_too() -> None:
+    """R4-M1's second half: `model_computed_fields` was never visited.
+
+    `summary` is a caller-facing string built from data - exactly the
+    kind of value a fencing decision is about - and it could not carry
+    one, because the walker only read `model_fields`. A registry that
+    is complete over what it enumerates and silent about the rest is
+    the shape this project keeps finding.
+    """
+    paths = fencing_paths(JobSearchResult, "result")
+    assert "result.showing" in paths
+    assert "result.summary" in paths
+    assert paths["result.summary"].decision is FencingDecision.NOT_FREE_TEXT
+    # And the declared fields, and the nested Job reached through them.
+    assert "result.requisitions" in paths
+    assert "result.total" in paths
+    assert "result.requisitions[].eId" in paths
+
+
+def test_a_computed_field_with_no_decision_is_refused() -> None:
+    """The teeth for the computed half, built rather than assumed.
+
+    Without this the walker could visit `model_computed_fields` and
+    silently find nothing, which passes.
+    """
+
+    class UndecidedComputed(BaseModel):
+        x: Annotated[int, Fenced(FencingDecision.NOT_FREE_TEXT, "x", "why")]
+
+        @computed_field  # type: ignore[prop-decorator]
+        @property
+        def derived(self) -> int:
+            return self.x
+
+    with pytest.raises(MissingFencingDecisionError, match="derived"):
+        fencing_paths(UndecidedComputed, "root")
 
 
 def test_job_fields_take_an_explicit_not_free_text_decision() -> None:
@@ -638,7 +768,7 @@ def test_a_control_character_or_bidi_override_is_rejected(
 ) -> None:
     """A well-formed short string that every length check admits.
 
-    B25 and DESIGN.md:176-183: `max_length` does not cover this and
+    B25 and DESIGN.md:172-179: `max_length` does not cover this and
     the output allow-list cannot, because it is an output filter.
     """
     with pytest.raises(ValidationError):
@@ -651,7 +781,7 @@ def test_an_ordinary_identifier_still_passes() -> None:
 
 
 def test_an_unknown_argument_is_refused() -> None:
-    """`extra="forbid"`: never a free-form dict (DESIGN.md:154)."""
+    """`extra="forbid"`: never a free-form dict (DESIGN.md:152-153)."""
     with pytest.raises(ValidationError):
         SearchJobsInput(datestart="2026-01-01")  # type: ignore[call-arg]
 
@@ -677,6 +807,69 @@ async def test_a_rejected_argument_fails_closed_before_the_tool_body(
 
     assert seen == [], "a rejected argument still reached the transport"
     assert not [r for r in audit_records if r["message"] == AUDIT_EVENT_NAME]
+
+
+# ======================================================================
+# THE OUTBOUND REQUEST (R4-H1).
+#
+# Nothing in this file read `seen[0].url` before these three cases:
+# the route, the query key and the query value were all unasserted,
+# so all three could be broken and the whole suite stayed green.
+# Measured by `docs/reviews/probe-r4-unmutated-anchors.sh` - rows P1,
+# P2 and P3 all SURVIVED 413 passed.
+#
+# The failure they admit is the one `SearchJobsInput`'s own docstring
+# says the date filter was withheld to avoid: Jobvite ignores a
+# parameter it does not recognise and answers with the whole first
+# page, so a caller asking for one job gets 50 and the result says so
+# - a wrong answer that explains itself.
+# ======================================================================
+
+
+async def test_the_ids_argument_reaches_the_wire_as_a_query_parameter() -> None:
+    """The route AND the query key AND the value, on the wire.
+
+    All three in one case on purpose: they are one decision - "this
+    tool asks Jobvite for this job at this route" - and splitting
+    them would let two thirds of it be deleted with one row still
+    green.
+    """
+    seen: list[httpx2.Request] = []
+    server = build_server(
+        settings(),
+        client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS), seen=seen),
+    )
+    async with Client(server) as client:
+        await client.call_tool(SEARCH_JOBS, {"params": {"ids": "TESTJOB1"}})
+
+    # THE ROUTE IS PINNED AS A LITERAL, not as JOBS_PATH. Asserting
+    # against the constant was MEASURED to survive mutating that
+    # constant - the assertion moves with it, which is the M3 defect
+    # this harness exists to catch, reappearing inside its own fix.
+    assert len(seen) == 1
+    assert JOBS_PATH == "/job"
+    assert seen[0].url.path.endswith("/job")
+    assert seen[0].url.params["ids"] == "TESTJOB1"
+
+
+async def test_omitting_ids_sends_no_ids_parameter() -> None:
+    """The paired direction, and it is not decoration.
+
+    A default call must send NO filter. An implementation that always
+    sent `ids=` - empty, or a sentinel - would pass the case above and
+    would silently filter every unfiltered listing to nothing.
+    """
+    seen: list[httpx2.Request] = []
+    server = build_server(
+        settings(),
+        client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS), seen=seen),
+    )
+    async with Client(server) as client:
+        await client.call_tool(SEARCH_JOBS, {"params": {}})
+
+    assert len(seen) == 1
+    assert "ids" not in seen[0].url.params
+    assert seen[0].url.path.endswith("/job")
 
 
 # ======================================================================

@@ -1,4 +1,4 @@
-"""Allow-listed OUTPUT models, one file per tool (DESIGN.md:296).
+"""Allow-listed OUTPUT models, one file per tool (DESIGN.md:291).
 
 No input model lives here. Input models sit beside their tool in
 `tools/`, and their shared constraints come from `utils/constraints.py`

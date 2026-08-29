@@ -1,7 +1,7 @@
 """Shared inbound constraint types for input models (ADR-0012).
 
 **Every input model imports its constraints from here. No input model
-defines its own** - DESIGN.md:302-306 and ADR-0012, which is
+defines its own** - DESIGN.md:300-301 and ADR-0012, which is
 **Accepted** and applied into SS3's module block at the freeze.
 
 **Why the rule exists.** ADR-0012 records that housing the input
@@ -29,7 +29,7 @@ SS6.1's fencing applies on the way back out, so neither reaches an
 inbound argument on its way to Jobvite.
 
 **Scope actually built here, stated rather than implied.** This module
-holds the **character rule** of DESIGN.md:172-175. The three
+holds the **character rule** of DESIGN.md:172-179. The three
 structural limits of DESIGN.md:162-164 - nesting depth 5, 1,000 list
 items, 100 dict keys - are **not here**, because no input model in the
 tree today is deeper than one flat object, so the code would have no
@@ -46,29 +46,45 @@ from typing import Annotated, Final
 from pydantic import Field, StringConstraints
 
 #: C0 and C1 control characters, **except** tab, newline and carriage
-#: return, which DESIGN.md:181-183 names as the three permitted ones.
+#: return, which DESIGN.md:178-179 names as the three permitted ones.
 #: `\x7f` (DEL) sits between the two ranges and is included.
 _CONTROL_CHARACTERS: Final = r"\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f"
 
 #: Unicode bidirectional overrides and isolates. A bidi override in a
 #: string argument re-orders how a reviewer or a model reads the rest
 #: of the line while leaving the bytes intact, which is why
-#: DESIGN.md:181-183 names it beside the control characters rather
+#: DESIGN.md:178-179 names it beside the control characters rather
 #: than leaving it to `max_length`.
 #:
 #: LRE/RLE/PDF/LRO/RLO, then LRI/RLI/FSI/PDI.
 _BIDI_OVERRIDES: Final = "‪-‮⁦-⁩"
 
-#: The one rule every inbound string is tested against. Matching means
-#: **rejection**, so it is used as a negative lookahead below rather
-#: than as a validator that has to be remembered at each call site.
+#: The one rule every inbound string is tested against, for the PYTHON
+#: engine. Matching means **rejection**. `_NO_FORBIDDEN` below is the
+#: pydantic/Rust spelling of the same rule, negated, so a caller does
+#: not have to remember a validator at each call site.
 FORBIDDEN_CHARACTERS: Final = re.compile(f"[{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]")
 
 #: A pattern admitting only strings that contain no forbidden
-#: character. `\A` and `\z` rather than `^`/`$`: in Python `$` also
-#: matches before a trailing newline, so `^...$` would admit a string
-#: ending in one - and a trailing newline in a field that reaches a
-#: log line is the log-forging shape C7-T1 records.
+#: character.
+#:
+#: **`\A`/`\z` rather than `^`/`$`, and the reason is NOT a trailing
+#: newline** (R4-L3). An earlier version of this comment said `^...$`
+#: would admit a string ending in a newline and called that the
+#: log-forging shape C7-T1 records. The anchor choice is right and
+#: that justification was wrong: **newline is in the PERMITTED set**,
+#: so `\A...\z` admits `"ab\n"` anyway - measured, `trailing NL
+#: ACCEPTED`. The real reasons are that `$` would make the anchor
+#: meaningless against a multi-line value, and that `\z` is the only
+#: spelling the Rust engine has (see below).
+#:
+#: The log-forging protection the old comment claimed is real only for
+#: `JobviteIdentifier`, whose alphabet excludes `\n` - and it is
+#: `JobviteIdentifier` that the "trailing newline" arm in
+#: `tests/test_tools_jobs.py` actually exercises. If a trailing
+#: newline should be refused in log-bound free text, that is a
+#: separate constraint type and a separate decision, not a property of
+#: this anchor.
 #:
 #: **`\z`, not `\Z`, and this was MEASURED rather than transcribed.**
 #: pydantic-core compiles patterns with the Rust `regex` crate, which
@@ -92,7 +108,7 @@ FORBIDDEN_CHARACTERS: Final = re.compile(f"[{_CONTROL_CHARACTERS}{_BIDI_OVERRIDE
 #: which both engines spell identically".
 _NO_FORBIDDEN = f"\\A[^{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]*\\z"
 
-#: Default ceiling for a free-form string argument. DESIGN.md:156
+#: Default ceiling for a free-form string argument. DESIGN.md:152-154
 #: requires an explicit `max_length` on **every** string; this is the
 #: value a field takes when it has no tighter reason of its own.
 MAX_TEXT_LENGTH: Final = 256
@@ -117,7 +133,7 @@ SafeText = Annotated[
 ]
 
 #: A Jobvite identifier: alphanumerics, hyphen and underscore only.
-#: DESIGN.md:156 requires a regex on **every** identifier, and this
+#: DESIGN.md:152-154 requires a regex on **every** identifier, and this
 #: one admits no character the forbidden set covers, so it discharges
 #: the character rule by construction rather than by composition.
 JobviteIdentifier = Annotated[
