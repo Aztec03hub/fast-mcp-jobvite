@@ -410,7 +410,7 @@ def _token_map_problems(raw: SecretStr) -> list[str]:
     tokens.
 
     **No token, key or fragment of the value appears in any message
-    here.** The value is secret-class (DESIGN.md:826-829), and a parse
+    here.** The value is secret-class (DESIGN.md:828-831), and a parse
     error's own text quotes the input, so the exception is deliberately
     discarded.
 

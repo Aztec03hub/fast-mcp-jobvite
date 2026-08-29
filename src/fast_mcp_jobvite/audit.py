@@ -35,7 +35,7 @@ and **never the literal `"global"`** - an implementer who wires
 exists leaves the gap open behind a value that looks like an answer.
 
 **`trace_id` and `span_id` are recorded when present, omitted when
-absent, and never synthesised** (DESIGN.md:663-665,
+absent, and never synthesised** (DESIGN.md:668-669,
 `ai/tool-calling.md:176-177`). A locally minted id in a field named for
 the host's trace joins nothing while looking like it does, which is
 worse than an empty field.
@@ -96,7 +96,7 @@ _UUID4_RE: Final = re.compile(
 #: The all-zero trace id and the all-zero span id are invalid per the
 #: W3C Trace Context recommendation, and both are rejected here.
 #: Accepting them would put a field in the event that looks like a join
-#: and is not one, which is exactly what DESIGN.md:663-665 forbids.
+#: and is not one, which is exactly what DESIGN.md:668-669 forbids.
 _TRACEPARENT_RE: Final = re.compile(
     r"\A00-(?!0{32})([0-9a-f]{32})-(?!0{16})([0-9a-f]{16})-[0-9a-f]{2}\Z"
 )
@@ -252,12 +252,12 @@ def parse_trace_context(meta: Mapping[str, object] | None) -> tuple[str, str] | 
     """Extract W3C trace context from the request `_meta`, or `None`.
 
     Read from `ctx.request_context.meta` directly rather than through
-    FastMCP's span plumbing (DESIGN.md:656-662): `telemetry_mode()` may
+    FastMCP's span plumbing (DESIGN.md:664-666): `telemetry_mode()` may
     be `"off"`, in which case FastMCP's extractor returns the ambient
     context unchanged while the wire `_meta` still carries the header.
 
     **Returns `None` rather than a synthesised pair** when the header is
-    missing or malformed (DESIGN.md:663-665).
+    missing or malformed (DESIGN.md:668-669).
 
     Args:
         meta: The request `_meta` mapping, or `None` when the caller

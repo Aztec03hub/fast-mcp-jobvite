@@ -18,7 +18,7 @@ person who adds a metrics flush or an audit-log write. §5.3's audit
 event makes that more likely, not less.
 
 **Settings reach tools through the lifespan context, not a module
-global.** DESIGN.md:108-113 records that in-process state is
+global.** DESIGN.md:88-90 records that in-process state is
 per-connection on stdio and that nothing may depend on cross-call memory
 from a module-level variable. Putting the validated settings in the
 lifespan context keeps the one long-lived object on the framework's own
@@ -30,7 +30,7 @@ side effect** - the resource the lifespan opened is released - and not
 the exit code, because a process that dies uncleanly can still exit 0.
 U1 opens no resource, so without a composition point the case would have
 to reimplement the shutdown path in the test and assert against its own
-copy. This parameter is the composition point DESIGN.md:958 already
+copy. This parameter is the composition point DESIGN.md:960-961 already
 requires (`|` composition), used by the test today and by U4's
 connection pool and U9's HTTP resources next.
 """
@@ -114,7 +114,7 @@ def build_server(
     Args:
         settings: Settings that have already passed `validate_settings`.
         extra_lifespan: A lifespan composed after the base one with `|`,
-            so teardown runs in strict reverse (DESIGN.md:958).
+            so teardown runs in strict reverse (DESIGN.md:960-961).
         client_factory: Builds the Jobvite client for one invocation.
             Substituted in tests to inject `httpx2.MockTransport`
             (DESIGN.md:1359-1360). `None` uses the real client.

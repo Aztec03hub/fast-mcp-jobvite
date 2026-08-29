@@ -150,7 +150,7 @@ class JobSearchResult(BaseModel):
     """One capped page of jobs, with the cap reported not hidden.
 
     **`request_id` is deliberately NOT a field here**
-    (DESIGN.md:639-650). `additionalProperties: false` is set below and
+    (DESIGN.md:629-637). `additionalProperties: false` is set below and
     `ClientSession.validate_tool_result` validates structured content
     against the cached output schema unconditionally, so an undeclared
     top-level `request_id` is *rejected*. Declaring it would work and

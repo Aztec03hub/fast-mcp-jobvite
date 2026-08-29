@@ -141,7 +141,7 @@ class JobviteUpstreamError(FastMcpJobviteError):
         Args:
             upstream_status: The status Jobvite reported - the HTTP
                 status or the `status.code` of its JSON envelope
-                (DESIGN.md:339-344). `None` when Jobvite gave no status
+                (DESIGN.md:332-333). `None` when Jobvite gave no status
                 at all.
             upstream_message: Jobvite's own message text.
         """
@@ -182,7 +182,12 @@ class ResourceNotFoundError(FastMcpJobviteError):
 
 
 class DuplicateCandidateError(FastMcpJobviteError):
-    """Duplicate candidate on create (DESIGN.md:519, DESIGN.md:877)."""
+    """Duplicate candidate on create.
+
+    DESIGN.md:519 and DESIGN.md:1388-1393. The second half was `877`,
+    which is 511 lines away in §7.2 and about the idempotency
+    dismissal rather than the 409 shape.
+    """
 
     kind = CONFLICT
 

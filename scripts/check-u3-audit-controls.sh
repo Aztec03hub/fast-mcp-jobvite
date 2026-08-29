@@ -129,7 +129,7 @@ run_mutation "M2  stdio keeps the client id instead of discarding it" "$AUDIT" \
   'client_id=client_id,' \
   'test_stdio_never_records_the_literal_global'
 
-# --- trace context, both arms (DESIGN.md:663-665, :1287-1292) ---------------
+# --- trace context, both arms (DESIGN.md:668-669, DESIGN.md:1335-1339) ---------------
 run_mutation "M3  trace fields emitted as None instead of omitted" "$AUDIT" \
   'record.update({key: v for key, v in optional.items() if v is not None})' \
   'record.update(optional)' \

@@ -66,7 +66,7 @@ from pathlib import Path
 from typing import Any
 
 MAX_IGNORE_DAYS = 30
-"""DESIGN.md:1517 - `an expiry date no more than 30 days out`."""
+"""DESIGN.md:1515-1516 - `an expiry date no more than 30 days out`."""
 
 TABLE_PATH = ("tool", "fast-mcp-jobvite", "advisory-ignores")
 """The single source. Nothing else in this file names an advisory id."""
@@ -297,7 +297,7 @@ def check_entries(
         if budget > MAX_IGNORE_DAYS:
             refusals.append(
                 f"{where}: expiry is {budget} days after {recorded.isoformat()}, "
-                f"more than the {MAX_IGNORE_DAYS} DESIGN.md:1517 allows"
+                f"more than the {MAX_IGNORE_DAYS} DESIGN.md:1515-1516 allows"
             )
             continue
 

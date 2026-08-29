@@ -1,7 +1,7 @@
 """Entry point: logging, transport, signals, forced exit.
 
 **Logging is configured before anything else is imported**
-(DESIGN.md:281), and it goes to **stderr**. On stdio the JSON-RPC
+(DESIGN.md:282), and it goes to **stderr**. On stdio the JSON-RPC
 channel *is* stdout, so a single log record written there corrupts the
 protocol for the rest of the connection. `logging.basicConfig` defaults
 to stderr, but the default is the thing a later import changes, so it is

@@ -1,6 +1,6 @@
 """Secret redaction - the single enforcement point (DESIGN.md:312-318).
 
-**This module holds the SECRET half only.** DESIGN.md:291 gives
+**This module holds the SECRET half only.** DESIGN.md:293 gives
 `utils/redaction.py` two jobs, "log redaction; untrusted-content
 fencing", and `IMPLEMENTATION-PLAN.md:1497` assigns the fencing half to
 U8. Nothing here fences.
@@ -15,10 +15,11 @@ reach a log record." A second redactor elsewhere is the defect this
 sentence exists to prevent, because the two drift and the one that
 drifts is the one nobody reads.
 
-**Three parameters are redacted, not one.** DESIGN.md:313 names `api`,
-`sc` and `companyId` as the three the URL structurally carries, and
-DESIGN.md:317-319 makes `companyId` a credential class of its own ("the
-job feed's separate `companyId` credential"). §8's required case names
+**Three parameters are redacted, not one.** DESIGN.md:315-316
+names `api`, `sc` and `companyId` as the three the URL
+structurally carries, and DESIGN.md:320-321 makes `companyId` a
+credential class of its own ("the job feed's separate `companyId`
+credential"). §8's required case names
 `sc=` because that is the one an implementer is most likely to reach
 for; redacting only it would satisfy the case and leave two credentials
 in the log line, so the case is the floor here and not the

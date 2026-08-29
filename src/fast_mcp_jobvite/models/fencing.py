@@ -46,7 +46,7 @@ from typing import Annotated, Any, Final, get_args, get_origin
 
 from pydantic import BaseModel
 
-#: Separator between path segments, matching DESIGN.md:745-748's own
+#: Separator between path segments, matching DESIGN.md:747-749's own
 #: example key `candidates[].application.job.title`.
 PATH_SEPARATOR: Final = "."
 
@@ -58,14 +58,14 @@ class FencingDecision(enum.StrEnum):
     """What U8 must do with an admitted field.
 
     A closed set, for the reason `error-contract.md`'s registry is
-    closed (DESIGN.md:676-680): a value that governs a security
+    closed (DESIGN.md:688-690): a value that governs a security
     control is a contract, and an open string invites a second
     spelling of the first answer.
     """
 
     #: Attacker-authored free text. U8 fences it, and strips
     #: delimiter tokens occurring inside the content so the content
-    #: cannot close its own fence (DESIGN.md:747-750).
+    #: cannot close its own fence (DESIGN.md:744-745).
     FENCE = "fence"
 
     #: Not free text: an identifier, an enumerated state, a URL, an

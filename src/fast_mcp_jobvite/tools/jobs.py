@@ -32,7 +32,7 @@ it is what makes a problem object the one error shape no
 configuration can distort.
 
 **`request_id` is stamped into `_meta`, not into the model**
-(DESIGN.md:639-650). `_meta` is the protocol's own channel and the
+(DESIGN.md:629-637). `_meta` is the protocol's own channel and the
 result validator never inspects it, whereas an undeclared top-level
 key in structured content is rejected outright.
 """
@@ -65,7 +65,7 @@ from ..services.jobvite_client import JobviteClient
 from ..utils.constraints import JobviteIdentifier
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
-#: (DESIGN.md:632-638). `io.modelcontextprotocol/*` is reserved, and
+#: (DESIGN.md:624-627). `io.modelcontextprotocol/*` is reserved, and
 #: the spec's own `SERVER_INFO_META_KEY` is the precedent: server
 #: stamped, and documented as display and debugging only, never
 #: behaviour or security - which is exactly this value's class.
