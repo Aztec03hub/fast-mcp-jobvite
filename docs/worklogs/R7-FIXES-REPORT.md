@@ -344,6 +344,43 @@ docs/reviews/check-resweep-verdicts.py             EXIT=0
 argument for running the full gate **before** folding rather than after. Fixed in its own commit; the
 walk's behaviour is unchanged and its mutation still fails it.
 
+## A KILLED HARNESS STRANDED AN AMPUTATION IN THE TREE, AND IT WAS A SECURITY ONE
+
+**Read this before trusting any tree state on this branch.**
+
+`check-u9-http-amputation.sh` was running in the background when the background tasks were
+stopped. A killed mutation harness does not restore itself, and this one did not:
+
+```
+$ git status --porcelain
+ M src/fast_mcp_jobvite/http_hardening.py
+
+$ git diff -- src/fast_mcp_jobvite/http_hardening.py
+-    if settings.mcp_transport != "http":
++    if True:
+         return None
+```
+
+That is the amputation of `build_token_verifier` - `if True: return None` makes the function
+return no verifier at all, so **every bearer token check on the HTTP transport is disabled**. It is
+the harness doing exactly its job, frozen at the moment it was interrupted. Left in place it would
+have read as an ordinary working-tree edit, and on this project a stranded mutation has already
+been recorded as reading like someone else's merge.
+
+**Found by checking `git status --porcelain` immediately on learning the tasks were killed**, not
+by noticing later. Restored with `git checkout --`, then verified three ways rather than one:
+
+```
+git status --porcelain                      (empty)
+git diff --quiet                            CLEAN
+git diff --quiet HEAD -- src/ tests/        src/ and tests/ identical to HEAD
+uv run --frozen pytest                      674 passed, 6 deselected, EXIT=0
+grep -n 'if settings.mcp_transport != "http":'   216, 384   (both call sites intact)
+```
+
+**The branch is intact.** Nothing was committed while the mutation was present - the last commit
+`0c432de` predates the kill and its diff is one file of my own changes.
+
 ## Harnesses re-run, over every file I touched
 
 ```
@@ -357,7 +394,26 @@ check-u12-jobfeed-amputation.sh --amputation --anchors-applied      EXIT=0   10 
                                                                              assertions, 0 VACUOUS
 check-u3-audit-controls.sh     --result-killed                      EXIT=0   15 killed, 0 not killed
 check-u3-audit-amputation.sh   --amputation --min-rows 10           EXIT=0   915 surviving assertions
+check-u9-http-controls.sh      --controls-fired                     EXIT=0   14/14 controls fired
 ```
+
+**Three harnesses have NO valid result and must be run before this branch merges:**
+
+| harness | state |
+|---|---|
+| `check-u9-http-amputation.sh` | **killed mid-run.** Stranded the amputation above. No verdict. |
+| `check-u0-test-controls.sh` | **no valid run.** See below. |
+
+`check-u0-test-controls.sh` was killed by **me**, deliberately, and its `U0_EXIT=143` is that kill
+rather than a verdict. **I edited and committed `tests/test_http_hardening.py` while it was
+running**, which is the rule that a mutation harness owns the working tree for its whole run. The
+commit captured only my own changes - checked, its diff is one file with no foreign sed edit - but
+the RUN's subject changed underneath it, so its result was not trustworthy and I killed it rather
+than report a number taken while I was moving what it measured. I verified the tree was clean
+immediately after that kill; nothing was stranded by it. A rerun on the final tree was queued and
+was itself stopped before it started.
+
+`check-u9-http-controls.sh` DID complete validly, on the final tree, after that kill - 14/14, exit 0.
 
 `OBLIGATIONS.md` was not hand-edited and `check-obligations.py` exits 0, so no anchor moved.
 
@@ -376,15 +432,15 @@ check-u3-audit-amputation.sh   --amputation --min-rows 10           EXIT=0   915
 
 This list is for what I cannot settle, not for what I did not try.
 
-- **`check-u0-test-controls.sh`, `check-u9-http-controls.sh` and `check-u9-http-amputation.sh` were
-  still running when this report was written.** U0 exceeded a 10-minute shell cap on its first
-  attempt and U9's controls harness is the ~13-minute one. They were restarted sequentially in the
-  background - never concurrently, because a mutation harness owns the working tree for its whole
-  run. **After the first timeout I checked `git status --porcelain` and the tree was clean**, so no
-  mutation was stranded. **Their exit codes are in `/tmp/harness-long.log` and are NOT in this
-  report; the orchestrator should read them before merging.** I touched
-  `tests/test_http_hardening.py`, so U9's two harnesses are the ones most likely to have something
-  to say.
+- **`check-u9-http-amputation.sh` and `check-u0-test-controls.sh` have no verdict**, for the two
+  different reasons set out in the harness section above: the first was killed mid-run and stranded
+  a security amputation I found and restored; the second I killed myself after breaking the
+  tree-ownership rule, and its queued rerun was stopped before it started. `check-u9-http-controls.sh`
+  DID complete validly on the final tree at 14/14, exit 0. **These two are the one thing that must
+  be run before this branch merges**, and `tests/test_http_hardening.py` is a file I changed, so U9's
+  amputation is the one most likely to have something to say. I have not relaunched them: three
+  background tasks were stopped at once, which reads as a deliberate stop rather than a crash, and
+  restarting work someone has just halted is not mine to decide.
 - **Whether L4's new arm can actually fail.** Its assertions are strong - the refusal must name a
   rate limit and carry `token_client_id`'s digest, the bystander must connect, and `drained > 0` is
   a positive control - but I did not amputate it. Making the limiter key on the connection rather
@@ -427,5 +483,7 @@ orchestrator's.
 
 Every commit message was written with `git commit -F` and a quoted heredoc delimiter.
 
-**The worktree `/tmp/r7-fixes-work` is left in place**, because the three long harnesses are still
-running in it. It should be removed once their exit codes have been read.
+**The worktree `/tmp/r7-fixes-work` is left in place**, because two harnesses still have no verdict
+and need a tree to run in. No harness of mine is running in it now, and it is **clean** - verified
+after restoring the stranded amputation. Remove it once `check-u9-http-amputation.sh` and
+`check-u0-test-controls.sh` have been run and read.
