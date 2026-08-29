@@ -1,132 +1,96 @@
-# ADR-BATCH - apply eight Accepted ADRs to the frozen design, and re-freeze
+# ADR-BATCH - ten Accepted ADRs, a re-freeze, and 829 citations
 
-## Tools you must load before you start
+**Read `docs/briefs/PREAMBLE.md` first.** Task tools, isolation, evidence standards, gates and
+delivery rules are there and are not repeated here.
 
-    ToolSearch with query: select:TaskCreate,TaskGet,TaskList,TaskUpdate
+Your agent name is `adr-batch`. Your branch is `chore/adr-batch`. Your report goes to
+`docs/worklogs/ADR-BATCH-REPORT.md`, committed on your branch. Your task record is **#95**.
 
-`TaskList`, then `TaskGet` **task #1** immediately before claiming it. Claim with `TaskUpdate`
-(`owner: "adr-batch"`, `status: "in_progress"`).
+## DO NOT START WHILE ANY OTHER AGENT IS IN FLIGHT
 
-**You will receive your own claim back as an assignment. Do not act on it** - `TaskUpdate(owner=you)`
-enqueues a notification delivered after the work, with `assignedBy` naming YOU and a timestamp older
-than your work. `TaskGet` before acting on any assignment; if it is `completed`, say so and stop.
+Every agent is dispatched with *"the design is FROZEN at `c15b138`, read it as
+`git show c15b138:docs/DESIGN.md`"*. **Re-freezing points their citations at a ref that no longer
+carries what they read.** Confirm with the orchestrator that the board is quiet before the first
+edit. This is the one task on the board that cannot run concurrently with anything.
 
-## What this is
+## The ten, and the ruling is the decision
 
-`docs/DESIGN.md` has been FROZEN at `135c3ac` all project. **Eight ADRs are Proposed against it and
-this is the single commit that applies them all.** I have decided every one; none is open.
-
-| ADR | Change |
+| ADR | subject |
 |---|---|
-| 0012 | Add `utils/constraints.py` to §3's module layout |
-| 0013 | §8 gains a positive pairing for the log stream; #2 rewritten to name it |
-| 0014 | C8-I1's evidence clause: `.env.example` has every **secret-class** variable empty |
-| 0017 | The unmapped error row becomes `/problems/internal-error`, 500 - not `about:blank` |
-| 0018 | `os._exit(status)`, not `os._exit(0)`, so a crash does not report a clean stop |
-| 0019 | `DESIGN.md:603`'s `(§5.4)` becomes `(§4.1)` - there is no §5.4 |
-| 0021 | Define `approval_mechanism` in §5.3 with a closed vocabulary, and repoint the two rows |
-| 0022 | The cookie-jar clause: a disable, not an omission |
+| 0023 | harnesses drop `-e`, scoped by PURPOSE not by artifact type |
+| 0024 | the scan bound - **the ruling says RECORDS, the body says `MAX_PAGES`** |
+| 0025 | page size / throttle scope / budget - **its ruling ANSWERS all three; the body answers none** |
+| 0026 | log redaction - **its correction says the logger is `httpx2`, the body said `httpx` three times** |
+| 0027 | the budget variable becomes configurable |
+| 0028 | `sampling` -> `mrtr`, set closed at three |
+| 0030 | the upstream's retry hint is passed on wherever we have one |
+| 0031 | the approval-refusal registry row, no new slug |
+| 0032 | the fifth middleware is adopted and C2 gains a row |
+| 0033 | `approval_state`'s four values are a published vocabulary |
 
-**Read each ADR in full before touching anything.** Each has a Decision section saying exactly what
-to change; several also say what NOT to change and those limits bind you. **0014 changes no rating
-and no disposition** - only the sentence describing evidence. **0017 does not close the
-`about:blank` question**, which survives for unmapped HTTP statuses from Jobvite.
+**Several carry a ruling that contradicts or corrects the body. APPLY THE RULING.** 0024, 0025 and
+0026 are the ones where reading only the Decision section produces the wrong edit.
 
-**0022's subject may not be `DESIGN.md`.** `grep -in cookie docs/DESIGN.md` returns nothing; its
-clause is in `JOBVITE-CONTRACT.md` §2.3. **Find its real subject before editing** - if that document
-is not in this repository, say so and apply the other seven.
-
-## THE CITATION PROBLEM, which is the actual work
-
-**841 `DESIGN.md:N` citations exist across 81 files.** A five-line insertion at line 300 moves
-**723 of them**. Every stale one is a wrong citation shipped.
-
-**The tool exists. Use it; do not repoint by hand.**
+## The citation surface, measured at `9c41009` rather than estimated
 
 ```
-python3 docs/reviews/check-design-citations.py              # bounds + inventory
-python3 docs/reviews/check-design-citations.py --since 135c3ac
-python3 docs/reviews/check-design-citations.py --controls
+src               370        <- repoint
+tests             336        <- repoint
+scripts           125        <- repoint
+docs/briefs        42        <- repoint (instructions, must point at current)
+docs/adr           60        <- LEAVE (an ADR quotes the design it is amending)
+docs/worklogs     170        <- LEAVE (a worklog records what that unit saw)
+docs/reviews      519        <- LEAVE (a review cites the design as it stood)
 ```
 
-`--since` maps old line numbers to new through a real diff and prints two kinds of line:
+**831 to repoint, 749 to leave alone**, and the split is a judgement you should re-derive rather than
+inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this reason
+and says so; the same argument covers `docs/worklogs/` and applied ADRs.
 
-- **`MOVED: file:line: DESIGN.md:A -> DESIGN.md:B`** - mechanical. Apply it.
-- **`BROKEN: file:line: DESIGN.md:A - that line CHANGED`** - **the tool refuses to guess, and so
-  must you.** Open the new text, find where the subject went, repoint by SUBJECT. If the subject is
-  gone, report it; do not invent one.
+## The recorded hazards, every one measured on this project
 
-**Repoint from the tool's OWN OUTPUT, parsed, never retyped.** Retyping a value just read is the
-step that has failed repeatedly here. Parse the report with a regex, assert you parsed a non-zero
-number of lines, and fail loudly if a target string is not where the report said. **Beware multiple
-citations on one line** - key on (file, line, old-range) triples, not naive string replacement.
+- **A REPOINT MAP CAN BE WRONG.** One was, over 49 occurrences in a single pass (#37).
+- **CITATION RANGES CONTRACT ON EACH COPY-FORWARD, AND A NARROWED RANGE STILL RESOLVES.** A green
+  checker does not prove the citation still covers its subject. **Audit from the SOURCE inward** -
+  start at the design line and ask who cites it, not at the citation and ask whether it resolves.
+- **ANCHOR ON THE SUBJECT, NOT THE LINE NUMBER**, and require the subject to be unique. Four
+  mechanical repoints in one day went wrong this way.
+- **NEVER read a line number off an unnumbered window.** Only from `grep -n` or a Read. Offsets
+  counted inside a `sed -n X,Yp` window are silent, plausible and wrong.
+- **A citation trimmed at a comma is not a citation.** `DESIGN.md:1072` cost an ADR that was not
+  needed because three readers carried half a sentence - the scoping clause was in the half that
+  got trimmed.
 
-## Two code changes, because two ADRs change shipped behaviour
+## Two checkers gate this and neither is sufficient alone
 
-- **ADR-0017 changes `src/fast_mcp_jobvite/errors.py`.** The unmapped kind becomes
-  `/problems/internal-error`, 500, "Internal Server Error". **`INTERNAL_ERROR` stops being dead
-  code.** U2's mutant **M10, which its harness killed, becomes correct behaviour** - that inversion
-  is the clearest evidence this is a real change. Update `tests/test_error_contract.py` and U2's
-  harness, and say which mutation rows changed meaning.
-- **ADR-0018 changes `src/fast_mcp_jobvite/__main__.py`.** Its Decision block has the exact code.
-  `os._exit` still runs unconditionally, so the stdio hang stays closed and the SIGTERM mitigation is
-  unchanged - **only the constant moves.** U1's shutdown tests and harnesses must still pass.
+`check-design-citation-shape.py` decides only what a machine can: out of bounds, blank, fence-only,
+or starting on a blank line. It says in its own docstring that *"resolves" and "correct" are
+different things* and that this project has found that nine times. `check-standards-citations.py`
+covers the 97 standards citations and **exits 2 when its corpus is absent** - it now resolves that
+corpus through `git rev-parse --git-common-dir`, so it works in a `/tmp` worktree.
 
-## Flip every status, and re-stamp the freeze
+**A green from both is necessary and not sufficient.** The completeness question - did every citation
+that MOVED get repointed - needs the source-inward audit above.
 
-- Each of the eight: `**Status:** Proposed` -> `**Status:** Accepted`.
-- **The freeze SHA moves to your commit.** Grep the tree for `135c3ac` and update every place naming
-  it as the frozen design. **State the new SHA prominently** - every future brief cites it.
-- `docs/plans/IMPLEMENTATION-PLAN.md` may describe these as Proposed. Fix what is now false.
+## After the re-freeze
 
-## Then wire the gate that has been waiting for this
-
-`docs/reviews/check-cross-references.py` exits 1 today on **exactly one** finding: `DESIGN.md:603`'s
-`§5.4`, which ADR-0019 fixes. It is deliberately unwired so it never landed knowingly red.
-
-**Once it exits 0, wire it into `ci.yml`'s `design-gates` job and add it to `CONTRIBUTING.md`'s gate
-list IN THE SAME COMMIT.** Also name `check-design-citations.py` in CONTRIBUTING as a tool run
-around a design edit, stating plainly that it is **not** a CI gate and why. If the cross-reference
-gate does NOT go green, do not wire it - report why.
-
-## Standing requirements
-
-- **Verify by SUBJECT, never by line arithmetic.** Three range-contraction defects were found in one
-  day and every one still resolved to plausible text.
-- **`docs/OBLIGATIONS.md` anchors will move.** Repoint from `check-obligations.py`'s own output.
-- **Report passed-counts, never the word "green".** Baseline **294 passed, 2 deselected, 0 skipped**.
-- **No `Co-Authored-By:` or "Generated with" trailer.** Absolute. **No em dashes** in prose.
-
-## Isolation
-
-- Pin SHA `70cd2ca`. `git worktree add /tmp/adr-batch-work 70cd2ca`.
-- **Do NOT check anything out in the shared checkout.**
-- Commit to **`adr/batch`**. **I merge and push.** Rebase onto `origin/main` before reporting and
-  re-run the gate after the rebase.
-- **Commit early and often.** A previous run of this exact task was destroyed by a restart with zero
-  commits and its brief was lost with it, which is why this brief lives in the repository. **Commit
-  each ADR as you finish it** rather than one commit at the end.
-- **Remove your worktree when done** and say so.
+`#60` becomes a normal five-artifact change: the design's §7.6 list, the `Settings` field,
+`.env.example`, the README table and `server.json`, plus **all three** client factories
+(`tools/jobs.py` twice, `tools/candidates.py` once). The closed-set tests refuse any subset.
+`tests/test_repo_hygiene.py`'s `assert len(variables) == 15` must be **DERIVED from `Settings`**, not
+bumped - ADR-0027's ruling says so, and this project has watched a retyped constant rot in a brief,
+two obligation rows, a CI comment and three harness floors.
 
 ## Gates
 
-The full list is `CONTRIBUTING.md`'s "The gates, and how to run them before you push". **mypy is the
-type gate, not pyright.** **Judge by exit code on its own line** - under `set -euo pipefail`,
-`cmd | grep FAIL || echo clean` prints "clean" when `cmd` FAILS. **Always quote your heredoc
-delimiter** (`<<'PY'`). The control harnesses are slow; budget for them, do not skip them.
+Floors DERIVED from `ci.yml` by grep, never retyped. **0 skips.** Run the gate's OWN commands,
+argument for argument - `uv run --frozen mypy`, NOT `mypy src`; `ci.yml:422` is the authority.
 
-## How to reach me
+**A review round follows this**, per the standing rule that nothing lands unreviewed, and this is
+the largest single change since the last freeze.
 
-`SendMessage` with `to: "team-lead"`. **`to: "main"` does NOT work.**
+## In the report
 
-## How to deliver
-
-1. `docs/worklogs/ADR-BATCH-REPORT.md`, **committed on your branch**. Not `/tmp` - a 48KB report was
-   lost that way today.
-2. `SendMessage` `to: "team-lead"` with the full report.
-
-State: what each ADR changed, before and after; **the new frozen SHA**; how many citations MOVED and
-how many were BROKEN and what you did with each; which mutation rows changed meaning under 0017 and
-0018; whether the cross-reference gate went green and was wired; and the merge command.
-
-**End with what you did NOT verify.**
+The new frozen SHA. Per directory: how many citations moved, how many were repointed, and how you
+established that the two numbers agree. The source-inward audit and what it found. Then what you
+could not settle.
