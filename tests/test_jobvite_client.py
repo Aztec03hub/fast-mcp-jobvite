@@ -780,3 +780,47 @@ async def test_positive_control_httpx2_WOULD_follow_a_redirect_if_asked() -> Non
     assert any("evil.example" in url for url in seen), (
         f"the redirect target was never reached, so the control proves nothing: {seen}"
     )
+
+
+# httpx2 exceptions outside the HTTPError hierarchy (round 2's L-5).
+# ===========================================================================
+
+
+async def test_an_invalid_url_becomes_a_typed_error_not_an_escape() -> None:
+    """`except httpx2.HTTPError` reads as "any transport failure" and is not.
+
+    Measured at httpx2 2.12.0: `InvalidURL`, `CookieConflict` and `StreamError`
+    are NOT subclasses of `HTTPError`. An `InvalidURL` is reachable the moment a
+    unit interpolates a `path` - U5 and U12 both will - and before the fix it
+    escaped `request()` without passing through `redact_text` and without
+    becoming a typed error, so this module's documented contract was false.
+
+    A NUL byte in the path is the cheapest real trigger, and it never reaches
+    the transport, so no mock is involved in producing it.
+    """
+    async with client(lambda request: httpx2.Response(200, content=b"{}")) as c:
+        with pytest.raises(JobviteUnavailableError) as excinfo:
+            await c.request("GET", "/candidate\x00")
+
+    assert "InvalidURL" in str(excinfo.value), (
+        f"the exception was not identified by class: {excinfo.value}"
+    )
+
+
+def test_the_escaping_classes_are_still_outside_HTTPError() -> None:
+    """The control on the fix: it is only needed while this remains true.
+
+    If a future httpx2 folded these under `HTTPError`, the wider `except` above
+    would be harmless but the reason for it would have evaporated, and the next
+    reader would have no way to tell. This asserts the premise rather than
+    leaving it in a comment - and if it ever fails, the comment is what needs
+    rewriting, not the code.
+    """
+    outside = [
+        name
+        for name in ("InvalidURL", "CookieConflict", "StreamError")
+        if not issubclass(getattr(httpx2, name), httpx2.HTTPError)
+    ]
+    assert outside == ["InvalidURL", "CookieConflict", "StreamError"], (
+        f"httpx2 changed its hierarchy; only {outside} remain outside HTTPError"
+    )

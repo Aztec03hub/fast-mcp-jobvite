@@ -501,7 +501,24 @@ class JobviteClient:
                 headers=headers,
                 json=dict(json_body) if json_body is not None else None,
             )
-        except httpx2.HTTPError as exc:
+        except (
+            httpx2.HTTPError,
+            # NOT SUBCLASSES OF HTTPError, measured at httpx2 2.12.0 rather than
+            # assumed: `InvalidURL`, `CookieConflict` and `StreamError` sit
+            # outside that hierarchy entirely. `except httpx2.HTTPError` reads
+            # like "any transport failure" and is not.
+            #
+            # An InvalidURL is reachable the moment a later unit interpolates a
+            # `path` - U5 and U12 both do - and it would escape this block
+            # WITHOUT passing through `redact_text` and without becoming a typed
+            # error, so the module's own documented contract ("Raises:
+            # JobviteUnavailableError: If Jobvite could not be reached at all")
+            # would be false. errors.py contains it at the boundary today, so
+            # there is no leak; the defect is the contract, not a live escape.
+            httpx2.InvalidURL,
+            httpx2.CookieConflict,
+            httpx2.StreamError,
+        ) as exc:
             # `httpx` puts the request URL into the text of the exceptions it
             # raises, so on the jobFeed route `str(exc)` carries `sc=`.
             # `redact_text` is the arm of utils/redaction.py that exists for
