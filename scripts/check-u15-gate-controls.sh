@@ -36,11 +36,28 @@ cp "$REPO_ROOT/$SUITE_REL" "$TREE/$SUITE_REL"
 cp "$REPO_ROOT/tests/__init__.py" "$TREE/tests/" 2>/dev/null || true
 cp "$REPO_ROOT/pyproject.toml" "$TREE/"
 
+# THE INTERPRETER IS CHOSEN, NOT INHERITED. This harness runs pytest inside a
+# COPIED tree, so `uv run` cannot be used there - it would try to resolve the
+# copy as its own project. The obvious `python3 -m pytest` is what was here,
+# and it is what turned CI red for eleven consecutive runs: on the runner,
+# `python3` is the hosted-toolchain interpreter with no pytest, so the baseline
+# was red and the harness aborted with 3 - correctly, since a control measured
+# against a red baseline proves nothing. It passed locally the whole time
+# because a developer machine's `python3` happens to have pytest.
+#
+# Same selection as scripts/check-u0-test-controls.sh, which had already solved
+# this. Prefer the project venv, fall back to `uv run` where there is none.
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PY=("$REPO_ROOT/.venv/bin/python")
+else
+  PY=(uv run --frozen --project "$REPO_ROOT" python)
+fi
+
 PRISTINE="$WORK/pristine.py"
 cp "$REPO_ROOT/$GATE_REL" "$PRISTINE"
 
 run_suite() {  # -> writes report to $WORK/out.txt, returns pytest's exit code
-  ( cd "$TREE" && python3 -m pytest "$SUITE_REL" -p no:cacheprovider -q \
+  ( cd "$TREE" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
       -o addopts="" >"$WORK/out.txt" 2>&1 )
 }
 

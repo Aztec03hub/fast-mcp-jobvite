@@ -38,6 +38,16 @@ set -uo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# THE INTERPRETER IS CHOSEN, NOT INHERITED - see the note in
+# scripts/check-u15-gate-controls.sh. Bare `python3` is the runner's
+# hosted-toolchain interpreter, which has no pytest, so the baseline goes red
+# and the harness aborts. Same selection as scripts/check-u0-test-controls.sh.
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PY=("$REPO_ROOT/.venv/bin/python")
+else
+  PY=(uv run --frozen --project "$REPO_ROOT" python)
+fi
 GATE_REL="scripts/check_advisories.py"
 SUITE_REL="tests/test_advisory_gate.py"
 WORK="$(mktemp -d)"
@@ -54,7 +64,7 @@ PRISTINE="$WORK/pristine.py"
 cp "$REPO_ROOT/$GATE_REL" "$PRISTINE"
 
 run_suite() {
-  ( cd "$TREE" && python3 -m pytest "$SUITE_REL" -p no:cacheprovider -q \
+  ( cd "$TREE" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
       -o addopts="" >"$WORK/out.txt" 2>&1 )
 }
 

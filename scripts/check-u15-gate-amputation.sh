@@ -22,6 +22,15 @@ SUITE_REL="tests/test_file_type_gate.py"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# THE INTERPRETER IS CHOSEN, NOT INHERITED - see the note in
+# scripts/check-u15-gate-controls.sh. Bare `python3` is the runner's
+# hosted-toolchain interpreter with no pytest, so the baseline goes red.
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PY=("$REPO_ROOT/.venv/bin/python")
+else
+  PY=(uv run --frozen --project "$REPO_ROOT" python)
+fi
+
 build_tree() {  # $1 = destination
   mkdir -p "$1/scripts" "$1/tests"
   cp "$REPO_ROOT/$GATE_REL" "$1/$GATE_REL"
@@ -33,7 +42,7 @@ build_tree() {  # $1 = destination
 report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   local label="$1" tree="$2" pathenv="${3:-$PATH}"
   echo "########## $label"
-  ( cd "$tree" && env PATH="$pathenv" python3 -m pytest "$SUITE_REL" \
+  ( cd "$tree" && env PATH="$pathenv" "${PY[@]}" -m pytest "$SUITE_REL" \
       -p no:cacheprovider -q -o addopts="" -rA >"$WORK/out.txt" 2>&1 )
   tail -1 "$WORK/out.txt"
   local survivors
@@ -50,7 +59,7 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
 # --- baseline: the intact tree, so a red here invalidates every row below ----
 build_tree "$WORK/intact"
 echo "########## BASELINE - the intact tree"
-( cd "$WORK/intact" && python3 -m pytest "$SUITE_REL" -p no:cacheprovider -q \
+( cd "$WORK/intact" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
     -o addopts="" >"$WORK/out.txt" 2>&1 )
 BASE_RC=$?
 tail -1 "$WORK/out.txt"
@@ -145,9 +154,13 @@ report "D. the gate runs but every rule table is EMPTY" "$WORK/D"
 # classify() in-process does not.
 build_tree "$WORK/E"
 mkdir -p "$WORK/nogit"
-for tool in python3 sh env sed grep cat; do
+# `python3` here is the CHOSEN interpreter, not the ambient one - the row's
+# subject is "git is absent", and symlinking a python without pytest would
+# make it fail for the wrong reason and read as a finding about git.
+for tool in sh env sed grep cat; do
   src=$(command -v "$tool") && ln -sf "$src" "$WORK/nogit/$tool"
 done
+ln -sf "$(command -v "${PY[0]}")" "$WORK/nogit/python3"
 report "E. git is not on PATH at all" "$WORK/E" "$WORK/nogit"
 
 echo "########## END. Survivors above are the finding, not a failure."
