@@ -40,7 +40,7 @@ key in structured content is rejected outright.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Any, Final
+from typing import Annotated, Any, Final, Literal
 
 from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
@@ -52,8 +52,13 @@ from ..audit import (
     audit_scope,
     emit,
 )
-from ..config import SEARCH_JOBS, Settings
+from ..config import GET_JOB_FEED, SEARCH_JOBS, Settings
 from ..errors import problem_from_exception
+from ..models.job_feed import (
+    JOB_FEED_ENVELOPE_KEY,
+    FeedJob,
+    JobFeedResult,
+)
 from ..models.jobs import (
     JOBS_ENVELOPE_KEY,
     TOTAL_ENVELOPE_KEY,
@@ -61,7 +66,7 @@ from ..models.jobs import (
     JobLocation,
     JobSearchResult,
 )
-from ..services.jobvite_client import JobviteClient
+from ..services.jobvite_client import JOBFEED_PATH, JobviteClient
 from ..utils.constraints import JobviteIdentifier
 
 #: The namespaced `_meta` key `request_id` travels to the caller under
@@ -87,7 +92,7 @@ JOBS_PATH: Final = "/job"
 #: `test_the_client_routes_tuple_lists_every_route_this_module_asks_for`
 #: enumerates the CONTAINER, parsing every client call in this file,
 #: and asserts the two sets are EQUAL rather than merely overlapping.
-CLIENT_ROUTES: Final = (JOBS_PATH,)
+CLIENT_ROUTES: Final = (JOBS_PATH, JOBFEED_PATH)
 
 
 class SearchJobsInput(BaseModel):
@@ -201,6 +206,36 @@ def build_result(payload: dict[str, Any], max_results: int) -> JobSearchResult:
 
 
 def register(
+    server: FastMCP[Any],
+    settings: Settings,
+    *,
+    client_factory: Callable[[], JobviteClient] | None = None,
+) -> None:
+    """Register this module's tools, each behind its OWN enable gate.
+
+    **Two tools, two gates, one entry point.** `server.py` calls this
+    module once (`server.py:137`), so `get_job_feed` needs no line of
+    its own there - which is what keeps U12 out of a file another agent
+    holds. The dispatch is a pair of calls rather than one function
+    with two early returns, because `search_jobs` being disabled must
+    not stop `get_job_feed` registering: the two tools take
+    **different credentials** (DESIGN.md:312-321), so a deployment
+    holding only the feed credential is a configuration
+    `validate_settings` accepts and this function has to serve.
+
+    Args:
+        server: The instance to register on.
+        settings: Settings that have already passed
+            `validate_settings`.
+        client_factory: Builds the `JobviteClient` for one invocation.
+            Substituted in tests to inject `httpx2.MockTransport`
+            (DESIGN.md:1359-1360). `None` uses the real client.
+    """
+    _register_search_jobs(server, settings, client_factory=client_factory)
+    _register_get_job_feed(server, settings, client_factory=client_factory)
+
+
+def _register_search_jobs(
     server: FastMCP[Any],
     settings: Settings,
     *,
@@ -381,6 +416,292 @@ def register(
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)
+                return ToolResult(
+                    structured_content=problem,
+                    meta={REQUEST_ID_META_KEY: event.request_id},
+                    is_error=True,
+                )
+            emit(event, AuditPhase.READ)
+            return ToolResult(
+                structured_content=result.model_dump(mode="json"),
+                meta={REQUEST_ID_META_KEY: event.request_id},
+            )
+
+
+class GetJobFeedInput(BaseModel):
+    """Arguments for `get_job_feed`.
+
+    **Narrow on purpose, and narrower than the evidence permits.**
+    `JOBVITE-CONTRACT.md` §9 is the only complete `[OFFICIAL]`
+    parameter table in the whole document - `type`, `availableTo`,
+    `category`, `location`, `region`, `department`, `start`, `count`.
+    `start` and `count` are **U6's**, and of the remaining six only
+    these two are offered:
+
+    - `job_type` and `available_to` have documented value spaces. A
+      wrong `available_to` is refused by the model rather than sent.
+    - `category`, `location`, `region` and `department` are
+      **tenant-configured vocabularies**. Nothing in the research
+      records one tenant's values, so a model would be guessing the
+      value rather than the parameter name, and Jobvite answers a
+      filter it cannot match with an empty feed - a wrong answer that
+      explains itself, which is the same failure `SearchJobsInput`
+      withholds its date filter to avoid. Adding them later is
+      additive and costs no caller anything; removing them would not
+      be.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    job_type: Annotated[
+        JobviteIdentifier | None,
+        Field(
+            default=None,
+            description=(
+                "Filter by employment type, e.g. `Full-time`, "
+                "`Part-time`, `Contractor`, `Intern`. Jobvite's own "
+                "list is open-ended, so this is not an enumeration."
+            ),
+        ),
+    ] = None
+
+    available_to: Annotated[
+        Literal["External", "Internal"] | None,
+        Field(
+            default=None,
+            description=(
+                "Which audience the postings are visible to. Jobvite "
+                "defaults to `External` when the parameter is omitted."
+            ),
+        ),
+    ] = None
+
+
+def _to_feed_job(raw: dict[str, Any]) -> FeedJob:
+    """Map one v1 feed job onto the allow-listed model.
+
+    **Each key is named here**, for the reason `_to_job` gives: a new
+    Jobvite field must be *dropped* (DESIGN.md:192-195), not turned
+    into an error that takes the whole call down.
+
+    **This is where the third name stops travelling.** Jobvite's keys
+    on this route (`id`, `jobtype`, `detail-url`, `briefdescription`)
+    are read exactly once, here, and everything downstream sees the
+    same attribute names `search_jobs` returns.
+
+    Args:
+        raw: One element of the feed's `jobs` array.
+
+    Returns:
+        The admitted subset, as a `FeedJob`.
+    """
+    return FeedJob(
+        eid=raw.get("id") or "",
+        title=raw.get("title") or "",
+        requisition_id=raw.get("requisitionid"),
+        category=raw.get("category"),
+        job_type=raw.get("jobtype"),
+        location=raw.get("location"),
+        date=raw.get("date"),
+        detail_url=raw.get("detail-url"),
+        apply_url=raw.get("apply-url"),
+        brief_description=raw.get("briefdescription"),
+        description=raw.get("description"),
+        hiring_manager=raw.get("hiringManager"),
+    )
+
+
+def build_feed_result(payload: dict[str, Any], max_results: int) -> JobFeedResult:
+    """Apply the in-tool result cap to a feed page (DESIGN.md:469-477).
+
+    The same shape as `build_result`, reading `JOB_FEED_ENVELOPE_KEY`
+    where that one reads `JOBS_ENVELOPE_KEY` - **the whole of the
+    difference between the two routes' envelopes** (§9 hazard 3).
+
+    **`total` comes from the envelope, never from `len(items)`**
+    (DESIGN.md:487-489). Counting the returned items would make
+    `showing N of N` true on every call and delete the only signal
+    that a page was capped.
+
+    **THE TRANSPORT CAP IS NOT APPLIED HERE AND MUST NOT BE.** The
+    1000-record `/v1/jobFeed` page cap is stated once, in the client
+    layer (DESIGN.md:434), and `services/jobvite_client.py` enforces
+    it at `JOBFEED_PAGE_CAP`. This is the *configured result cap*, the
+    other half of DESIGN.md:436-438's `min(transport_cap,
+    configured_result_cap)`. Re-applying 1000 here would be a second
+    copy of one number in a file that does not own it.
+
+    Args:
+        payload: The decoded Jobvite envelope.
+        max_results: `JOBVITE_MAX_RESULTS`.
+
+    Returns:
+        The capped page, with the cap reported.
+    """
+    items = payload.get(JOB_FEED_ENVELOPE_KEY) or []
+    jobs = [
+        _to_feed_job(item) for item in items[:max_results] if isinstance(item, dict)
+    ]
+    raw_total = payload.get(TOTAL_ENVELOPE_KEY)
+    total = raw_total if isinstance(raw_total, int) else len(items)
+    return JobFeedResult(jobs=jobs, total=total)
+
+
+def _feed_params(params: GetJobFeedInput) -> dict[str, str] | None:
+    """Build the non-credential query parameters for the feed call.
+
+    Returns `None` when nothing was supplied, so an unfiltered call
+    sends no filter at all rather than an empty one: a `type=` with no
+    value is a filter Jobvite may match nothing against, and an empty
+    feed for a caller who asked for everything is the silent wrong
+    answer this module keeps refusing to produce.
+
+    **The credentials are NOT built here.** `api`, `sc` and
+    `companyId` are added by `JobviteClient.jobfeed_params()`, inside
+    the client, which is the one place a URL carrying a secret is
+    constructed (DESIGN.md:312-318).
+
+    Args:
+        params: The validated arguments.
+
+    Returns:
+        The query mapping, or `None` when no filter was supplied.
+    """
+    query = {
+        key: value
+        for key, value in (
+            ("type", params.job_type),
+            ("availableTo", params.available_to),
+        )
+        if value is not None
+    }
+    return query or None
+
+
+def _register_get_job_feed(
+    server: FastMCP[Any],
+    settings: Settings,
+    *,
+    client_factory: Callable[[], JobviteClient] | None = None,
+) -> None:
+    """Register `get_job_feed`, if it is enabled.
+
+    **The separate credential class, resolved once at registration**
+    (DESIGN.md:320-321). `feed_key`, `feed_secret` and `company_id`
+    are a different class from `search_jobs`' `api_key`/`api_secret`,
+    and `TOOL_REQUIREMENTS[GET_JOB_FEED]` already refuses a deployment
+    that enables this tool without all three - so reaching the
+    `ValueError` below is a programming error, not a user's input, and
+    it is raised at boot rather than turned into a 500 on first call.
+
+    Args:
+        server: The instance to register on.
+        settings: Settings that have already passed
+            `validate_settings`.
+        client_factory: Builds the `JobviteClient` for one invocation.
+            Substituted in tests to inject `httpx2.MockTransport`.
+    """
+    if GET_JOB_FEED not in settings.enabled_tools:
+        return
+
+    transport = Transport(settings.mcp_transport)
+
+    if (
+        settings.feed_key is None
+        or settings.feed_secret is None
+        or settings.company_id is None
+    ):
+        msg = (
+            f"{GET_JOB_FEED} is enabled but its credentials are unset; "
+            f"validate_settings should have refused this configuration"
+        )
+        raise ValueError(msg)
+    feed_key = settings.feed_key
+    feed_secret = settings.feed_secret
+    company_id = settings.company_id
+
+    def _client() -> JobviteClient:
+        if client_factory is not None:
+            return client_factory()
+        # THE FEED CREDENTIAL, IN ITS OWN CLASS. `api_key` and
+        # `api_secret` here are the FEED's key and secret, not
+        # `search_jobs`' pair: the client's parameter names describe
+        # the position in the request, and on this route that position
+        # is the `api` and `sc` QUERY PARAMETERS
+        # (`jobvite_client.py:jobfeed_params`). Passing the v2 pair
+        # would authenticate the feed with a credential the design
+        # keeps separate precisely so the two can be scoped apart
+        # (DESIGN.md:320-321, §7.2).
+        #
+        # `company_id` IS NOT LATENT ON THIS PATH, unlike the
+        # `search_jobs` factory: the route refuses without it, and the
+        # refusal is a `RuntimeError` mapped to
+        # `/problems/internal-error` rather than a misleading 502.
+        return JobviteClient(
+            api_key=feed_key,
+            api_secret=feed_secret,
+            company_id=company_id,
+            max_results=settings.max_results,
+            start_base_overrides=(
+                None
+                if settings.pagination_start_base is None
+                else dict.fromkeys(CLIENT_ROUTES, settings.pagination_start_base)
+            ),
+        )
+
+    @server.tool(
+        name=GET_JOB_FEED,
+        output_schema=JobFeedResult.model_json_schema(mode="serialization"),
+        annotations={"readOnlyHint": True},
+    )
+    async def get_job_feed(
+        params: GetJobFeedInput,
+        ctx: Context,
+    ) -> ToolResult:
+        """Read the public career-site job feed.
+
+        Returns a single page of the v1 job feed, capped at the
+        server's configured result limit and reporting
+        `showing N of total` rather than truncating silently.
+        """
+        request_context = ctx.request_context
+        meta = request_context.meta if request_context is not None else None
+        with audit_scope(
+            GET_JOB_FEED,
+            transport,
+            arguments=params.model_dump(mode="json"),
+            meta=meta,
+        ) as event:
+            try:
+                async with _client() as client:
+                    # ONE PAGE, NOT A SCAN, AND THE CHOICE IS
+                    # DELIBERATE. `client.scan()` exists and this tool
+                    # does not call it: ADR-0024 records that a scan
+                    # has no bound, and U8 measured that even a
+                    # BOUNDED scan is unbounded against a server
+                    # answering full pages of already-seen records. A
+                    # single `request` incurs neither exposure - its
+                    # worst case is one page - and the feed's first
+                    # page is what a career-site reader wants. A
+                    # paging caller is a later decision with an ADR
+                    # behind it, not a default.
+                    #
+                    # `jobfeed=True` selects the v1 base AND the
+                    # query-parameter credentials in one enumerated
+                    # branch (`jobvite_client.py:request`). The
+                    # sensitive-URL path is that branch and nothing
+                    # else, which is what lets one test point at it.
+                    payload = await client.request(
+                        "GET",
+                        JOBFEED_PATH,
+                        params=_feed_params(params),
+                        jobfeed=True,
+                    )
+                result = build_feed_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
                 emit(event, AuditPhase.READ)
                 problem = problem_from_exception(exc, event.request_id)
                 return ToolResult(
