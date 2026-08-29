@@ -257,13 +257,18 @@ def main() -> int:
     # Same predicate for the printed verdict and the gate below.
     v2 = None if installed == 1 else f"{N_CLIENTS} clients left {installed} filters"
     v2c = (
-        None if counted == N_CLIENTS
+        None
+        if counted == N_CLIENTS
         else f"appending {N_CLIENTS} filters read back {counted}"
     )
-    print(f"ARM 2  {N_CLIENTS} clients -> {installed} filter(s) on "
-          f"{_redaction().HTTPX_LOGGER_NAME}: {v2 or 'exactly 1 (ok)'}")
-    print(f"ARM 2c control: hand-appended {N_CLIENTS} -> read {counted}: "
-          f"{v2c or 'the counter is live (PASS)'}")
+    print(
+        f"ARM 2  {N_CLIENTS} clients -> {installed} filter(s) on "
+        f"{_redaction().HTTPX_LOGGER_NAME}: {v2 or 'exactly 1 (ok)'}"
+    )
+    print(
+        f"ARM 2c control: hand-appended {N_CLIENTS} -> read {counted}: "
+        f"{v2c or 'the counter is live (PASS)'}"
+    )
     if v2:
         failures.append(f"ARM 2: the install is NOT idempotent - {v2}")
     if v2c:

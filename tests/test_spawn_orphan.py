@@ -14,6 +14,7 @@ chance to, which is what `boot_process._die_with_parent` asks it to do.
 
 from __future__ import annotations
 
+import functools
 import os
 import pathlib
 import signal
@@ -22,7 +23,12 @@ import sys
 import textwrap
 import time
 
-from tests.boot_process import _die_with_parent
+from tests.boot_process import (
+    _EXIT_NO_LIBC,
+    _EXIT_PARENT_ALREADY_GONE,
+    _EXIT_PRCTL_FAILED,
+    _die_with_parent,
+)
 
 #: The parent script. It starts a long-lived child through the SAME
 #: `_die_with_parent` the real spawner installs - not a copy of the
@@ -30,13 +36,13 @@ from tests.boot_process import _die_with_parent
 #: never installs it.
 PARENT = textwrap.dedent(
     """
-    import subprocess, sys, time
+    import functools, os, subprocess, sys, time
     sys.path.insert(0, {tests!r})
     from boot_process import _die_with_parent
 
     proc = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(60)  # {tag}"],
-        preexec_fn=_die_with_parent,
+        preexec_fn=functools.partial(_die_with_parent, os.getpid()),
     )
     print(proc.pid, flush=True)
     time.sleep(60)
@@ -75,7 +81,7 @@ def _run_parent(tag: str) -> tuple[subprocess.Popen[bytes], int]:
     proc = subprocess.Popen(
         [sys.executable, "-c", PARENT.format(tests=TESTS, tag=tag)],
         stdout=subprocess.PIPE,
-        preexec_fn=_die_with_parent,  # noqa: PLW1509
+        preexec_fn=functools.partial(_die_with_parent, os.getpid()),  # noqa: PLW1509
     )
     assert proc.stdout is not None
     child_pid = int(proc.stdout.readline().strip())
@@ -140,3 +146,30 @@ def test_the_orphan_detector_sees_a_live_child() -> None:
         parent.kill()
         parent.wait()
         _gone_within(child_pid, tag, 5.0)
+
+
+def test_a_healthy_child_takes_none_of_the_bail_out_exits() -> None:
+    """The arm the race check never had: prove it does NOT misfire.
+
+    `_die_with_parent` has three ways to kill a child before `exec` -
+    no libc, prctl failed, parent already gone. Each is correct when it
+    fires and catastrophic when it fires wrongly: the first version
+    asked `os.getppid() == 1`, which in a container where pytest is
+    itself PID 1 is true for EVERY child from birth, and every
+    server-spawning test would have died at spawn.
+
+    Nothing tested that. The orphan test above proves the kill path
+    works; this proves the healthy path is not the kill path.
+    """
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "raise SystemExit(0)"],
+        preexec_fn=functools.partial(_die_with_parent, os.getpid()),  # noqa: PLW1509
+    )
+    rc = proc.wait(timeout=30)
+
+    assert rc not in {_EXIT_NO_LIBC, _EXIT_PRCTL_FAILED, _EXIT_PARENT_ALREADY_GONE}, (
+        f"a healthy child exited {rc}, which is one of _die_with_parent's own "
+        "bail-out codes. The guard fired on a child whose parent was alive and "
+        "whose prctl should have succeeded."
+    )
+    assert rc == 0, f"expected a clean child exit, got {rc}"

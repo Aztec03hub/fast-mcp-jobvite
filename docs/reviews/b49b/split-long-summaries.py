@@ -19,6 +19,7 @@ SENT = re.compile(r"(?<=[.!?])\s+(?=[A-Z`*_\"'§(])")
 
 def protect(text: str, budget: int) -> str:
     """Make short `code spans` unbreakable, so a wrap cannot split."""
+
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
@@ -134,16 +135,25 @@ def process(path: pathlib.Path) -> tuple[int, list[int]]:
 def main() -> int:
     proc = subprocess.run(
         [
-            "uv", "run", "--frozen", "ruff", "check", ".",
-            "--select", "W505",
-            "--config", "lint.pycodestyle.max-doc-length = 72",
-            "--output-format", "concise",
+            "uv",
+            "run",
+            "--frozen",
+            "ruff",
+            "check",
+            ".",
+            "--select",
+            "W505",
+            "--config",
+            "lint.pycodestyle.max-doc-length = 72",
+            "--output-format",
+            "concise",
         ],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
-    files = sorted({
-        line.split(":")[0] for line in proc.stdout.splitlines() if "W505" in line
-    })
+    files = sorted(
+        {line.split(":")[0] for line in proc.stdout.splitlines() if "W505" in line}
+    )
     total = 0
     remaining: list[str] = []
     for name in files:

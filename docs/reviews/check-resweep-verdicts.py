@@ -149,8 +149,10 @@ def parse_stated_counts(text: str) -> dict[str, int]:
 
 def check(path: pathlib.Path) -> int:
     if not path.is_file():
-        print(f"FAIL: {path} does not exist. A search at a missing path is not an "
-              f"absence.")
+        print(
+            f"FAIL: {path} does not exist. A search at a missing path is not an "
+            f"absence."
+        )
         return 1
 
     text = path.read_text(encoding="utf-8")
@@ -194,8 +196,10 @@ def check(path: pathlib.Path) -> int:
 
     print(f"Rows parsed: {len(verdicts)}")
     for verdict in VERDICTS:
-        print(f"  {verdict:<16} rows={counted[verdict]:<3} section 1 "
-              f"says={stated.get(verdict, '-')}")
+        print(
+            f"  {verdict:<16} rows={counted[verdict]:<3} section 1 "
+            f"says={stated.get(verdict, '-')}"
+        )
 
     open_rows = sorted(
         (b for b, v in verdicts.items() if v in ("PARTIAL", "UNADDRESSED")),
@@ -220,6 +224,7 @@ def check(path: pathlib.Path) -> int:
 # broken copy, because a check nobody has seen go red is a check nobody
 # has tested.
 # ----------------------------------------------------------------------
+
 
 def _mutate_verdict(text: str) -> str:
     """Flip one row's verdict so the rows and section 1 disagree."""
@@ -281,8 +286,10 @@ def run_controls(path: pathlib.Path) -> int:
     original = path.read_text(encoding="utf-8")
 
     if check(path) != 0:
-        print("\nABORT: the real document is already red, so no control below proves "
-              "anything.")
+        print(
+            "\nABORT: the real document is already red, so no control below proves "
+            "anything."
+        )
         return 1
     print("\n--- controls ---")
 

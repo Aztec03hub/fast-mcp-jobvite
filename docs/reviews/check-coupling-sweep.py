@@ -83,14 +83,17 @@ def main(path: pathlib.Path, gate_path: pathlib.Path = GATE) -> int:
 
     def gate(lines: list[str]) -> int:
         tmp.write_text("".join(lines))
-        return subprocess.run([sys.executable, str(gate_path), str(tmp)],
-                              capture_output=True, text=True).returncode
+        return subprocess.run(
+            [sys.executable, str(gate_path), str(tmp)], capture_output=True, text=True
+        ).returncode
 
     if gate(src) != 0:
-        print("ABORT: the unmutated document is already red. Fix that before sweeping "
-              "- every "
-              "mutation below would be reported as caught, and none of them would have "
-              "been.")
+        print(
+            "ABORT: the unmutated document is already red. Fix that before sweeping "
+            "- every "
+            "mutation below would be reported as caught, and none of them would have "
+            "been."
+        )
         return 1
 
     # each entry is (line index, id, rating, test cell)
@@ -103,10 +106,12 @@ def main(path: pathlib.Path, gate_path: pathlib.Path = GATE) -> int:
             subjects.append((i, c[0], c[4].strip("* "), c[6]))
 
     if not subjects:
-        print("ABORT: no row names a §8 case. Either the table shape changed or the "
-              "coupling this "
-              "sweep exists to attack is gone; either way a green here would mean "
-              "nothing.")
+        print(
+            "ABORT: no row names a §8 case. Either the table shape changed or the "
+            "coupling this "
+            "sweep exists to attack is gone; either way a green here would mean "
+            "nothing."
+        )
         return 1
 
     runs = 0
@@ -128,28 +133,36 @@ def main(path: pathlib.Path, gate_path: pathlib.Path = GATE) -> int:
             else:
                 holes.append((rid, rating, disp))
 
-    print(f"{path}: {len(subjects)} rows name a §8 case; {runs} substitutions run "
-          f"against the gate.")
+    print(
+        f"{path}: {len(subjects)} rows name a §8 case; {runs} substitutions run "
+        f"against the gate."
+    )
     print(f"  {len(designed)} escapes are the designed Medium/Low exemption:")
     for rid, rating, disp in designed:
         print(f"    - {rid} ({rating}) -> {disp!r}")
 
     if not holes:
-        print(f"  0 escapes are holes. Every one of the {len(subjects)} rows that "
-              f"names a §8 case "
-              "loses its green when that reference is removed.")
+        print(
+            f"  0 escapes are holes. Every one of the {len(subjects)} rows that "
+            f"names a §8 case "
+            "loses its green when that reference is removed."
+        )
         return 0
 
-    print(f"  {len(holes)} escapes are HOLES - the row dropped its §8 case and the "
-          f"gate stayed "
-          "green:")
+    print(
+        f"  {len(holes)} escapes are HOLES - the row dropped its §8 case and the "
+        f"gate stayed "
+        "green:"
+    )
     for rid, rating, disp in holes:
         print(f"    - {rid} ({rating}) -> {disp!r}")
     crit = [h for h in holes if h[1] in ("Critical", "High")]
     if crit:
-        print(f"  {len(crit)} of them are Critical or High rows, where §11 permits no "
-              f"exemption "
-              "from having a test at all.")
+        print(
+            f"  {len(crit)} of them are Critical or High rows, where §11 permits no "
+            f"exemption "
+            "from having a test at all."
+        )
     return 1
 
 
@@ -159,8 +172,10 @@ if __name__ == "__main__":
     # verdict from wherever it is run. It previously defaulted to a
     # cwd-relative path, so running it from the directory it lives in
     # produced a FileNotFoundError traceback instead of a verdict.
-    arg = sys.argv[1] if len(sys.argv) > 1 else str(
-        pathlib.Path(__file__).resolve().parents[2] / "docs/DESIGN.md"
+    arg = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else str(pathlib.Path(__file__).resolve().parents[2] / "docs/DESIGN.md")
     )
     gate = pathlib.Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else GATE
     sys.exit(main(pathlib.Path(arg), gate))

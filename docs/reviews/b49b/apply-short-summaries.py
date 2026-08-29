@@ -19,15 +19,15 @@ LIMIT = 72
 
 def protect(text: str, budget: int) -> str:
     """Make short `code spans` unbreakable, so a wrap cannot split."""
+
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
 
     return re.sub(r"`[^`\n]*`", swap, text)
 
-ROWS = json.loads(
-    pathlib.Path("docs/reviews/b49b/short-summaries.json").read_text()
-)
+
+ROWS = json.loads(pathlib.Path("docs/reviews/b49b/short-summaries.json").read_text())
 
 
 def summary_rows(source: str) -> dict[str, int]:
@@ -47,9 +47,7 @@ def summary_rows(source: str) -> dict[str, int]:
 
     def walk(node: ast.AST, prefix: str) -> None:
         for child in ast.iter_child_nodes(node):
-            if isinstance(
-                child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-            ):
+            if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
                 name = f"{prefix}.{child.name}" if prefix else child.name
                 row = opener(child)
                 if row is not None:

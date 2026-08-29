@@ -159,7 +159,10 @@ def parse(text: str) -> tuple[list[dict[str, str]], list[str]]:
 def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
     """A failure message, or None if the row's evidence holds."""
     bnum, klass, artifact, subject = (
-        row["b"], row["class"], row["artifact"], row["subject"],
+        row["b"],
+        row["class"],
+        row["artifact"],
+        row["subject"],
     )
 
     if klass in NO_ARTIFACT:
@@ -173,8 +176,7 @@ def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
 
     if artifact in ("-", ""):
         return (
-            f"{bnum}: class {klass} must cite an artifact at path:line, "
-            "and cites none."
+            f"{bnum}: class {klass} must cite an artifact at path:line, and cites none."
         )
 
     anchor = ANCHOR.match(artifact)
@@ -261,9 +263,11 @@ def check(map_path: pathlib.Path, root: pathlib.Path | None = None) -> int:
             checked += 1
 
     absent = sum(1 for r in rows if r["class"] in NO_ARTIFACT)
-    print(f"Mappings: {len(rows)}  |  anchors verified against their "
-          f"subject: {checked}  |  "
-          f"recorded as absent: {absent}")
+    print(
+        f"Mappings: {len(rows)}  |  anchors verified against their "
+        f"subject: {checked}  |  "
+        f"recorded as absent: {absent}"
+    )
 
     if failures:
         print()
@@ -283,8 +287,10 @@ def check(map_path: pathlib.Path, root: pathlib.Path | None = None) -> int:
 # that actually deletes it can establish that.
 # ----------------------------------------------------------------------
 
+
 def _first_mapped(
-    rows: list[dict[str, str]], want_class: str = "MET",
+    rows: list[dict[str, str]],
+    want_class: str = "MET",
 ) -> dict[str, str]:
     for row in rows:
         if row["class"] == want_class:
@@ -304,9 +310,7 @@ def _c_duplicate_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
     row = _first_mapped(rows)
     path = tree / row["artifact"].rsplit(":", 1)[0]
     text = path.read_text(encoding="utf-8")
-    first = next(
-        line for line in text.splitlines() if row["subject"] in line
-    )
+    first = next(line for line in text.splitlines() if row["subject"] in line)
     path.write_text(text.replace(first, first + "\n" + first, 1), encoding="utf-8")
     return f"subject duplicated so it is no longer unique ({row['b']})"
 
@@ -437,7 +441,8 @@ def run_controls(map_path: pathlib.Path) -> int:
             # copy the tracked working tree, minus .git, which is large
             # and irrelevant here
             shutil.copytree(
-                root, tree,
+                root,
+                tree,
                 ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"),
             )
             try:
@@ -471,7 +476,8 @@ def run_controls(map_path: pathlib.Path) -> int:
         with tempfile.TemporaryDirectory() as tmp:
             tree = pathlib.Path(tmp) / "tree"
             shutil.copytree(
-                root, tree,
+                root,
+                tree,
                 ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"),
             )
             try:

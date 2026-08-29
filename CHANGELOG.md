@@ -332,6 +332,19 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **`ctypes.CDLL` ran after `fork`, where `dlopen` can deadlock the child.** The orphan fix shipped
+  earlier today resolved libc inside the `preexec_fn`; `dlopen` takes loader locks, and a lock held
+  by another thread at the moment of the fork is held forever in the child, which has only the
+  forking thread. This suite is multi-threaded at spawn time - the AnyIO workers its own shutdown
+  tests document - so that was a hang waiting for a schedule. libc is now resolved at import,
+  before anything forks. Alongside it: `prctl`'s return is checked rather than discarded, because a
+  silently failed install leaves the child unprotected, which is the defect wearing the fix's name;
+  and the race check no longer asks `getppid() == 1`, which was wrong in BOTH directions - in a
+  container where pytest is itself PID 1 every child sees 1 from birth and would die at spawn, and
+  under a subreaper an orphan never reparents to 1 at all. The parent's pid is passed in and
+  compared against. Each bail-out has a distinct exit code, and a new arm proves a healthy child
+  takes none of them. (2026-08-29 12:31 PM CDT)
+
 - **A CI gate had never once passed on a runner, and could not.** `Standards citations resolve`
   reads a corpus that lives in a private sibling repository. `GITHUB_TOKEN` is scoped to this
   repository and no step checks the other one out, so on a runner the checker finds no corpus and

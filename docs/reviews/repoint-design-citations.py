@@ -75,7 +75,10 @@ def report(sha: str) -> str:
     """
     proc = subprocess.run(
         [sys.executable, str(CHECKER), "--since", sha],
-        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
     )
     if proc.stderr.strip():
         raise CheckerFailed(
@@ -114,8 +117,7 @@ def parse(
             cited_line = cited_in.read_text().splitlines()[int(m["lineno"]) - 1]
         except (OSError, IndexError, UnicodeDecodeError) as exc:
             unreadable.append(
-                f"  UNREADABLE: {m['file']}:{m['lineno']}: "
-                f"{type(exc).__name__}: {exc}"
+                f"  UNREADABLE: {m['file']}:{m['lineno']}: {type(exc).__name__}: {exc}"
             )
             continue
         if "REPOINT-EXEMPT" in cited_line:
@@ -172,17 +174,23 @@ def apply(moves: MoveMap, write: bool) -> int:
             unseen = set(pairs) - seen
             if unseen:
                 missed += len(unseen)
-                print(f"  NOT FOUND: {rel}:{lineno}: the report named "
-                      f"{sorted(unseen)} but that line does not carry it")
+                print(
+                    f"  NOT FOUND: {rel}:{lineno}: the report named "
+                    f"{sorted(unseen)} but that line does not carry it"
+                )
             applied += len(seen)
         if write:
             path.write_text("".join(text))
 
-    print(f"\n  {applied} citation(s) repointed across {len(by_file)} file(s)"
-          f"{'' if write else ' (DRY RUN, nothing written)'}")
+    print(
+        f"\n  {applied} citation(s) repointed across {len(by_file)} file(s)"
+        f"{'' if write else ' (DRY RUN, nothing written)'}"
+    )
     if missed:
-        print(f"  {missed} the report named and the tree does not carry. NOTHING IS "
-              f"TRUSTWORTHY.")
+        print(
+            f"  {missed} the report named and the tree does not carry. NOTHING IS "
+            f"TRUSTWORTHY."
+        )
         return 1
     return 0
 
@@ -200,15 +208,19 @@ def main(argv: list[str]) -> int:
     moves, unreadable = parse(text)
     if unreadable:
         print("\n".join(unreadable))
-        print(f"  {len(unreadable)} cited line(s) could not be read, so whether "
-              "they carry REPOINT-EXEMPT is UNKNOWN. Refusing to repoint "
-              "anything: an unknown must not resolve to 'not exempt'.")
+        print(
+            f"  {len(unreadable)} cited line(s) could not be read, so whether "
+            "they carry REPOINT-EXEMPT is UNKNOWN. Refusing to repoint "
+            "anything: an unknown must not resolve to 'not exempt'."
+        )
         return 1
     total = sum(len(v) for v in moves.values())
     if total == 0:
-        print("SELECTOR CONTROL: parsed 0 MOVED lines out of "
-              f"{len(text.splitlines())} lines of report. The parser is broken, "
-              "or there is genuinely nothing to move. Check the report by eye.")
+        print(
+            "SELECTOR CONTROL: parsed 0 MOVED lines out of "
+            f"{len(text.splitlines())} lines of report. The parser is broken, "
+            "or there is genuinely nothing to move. Check the report by eye."
+        )
         return 1
     print(f"  parsed {total} MOVED citation(s) from the checker's output")
     return apply(moves, write="--write" in argv)

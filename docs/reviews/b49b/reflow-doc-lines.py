@@ -30,6 +30,7 @@ ARGITEM = re.compile(r"^(\s*)(\*{0,2}[A-Za-z_][A-Za-z0-9_]*)\s*:\s+\S")
 
 def protect(text: str, budget: int) -> str:
     """Make short `code spans` unbreakable, so a wrap cannot split."""
+
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
@@ -45,9 +46,7 @@ def is_fence(s: str) -> bool:
     return s.strip().startswith("```")
 
 
-def wrap_paragraph(
-    lines: list[str], indent: str, hang: str, width: int
-) -> list[str]:
+def wrap_paragraph(lines: list[str], indent: str, hang: str, width: int) -> list[str]:
     """Join `lines` into one paragraph and re-wrap it under `indent`."""
     text = " ".join(line.strip() for line in lines)
     text = re.sub(r"\s+", " ", text).strip()
@@ -188,9 +187,7 @@ def reflow_comment_run(run: list[tuple[int, str]]) -> list[str] | None:
         body.append(content)
 
     reflowed = reflow_block(body, width=LIMIT - len(indent) - len(marker) - 1)
-    return [
-        f"{indent}{marker}" if not b else f"{indent}{marker} {b}" for b in reflowed
-    ]
+    return [f"{indent}{marker}" if not b else f"{indent}{marker} {b}" for b in reflowed]
 
 
 def fix_dividers(lines: list[str]) -> list[str]:
@@ -271,13 +268,13 @@ def rebuild_docstring(raw_lines: list[str], indent: str) -> list[str]:
 
     summary = first.strip()[3:].rstrip()
     if summary.endswith(open_q):
-        summary = summary[: -3].rstrip()
+        summary = summary[:-3].rstrip()
 
     interior = raw_lines[1:-1] if closing_alone else raw_lines[1:]
     if not closing_alone:
         tail = interior[-1].rstrip()
         if tail.endswith(open_q):
-            interior = interior[:-1] + [tail[: -3].rstrip()]
+            interior = interior[:-1] + [tail[:-3].rstrip()]
 
     normalised = []
     for line in interior:

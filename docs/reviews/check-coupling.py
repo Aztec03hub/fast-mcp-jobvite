@@ -168,15 +168,23 @@ NOT_REQUIRED_RE = re.compile(r"^not required \((Critical|High|Medium|Low)\)$")
 # of the H1 hole: a row could carry the "Mitigated" token AND dispose of
 # itself as "no credible threat", and neither direction of the
 # biconditional objected.
-NOT_MITIGATED_RE = re.compile(r"^(?:no credible threat|residual"
-                              r"|accepted(?: \(B\d+(?:, ?B\d+)*\))?"
-                              r"|unmitigated(?: \(B\d+(?:, ?B\d+)*\))?)$")
+NOT_MITIGATED_RE = re.compile(
+    r"^(?:no credible threat|residual"
+    r"|accepted(?: \(B\d+(?:, ?B\d+)*\))?"
+    r"|unmitigated(?: \(B\d+(?:, ?B\d+)*\))?)$"
+)
 LEVEL_RE = re.compile(r"^[HML]$")
 # `threat-modeling.md:78-82`, transcribed. Keyed (Likelihood, Impact).
 MATRIX = {
-    ("H", "L"): "Medium", ("H", "M"): "High", ("H", "H"): "Critical",
-    ("M", "L"): "Low",    ("M", "M"): "Medium", ("M", "H"): "High",
-    ("L", "L"): "Low",    ("L", "M"): "Low",   ("L", "H"): "Medium",
+    ("H", "L"): "Medium",
+    ("H", "M"): "High",
+    ("H", "H"): "Critical",
+    ("M", "L"): "Low",
+    ("M", "M"): "Medium",
+    ("M", "H"): "High",
+    ("L", "L"): "Low",
+    ("L", "M"): "Low",
+    ("L", "H"): "Medium",
 }
 DISPOSITION_RE = re.compile(
     r"^(?:"
@@ -205,7 +213,7 @@ def main(path: pathlib.Path) -> int:
     s11 = slice_section(text, "\n## 11. Threat model", "\n## 12.")
 
     stride = slice_section(s11, "\n### STRIDE Analysis", "\n### Threshold disposition")
-    closing = s11[s11.index("\n### Threshold disposition"):]
+    closing = s11[s11.index("\n### Threshold disposition") :]
 
     failures: list[str] = []
     rows: dict[str, dict[str, str]] = {}
@@ -218,7 +226,13 @@ def main(path: pathlib.Path) -> int:
             failures.append(f"row has {len(c)} columns, expected 7: {c[0]!r}")
             continue
         rid, threat, lik, imp, risk, mitigation, test = (
-            c[0], c[1], c[2], c[3], c[4], c[5], c[6],
+            c[0],
+            c[1],
+            c[2],
+            c[3],
+            c[4],
+            c[5],
+            c[6],
         )
         if not ID_RE.match(rid):
             failures.append(f"id {rid!r} does not match C<n>-<STRIDE letter><k>")
@@ -226,8 +240,14 @@ def main(path: pathlib.Path) -> int:
         if rid in rows:
             failures.append(f"duplicate row id {rid!r}")
             continue
-        rows[rid] = {"threat": threat, "lik": lik, "imp": imp, "risk": risk,
-                     "mitigation": mitigation, "test": test}
+        rows[rid] = {
+            "threat": threat,
+            "lik": lik,
+            "imp": imp,
+            "risk": risk,
+            "mitigation": mitigation,
+            "test": test,
+        }
 
     if not rows:
         print("FAIL: no STRIDE rows parsed; the table shape changed")
@@ -247,7 +267,7 @@ def main(path: pathlib.Path) -> int:
             )
 
     # required-case bullets in section 8
-    s8_required = s8[s8.index("Required cases"):]
+    s8_required = s8[s8.index("Required cases") :]
 
     haystack = re.sub(r"\s+", " ", s8_required)
 
@@ -281,8 +301,13 @@ def main(path: pathlib.Path) -> int:
     #     that tested nothing; a declared gate is a stated condition.
     #     What is forbidden is the silent version.
     ARTIFACT_MARKER = "against the committed files"  # noqa: N806 - a selector
-    GATING_MARKERS = ("gated on", "once a", "when a", "when the implementation "  # noqa: N806
-                                                      "produces")
+    GATING_MARKERS = (
+        "gated on",
+        "once a",
+        "when a",
+        "when the implementation "  # noqa: N806
+        "produces",
+    )
 
     artifact_bullets = [
         b for b in re.split(r"\n- ", s8_required) if ARTIFACT_MARKER in b
@@ -298,7 +323,7 @@ def main(path: pathlib.Path) -> int:
     if not artifact_bullets:
         failures.append(
             "no §8 case claims to assert " + repr(ARTIFACT_MARKER) + " - either the "
-                                                                     "artifact-"
+            "artifact-"
             "asserting cases were removed, or the phrase this check selects on was "
             "reworded and the check is now examining nothing"
         )
@@ -337,7 +362,7 @@ def main(path: pathlib.Path) -> int:
                 # different file: substituting a nonexistent path for a
                 # real one in the same bullet went green. Proximity is
                 # not reference.
-                if stem in low[idx: idx + 50]:
+                if stem in low[idx : idx + 50]:
                     return True
                 start = idx + 1
         return False
@@ -392,9 +417,11 @@ def main(path: pathlib.Path) -> int:
     }
     s8_bullets = [b.strip() for b in re.split(r"\n- ", s8_required)[1:]]
     if not s8_bullets:
-        failures.append("§8's required-case list parsed as empty - the check that "
-                        "every case has "
-                        "an owner is examining nothing")
+        failures.append(
+            "§8's required-case list parsed as empty - the check that "
+            "every case has "
+            "an owner is examining nothing"
+        )
     for bullet in s8_bullets:
         flat = re.sub(r"\s+", " ", bullet)
         if any(n in flat or flat.startswith(n[:60]) for n in named_cases):
@@ -451,8 +478,7 @@ def main(path: pathlib.Path) -> int:
             )
 
     high = {
-        r for r, v in rows.items()
-        if "Critical" in v["risk"] or "High" in v["risk"]
+        r for r, v in rows.items() if "Critical" in v["risk"] or "High" in v["risk"]
     }
     all_mitigated = {r for r, v in rows.items() if "Mitigated" in v["mitigation"]}
     mitigated = high & all_mitigated
@@ -568,9 +594,9 @@ def main(path: pathlib.Path) -> int:
             )
 
     # 4. unmitigated Critical/High must be disposed of
-    must = closing[closing.index("Must mitigate before implementation proceeds"):]
+    must = closing[closing.index("Must mitigate before implementation proceeds") :]
     must = must[: must.index("\n\n**", must.index("| Row |"))]
-    residual = closing[closing.index("### Residual Risks"):]
+    residual = closing[closing.index("### Residual Risks") :]
     for rid in sorted(unmitigated):
         if rid not in must and rid not in residual:
             failures.append(
@@ -587,7 +613,7 @@ def main(path: pathlib.Path) -> int:
 
     # 6. the "already mitigated" roster matches the tables exactly
     roster_start = closing.index("**Already mitigated at Critical or High**")
-    roster = closing[roster_start: closing.index("### Residual Risks", roster_start)]
+    roster = closing[roster_start : closing.index("### Residual Risks", roster_start)]
     claimed = set(REF_RE.findall(roster))
     if claimed != mitigated:
         for extra in sorted(claimed - mitigated):
@@ -604,28 +630,32 @@ def main(path: pathlib.Path) -> int:
 
     rated = set(rows) - unrated
     tested = sum(1 for r in rows if rows[r]["test"].startswith("§8:"))
-    print(f"{path}: {len(rows)} STRIDE rows, {len(high)} Critical/High "
-          f"({len(mitigated)} mitigated by the roster's reckoning, {len(unmitigated)} "
-          f"not); "
-          f"all {len(rows)} rows checked for disposition, {tested} naming a §8 case.")
+    print(
+        f"{path}: {len(rows)} STRIDE rows, {len(high)} Critical/High "
+        f"({len(mitigated)} mitigated by the roster's reckoning, {len(unmitigated)} "
+        f"not); "
+        f"all {len(rows)} rows checked for disposition, {tested} naming a §8 case."
+    )
     if failures:
         print(f"FAIL: {len(failures)} problem(s)")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print(f"PASS: ids unique, STRIDE coverage complete, all {len(rated)} rated rows "
-          f"agree with the "
-          f"matrix at threat-modeling.md:78-82 and all {len(unrated)} unrated rows are "
-          f"fully "
-          f"unrated, all {len(rows)} rows at EVERY severity dispose of themselves by "
-          f"naming a §8 "
-          "case that exists or carrying a recognised disposition at their own rating, "
-          "'no credible threat' is used by unrated rows and only by unrated rows, no "
-          "Critical/High "
-          "row claims exemption from having a test, mitigation status and Test cell "
-          "agree in both "
-          "directions, every unmitigated Critical/High row is disposed of, and every "
-          "id the closing tables name is defined.")
+    print(
+        f"PASS: ids unique, STRIDE coverage complete, all {len(rated)} rated rows "
+        f"agree with the "
+        f"matrix at threat-modeling.md:78-82 and all {len(unrated)} unrated rows are "
+        f"fully "
+        f"unrated, all {len(rows)} rows at EVERY severity dispose of themselves by "
+        f"naming a §8 "
+        "case that exists or carrying a recognised disposition at their own rating, "
+        "'no credible threat' is used by unrated rows and only by unrated rows, no "
+        "Critical/High "
+        "row claims exemption from having a test, mitigation status and Test cell "
+        "agree in both "
+        "directions, every unmitigated Critical/High row is disposed of, and every "
+        "id the closing tables name is defined."
+    )
     return 0
 
 
@@ -635,7 +665,9 @@ if __name__ == "__main__":
     # verdict from wherever it is run. It previously defaulted to a
     # cwd-relative path, so running it from the directory it lives in
     # produced a FileNotFoundError traceback instead of a verdict.
-    arg = sys.argv[1] if len(sys.argv) > 1 else str(
-        pathlib.Path(__file__).resolve().parents[2] / "docs/DESIGN.md"
+    arg = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else str(pathlib.Path(__file__).resolve().parents[2] / "docs/DESIGN.md")
     )
     sys.exit(main(pathlib.Path(arg)))

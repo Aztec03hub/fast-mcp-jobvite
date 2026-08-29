@@ -89,7 +89,10 @@ def _tracked_files() -> list[pathlib.Path]:
     """
     out = subprocess.run(
         ["git", "ls-files", "-z"],
-        capture_output=True, text=True, cwd=REPO_ROOT, check=True,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
     ).stdout
     files = []
     for name in out.split("\0"):
@@ -143,8 +146,10 @@ def line_map(old_text: str, new_text: str) -> dict[int, int | None]:
 def _report_bounds(total_lines: int) -> int:
     found = citations()
     if not found:
-        print("SELECTOR CONTROL: no DESIGN.md citations found anywhere. The "
-              "pattern is broken, not the corpus.")
+        print(
+            "SELECTOR CONTROL: no DESIGN.md citations found anywhere. The "
+            "pattern is broken, not the corpus."
+        )
         return 1
 
     bad = [
@@ -154,8 +159,10 @@ def _report_bounds(total_lines: int) -> int:
         for p, ln, s, e in found
         if s > total_lines or e > total_lines or s < 1 or e < s
     ]
-    print(f"  {len(found)} DESIGN.md citations across "
-          f"{len({p for p, _, _, _ in found})} files")
+    print(
+        f"  {len(found)} DESIGN.md citations across "
+        f"{len({p for p, _, _, _ in found})} files"
+    )
     print(f"  highest line cited: {max(e for _, _, _, e in found)} of {total_lines}")
     if bad:
         print(f"\n{len(bad)} problem(s):")
@@ -163,15 +170,20 @@ def _report_bounds(total_lines: int) -> int:
             print(f"  FAIL: {b}")
         return 1
     print("\nEvery citation resolves to a line that exists.")
-    print("NOTE: that is NOT the same as pointing at the right line. This checker "
-          "cannot see a contracted range; three have been found by hand.")
+    print(
+        "NOTE: that is NOT the same as pointing at the right line. This checker "
+        "cannot see a contracted range; three have been found by hand."
+    )
     return 0
 
 
 def _report_moves(sha: str) -> int:
     old = subprocess.run(
         ["git", "show", f"{sha}:docs/DESIGN.md"],
-        capture_output=True, text=True, cwd=REPO_ROOT, check=True,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
     ).stdout
     new = DESIGN.read_text()
     if old == new:
@@ -186,15 +198,20 @@ def _report_moves(sha: str) -> int:
         rel = path.relative_to(REPO_ROOT)
         cited = f"DESIGN.md:{start}" + (f"-{end}" if end != start else "")
         if new_start is None or new_end is None:
-            broken.append(f"{rel}:{lineno}: {cited} - that line CHANGED; a human "
-                          "must re-read the subject")
+            broken.append(
+                f"{rel}:{lineno}: {cited} - that line CHANGED; a human "
+                "must re-read the subject"
+            )
         elif (new_start, new_end) != (start, end):
             new_cited = f"DESIGN.md:{new_start}" + (
-                f"-{new_end}" if new_end != new_start else "")
+                f"-{new_end}" if new_end != new_start else ""
+            )
             moved.append(f"{rel}:{lineno}: {cited} -> {new_cited}")
 
-    print(f"  against {sha}: {len(moved)} citation(s) moved, "
-          f"{len(broken)} point at changed lines")
+    print(
+        f"  against {sha}: {len(moved)} citation(s) moved, "
+        f"{len(broken)} point at changed lines"
+    )
     for line in broken:
         print(f"  BROKEN: {line}")
     for line in moved:
@@ -213,8 +230,10 @@ def controls() -> int:
         fired += 1
         print("  CONTROL an inserted line shifts the map -> FIRED")
     else:
-        print(f"  CONTROL an inserted line shifts the map -> DID NOT FIRE "
-              f"(got {mapping.get(10)})")
+        print(
+            f"  CONTROL an inserted line shifts the map -> DID NOT FIRE "
+            f"(got {mapping.get(10)})"
+        )
 
     total += 1
     lines = text.splitlines()

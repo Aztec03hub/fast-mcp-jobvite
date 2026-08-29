@@ -57,7 +57,10 @@ STRUCTURAL = ("```", "|---", "---", "|--", ":--")
 def design_lines(sha: str) -> list[str]:
     out = subprocess.run(
         ["git", "show", f"{sha}:docs/DESIGN.md"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return out.stdout.splitlines()
 
@@ -91,7 +94,8 @@ def main() -> int:
                         findings["the entire range is blank"].append(where)
                     elif all(
                         line.strip().startswith(STRUCTURAL)
-                        for line in body if line.strip()
+                        for line in body
+                        if line.strip()
                     ):
                         findings["only a fence or table separator"].append(where)
                     elif not body[0].strip():

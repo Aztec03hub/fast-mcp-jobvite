@@ -53,12 +53,22 @@ def violations() -> list[tuple[pathlib.Path, int]]:
     """Every (file, line) W505 flags, from ruff's own JSON output."""
     proc = subprocess.run(
         [
-            "uv", "run", "--frozen", "ruff", "check", ".",
-            "--select", "W505",
-            "--config", "lint.pycodestyle.max-doc-length = 72",
-            "--output-format", "json",
+            "uv",
+            "run",
+            "--frozen",
+            "ruff",
+            "check",
+            ".",
+            "--select",
+            "W505",
+            "--config",
+            "lint.pycodestyle.max-doc-length = 72",
+            "--output-format",
+            "json",
         ],
-        capture_output=True, text=True, cwd=REPO,
+        capture_output=True,
+        text=True,
+        cwd=REPO,
     )
     return [
         (REPO / item["filename"], item["location"]["row"])

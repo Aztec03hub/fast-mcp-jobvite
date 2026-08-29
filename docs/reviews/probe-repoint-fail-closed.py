@@ -132,7 +132,10 @@ else:
     # must NOT refuse, or row E proves nothing about the chmod.
     baseline = subprocess.run(
         [sys.executable, str(TOOL), SHA],
-        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
     )
     row(
         "E0. readable baseline does NOT refuse (control on the control)",
@@ -146,7 +149,10 @@ else:
         assert not os.access(victim, os.R_OK), "chmod did not make the file unreadable"
         run = subprocess.run(
             [sys.executable, str(TOOL), SHA],
-            capture_output=True, text=True, cwd=REPO_ROOT, check=False,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
         )
     finally:
         os.chmod(victim, before_mode)

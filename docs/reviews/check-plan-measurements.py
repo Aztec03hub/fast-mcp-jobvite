@@ -43,8 +43,7 @@ VENV_PY = REPO_ROOT / ".venv" / "bin" / "python"
 PYTHON = str(VENV_PY if VENV_PY.exists() else sys.executable)
 
 FIXTURE_PLUGIN = (
-    "import pytest\n\n\n@pytest.fixture\n"
-    "def mock_transport():\n    return 'MT'\n"
+    "import pytest\n\n\n@pytest.fixture\ndef mock_transport():\n    return 'MT'\n"
 )
 USES_FIXTURE = "def test_uses(mock_transport):\n    assert mock_transport == 'MT'\n"
 
@@ -256,14 +255,22 @@ def m4_collection_guard_survives_a_wholly_credentialed_file() -> tuple[bool, str
 
 
 PROBES = [
-    ("M1 pytest_plugins in a non-rootdir conftest",
-     m1_pytest_plugins_in_a_non_rootdir_conftest),
-    ("M2 per-directory conftest cannot cross",
-     m2_per_directory_conftest_does_not_cross_directories),
-    ("M3 manifest closes the dependency set",
-     m3_manifest_asserts_a_closed_dependency_set),
-    ("M4 guard vs a wholly-deselected file",
-     m4_collection_guard_survives_a_wholly_credentialed_file),
+    (
+        "M1 pytest_plugins in a non-rootdir conftest",
+        m1_pytest_plugins_in_a_non_rootdir_conftest,
+    ),
+    (
+        "M2 per-directory conftest cannot cross",
+        m2_per_directory_conftest_does_not_cross_directories,
+    ),
+    (
+        "M3 manifest closes the dependency set",
+        m3_manifest_asserts_a_closed_dependency_set,
+    ),
+    (
+        "M4 guard vs a wholly-deselected file",
+        m4_collection_guard_survives_a_wholly_credentialed_file,
+    ),
 ]
 
 # Empty, and it should stay that way. M4 was the one entry: collision
