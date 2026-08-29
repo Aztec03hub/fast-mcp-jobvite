@@ -237,6 +237,8 @@ def test_the_enumeration_finds_a_model_planted_in_a_synthetic_module(
         "    pass\n"
         "class PlantedResult(BaseModel):\n"
         "    pass\n"
+        "class OrphanInput(BaseModel):\n"
+        "    pass\n"
         "def register(server):\n"
         "    @server.tool(\n"
         "        name='planted',\n"
@@ -246,10 +248,25 @@ def test_the_enumeration_finds_a_model_planted_in_a_synthetic_module(
         "        return None\n"
     )
     tree = _parse(planted)
-    assert models_named_by_tool_functions(tree) == {"PlantedInput"}
-    assert models_defined_as_classes(tree) == {"PlantedInput"}, (
-        "the output model must be excluded by its `output_schema=` use, not by its name"
+    by_tool = models_named_by_tool_functions(tree)
+    by_class = models_defined_as_classes(tree)
+
+    assert by_tool == {"PlantedInput"}
+    assert by_class == {"PlantedInput", "OrphanInput"}, (
+        "the output model must be excluded by its `output_schema=` use, "
+        "and NOT by its name"
     )
+
+    # THE TWO ROUTES MUST BE ABLE TO DISAGREE, and this is the arm that
+    # proves it. `OrphanInput` is a model class no tool registers - the
+    # dead-input-model shape - and route B sees it while route A cannot.
+    #
+    # **AMPUTATION A4 IS WHY THIS ARM EXISTS.** Deleting route B's body
+    # and having it call route A left the equality assertion comparing a
+    # set with itself: true by construction, and the whole harness went
+    # green on a deleted behaviour. Two instruments that cannot disagree
+    # are one instrument reported twice.
+    assert by_class - by_tool == {"OrphanInput"}
 
 
 # ======================================================================
@@ -539,11 +556,40 @@ class NestedProbe(InboundModel):
     payload: dict[str, Any]
 
 
-def _nest(depth: int) -> Any:
+def _payload_of_depth(levels: int) -> Any:
+    """A payload whose deepest element sits at exactly `levels`.
+
+    `check_structural_limits` counts the argument object itself as
+    level 1, so a scalar leaf inside one dict is at level 2.
+
+    **THE ARMS BELOW USE LITERAL 5, 1000, 100 AND 1048576, NEVER THE
+    IMPORTED CONSTANTS, AND THE HARNESS IS WHY.** The first version
+    wrote `_nest(MAX_NESTING_DEPTH - 1)`; mutation M11 moved
+    `MAX_NESTING_DEPTH` from 5 to 4 and the accepting arm MOVED WITH IT
+    and passed. A test that reads its expectation out of the code it is
+    testing cannot fail when that code changes - it is a restatement,
+    not an assertion. `test_the_limits_are_the_designs_own_numbers`
+    below is the one place the constants are checked, against the
+    numbers `DESIGN.md:162-165` writes down.
+    """
     value: Any = "leaf"
-    for _ in range(depth):
+    for _ in range(levels - 1):
         value = {"k": value}
     return value
+
+
+def test_the_limits_are_the_designs_own_numbers() -> None:
+    """`DESIGN.md:162-165`, the §2.1 table, transcribed once.
+
+    Every arm below is a literal. This is the single place those
+    literals are joined to the constants the code uses, so a limit
+    changed in `constraints.py` fails HERE, by name, instead of
+    silently redefining what every other arm means.
+    """
+    assert MAX_NESTING_DEPTH == 5
+    assert MAX_LIST_ITEMS == 1_000
+    assert MAX_DICT_KEYS == 100
+    assert MAX_PAYLOAD_BYTES == 1024 * 1024
 
 
 # --- depth ------------------------------------------------------------
@@ -551,8 +597,13 @@ def _nest(depth: int) -> Any:
 
 def test_case9_reject_nesting_past_five_levels() -> None:
     """`DESIGN.md:162`, one of §8 #9's four arms."""
+    # EXACTLY ONE LEVEL PAST, never two. The first version rejected a
+    # payload two levels over, and mutation M15 - which loosened the
+    # check by exactly one - survived it. A rejecting arm with slack in
+    # it cannot see an off-by-one, which is the only way this check
+    # realistically goes wrong.
     with pytest.raises(ValueError, match="nests deeper"):
-        check_structural_limits(_nest(MAX_NESTING_DEPTH + 1))
+        check_structural_limits(_payload_of_depth(6))
 
 
 def test_case9_ACCEPT_a_payload_at_exactly_five_levels() -> None:
@@ -560,13 +611,13 @@ def test_case9_ACCEPT_a_payload_at_exactly_five_levels() -> None:
 
     Without it a rejector passes the arm above.
     """
-    check_structural_limits(_nest(MAX_NESTING_DEPTH - 1))
+    check_structural_limits(_payload_of_depth(5))
 
 
 def test_case9_a_deep_payload_fails_closed_through_a_live_model() -> None:
     """The limit reaching a caller, not just the function."""
     with pytest.raises(ValidationError):
-        NestedProbe(payload=_nest(MAX_NESTING_DEPTH + 4))
+        NestedProbe(payload=_payload_of_depth(6))
 
 
 # --- list items -------------------------------------------------------
@@ -575,17 +626,17 @@ def test_case9_a_deep_payload_fails_closed_through_a_live_model() -> None:
 def test_case9_reject_a_collection_past_one_thousand_items() -> None:
     """`DESIGN.md:163`."""
     with pytest.raises(ValueError, match="more than 1000 items"):
-        check_structural_limits({"k": list(range(MAX_LIST_ITEMS + 1))})
+        check_structural_limits({"k": list(range(1001))})
 
 
 def test_case9_ACCEPT_a_collection_of_exactly_one_thousand_items() -> None:
     """ACCEPTING ARM 2 of 4."""
-    check_structural_limits({"k": list(range(MAX_LIST_ITEMS))})
+    check_structural_limits({"k": list(range(1000))})
 
 
 def test_case9_an_oversized_list_fails_closed_through_a_live_model() -> None:
     with pytest.raises(ValidationError):
-        NestedProbe(payload={"k": list(range(MAX_LIST_ITEMS + 1))})
+        NestedProbe(payload={"k": list(range(1001))})
 
 
 # --- dict keys --------------------------------------------------------
@@ -593,18 +644,23 @@ def test_case9_an_oversized_list_fails_closed_through_a_live_model() -> None:
 
 def test_case9_reject_an_object_past_one_hundred_keys() -> None:
     """`DESIGN.md:164`."""
+    # THE VALUES ARE ALL THE SAME, DELIBERATELY. The first version
+    # used `{str(i): i ...}`, whose 101 values are 101 DISTINCT values -
+    # so mutation M13, which counted distinct values instead of keys,
+    # survived it. A fixture whose key count and value count agree
+    # cannot tell the two quantities apart.
     with pytest.raises(ValueError, match="more than 100 keys"):
-        check_structural_limits({str(i): i for i in range(MAX_DICT_KEYS + 1)})
+        check_structural_limits({str(i): "same" for i in range(101)})
 
 
 def test_case9_ACCEPT_an_object_of_exactly_one_hundred_keys() -> None:
     """ACCEPTING ARM 3 of 4."""
-    check_structural_limits({str(i): i for i in range(MAX_DICT_KEYS)})
+    check_structural_limits({str(i): "same" for i in range(100)})
 
 
 def test_case9_an_oversized_object_fails_closed_through_a_live_model() -> None:
     with pytest.raises(ValidationError):
-        NestedProbe(payload={str(i): i for i in range(MAX_DICT_KEYS + 1)})
+        NestedProbe(payload={str(i): "same" for i in range(101)})
 
 
 # --- payload size -----------------------------------------------------
@@ -618,7 +674,7 @@ def test_case9_reject_a_payload_larger_than_one_mebibyte() -> None:
     residue is written down rather than implied by a green.
     """
     with pytest.raises(ValueError, match="larger than"):
-        check_structural_limits({"k": "x" * (MAX_PAYLOAD_BYTES + 1)})
+        check_structural_limits({"k": "x" * (1024 * 1024 + 1)})
 
 
 def test_case9_ACCEPT_a_payload_sitting_just_inside_one_mebibyte() -> None:
@@ -628,12 +684,12 @@ def test_case9_ACCEPT_a_payload_sitting_just_inside_one_mebibyte() -> None:
     arm above.
     """
     # 32 bytes of slack for the JSON quoting and the key.
-    check_structural_limits({"k": "x" * (MAX_PAYLOAD_BYTES - 32)})
+    check_structural_limits({"k": "x" * (1024 * 1024 - 32)})
 
 
 def test_case9_an_oversized_payload_fails_closed_through_a_live_model() -> None:
     with pytest.raises(ValidationError):
-        NestedProbe(payload={"k": "x" * (MAX_PAYLOAD_BYTES + 1)})
+        NestedProbe(payload={"k": "x" * (1024 * 1024 + 1)})
 
 
 def test_case9_the_size_check_survives_a_value_json_cannot_serialise() -> None:
@@ -659,10 +715,10 @@ def test_case9_EVERY_swept_model_fails_closed_on_every_limit(
     """
     base = _valid_payload(model)
     for name, oversized in (
-        ("depth", _nest(MAX_NESTING_DEPTH + 1)),
-        ("list", list(range(MAX_LIST_ITEMS + 1))),
-        ("keys", {str(i): i for i in range(MAX_DICT_KEYS + 1)}),
-        ("size", "x" * (MAX_PAYLOAD_BYTES + 1)),
+        ("depth", _payload_of_depth(6)),
+        ("list", list(range(1001))),
+        ("keys", {str(i): "same" for i in range(101)}),
+        ("size", "x" * (1024 * 1024 + 1)),
     ):
         with pytest.raises(ValidationError):
             model(**(base | {"structurally_oversized": oversized}))
