@@ -15,6 +15,15 @@ design decisions the implementation was built against and the units built so far
 
 ### Added
 
+- **The three structural limits `DESIGN.md:162-164` names and nothing enforced** - nesting depth 5,
+  1,000 list items, 100 dict keys - plus a 1 MiB bound on the serialised argument payload, in
+  `utils/constraints.py` and applied to every tool input model through a shared `InboundModel` base
+  rather than per model. The sweep that proves it runs over an input-model set discovered by **two
+  independent AST walks asserted equal**, never over a list: the brief said four models and the
+  discovery found **five**. (2026-08-29 09:04 AM CDT)
+- **ADR-0029**, recording that §2.1's body-size limit belongs at a middleware this design does not
+  have, and that the argument payload cap is not that limit. (2026-08-29 09:04 AM CDT)
+
 - **`search_candidates` and `get_candidate`.** Two tools rather than one, because the shapes differ:
   one returns a page and one returns a record, and a single tool cannot advertise two return
   schemas. Candidate records are **allow-listed** - a field Jobvite returns that is not declared
