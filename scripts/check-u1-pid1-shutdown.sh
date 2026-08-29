@@ -17,6 +17,16 @@
 #   which delivers a real SIGTERM to PID 1 and SIGKILLs after the grace period.
 #   That is the production shape Docker, Kubernetes and Cloud Run all use.
 #
+#   AND IT NOW CHECKS THAT, ON EVERY ARM. R3-M2: for one revision this file made
+#   the "both transports" claim in its first line while only the `http` arm
+#   asserted PID 1 - the assertion keyed off uvicorn's "Started server process [1]"
+#   log line, which `stdio` does not emit. The stdio arm asserted teardown and
+#   timing, both of which a NON-pid-1 process satisfies, so the row read as proven
+#   while being unproven. The PID is now written into the marker by the entry
+#   script itself and checked unconditionally, and an arm that cannot read a PID
+#   fails LOUDLY rather than degrading to the weaker check. A harness that cannot
+#   fail is worse than no harness: it occupies the space a real check would take.
+#
 #   It does NOT test an image built from this repository. The container runs the
 #   IMAGE's own CPython 3.12 with this repo's virtualenv site-packages on
 #   PYTHONPATH, bind-mounted read-only. That is a genuine 3.12 interpreter, this
@@ -125,9 +135,37 @@ run_arm () {
   awk -v e="$elapsed" -v g="$GRACE" 'BEGIN{exit !(e < g)}' || {
     echo "    FAIL: took ${elapsed}s, at or beyond the ${GRACE}s grace - it was SIGKILLed"; FAILED=1; }
 
-  if [ "$transport" = "http" ]; then
-    printf '%s' "$logs" | grep -q 'process \[1\]' || {
-      echo "    FAIL: no 'Started server process [1]' in the log - this was NOT pid 1"; FAILED=1; }
+  # PID 1, ON BOTH ARMS. R3-M2: this assertion used to sit inside an
+  # `http`-only branch because it keyed off uvicorn's "Started server
+  # process [1]" log line, which the stdio arm never emits. The stdio arm
+  # therefore asserted only "the marker closed inside the grace period",
+  # which is equally true of a process that is NOT pid 1 - add `--init`,
+  # switch to an image with an entrypoint shim, or wrap the command in
+  # `sh -c` and the arm stays green while testing something else.
+  #
+  # The PID now comes from the entry script itself (tests/boot_process.py's
+  # MARKER_ENTRY writes `opened pid=<n>`), so it is transport-independent
+  # and owned by this project rather than by a third-party log format.
+  #
+  # TWO CHECKS, NOT ONE, so the arm cannot silently degrade: first that the
+  # marker carries a pid at all - if MARKER_ENTRY stops recording it, the
+  # single `grep -q 'pid=1'` below would go red for the right reason but
+  # with a message blaming the container, and a future reader would "fix"
+  # it by deleting the check. An absent instrument is a DIFFERENT failure
+  # from a wrong reading and must say so.
+  local recorded_pid
+  recorded_pid=$(sed -n 's/^opened pid=\([0-9][0-9]*\)$/\1/p' "$marker" | head -1)
+  if [ -z "$recorded_pid" ]; then
+    echo "    FAIL: the marker records no pid - MARKER_ENTRY no longer writes"
+    echo "          'opened pid=<n>', so this arm CANNOT establish pid 1."
+    echo "          marker was: '$final'"
+    printf '%s' "$logs" | tail -3 | cut -c1-100 | sed 's/^/          | /'
+    FAILED=1
+  elif [ "$recorded_pid" != "1" ]; then
+    echo "    FAIL: the entry ran as pid $recorded_pid, not pid 1 - this arm did"
+    echo "          NOT measure a PID-1 signal disposition."
+    printf '%s' "$logs" | tail -3 | cut -c1-100 | sed 's/^/          | /'
+    FAILED=1
   fi
 }
 

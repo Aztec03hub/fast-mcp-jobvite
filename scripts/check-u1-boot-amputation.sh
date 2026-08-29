@@ -9,10 +9,20 @@
 # that survived mutation and was vacuous. A test that passes when its
 # subject is not there is not a weak test, it is a false instrument.
 #
-# THIS HARNESS DOES NOT EXIT NON-ZERO ON SURVIVORS. Survivors are the
-# OUTPUT: each row names every assertion that still reported success against
-# a tree with the behaviour removed. It exits non-zero only if it could not
-# run, or if the intact baseline is red.
+# TWO KINDS OF SURVIVOR, AND ONLY ONE IS A FAILURE.
+#
+#   An assertion whose subject this row does not touch passing is not news:
+#   it passes on an intact tree for the same reason. Those are printed as
+#   CONTEXT and do not affect the exit code.
+#
+#   An assertion that EXISTS TO NOTICE this row's amputation and passes
+#   anyway is an UNEXPECTED SURVIVOR. That is a false instrument, it is the
+#   finding this file is for, and it EXITS 1. Each row declares those ids in
+#   a `MUST_DIE` array; see the long comment above `report`.
+#
+# Exit 0 = every declared assertion died on every row. 1 = an unexpected
+# survivor, or a row that timed out and therefore measured nothing. 3 = could
+# not run: the intact baseline is red, or a declared id no longer exists.
 #
 # PYTHONDONTWRITEBYTECODE=1 on every run, and the tree is restored from a
 # byte copy taken at the top (never `git checkout --`, which would revert
@@ -41,8 +51,42 @@ restore() {
   cp "$WORK/server.py" "$SERVER"
 }
 
-report() {  # $1 = label
-  local label="$1"
+# WHY EVERY ROW NOW DECLARES WHAT IT MUST KILL.
+#
+# For one revision this harness printed EVERY passing test as a "survivor".
+# That made the word mean "passed": row L removes the sink's redactor and
+# reported 82 survivors, of which exactly ONE - the redaction test - was
+# about redaction at all. The other 81 are tests whose subject row L does
+# not touch, and they pass for the same reason they pass on an intact tree.
+# A reader looking for a vacuous assertion had to tell those apart by hand,
+# and the one signal that matters was 1 line in 82.
+#
+# Worse, the harness could not go red. It exited 0 whatever it found, so a
+# row that stopped amputating anything - an anchor that moved, a `re.sub`
+# that matched nothing, a rename - would report a longer survivor list and
+# still exit 0, which is indistinguishable from a clean run to anything
+# automated and to most humans. A harness that cannot fail is worse than no
+# harness: it occupies the space a real check would take.
+#
+# So each row now names the assertions that EXIST TO NOTICE IT. Those are
+# `MUST_DIE`. The full passed list is still printed, relabelled as the
+# context it always was; a MUST_DIE test that passes is an UNEXPECTED
+# SURVIVOR, and that is the finding this harness is for. It sets exit 1.
+#
+# THE MUST_DIE IDS ARE THEMSELVES VERIFIED, at the top, against the intact
+# baseline: an id that no longer exists (a renamed or deleted test) would
+# otherwise "not survive" every row forever, which is a green that checked
+# nothing - the exact defect this file hunts. That check aborts with 3.
+#
+# The lists were derived by MEASUREMENT, not by reading names: each row was
+# run and the tests it actually killed were recorded. See
+# docs/worklogs/HARNESS-INTEGRITY-REPORT.md for the per-row measurement.
+
+UNEXPECTED=0
+
+report() {  # $1 = label, $2.. = the test ids this row MUST kill
+  local label="$1"; shift
+  local must_die=("$@")
   echo "########## $label"
   # A HARD WALL-CLOCK CAP, because an amputated tree can HANG rather than
   # fail: removing a refusal let an in-process arm fall through to serving
@@ -51,41 +95,148 @@ report() {  # $1 = label
   # this cap is what stops the NEXT one costing half an hour.
   timeout 300 env PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE \
     -p no:cacheprovider -q -rA >"$WORK/out.txt" 2>&1
-  if [ $? -eq 124 ]; then
-    echo "  TIMED OUT after 300s - the amputated tree HANGS rather than failing"
-  fi
+  local rc=$?
   restore
+  if [ "$rc" -eq 124 ]; then
+    # NOT just a note. A timed-out run produces no PASSED lines, so every
+    # MUST_DIE id "did not survive" and the row would read as a pass. A
+    # row that could not be measured is a row that failed.
+    echo "  TIMED OUT after 300s - the amputated tree HANGS rather than failing."
+    echo "  THIS ROW MEASURED NOTHING; treat it as a FAILURE, not a pass."
+    UNEXPECTED=1
+    echo
+    return
+  fi
   tail -1 "$WORK/out.txt"
   local survivors
   survivors=$(grep -E '^PASSED ' "$WORK/out.txt" | sed 's/^PASSED //' || true)
+
+  # THE FINDING, FIRST. Anything below it is context.
+  local t unexpected_here=0
+  for t in "${must_die[@]}"; do
+    if printf '%s\n' "$survivors" | grep -Fxq -- "$t"; then
+      echo "  UNEXPECTED SURVIVOR: $t"
+      echo "    This assertion exists to notice THIS amputation and did not."
+      unexpected_here=1
+      UNEXPECTED=1
+    fi
+  done
+  if [ "$unexpected_here" -eq 0 ]; then
+    echo "  every declared assertion died (${#must_die[@]} of ${#must_die[@]})"
+  fi
+
   if [ -z "$survivors" ]; then
-    echo "  survivors: NONE - no assertion passed against this tree"
+    echo "  everything else: NOTHING passed against this tree"
   else
-    echo "  survivors (assertions that still reported success):"
+    echo "  everything else that passed (context, NOT a finding - these are"
+    echo "  assertions this row's subject does not reach):"
     echo "$survivors" | sed 's/^/    /'
   fi
   echo
 }
 
+# --- the MUST_DIE declarations ---------------------------------------------
+# One array per row. Each id was OBSERVED to die under its row; none of them
+# is a guess from the test's name, because a test name is an unverified
+# claim about its body.
+MUST_A=(
+  "tests/test_config.py::test_the_whole_committed_template_loads"
+  "tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable"
+)
+MUST_B=("${MUST_A[@]}")
+MUST_C=(
+  "tests/test_config.py::test_every_reason_is_named_not_just_the_first"
+  "tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable"
+  "tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it"
+)
+MUST_D=(
+  "tests/test_config.py::test_http_without_tokens_is_a_startup_failure"
+  "tests/test_config.py::test_off_loopback_without_the_assertion_refuses"
+  "tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason"
+)
+MUST_E=(
+  "tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id"
+  "tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable"
+)
+MUST_F=(
+  "tests/test_config.py::test_a_recognised_tool_name_starts"
+  "tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process"
+)
+MUST_G=(
+  "tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state"
+  "tests/test_shutdown.py::test_a_clean_stop_still_reports_zero"
+)
+MUST_H=(
+  "tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process"
+  "tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit"
+)
+MUST_I=(
+  "tests/test_server.py::test_mask_error_details_is_set_explicitly"
+  "tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse"
+  "tests/test_server.py::test_create_server_builds_from_the_environment"
+)
+MUST_J=(
+  "tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields"
+  "tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error"
+  "tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read"
+)
+MUST_K=("${MUST_J[@]}")
+MUST_L=(
+  "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
+  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
+)
+# Row N arrived with the sink-level redaction split (main). Its subject is the
+# RENDERED half - the serialised `text` and `exception` fields the record
+# filter cannot reach - so the arms that must notice it are the ones that read
+# a real process's stream and look for a credential in it.
+MUST_N=(
+  "tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink"
+  "tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails"
+)
+MUST_M=(
+  "tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink"
+  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
+)
+
 echo "########## BASELINE - the intact tree"
-if ! PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE -q \
+if ! PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE -q -rA \
      -p no:cacheprovider >"$WORK/base.txt" 2>&1; then
   echo "ABORT: the intact tree is red; amputation results would be meaningless."
   tail -20 "$WORK/base.txt"
   exit 3
 fi
 tail -1 "$WORK/base.txt"
+
+# EVERY DECLARED ID MUST EXIST AND PASS ON THE INTACT TREE. Without this, a
+# renamed or deleted test silently "dies" under every row forever and its
+# row is checking nothing - a green that tested nothing, which is the whole
+# subject of this file. This is the positive control on the instrument.
+grep -E '^PASSED ' "$WORK/base.txt" | sed 's/^PASSED //' >"$WORK/base_passed.txt"
+MISSING=0
+for t in "${MUST_A[@]}" "${MUST_B[@]}" "${MUST_C[@]}" "${MUST_D[@]}" \
+         "${MUST_E[@]}" "${MUST_F[@]}" "${MUST_G[@]}" "${MUST_H[@]}" \
+         "${MUST_I[@]}" "${MUST_J[@]}" "${MUST_K[@]}" "${MUST_L[@]}" \
+         "${MUST_M[@]}" "${MUST_N[@]}"; do
+  grep -Fxq -- "$t" "$WORK/base_passed.txt" || {
+    echo "ABORT: declared MUST_DIE id does not pass on the INTACT tree:"
+    echo "         $t"
+    echo "       It was renamed, deleted or is failing. Its row is checking"
+    echo "       nothing until this is repointed."
+    MISSING=1; }
+done
+[ "$MISSING" -eq 0 ] || exit 3
+echo "  all declared MUST_DIE ids pass on the intact tree."
 echo
 
 # --- A. config.py does not exist at all -----------------------------------
 rm -f "$CONFIG"
-report "A. config.py does not exist at all"
+report "A. config.py does not exist at all" "${MUST_A[@]}"
 
 # --- B. config.py exists and is ZERO BYTES --------------------------------
 # The clean-empty trap: the import of the MODULE succeeds, so anything that
 # does not actually reach a name inside it keeps passing.
 : > "$CONFIG"
-report "B. config.py exists but is ZERO BYTES"
+report "B. config.py exists but is ZERO BYTES" "${MUST_B[@]}"
 
 # --- C. validate_settings() runs and refuses NOTHING ----------------------
 # Every refusal amputated at once, with the function, its name, its
@@ -102,7 +253,7 @@ s = re.sub(
 )
 p.write_text(s)
 PY
-report "C. validate_settings() refuses nothing"
+report "C. validate_settings() refuses nothing" "${MUST_C[@]}"
 
 # --- D. the transport refusals are gone entirely --------------------------
 # The TLS refusal and the token requirement both live in _check_transport.
@@ -114,7 +265,7 @@ p = pathlib.Path(sys.argv[1]); s = p.read_text()
 s = s.replace("    _check_transport(settings, reasons)\n", "")
 p.write_text(s)
 PY
-report "D. _check_transport is never called"
+report "D. _check_transport is never called" "${MUST_D[@]}"
 
 # --- E. the rule TABLE is empty, not the code -----------------------------
 # Amputating the DATA. Every function is present and runs; the matrix it
@@ -127,7 +278,7 @@ s = re.sub(r"TOOL_REQUIREMENTS: Final\[dict\[str, tuple\[str, \.\.\.\]\]\] = \{\
            s, flags=re.S)
 p.write_text(s)
 PY
-report "E. TOOL_REQUIREMENTS is an EMPTY table"
+report "E. TOOL_REQUIREMENTS is an EMPTY table" "${MUST_E[@]}"
 
 # --- F. the tool allow-list is empty --------------------------------------
 python3 - "$CONFIG" <<'PY'
@@ -137,7 +288,7 @@ s = s.replace("KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS",
               "KNOWN_TOOLS: Final[frozenset[str]] = frozenset()")
 p.write_text(s)
 PY
-report "F. KNOWN_TOOLS is EMPTY"
+report "F. KNOWN_TOOLS is EMPTY" "${MUST_F[@]}"
 
 # --- G. the shutdown handler does not exist -------------------------------
 # Not "installs nothing" (that is M11) but "the function is gone", so a
@@ -151,7 +302,7 @@ s = re.sub(r"def _term\(signum: int, frame: FrameType \| None\) -> None:\n(?:.*?
            "", s, count=1)
 p.write_text(s)
 PY
-report "G. _term and the handler installation are GONE"
+report "G. _term and the handler installation are GONE" "${MUST_G[@]}"
 
 # --- H. the whole finally block is gone -----------------------------------
 python3 - "$MAIN" <<'PY'
@@ -162,7 +313,7 @@ s, n = re.subn(r"    finally:\n        sys\.stdout\.flush\(\)\n        sys\.stde
 assert n == 1, "amputation H found nothing to remove; the anchor moved"
 p.write_text(s)
 PY
-report "H. the finally block (flush + os._exit) is GONE"
+report "H. the finally block (flush + os._exit) is GONE" "${MUST_H[@]}"
 
 # --- I. server.py builds a bare FastMCP -----------------------------------
 # No lifespan, no mask_error_details, no settings. Everything server.py
@@ -174,7 +325,7 @@ s = re.sub(r"    composed = make_base_lifespan\(settings\)\n(?:.*?\n)*?    \)\n"
            "    return FastMCP(name=SERVER_NAME)\n", s, count=1)
 p.write_text(s)
 PY
-report "I. build_server returns a BARE FastMCP"
+report "I. build_server returns a BARE FastMCP" "${MUST_I[@]}"
 
 
 # --- J. the log sink is never configured at all ---------------------------
@@ -189,7 +340,7 @@ anchor = "\nconfigure_logging()\n"
 assert s.count(anchor) == 1, "J anchor is not unique"
 p.write_text(s.replace(anchor, "\n"))
 PY
-report "J. configure_logging() is never called"
+report "J. configure_logging() is never called" "${MUST_J[@]}"
 
 # --- K. it is called and configures NOTHING -------------------------------
 # The clean-empty trap on a function rather than a module: the call site is
@@ -206,7 +357,7 @@ start = s.index(anchor)
 end = s.index("\n\n\nconfigure_logging()", start)
 p.write_text(s[:start] + "    return" + s[end:])
 PY
-report "K. configure_logging() runs and configures NOTHING"
+report "K. configure_logging() runs and configures NOTHING" "${MUST_K[@]}"
 
 # --- L. the record FILTER redacts nothing ---------------------------------
 # The RECORD half. `_redact_message` mutates `record["message"]`, which is
@@ -227,7 +378,7 @@ anchor = '    message = record.get("message")'
 assert s.count(anchor) == 1, "L anchor is not unique"
 p.write_text(s.replace(anchor, "    return True\n" + anchor))
 PY
-report "L. the record filter returns without redacting"
+report "L. the record filter returns without redacting" "${MUST_L[@]}"
 
 # --- N. the SINK-level redaction is bypassed ------------------------------
 # The RENDERED half. `serialize` emits `record["exception"]` and a `text`
@@ -241,7 +392,7 @@ anchor = "        _redacting_sink(sys.stderr),"
 assert s.count(anchor) == 1, "N anchor is not unique"
 p.write_text(s.replace(anchor, "        sys.stderr,"))
 PY
-report "N. the sink writes the serialised record without redacting it"
+report "N. the sink writes the serialised record without redacting it" "${MUST_N[@]}"
 
 # --- M. stdlib logging is never bridged into loguru -----------------------
 # Two logging systems again, both live, writing two shapes onto one fd.
@@ -254,5 +405,14 @@ start = s.index(anchor)
 end = s.index("    )\n", start) + len("    )\n")
 p.write_text(s[:start] + "    return\n" + s[end:])
 PY
-report "M. stdlib logging is never bridged into loguru"
-echo "########## END. Survivors above are the finding, not a failure."
+report "M. stdlib logging is never bridged into loguru" "${MUST_M[@]}"
+echo "########## END"
+if [ "$UNEXPECTED" -ne 0 ]; then
+  echo "FAILED: at least one assertion that exists to notice an amputation"
+  echo "        survived it, or a row could not be measured. Search this"
+  echo "        output for 'UNEXPECTED SURVIVOR' and 'TIMED OUT'."
+  exit 1
+fi
+echo "Every declared assertion died under its own amputation."
+echo "The 'everything else that passed' lists are context, not findings."
+exit 0
