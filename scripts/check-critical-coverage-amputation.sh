@@ -44,12 +44,16 @@ export PYTHONDONTWRITEBYTECODE=1
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 3
 
-# DERIVED FROM A RUN, not typed in: eighteen rows are defined below and
-# eighteen ran when this was last raised (task #97; it was 15 before,
-# and the new value was read off the run rather than added to the old
-# number). `FIRED -ne TOTAL` is satisfied by `0 == 0`, so a harness
-# with every row deleted reports "0/0" and exits clean without a floor.
-ROW_FLOOR=18
+# DERIVED FROM A RUN, not typed in: twenty rows are defined below and
+# `########## ROWS: 20   ANCHORS APPLIED: 20` is what the run printed
+# when this was last raised (task #101; it was 18 before, and 15
+# before that). The new value is READ OFF THE RUN each time rather
+# than added to the old number - adding two to eighteen would have
+# produced the same 20 here by luck, and would have been a prediction
+# rather than a measurement. `FIRED -ne TOTAL` is satisfied by
+# `0 == 0`, so a harness with every row deleted reports "0/0" and
+# exits clean without a floor.
+ROW_FLOOR=20
 
 #: The one row whose survival is a declared finding rather than a
 #: defect. Everything else going vacuous fails this harness.
@@ -456,6 +460,67 @@ amputate "A17 a failed feed read is audited as a success" "$JOBS" \
 amputate "A18 the registration guard reads only half its credential pair" "$JOBS" \
   '    if settings.api_key is None or settings.api_secret is None:' \
   '    if settings.api_key is None:'
+
+# ---------------------------------------------------------------------------
+# ROWS A19 AND A20 ARE TASK #101: THE LAST TWO AUDIT ROWS IN THE
+# CONTAINER, AND ONE OF THEM IS ON THE WRITE.
+#
+# #97 did not stop at the two files its brief named. It derived the
+# population - `grep -rn 'result_status = "error"' src/` gives SIX
+# sites - deleted each one at a time and ran the WHOLE suite. That
+# probe is committed at `docs/reviews/probe-audit-row-container.sh` and
+# it found TWO survivors, both here in `tools/candidates.py`:
+# `search_candidates` and `create_candidate`. A11 and A17 close two of
+# the other four; these rows close the last two, and after them every
+# member of the derived population is killed by an assertion.
+#
+# **`tools/candidates.py` measures 100.00% LINE AND 100.00% BRANCH.**
+# It is on DESIGN.md:1364's critical-path list at ADR-0010's 95/90
+# floors, and both arms below are EXECUTED on every run by cases that
+# assert the caller-visible half (`is_error`, the problem object) and
+# never read the row. This is what a coverage-invisible gap looks like
+# in a module with a perfect number: the only instrument that can see
+# it is an amputation.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A19 - `search_candidates`' FAILED READ IS AUDITED AS A SUCCESS.
+# A11's shape on the sibling read tool.
+# ---------------------------------------------------------------------------
+#
+# The anchor carries `result = build_result(...)` because the `except`
+# line alone appears THREE times in this module and the
+# `result_status` line FOUR times; a non-unique anchor is refused
+# rather than applied to the first hit, which would amputate a
+# different tool's row and produce a plausible wrong verdict.
+amputate "A19 a failed candidate search is audited as a success" "$CANDIDATES" \
+  '                    result = build_result(payload, settings.max_results)
+                except Exception as exc:  # noqa: BLE001 - every failure is a problem
+                    event.result_status = "error"' \
+  '                    result = build_result(payload, settings.max_results)
+                except Exception as exc:  # noqa: BLE001 - every failure is a problem'
+
+# ---------------------------------------------------------------------------
+# A20 - THE WRITE'S FAILURE IS AUDITED AS A SUCCESS. **The most
+# serious row in this harness.** This is `create_candidate` on the one
+# path where the write may or may not have landed: `AFTER_WRITE`'s
+# policy never raises and never fails the call, deliberately, because
+# an error that makes the model retry emails a second live human. That
+# makes the audit row the ONLY surviving evidence anyone has
+# afterwards that the attempt did not succeed - and deleting this line
+# records a failed or ambiguous create as a success.
+#
+# The write emits TWICE. The `BEFORE_SIDE_EFFECT` row is written
+# before the POST is attempted and is correctly `success`, so a case
+# reading the FIRST row passes on the amputated code; the assertion
+# this row proves reads the LAST one.
+# ---------------------------------------------------------------------------
+amputate "A20 a failed or ambiguous write is audited as a success" "$CANDIDATES" \
+  '                    result = build_create_result(payload)
+                except Exception as exc:  # noqa: BLE001 - every failure is a problem
+                    event.result_status = "error"' \
+  '                    result = build_create_result(payload)
+                except Exception as exc:  # noqa: BLE001 - every failure is a problem'
 
 # ---------------------------------------------------------------------------
 # THE GATE.

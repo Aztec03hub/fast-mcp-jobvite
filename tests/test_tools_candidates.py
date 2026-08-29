@@ -1209,8 +1209,29 @@ async def test_an_empty_page_is_reported_as_empty_not_as_an_error() -> None:
     assert content["summary"] == "showing 0 of 0"
 
 
-async def test_a_candidate_read_error_is_a_problem_object_not_a_raise() -> None:
-    """DESIGN.md:536-540, on this unit's path."""
+async def test_a_candidate_read_error_is_a_problem_object_not_a_raise(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """DESIGN.md:536-540, on this unit's path - and the row it writes.
+
+    **Coverage was not the instrument that found the second claim.**
+    `tools/candidates.py` reads 100.00% line AND 100.00% branch, and
+    this arm is EXECUTED on every run - by this very case, on its way
+    to asserting the caller-visible half. Deleting
+    `event.result_status = "error"` from `search_candidates` left the
+    whole suite green (task #97's container probe,
+    `docs/reviews/probe-audit-row-container.sh`); the amputation
+    harness's row for it is that measurement made permanent.
+
+    Two claims, not one. The caller must get a problem object rather
+    than a raise (DESIGN.md:536-540), **and the audit row must record
+    the failure as a failure**: a read that fails and is written down
+    as a success is a record that lies, and the row is the only
+    evidence anyone has afterwards. The sibling `get_candidate` already
+    has this pairing
+    (`test_a_get_candidate_read_error_is_a_problem_object_and_an_audit_row`);
+    this tool did not.
+    """
     server = build_server(
         settings(), client_factory=client_factory(b"not json at all", status=200)
     )
@@ -1222,6 +1243,12 @@ async def test_a_candidate_read_error_is_a_problem_object_not_a_raise() -> None:
     problem = result.structured_content
     assert problem is not None
     assert problem["status"] == 502
+
+    event = audit_event(audit_records)
+    assert event["result_status"] == "error", (
+        "the audit row recorded a failed candidate search as anything other "
+        "than an error, so the only surviving evidence of the failure is wrong"
+    )
 
 
 def test_the_tool_module_names_every_route_it_asks_the_client_for() -> None:
