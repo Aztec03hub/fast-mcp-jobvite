@@ -550,39 +550,46 @@ def test_a_malformed_content_length_falls_through_to_the_running_bound(
     assert cap._declared_length(scope) is None  # noqa: SLF001
 
 
-def test_a_non_http_scope_passes_straight_through(echo: _CountingEcho) -> None:
-    """Lifespan has no request body, so the cap must not touch it.
+def test_a_non_http_scope_is_not_answered_with_an_HTTP_RESPONSE() -> None:
+    """The `scope["type"] != "http"` guard, made load-bearing.
 
-    A middleware that "handled" a lifespan scope would be inoperative
-    code at best and would break startup at worst - and uvicorn is
-    configured with `lifespan="on"` everywhere in this suite, so this
-    branch runs on every single arm above.
+    **A weaker version of this arm was written first and a mutation
+    survived it.** It used a lifespan scope, and deleting the guard
+    changed nothing observable: a lifespan scope carries no
+    `content-length` and its messages are not `http.request`, so the
+    declared-length arm found nothing and the streaming sum never
+    incremented. The guard was real and the test could not see it.
+
+    A **websocket** scope can carry a `content-length` header, and
+    without the guard the cap answers it with `http.response.start` -
+    writing an HTTP response onto a websocket handshake, which is a
+    protocol violation and a worse outcome than the oversized body it
+    was trying to prevent. That is the difference this arm measures.
     """
     seen: list[str] = []
 
     async def receive() -> Message:
-        return {"type": "lifespan.startup"}
+        return {"type": "websocket.connect"}
 
     async def send(message: Message) -> None:
         seen.append(message["type"])
 
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        assert scope["type"] == "websocket"
+        await receive()
+        await send({"type": "websocket.accept"})
+
     async def run() -> None:
-        await BodySizeLimitMiddleware(_recording_lifespan(seen))(
-            {"type": "lifespan"}, receive, send
+        await BodySizeLimitMiddleware(app)(
+            {
+                "type": "websocket",
+                "headers": [(b"content-length", str(8 * ONE_MEBIBYTE).encode())],
+            },
+            receive,
+            send,
         )
 
     import asyncio
 
     asyncio.run(run())
-    assert seen == ["lifespan.startup.complete"]
-
-
-def _recording_lifespan(seen: list[str]) -> Any:
-    """An app that answers a lifespan scope, for the arm above."""
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        assert scope["type"] == "lifespan"
-        await receive()
-        await send({"type": "lifespan.startup.complete"})
-
-    return app
+    assert seen == ["websocket.accept"]
