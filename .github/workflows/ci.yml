@@ -336,6 +336,41 @@ jobs:
           [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
           [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
 
+      # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
+      # else touched. Both harnesses run here, because a control that runs only
+      # by hand is the defect this repository has already built twice
+      # (IMPLEMENTATION-PLAN.md:1388's OBLIGATIONS row, and the `--all`
+      # file-type mode that had no CI step one artifact later).
+      - name: U3 audit mutation controls, all killed
+        run: |
+          set -uo pipefail
+          out=$(bash scripts/check-u3-audit-controls.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::a U3 mutation survived"; exit 1; }
+          line=$(printf '%s\n' "$out" | grep -oE 'RESULT: [0-9]+ killed, [0-9]+ not killed' | tail -1)
+          [ -n "$line" ] || { echo "::error::no U3 'RESULT:' line"; exit 1; }
+          killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
+          [ "$killed" -gt 0 ] || { echo "::error::zero U3 mutations killed - the harness ran nothing"; exit 1; }
+
+      # Amputation exits 0 by design: SURVIVORS ARE ITS OUTPUT, not its verdict.
+      # So this step cannot gate on the exit code alone. It gates on the harness
+      # having actually RUN every row - any row that could not apply its anchor
+      # means a refactor moved the subject and the row silently tested nothing.
+      - name: U3 audit amputation harness ran every row
+        run: |
+          set -uo pipefail
+          out=$(bash scripts/check-u3-audit-amputation.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the U3 amputation harness could not run"; exit 1; }
+          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
+            echo "::error::a U3 amputation anchor moved; that row tested nothing"; exit 1
+          fi
+          if printf '%s\n' "$out" | grep -q 'DID NOT LAND'; then
+            echo "::error::a U3 amputation did not land; that row tested nothing"; exit 1
+          fi
+          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+ ')
+          [ "$rows" -ge 10 ] || { echo "::error::only $rows amputation rows ran, expected 10"; exit 1; }
+
       - name: Secret scan hook runs clean
         # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,
         # because the obvious reading is wrong and a wrong reading here is a
