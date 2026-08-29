@@ -70,9 +70,22 @@ The full list is in `CONTRIBUTING.md`. **mypy is the type gate, not pyright** - 
 lock, and a checklist row naming it once instructed a careful reviewer straight into the
 unfrozen-tool defect that ADR-0015 records.
 
-**Suite baseline: 322 passed, 2 deselected, 0 skipped** (measured at `0d34c66`, after the
-audit-logging merge). If your first run disagrees before you have changed anything, stop and report
-that - it means this line is stale, which has happened.
+**The suite baseline is NOT written here, on purpose.** Derive it:
+
+```bash
+grep -oE 'check-suite-floor\.sh [0-9]+' .github/workflows/ci.yml | head -1
+uv run --frozen pytest        # must be >= that floor, with 0 skipped
+```
+
+**This line used to name a number, and the number went stale across three
+ratchets** - 322 while main was at 355, then 360, then 398. Two separate agents
+caught it independently and both proposed the same fix. The file that exists
+because *"a retyped constant decays"* had a decayed constant in it, which is the
+most direct demonstration of its own thesis it could have produced.
+
+The floor in `ci.yml` is the one place that value lives, it is enforced on every
+run, and lowering it is a visible diff that has to be defended. Anything else is
+a second copy.
 
 ## How to deliver
 
