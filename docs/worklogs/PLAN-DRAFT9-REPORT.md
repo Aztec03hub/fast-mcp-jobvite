@@ -7,8 +7,8 @@ Worktree: `/tmp/plan-draft9-work`, created with `git worktree add` at the pinned
 checked out, never edited, and never had a branch moved in it.** The only write to it was none; the
 only reads were `git -C <shared> log/status/diff`.
 **One file changed: `docs/plans/IMPLEMENTATION-PLAN.md`.** Plus this report.
-Branch head **`8181dfe`**, two plan commits (`14d400a` then `8181dfe`) plus this report, rebased onto
-`origin/main` at **`1e67f9c`**. Plan is **2,334 lines**.
+Rebased onto `origin/main` at **`94330db`**. Plan is **2,339 lines** (`wc -l`), status line reads
+**DRAFT 9**, and the two agree because I read both off the file rather than asserting either.
 
 **Read "The tree moved under me" below before the finding-by-finding section** - four commits landed
 on `main` while I worked, two of them closing things this report was written to raise.
@@ -71,8 +71,16 @@ makes the *position-versus-content* point more sharply than mine did, and its *"
 paragraph is the same finding as my §8 one, written first. My amendment-table work is folded in
 **beside** it rather than over it. Nothing of `main`'s was discarded.
 
+**A second rebase followed**, onto `94330db`: `f4f69f9` landed **U11** (enabling its `ci.yml` block -
+§4's *"enabling a commented step is a write"* rule discharged for the first time) and `94330db`
+repointed two more obligation anchors it moved. Both are now rows in the amendment table, and the
+table was re-verified against its own derivation command after each rebase: **19 rows, 19 commits,
+both set differences empty.** The suite went 93 → 94 → **127** across the same window.
+
 **This is itself evidence for §10.** Between being briefed and reporting, the tree closed round 7's
-High, fixed a red gate, and landed the plan - **none of it from a review round.**
+High, fixed a red gate, landed the plan and landed a unit - **none of it from a review round.** It
+is also why draft 9's volatile lines now point at commands instead of stating facts: the
+"which units are built" sentence was already wrong once inside this single task.
 
 ---
 
@@ -295,12 +303,15 @@ replaced by the §4 standing check, which does not depend on any sweep having be
 
 **The rewrite moved both, exactly as the brief predicted. New line numbers:**
 
-| B | Subject | Old (as `main` has it after `3a49795`) | **New, at `8181dfe`** |
+| B | Subject | Old (as `main` has it) | **New, on this branch** |
 |---|---|---|---|
-| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1302`** |
-| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1347`** |
+| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1306`** |
+| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1351`** |
 
-*(Measured after the rebase, so these are against `main`'s current values, not the pre-rebase ones.)*
+*Measured after the final rebase onto `94330db`, so the "old" column is `main`'s current value.*
+**`check-obligations.py --controls` is also red, for the same two anchors and not independently** -
+it aborts with *"the real map is already red, so no control below proves anything"*, which is the
+harness refusing to report a vacuous green. Both go green the moment these two rows are repointed.
 
 Not repointed - `docs/OBLIGATIONS.md` is not my file. The checker names both new lines itself, so
 this costs one edit each.
@@ -339,7 +350,10 @@ I have not created board tasks for these; say the word and I will, or fold them 
    guard checks **reachability, not selection**, so a wholly-marker-excluded arm here is fine - and
    **do not narrow the guard to green something**, because that is what makes the credentialed
    subtree rot unwatched. R7 asked for this and it is not my file.
-4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1302` and B81 to `:1347` when this branch merges.
+4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1306` and B81 to `:1351` when this branch merges.
+   **Re-run `check-obligations.py` after merging rather than trusting these two numbers**: `main`
+   moved four times during this task, and if it moves again before the merge the checker will name
+   the correct lines itself.
 5. **Consider the anchor-stability change above.** Not urgent; the gate is working.
 
 ---
@@ -350,10 +364,11 @@ I have not created board tasks for these; say the word and I will, or fold them 
 git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite merge --no-ff plan/draft9
 ```
 
-Branch **`plan/draft9`** at **`8181dfe`**, **rebased onto `origin/main` at `1e67f9c`**, three
-commits: the draft, this report, and the reconciliation with the four commits that landed while I
-worked. **No `--ff-only` is promised** - `main` demonstrably moves under me, four times during this
-task alone. **I did not merge and did not push.** If `main` has moved again, rebase rather than
+Branch **`plan/draft9`**, **rebased onto `origin/main` at `94330db`** (U11's landing and its anchor
+repoint), four commits: the draft, this report, the reconciliation with the four commits that landed
+mid-task, and the second reconciliation with U11's two. **No `--ff-only` is promised** - `main`
+demonstrably moves under me, **six commits across two rebases during this task alone**, and the
+amendment table was brought back into exact agreement with its own derivation command after each. **I did not merge and did not push.** If `main` has moved again, rebase rather than
 merge-commit; the two files this branch touches are `docs/plans/IMPLEMENTATION-PLAN.md` and
 `docs/worklogs/PLAN-DRAFT9-REPORT.md` and nothing else.
 

@@ -4,8 +4,10 @@ Status: **DRAFT 9, and the LAST draft of this review cycle** - see
 [§10](#10-the-review-cycle-is-closed-at-round-7-and-what-replaces-it) for why it closes here and what
 replaces it. Revised against `PLAN-REVIEW-R7.md` (0C / 1H / 1M / 5L); rounds 1-6 are answered in
 drafts 3-8. **Which units are built is a volatile line, so derive it rather than trust it**:
-`git log --oneline b53886e..HEAD` names them, and at `1e67f9c` it names **U0, U15 and U2** and no
-others. Round 7's High was the **eleventh** collision; it bound **U5**, not U1, and it is
+`git log --oneline b53886e..HEAD` names them, and at `94330db` it names **U0, U15, U2 and U11** - it
+named three of those four when this paragraph was first written, one working session earlier, which
+is the whole reason it points at a command instead of a list. Round 7's High was the **eleventh**
+collision; it bound **U5**, not U1, and it is
 **closed in code at `1e67f9c`**.
 
 **Every measurement this plan rests a decision on is a runnable probe, not a paragraph.**
@@ -558,6 +560,8 @@ description of a tree that no longer exists.** All of it is in `pyproject.toml`,
 | `d48c112` | `scripts/check-u0-test-controls.sh`: `.github` added to the staged subset | restores the U0 controls harness, which had been aborting since `9ca76fe` - see below |
 | `3a49795` | `docs/OBLIGATIONS.md`: B78 and B81 repointed; this plan | lands draft 9 on `main` and repoints the two anchors the draft's own rewrite moved - **the same-commit rule in the row above, applied** |
 | `1e67f9c` | `tests/test_collection_guard.py`, `docs/reviews/check-plan-measurements.py`, `docs/OBLIGATIONS.md` (B58 `139` → `163`) | **closes collision 11**: the guard was selecting rather than checking reachability. M4 flips from `OPEN` to `PASS`, and `KNOWN_OPEN` is now empty |
+| `f4f69f9` (U11) | `.github/workflows/ci.yml` (the advisory step **enabled**), `scripts/check_advisories.py`, `scripts/check-u11-advisory-controls.sh`, `tests/test_advisory_gate.py` | U11 lands. **This is §4's "enabling a commented step is a write" rule discharged for the first time** - U11 owned exactly the block naming it |
+| `94330db` | `docs/OBLIGATIONS.md`: B75 and B82 repointed | **the same-commit anchor rule again**, this time because enabling a `ci.yml` step moved two anchors inside `ci.yml`. That is now three consecutive commits where an ordinary edit shifted an anchor and the gate named the new line |
 
 **A gate was DOWN at `4e5a1b2` and draft 9 fixed it, because U1 is in flight and verifying against a
 harness that aborts.** `tests/test_workflow_pins.py` walks `.github/workflows/` and carries a
@@ -2029,7 +2033,7 @@ variables behind U0's #3 assertion were read off the committed file.
 Draft 1 parked the gates here as unverified; they were cheap, and this list is for what cannot be
 settled, not for what was not attempted.
 
-**Re-run for draft 9, at `1e67f9c`, because the tree keeps moving and a measurement is worth only the
+**Re-run for draft 9, at `94330db`, because the tree keeps moving and a measurement is worth only the
 SHA it was taken at.** `check-coupling.py` exit 0, 60 STRIDE rows, 17 Critical/High, 23 naming a §8
 case; `check-coupling-controls.py` exit 0, **34/34 fired**, post-run re-check still green;
 `check-coupling-sweep.py` exit 0, **0 escapes are holes**; `check-obligations.py` **28 mappings, 21
@@ -2037,7 +2041,7 @@ anchors verified, 7 recorded absent** - red on exactly the two anchors this draf
 moved, reported below rather than repointed; `check-obligations.py --controls` exit 0, **9/9
 fired**, clean post-run re-check; `check-plan-measurements.py` exit 0, **all four PASS**;
 `scripts/check-u0-test-controls.sh` **11/11**; `scripts/check-u15-gate-controls.sh` **15/15** with a
-clean post-run re-check; `uv run --frozen pytest -q` → **94 passed, 2 deselected, 0 skipped**.
+clean post-run re-check; `uv run --frozen pytest -q` → **127 passed, 2 deselected, 0 skipped**.
 
 *This draft ran the U0 controls harness at `ff9461a` and found it **aborting before a single control
 fired** - "the unmutated copy is already red" - so the honest reading there was **0/11, not the
@@ -2047,7 +2051,7 @@ gates on that harness, so it was a red build nobody had looked at, and it was fo
 script rather than by reading anything.***
 
 **The suite's trajectory is the number worth carrying, not any single reading:** round 5 measured 17
-at `299cf8b`, draft 7 measured 56 at `ff0bbdf`, draft 8 measured 90 at `b7fd35d`, and this is 94 -
+at `299cf8b`, draft 7 measured 56 at `ff0bbdf`, draft 8 measured 90 at `b7fd35d`, and this is 127 -
 **the deselected count held at 2 and skips held at 0 throughout**, which is the property the
 zero-skip rule actually asserts. *Draft 7 pinned this block to `ff0bbdf` and said the tree had moved
 "seven" commits; it had moved five, and by the time anyone read the sentence it was six. The count is
@@ -2056,7 +2060,7 @@ dropped here in favour of the SHA, which is checkable.*
 **The four measurements this plan rests decisions on are no longer described here; they are RUN.**
 `python3 docs/reviews/check-plan-measurements.py` re-executes all four, each with a treatment arm
 that must fail and a control arm that must pass, and exits non-zero when a claim stops reproducing.
-At `1e67f9c`: **M1 PASS** (`pytest_plugins` loads in a non-rootdir conftest under `-W error`, with
+At `94330db`: **M1 PASS** (`pytest_plugins` loads in a non-rootdir conftest under `-W error`, with
 the unregistered control failing as required), **M2 PASS** (a per-directory conftest fixture is
 invisible to a sibling directory, and visible in its own - so §4's rejection holds), **M3 PASS**
 (adding a dependency breaks `test_manifest.py`'s set-equality; unmutated satisfies it), **M4 PASS**
