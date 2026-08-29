@@ -1390,7 +1390,29 @@ _HUMAN_CLAIMS = (
 
 #: A denial reads as a claim to a substring search, so an occurrence is
 #: read together with the text before it.
-_NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't")
+#:
+#: **`"nothing"` was missing and ADR-0031 tripped on it.** Its sentence
+#: reads "nothing proves a human approved anything" - a denial, flagged
+#: as a claim, by a document written to make exactly that disclaimer.
+#: Found when this widened list met that ADR in a merge; neither existed
+#: when the other was written.
+#:
+#: **THE TWO LISTS FAIL IN OPPOSITE DIRECTIONS AND ARE MAINTAINED
+#: DIFFERENTLY FOR THAT REASON.** A missing NEGATOR is a false ALARM: a
+#: denial gets flagged, someone reads it, and the cost is a minute. A
+#: missing CLAIMANT is a false NEGATIVE: a real claim that a human
+#: approved passes silently, which is the one thing this project has
+#: decided it may never say. So the claimant side is enumerated and
+#: aggressively widened (R7-H3), while this side stays a hand-kept list
+#: - there is no container to enumerate for English negation, and
+#: failing toward flagging is the safe direction.
+#:
+#: Adding a negator DOES widen a shadow, which is why negators are
+#: scoped to the claim's own clause below. The evasions this addition
+#: could enable are carried as DATA in the test cases, never spelled in
+#: this comment - prose that quotes a forbidden claim is a forbidden
+#: claim to a scanner, and this file is one the scanner reads.
+_NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't", "nothing")
 
 #: Where a negator stops applying: the end of the claim's own clause.
 #:
@@ -1406,7 +1428,17 @@ _NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't")
 #: A comma is deliberately NOT a boundary: *"we never claim X, only
 #: that a response came back"* is one clause and the negator governs
 #: all of it.
-_CLAUSE_BOUNDARY = re.compile(r"[.;:!?]")
+# The COMMA is here because adding `"nothing"` to `_NEGATORS` opened an
+# evasion without it: a negator and a claim separated only by a comma
+# were ONE clause, so the negator suppressed a real claim. Measured -
+# that case was FLAGGED before the negator was added and CLEAN after,
+# a regression the addition caused and this boundary closes. The case
+# itself lives in the parametrised evasions, not here.
+#
+# It costs a false alarm on a denial that puts its negator before a
+# comma, and that is the direction to fail: see `_NEGATORS` on why the
+# two lists are maintained differently.
+_CLAUSE_BOUNDARY = re.compile(r"[.;:!?,]")
 
 
 def _unnegated_claims(text: str) -> list[str]:
