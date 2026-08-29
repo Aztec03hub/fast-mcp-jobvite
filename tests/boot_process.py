@@ -22,8 +22,8 @@ import time
 
 #: The entry script the shutdown case runs. It composes an observable
 #: resource onto the server's own lifespan through the `extra_lifespan`
-#: parameter `server.py` exposes, and calls the **shipped** `main()` - so
-#: the handler, the `except KeyboardInterrupt` and the
+#: parameter `server.py` exposes, and calls the **shipped** `main()` -
+#: so the handler, the `except KeyboardInterrupt` and the
 #: `finally: os._exit(0)` under test are the real ones and not a copy
 #: written in a test.
 #:
