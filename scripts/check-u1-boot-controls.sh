@@ -408,6 +408,19 @@ control "M23 a blank SecretStr is a credential" "$CONFIG" "MUTANT-M23" \
 
 echo
 echo "$FIRED/$TOTAL controls fired."
+
+# THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness
+# whose rows were deleted - or whose rows stopped being counted - reports
+# fully green and exits 0. DERIVED: this harness printed "23/23 controls
+# fired." at 73269fe. Lowering this number is a visible diff that has to
+# be defended.
+ROW_FLOOR=23
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
 if [ "$FIRED" -ne "$TOTAL" ]; then
   echo "NOT every control fired. A surviving mutant is a weak assertion."
   exit 1
