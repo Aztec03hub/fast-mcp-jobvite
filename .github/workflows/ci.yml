@@ -415,7 +415,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 502
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 562
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -525,7 +525,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 239
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 278
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -591,6 +591,23 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
             --amputation --min-rows 16 --row-re '^########## A[0-9]+ '
+
+      # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
+      # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
+      # more than most: with the tool amputated to return an empty page,
+      # EXACTLY 4 OF 56 ASSERTIONS GO RED AND 52 SURVIVE. The plan predicted
+      # that and told U8 to write the positive control first; the row turns the
+      # prediction into a standing experiment, so a future edit that makes the
+      # tool return nothing is caught by the four rather than missed by the 52.
+      - name: U8 candidate controls, all fired
+        run: |
+          bash scripts/ci-harness-gate.sh check-u8-candidates-controls.sh \
+            --controls-fired --min-rows 25 --row-re '^########## M[0-9]+ '
+
+      - name: U8 candidate amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-u8-candidates-amputation.sh \
+            --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a
