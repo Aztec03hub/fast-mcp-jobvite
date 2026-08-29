@@ -31,8 +31,8 @@ from typing import Any, Final
 
 INSTANCE_PREFIX: Final = "urn:fast-mcp-jobvite:invocation:"
 
-# : The seven members `error-contract.md:66` elevates to required, in
-# the order : the design lists them (DESIGN.md:495-496).
+#: The seven members `error-contract.md:66` elevates to required, in
+#: the order the design lists them (DESIGN.md:495-496).
 REQUIRED_MEMBERS: Final[tuple[str, ...]] = (
     "type",
     "title",
@@ -86,18 +86,20 @@ INTERNAL_ERROR: Final = ProblemKind(
     "/problems/internal-error", "Internal Server Error", 500
 )
 
-# : `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an
-# unmapped : **HTTP status received from Jobvite**, and for nothing
-# else. ADR-0017 settled : this: U2 read the design's table (then
-# `DESIGN.md:515`) as routing an : unhandled exception in our own tool
-# body here, and that reading is replaced - : the registry already names
-# that condition `/problems/internal-error`, which : is what
-# `problem_from_exception` now returns. : : **No code path reaches this
-# today**, and it stays anyway: SS5.1's registry : maps every status
-# this client is known to receive, so the fallback may be : unreachable
-# in practice, and an unreachable fallback that is correct beats a :
-# reachable one that is wrong (ADR-0017). Establishing reachability
-# needs the : live-tenant observations the credential checklist gates.
+#: `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an
+#: unmapped **HTTP status received from Jobvite**, and for nothing
+#: else. ADR-0017 settled this: U2 read the design's table (then
+#: `DESIGN.md:515`) as routing an unhandled exception in our own tool
+#: body here, and that reading is replaced - the registry already names
+#: that condition `/problems/internal-error`, which is what
+#: `problem_from_exception` now returns.
+#:
+#: **No code path reaches this today**, and it stays anyway: SS5.1's
+#: registry maps every status this client is known to receive, so the
+#: fallback may be unreachable in practice, and an unreachable fallback
+#: that is correct beats a reachable one that is wrong (ADR-0017).
+#: Establishing reachability needs the live-tenant observations the
+#: credential checklist gates.
 UNMAPPED: Final = ProblemKind("about:blank", "Internal Server Error", 500)
 
 
