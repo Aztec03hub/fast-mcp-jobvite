@@ -359,6 +359,21 @@ class JobviteClient:
             transport=transport,
             timeout=timeout
             or httpx2.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0),
+            # PINNED, not inherited. httpx2 2.12.0 happens to default this False,
+            # so before this line the safety came from a transitive default and
+            # nothing else - a review added `follow_redirects=True` and all 294
+            # tests stayed green.
+            #
+            # A 30x would forward `x-jvi-api` and `x-jvi-sc` to whatever host the
+            # `Location` header names, and on the v1 jobFeed route the credentials
+            # travel in the QUERY STRING, so a redirect would hand them to a third
+            # party in a URL that also lands in that host's access log.
+            #
+            # server.py states this project's own rule for exactly this class:
+            # "a security-relevant default is exactly the kind of thing that must
+            # be stated in our own source so a diff shows it moving". It was
+            # applied to `mask_error_details` and not here.
+            follow_redirects=False,
         )
 
     async def __aenter__(self) -> Self:

@@ -708,3 +708,75 @@ def test_no_third_party_mocking_library_is_imported_anywhere_in_the_suite() -> N
 
     assert "httpx2" in imported, "positive control: the AST walk found no imports"
     assert not (imported & banned), f"third-party mocking library imported: {imported}"
+
+
+# ===========================================================================
+# Redirects are refused, not inherited (round 2's surviving mutation 1).
+# ===========================================================================
+
+
+async def test_a_redirect_is_not_followed_so_credentials_cannot_be_forwarded() -> None:
+    """A 30x must NOT be followed: following one hands the credentials away.
+
+    **This was a surviving mutation.** Setting `follow_redirects=True` left all
+    294 tests green, because the safety came entirely from httpx2 2.12.0's
+    default and nothing in this repository asserted it.
+
+    What following would cost: `x-jvi-api` and `x-jvi-sc` are forwarded to
+    whatever host the `Location` names, and on the v1 jobFeed route the
+    credentials are QUERY PARAMETERS, so they would land in that host's access
+    log as well.
+
+    Asserted on BEHAVIOUR - one request issued, the 30x returned to the caller -
+    not on the constructor argument. Reading the argument back would assert only
+    that the line I wrote is the line I wrote.
+    """
+    seen: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(str(request.url))
+        return httpx2.Response(
+            302, headers=[("location", "https://evil.example/redirected")]
+        )
+
+    async with client(handler) as c:
+        response = await c._client.get("https://api.jobvite.com/v2/anything")
+
+    assert response.status_code == 302, (
+        f"the redirect was followed instead of returned. Requests: {seen}"
+    )
+    assert len(seen) == 1, f"more than one request was issued: {seen}"
+    assert not any("evil.example" in url for url in seen), (
+        f"a request reached the redirect target, carrying the credentials: {seen}"
+    )
+
+
+async def test_positive_control_httpx2_WOULD_follow_a_redirect_if_asked() -> None:
+    """The measurement that makes the test above non-vacuous.
+
+    If httpx2 could not follow redirects at all, the assertion above would pass
+    against a client that did nothing and "redirects are refused" would be an
+    untested claim about someone else's behaviour. This drives the same handler
+    with `follow_redirects=True` and requires the chase to happen - so the
+    refusal above is doing real work. It is the control on the control, the same
+    shape the cookie-jar pair above uses.
+    """
+    seen: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(str(request.url))
+        if "evil.example" in str(request.url):
+            return httpx2.Response(200, content=b"{}")
+        return httpx2.Response(
+            302, headers=[("location", "https://evil.example/redirected")]
+        )
+
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(handler), follow_redirects=True
+    ) as bare:
+        response = await bare.get("https://api.jobvite.com/v2/anything")
+
+    assert response.status_code == 200, "httpx2 did not chase the redirect at all"
+    assert any("evil.example" in url for url in seen), (
+        f"the redirect target was never reached, so the control proves nothing: {seen}"
+    )
