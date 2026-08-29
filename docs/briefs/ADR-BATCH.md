@@ -82,6 +82,61 @@ been inoperative and every test of it would have passed."*
 `jobvite_client.py:1234`. The design must say `httpx2`. **The ADR body still says `httpx` in the
 options it lists** - that text is superseded, not authoritative.
 
+## SIX RULINGS, so you do not stop on them - and three citations that are WRONG
+
+`adr-audit` left six items for me. All six are ruled here. **A ruling is a decision, not a
+suggestion**; if evidence on the ground contradicts one, stop and say so rather than choosing
+differently in silence.
+
+**R1. ADR-0027 says "§7.6's variable list". There is no such list.** §7.6 is *"Why there is no
+confirmation token"*. The variable enumeration is §10.1 at `:1545-1584`, which is also where
+`tests/test_config.py:576` points. **Edit §10.1 and repoint the ADR.** Do NOT create a list in §7 -
+two enumerations of one set is the container defect this project has found repeatedly, and they
+diverge at the first merge. Two count-bearing phrases at that site go stale on the addition: `:1563`
+*"Five variables had no name"* and `:1583` *"Both are now in `.env.example`"*. **Rewrite them to
+carry no count. Do not bump them.**
+
+**R2. ADR-0031 says both "add a row" and "the 403 row now names two conditions".** Those are
+different diffs. **Add the EIGHTH row, after `:520`.** Every other row in that table is one
+condition; folding two into the 403 row makes the table's key ambiguous, and ADR-0031's own ruling
+is *"add the row, no new slug"*.
+
+**R3. ADR-0032's new C2 row has no ID and no L/I.** The ADR DOES rule the severity - *"Ruled low"* -
+with its reasoning: it rewrites schemas and never payloads, it is downstream of
+`RequestIdMiddleware` so anything it logs is correlated, and it has no configuration and no
+credential. Only the identifier and the letters were open. **Use `C2-T2`, Likelihood Low / Impact
+Low -> Low.** It is a second Tampering row and T2 is the next free number.
+
+**R4. Leave `C2-T1` unqualified.** It stays literally true after adoption - schemas are not
+payloads - and a qualifier added to a true sentence is noise. **But `:1170`'s "These two plus
+`audit.py` make three log producers" MUST be fixed in the SAME edit**, because it resolves against a
+list this batch lengthens. Drop the count; do not bump it.
+
+**R5. Do NOT grow §13's deviation list.** Its header at `:1990` is *"The eleven required at
+freeze"* - a record of what was required AT FREEZE, not a running index. None of 0012-0033 is
+listed there and that is a boundary, not a gap. Growing it rewrites history the same way repointing
+a worklog would.
+
+**R6. ADR-0030 names no edit site, and the site is now decided: a new §4.3 bullet after `:363`.**
+**Leave §5.1's seven-member list at `:495-497` ALONE.** `retry_after` is an RFC 9457 EXTENSION
+member, which is free by construction; it is not an eighth mandated member, and bumping seven to
+eight would misstate the contract.
+
+### Three citations in the ADRs are WRONG, measured on the frozen design
+
+- **ADR-0028 cites the §8 arm as `DESIGN.md:1276-1278`, twice. `sampling` is on `:1280`** - outside
+  that range, because `:1279` ends at "`elicitation`,". **An applier editing only the cited range
+  changes nothing and the checker still passes.** Anchor on the subject: `grep -n sampling` gives
+  exactly `687` and `1280`, and both are the edit.
+- **ADR-0027 cites `assert len(variables) == 15` at `test_repo_hygiene.py:81`. It is `:82`.**
+- **ADR-0031 cites `:509` for "makes a published `type` URI a contract". It is `:510`.**
+
+**ADR-0023 needs NO DESIGN.md CHANGE AT ALL** - the frozen design has zero strict-mode, ShellCheck
+or `bash.md` content (`grep -icE` returns 0), and its applied home is `OBLIGATIONS.md` row BASH-1,
+already there. It also **contradicts itself**: its Decision puts `ci.yml` `run:` blocks in scope and
+its own "does not settle" bullet says it does not cover `ci.yml`. The Ruling settles it in favour of
+the Decision. **Delete that stale bullet.**
+
 ## The citation surface, re-measured at `1a51107` rather than estimated
 
 **The unit is OCCURRENCES, not lines** - `grep -rno 'DESIGN\.md:[0-9]' <dir> | wc -l`. Naming it
