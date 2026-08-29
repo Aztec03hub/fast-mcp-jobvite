@@ -269,11 +269,21 @@ async def test_positive_control_an_approved_write_moves_the_row_counter_by_one(
 class _FakeRequestContext:
     """A request context carrying all three candidate discriminators.
 
-    **The two traps are POPULATED HERE ON PURPOSE**, and with the values
-    the spike measured: `transport` is `'streamable-http'` on both eras
-    and `session_id` is a real string on both. An implementation that
-    read either of them would sail through the arms below, because both
-    look exactly as they do on a working call.
+    **The two traps are POPULATED HERE ON PURPOSE**: `transport` is the
+    DEPLOYED value on both eras and `session_id` is a real string on
+    both. An implementation that read either of them would sail through
+    the arms below, because both look exactly as they do on a working
+    call.
+
+    **`'streamable-http'` is the deployed value, not a measured one
+    (R7-L3), and it is kept deliberately.** Over real streamable-HTTP
+    both eras report it, which is what `FASTMCP-SPIKE-4.md:2066-2074`
+    measured. In-process - the transport this whole suite runs on - the
+    real `ctx.transport` is `None` on both. The fake states the
+    deployment it is standing in for rather than the harness it runs
+    under; what matters to the trap is that the two eras AGREE, and they
+    agree either way. `test_the_traps_agree_on_the_real_context` pins
+    the in-process observation so the two cannot drift apart unnoticed.
     """
 
     def __init__(self, protocol_version: str | None) -> None:
@@ -312,26 +322,148 @@ class _Answer:
         self.content = content
 
 
-def test_the_discriminator_is_protocol_version_and_not_transport_or_session_id() -> (
+# E501: the name is one character over once `async` is prefixed, and it
+# is a HARNESS ANCHOR - `scripts/check-u10-write-controls.sh:192` names
+# this test verbatim, so shortening it to satisfy the line length would
+# silently unhook the row that proves this case can fail.
+async def test_the_discriminator_is_protocol_version_and_not_transport_or_session_id() -> (  # noqa: E501
     None
 ):
-    """The three candidates, separated.
+    """The three candidates, separated - by CALLING the guard.
 
-    `ctx.transport` and `session_id` are IDENTICAL on the two contexts
-    below and only `protocol_version` differs, so a guard keyed on
-    either trap cannot tell them apart. This is the assertion that stops
-    a later refactor swapping the discriminator for one of the two
-    things that look like it and are not.
+    **R7-L1: this case did not do what its name says.** Its body called
+    only `observed_protocol_version`, a four-line `getattr` helper, and
+    never reached `resolve_approval` at all. Its two "trap" assertions
+    compared `sessionless.transport` with `handshake.transport` and the
+    same for `session_id` - two `_FakeContext` objects this test
+    constructs itself, from the same hardcoded literals. They asserted
+    that a literal equals itself, and swapping the discriminator for
+    `transport` would not change either literal, so the refactor the
+    docstring claimed to stop would have passed.
+
+    It is now driven through `resolve_approval`, the function it names:
+
+    1. Two contexts differing ONLY in `protocol_version` must resolve to
+       DIFFERENT mechanisms - `SAMPLING` on the sessionless era,
+       `ELICITATION` on the handshake era. A guard keyed on `transport`
+       or `session_id` cannot produce two answers here, because those
+       are identical on both.
+    2. **The negative control, for what must NOT matter**: make
+       `transport` and `session_id` differ between the two contexts and
+       assert the mechanisms are UNCHANGED. Without this, a guard that
+       read `transport` and happened to agree on this pair would still
+       pass step 1.
+
+    The branch is not uncovered either way - R7's M2 mutation of the era
+    check is killed by two other cases - which is why this was a nit.
+    But a test whose name is a claim its body never exercises is a
+    recorded defect on this project, and the name is the part a later
+    reader trusts.
     """
-    from fast_mcp_jobvite.approval import observed_protocol_version
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        ApprovalMechanism,
+        resolve_approval,
+    )
 
-    sessionless = _FakeContext("2026-07-28")
+    async def mechanism_of(ctx: Any) -> ApprovalMechanism:
+        decision = await resolve_approval(
+            ctx, message="approve?", request_state="state"
+        )
+        assert isinstance(decision, ApprovalDecision), (
+            f"the era resolved to {type(decision).__name__}, not a decision; "
+            "this case cannot compare mechanisms"
+        )
+        return decision.mechanism
+
+    # The sessionless era needs its MRTR answers present, or it returns
+    # the pending FIRST leg instead of a settled decision.
+    answers = {APPROVAL_REQUEST_KEY: _Answer("accept", {"approve": True})}
+
+    sessionless = _FakeContext("2026-07-28", input_responses=answers)
     handshake = _FakeContext("2025-11-25")
 
+    # The two traps really are identical here, which is what makes the
+    # discrimination below attributable to the version alone.
     assert sessionless.transport == handshake.transport
     assert sessionless.session_id == handshake.session_id
-    assert observed_protocol_version(sessionless) == "2026-07-28"  # type: ignore[arg-type]
-    assert observed_protocol_version(handshake) == "2025-11-25"  # type: ignore[arg-type]
+
+    assert await mechanism_of(sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(handshake) == ApprovalMechanism.ELICITATION
+
+    # NEGATIVE CONTROL. Make both traps DIFFER and require the same two
+    # mechanisms: whatever the guard reads, it is not these.
+    varied_sessionless = _FakeContext("2026-07-28", input_responses=answers)
+    varied_sessionless.transport = "stdio"
+    varied_sessionless.session_id = "11111111-1111-4111-8111-111111111111"
+    varied_handshake = _FakeContext("2025-11-25")
+    varied_handshake.transport = "sse"
+    varied_handshake.session_id = "22222222-2222-4222-8222-222222222222"
+
+    assert varied_sessionless.transport != varied_handshake.transport
+    assert varied_sessionless.session_id != varied_handshake.session_id
+
+    assert await mechanism_of(varied_sessionless) == ApprovalMechanism.SAMPLING
+    assert await mechanism_of(varied_handshake) == ApprovalMechanism.ELICITATION
+
+
+async def test_the_traps_agree_on_the_real_context() -> None:
+    """R7-L3: the fakes above assert values this suite cannot produce.
+
+    `_FakeRequestContext` and `_FakeContext` set `transport` to
+    `'streamable-http'` and give both eras the SAME `session_id`. Over
+    real streamable-HTTP the first is right; in-process, which is what
+    everything here runs on, it is `None`. And real `session_id`s are
+    per-session UUIDs that DIFFER on every connection - the fakes make
+    them equal, which is a convenience of the fake and was being read as
+    an observation about the framework.
+
+    **The claim that matters survives either way, and this pins it:**
+    `transport` is EQUAL across the two eras, so it cannot discriminate.
+    `session_id` is POPULATED on both - that is what makes it a trap,
+    never that it is equal. Nothing else in this file measures the real
+    `Context`, so without this case the framework could change what
+    either returns and only the fakes would still agree.
+    """
+    from fastmcp import Client as ProbeClient
+    from fastmcp import FastMCP
+    from fastmcp.server.dependencies import get_context
+
+    probe = FastMCP("l3-probe")
+
+    @probe.tool
+    async def observe() -> dict[str, str]:
+        ctx = get_context()
+        return {
+            "transport": repr(getattr(ctx, "transport", None)),
+            "session_id": repr(getattr(ctx, "session_id", None)),
+            "protocol_version": repr(
+                getattr(ctx.request_context, "protocol_version", None)
+            ),
+        }
+
+    seen: dict[str, dict[str, str]] = {}
+    for mode in (SESSIONLESS_MODE, HANDSHAKE_MODE):
+        async with ProbeClient(probe, mode=mode) as client:
+            seen[mode] = (await client.call_tool("observe", {})).data
+
+    # POSITIVE CONTROL: the two eras really were distinguished, or the
+    # agreement below is agreement between two identical calls.
+    assert (
+        seen[SESSIONLESS_MODE]["protocol_version"]
+        != seen[HANDSHAKE_MODE]["protocol_version"]
+    ), seen
+
+    assert seen[SESSIONLESS_MODE]["transport"] == seen[HANDSHAKE_MODE]["transport"], (
+        f"transport now DIFFERS across eras, so it is no longer a trap: {seen}"
+    )
+
+    for mode in (SESSIONLESS_MODE, HANDSHAKE_MODE):
+        assert seen[mode]["session_id"] != repr(None), (
+            f"session_id is unpopulated on {mode}; the docstrings calling it "
+            f"a trap because it is populated on both are now wrong: {seen}"
+        )
 
 
 async def test_an_unidentifiable_era_refuses_and_logs_the_observed_value(
@@ -758,6 +890,20 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
 
     Asserted against the audit event the case above proves exists, not
     against an empty stream (DESIGN.md:1273-1281).
+
+    **R7-L2: this checked ONE of four values, and only `arguments`.** It
+    asserted `VALID_ARGS["email"]` absent and said nothing about
+    `first_name`, `last_name` or `job_eid` - all submitted, the first
+    two PII in their own right. It also serialised only
+    `e["arguments"]`, where U8's sibling
+    (`tests/test_tools_candidates.py:943`) serialises the WHOLE event.
+    The behaviour was correct - R7 probed all four - so this was a
+    partial check that happened to be pointed at a leak-free field.
+
+    Now every value in `VALID_ARGS` is checked, and against the whole
+    event: a redactor covering `arguments` while leaking the same value
+    into another structured field would have passed the old form, and a
+    JSON sink publishes every field.
     """
     ats = _JobviteRows()
     server = build_server(settings(), client_factory=ats.factory())
@@ -768,8 +914,9 @@ async def test_the_audit_arguments_carry_no_candidate_pii_in_the_clear(
 
     events = audit_events(audit_records)
     assert events, "the stream is empty; this absence would be vacuous"
-    serialised = json.dumps([e["arguments"] for e in events])
-    assert VALID_ARGS["email"] not in serialised, serialised
+    serialised = json.dumps(events, default=str)
+    for name, value in VALID_ARGS.items():
+        assert value not in serialised, (name, serialised)
 
 
 # ======================================================================
