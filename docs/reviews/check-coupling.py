@@ -301,7 +301,7 @@ def main(path: pathlib.Path) -> int:
     #     that tested nothing; a declared gate is a stated condition.
     #     What is forbidden is the silent version.
     ARTIFACT_MARKER = "against the committed files"  # noqa: N806 - a selector
-    GATING_MARKERS = (
+    gating_markers = (
         "gated on",
         "once a",
         "when a",
@@ -352,7 +352,7 @@ def main(path: pathlib.Path) -> int:
         """
         stem = re.split(r"[./]", token)[0].lower().lstrip(".")
         low = bullet.lower()
-        for marker in GATING_MARKERS:
+        for marker in gating_markers:
             start = 0
             while (idx := low.find(marker, start)) != -1:
                 # FORWARD window only, and short. A gating clause names
