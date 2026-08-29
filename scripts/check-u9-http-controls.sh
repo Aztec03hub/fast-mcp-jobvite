@@ -302,6 +302,26 @@ mutate "M14 the inbound id is bound without being validated" \
   '        with request_id_scope(resolve_request_id(inbound)):' \
   '        with request_id_scope(inbound or resolve_request_id(None)):'
 
+# ===========================================================================
+# THE ROW FLOOR (R4-M4, applied here by R7-H2)
+# ===========================================================================
+#
+# `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness whose rows were
+# all deleted - or all skipped - reports fully green. `TOTAL -gt 0` below
+# was the only floor, which one surviving row satisfies. Lowering this
+# number is a visible diff that has to be defended.
+#
+# 14 is DERIVED, not typed: this harness was run at 03c4ae6 in a
+# dedicated worktree and reported "14/14 controls fired", with 14 rows
+# counted from the log. A floor copied from a report or a task record
+# would be a second copy of a number that is measured in one place.
+ROW_FLOOR=14
+if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+  echo "########## $TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
+  echo "A harness with fewer rows than its floor is green for the wrong reason."
+  exit 1
+fi
+
 echo "$FIRED/$TOTAL controls fired."
 [ "$TOTAL" -gt 0 ] && [ "$FIRED" -eq "$TOTAL" ] && exit 0
 exit 1
