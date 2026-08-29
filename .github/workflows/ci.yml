@@ -407,6 +407,24 @@ jobs:
       # collected and the rest still pass. 3 derived from
       # `pytest -m credentialed --collect-only` on this branch, not from the
       # "deselected" figure in the default run, which also counts network.
+      # QUICKSTART PARITY. `readme-standard.md:66` is priority: required -
+      # "the Quickstart commands MUST be exercised by CI on every merge to
+      # the default branch" - and nothing did. tests/test_readme.py checks
+      # the README's structure, links, table and tool count; none of that
+      # runs a command.
+      #
+      # The checker PARSES the commands out of README.md rather than
+      # carrying a copy, so a README edit that breaks the Quickstart fails
+      # here. A copy would be the second-list defect this repository has
+      # now recorded in five separate places.
+      #
+      # It asserts the OUTPUT, not just the exit code: `fastmcp inspect`
+      # prints an ERROR and exits 0 when pointed at a path with no server
+      # object, which is how a wrong factory path looks identical to a
+      # working one. Measured - I hit exactly that earlier.
+      - name: The README's Quickstart still works
+        run: uv run --frozen python docs/reviews/check-quickstart.py
+
       - name: Collect the credentialed suite
         run: |
           set -uo pipefail

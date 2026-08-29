@@ -109,6 +109,7 @@ uv run --frozen ruff check .           # lint
 uv run --frozen ruff format --check .  # format
 uv run --frozen mypy                   # types
 uv run --frozen pytest                 # the default offline suite, zero skips
+uv run --frozen python docs/reviews/check-quickstart.py  # the README's Quickstart really runs
 # THE CHEAP ONE FIRST. Reads every anchor out of every harness and greps its
 # target file, in milliseconds, without running a harness at all. A harness run
 # is minutes; this is what to run after any reformatting sweep. The floor is in
