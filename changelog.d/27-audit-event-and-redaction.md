@@ -1,6 +1,6 @@
 ### Added
 - Per-invocation audit event for every tool call, carrying the tool name, redacted arguments,
-  result status, latency and `request_id`, plus the transport and — on HTTP — the resolved client
+  result status, latency and `request_id`, plus the transport and - on HTTP - the resolved client
   id. On stdio the event records that caller attribution is unavailable rather than implying an
   identity that does not exist. W3C trace context is recorded when the caller supplies it and
   omitted when it does not; it is never synthesised. (task #27)
