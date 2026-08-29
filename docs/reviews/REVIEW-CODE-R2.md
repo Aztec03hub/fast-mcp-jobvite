@@ -204,7 +204,7 @@ R8 the inbound request-id anchor allows a trailing newline: *** SURVIVED ***
 
 In Python `$` matches immediately before a trailing newline, so the mutant accepts
 `"11111111-1111-4111-8111-111111111111\n"` and `resolve_request_id` echoes it into the audit record
-- which is precisely C7-T1 (`DESIGN.md:1744`), "a value carrying a newline writes a second,
+- which is precisely C7-T1 (`DESIGN.md:1795`), "a value carrying a newline writes a second,
 attacker-authored line into the audit stream" (`audit.py:80-81`).
 
 Measured, at this SHA:
@@ -240,13 +240,13 @@ and add `\Z -> $` as a row in `check-u3-audit-controls.sh` so the anchor stays p
 The same module holds both:
 
 - `SECRET_QUERY_PARAMS = frozenset({"api", "sc", "companyid"})` (`:64`), because
-  `DESIGN.md:311-313` makes `companyId` "a credential class of its own", and
+  `DESIGN.md:317-319` makes `companyId` "a credential class of its own", and
 - `NON_SENSITIVE_ARGUMENT_KEYS` containing `"companyId"` (`:91`), whose docstring says every member
   is there because it is "structurally an identifier, a bound or a page cursor rather than anything
   a candidate typed or that identifies one".
 
 `config.py:169` types the same value `company_id: SecretStr | None`, and `config.py:31-34` cites
-`DESIGN.md:314` for it being "the job feed's separate credential, not … a public identifier".
+`DESIGN.md:320` for it being "the job feed's separate credential, not … a public identifier".
 
 Measured at this SHA:
 
@@ -257,7 +257,7 @@ Measured at this SHA:
 
 The single enforcement point fails **open** on a value it redacts everywhere else. Reachability
 today is low - no shipped tool takes `companyId` from the caller, it comes from configuration - so
-this is a latent fail-open in the one module DESIGN.md:306-310 designates as the single enforcement
+this is a latent fail-open in the one module DESIGN.md:312-316 designates as the single enforcement
 point, not a live leak. It becomes live the moment any tool accepts a `companyId` argument, which
 is exactly the "a tool added later contributes its arguments … redacted" property `:75-76` claims
 for this list. No test covers it: `test_redaction.py` has
@@ -296,7 +296,7 @@ camelCase member of an otherwise snake_case set.
 problem object's `detail` member. A deployment behind an authenticating egress proxy
 (`HTTPS_PROXY=http://user:pass@proxy:8080`, which httpx reads from the environment) publishes the
 proxy credential to the MCP caller on any `ProxyError`, and into the log line that formats it.
-`DESIGN.md:308-309`'s rule is "never in an exception message"; this is an exception message.
+`DESIGN.md:314-315`'s rule is "never in an exception message"; this is an exception message.
 
 **Suggested fix.** Redact userinfo inside `redact_url`, where the single enforcement point already
 is, so both the log arm and the exception arm inherit it:
@@ -421,7 +421,7 @@ R2 empty-is-unset stops stripping whitespace: *** SURVIVED ***
 
 With the mutant, a whitespace-only credential is a *present* credential that satisfies
 `_check_required_variables` and then fails at Jobvite as a 401 - the exact confusion
-`DESIGN.md:891-895` and this function's own docstring exist to prevent. `test_config.py:366-379`
+`DESIGN.md:913-917` and this function's own docstring exist to prevent. `test_config.py:366-379`
 covers `""` only. The behaviour at this SHA is correct; the guard holding it is absent.
 
 **Suggested fix.** Parametrise the existing case:
@@ -471,7 +471,7 @@ caller:
             ) from None
 ```
 
-The class name alone satisfies `DESIGN.md:349-352`'s "what distinguishes them is `detail`".
+The class name alone satisfies `DESIGN.md:355-358`'s "what distinguishes them is `detail`".
 `test_a_transport_error_on_the_jobfeed_route_is_redacted` would need repointing at the log record
 rather than at `detail`; note that its current positive half (`assert "jobvite.com" in detail`)
 **asserts the leak** as the thing that makes the absence non-vacuous.
@@ -685,7 +685,7 @@ A missing `company_id` raises `JobviteUpstreamError(None, "the jobFeed route req
 credential and none is configured")`, which `errors.py:122` maps to
 `/problems/external-service-error` **502** and renders as `"Jobvite returned status none: …"`.
 Jobvite returned nothing; the call was never made. The caller is told the upstream failed when the
-deployment is misconfigured, which is the same inversion `DESIGN.md:496-503` corrects for Jobvite's
+deployment is misconfigured, which is the same inversion `DESIGN.md:502-509` corrects for Jobvite's
 own 401.
 
 Note also that `config.py:310-322` refuses to boot when `get_job_feed` is enabled without
@@ -694,7 +694,7 @@ Note also that `config.py:310-322` refuses to boot when `get_job_feed` is enable
 guarantee. That is fine as defence in depth; the wrong *type* is the finding.
 
 **Suggested fix.** Raise the internal condition instead. `errors.py` has no configuration row, and
-`DESIGN.md:504-505` forbids minting a slug, so `about:blank`/500 via a plain exception is the
+`DESIGN.md:510-511` forbids minting a slug, so `about:blank`/500 via a plain exception is the
 honest answer - which is what `problem_from_exception` already does for anything outside the
 hierarchy (ADR-0017):
 

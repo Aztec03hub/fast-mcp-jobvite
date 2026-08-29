@@ -1,22 +1,25 @@
 # ADR-BATCH - eight Accepted ADRs applied, and `docs/DESIGN.md` re-frozen
 
-**Branch:** `adr/batch`, rebased onto `origin/main` at `5240354`.
+**Branch:** `adr/batch`, rebased onto `main` at `b077202`. It was rebased TWICE: `main` moved by two
+commits (round 2's review of U1, U3 and U4) while this batch was running, which invalidated the
+first rebase's fast-forward and, with it, the freeze SHA the first pass had stamped. The SHA was
+re-derived and re-stamped rather than carried.
 **Base pinned:** `70cd2ca`, in a worktree at `/tmp/adr-batch-work`. The shared checkout was never
 written to and never had anything checked out in it.
 
-## THE NEW FROZEN SHA IS `09ea30c`
+## THE NEW FROZEN SHA IS `c15b138`
 
 `docs/DESIGN.md` was frozen at `135c3ac` for the whole project. It is now frozen at
 
 ```
-09ea30c  Wire check-cross-references.py into ci.yml and CONTRIBUTING, now that it is green
+c15b138  Wire check-cross-references.py into ci.yml and CONTRIBUTING, now that it is green
 ```
 
-Every future brief cites `09ea30c`. The re-freeze is verified rather than asserted:
+Every future brief cites `c15b138`. The re-freeze is verified rather than asserted:
 
 ```
-$ python3 docs/reviews/check-design-citations.py --since 09ea30c
-DESIGN.md is byte-identical to 09ea30c. No citation can have moved.
+$ python3 docs/reviews/check-design-citations.py --since c15b138
+DESIGN.md is byte-identical to c15b138. No citation can have moved.
 ```
 
 The value was **derived**, in the same command that wrote it, by
@@ -214,6 +217,13 @@ an example citation is not CITING anything. The repointer now skips any line car
 illustrate, and a positive control asserts no unmarked citation is left in that file. Its 3/3
 controls still fire.
 
+### The citations from commits that landed on `main` while this ran
+
+`docs/reviews/REVIEW-CODE-R2.md` arrived at `b077202`, written against `DESIGN.md` as frozen at
+`135c3ac`. **Nine** of its citations were repointed, each verified by the same content-identity
+check as pass 1. Its tenth, `:47`, cites `DESIGN.md:603` as the address the cross-reference gate was
+red on, which is the defect ADR-0019 fixes, and is left alone with the rest of that population.
+
 ### The four citations that postdate the pinned base
 
 Task #11's finding, handled on this branch after the rebase rather than left for merge.
@@ -347,9 +357,9 @@ credential path to it.
 ## Commits, and the merge
 
 ```
-d1e15c7  Re-stamp the freeze at 09ea30c, and repoint the obligation anchors it moved
+d1e15c7  Re-stamp the freeze at c15b138, and repoint the obligation anchors it moved
 c4b5c04  Repoint the one post-base citation the batch could not have seen (task #11)
-09ea30c  Wire check-cross-references.py into ci.yml and CONTRIBUTING  <- THE FROZEN SHA
+c15b138  Wire check-cross-references.py into ci.yml and CONTRIBUTING  <- THE FROZEN SHA
 d08a96c  Fix the cross-reference gate's one finding, and exempt the checkers' own examples
 31db393  ADR-0018, ADR-0022, and all eight statuses to Accepted
 2efc093  ADR-0017: the unmapped condition is /problems/internal-error, not about:blank
@@ -361,7 +371,7 @@ e6ec5cb  Apply the six design-text ADRs to the frozen DESIGN.md
 git checkout main && git merge --ff-only adr/batch && git push origin main
 ```
 
-`--ff-only` matters: it keeps `09ea30c` as the SHA every re-stamped document names. If `main` has
+`--ff-only` matters: it keeps `c15b138` as the SHA every re-stamped document names. If `main` has
 moved and a fast-forward is refused, rebase `adr/batch` again and **re-derive the freeze SHA** with
 `git log -1 --format=%h -- docs/DESIGN.md` before pushing, because a merge commit or a second rebase
 changes it and every re-stamp goes stale silently.
