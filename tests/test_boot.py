@@ -1,11 +1,14 @@
-"""§8 #10: an off-loopback bind without TLS refuses to START (DESIGN.md:1323).
+"""§8 #10: an off-loopback bind without TLS refuses to START.
 
-Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and none
-of them rested on a test before.
+DESIGN.md:1323.
 
-These arms run the **real process**. `test_config.py` proves the validator
-raises; only a process arm proves the server *exits naming the reason*
-rather than warning and continuing, which is what the case actually says.
+Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and
+none of them rested on a test before.
+
+These arms run the **real process**. `test_config.py` proves the
+validator raises; only a process arm proves the server *exits naming the
+reason* rather than warning and continuing, which is what the case
+actually says.
 """
 
 from __future__ import annotations
@@ -31,7 +34,10 @@ V2 = {"JOBVITE_API_KEY": "k", "JOBVITE_API_SECRET": "s"}
 def test_off_loopback_without_tls_exits_naming_the_reason(
     tmp_path: pathlib.Path,
 ) -> None:
-    """§8 #10. No certificates configured here, the assertion undeclared."""
+    """§8 #10.
+
+    No certificates configured here, the assertion undeclared.
+    """
     env = clean_env(
         JOBVITE_MCP_TRANSPORT="http",
         JOBVITE_MCP_HOST="0.0.0.0",  # noqa: S104
@@ -43,8 +49,9 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
     result = run_entry(tmp_path, env)
     assert result.returncode == EXIT_CONFIGURATION_REFUSED
     combined = result.stdout + result.stderr
-    # NAMING THE REASON: the variable an operator must set, and the host that
-    # triggered it. An exit code alone is a refusal nobody can act on.
+    # NAMING THE REASON: the variable an operator must set, and the host
+    # that triggered it. An exit code alone is a refusal nobody can act
+    # on.
     assert "JOBVITE_TLS_TERMINATED_BY_PROXY" in combined
     assert "0.0.0.0" in combined  # noqa: S104
     # And it exited rather than warning and continuing.
@@ -52,7 +59,10 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
 
 
 def test_the_default_loopback_bind_starts(tmp_path: pathlib.Path) -> None:
-    """Positive control 1 of 2 (DESIGN.md:1323, IMPLEMENTATION-PLAN.md:504)."""
+    """Positive control 1 of 2 (DESIGN.md:1323).
+
+    IMPLEMENTATION-PLAN.md:504.
+    """
     port = free_port()
     env = clean_env(
         JOBVITE_MCP_TRANSPORT="http",
@@ -72,11 +82,13 @@ def test_the_default_loopback_bind_starts(tmp_path: pathlib.Path) -> None:
 def test_off_loopback_with_the_assertion_declared_starts(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Positive control 2 of 2. The refusal is about TLS, not about binding.
+    """Positive control 2 of 2.
 
-    Binding the wildcard address is what an operator behind a terminating
-    proxy actually does, so a refusal that fired here too would be a guard
-    that refuses everything (DESIGN.md:1370-1372).
+    The refusal is about TLS, not about binding.
+
+    Binding the wildcard address is what an operator behind a
+    terminating proxy actually does, so a refusal that fired here too
+    would be a guard that refuses everything (DESIGN.md:1370-1372).
     """
     port = free_port()
     env = clean_env(
@@ -99,7 +111,10 @@ def test_off_loopback_with_the_assertion_declared_starts(
 def test_http_without_tokens_exits_rather_than_serving_openly(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:832-834, as a process arm. An open server is the alternative."""
+    """DESIGN.md:832-834, as a process arm.
+
+    An open server is the alternative.
+    """
     env = clean_env(
         JOBVITE_MCP_TRANSPORT="http",
         JOBVITE_MCP_PORT=str(free_port()),
@@ -112,7 +127,10 @@ def test_http_without_tokens_exits_rather_than_serving_openly(
 
 
 def test_a_missing_credential_exits_naming_the_variable(tmp_path: pathlib.Path) -> None:
-    """DESIGN.md:913-917: a missing credential fails at BOOT, naming it."""
+    """DESIGN.md:913-917: a missing credential fails at BOOT.
+
+    And the refusal names it.
+    """
     env = clean_env(JOBVITE_TOOLS="search_jobs")
     result = run_entry(tmp_path, env)
     assert result.returncode == EXIT_CONFIGURATION_REFUSED
@@ -120,7 +138,10 @@ def test_a_missing_credential_exits_naming_the_variable(tmp_path: pathlib.Path) 
 
 
 def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> None:
-    """DESIGN.md:931-936, as a process arm rather than a validator call."""
+    """DESIGN.md:931-936, as a process arm.
+
+    Rather than as a validator call.
+    """
     env = clean_env(JOBVITE_TOOLS="serch_jobs", **V2)
     result = run_entry(tmp_path, env)
     assert result.returncode == EXIT_CONFIGURATION_REFUSED
@@ -128,10 +149,11 @@ def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> No
 
 
 def test_a_refusal_writes_nothing_to_stdout(tmp_path: pathlib.Path) -> None:
-    """Stdout is the JSON-RPC channel on stdio; diagnostics go to stderr.
+    """Stdout is the JSON-RPC channel; diagnostics go to stderr.
 
-    A refusal message on stdout would be indistinguishable from a malformed
-    JSON-RPC frame to a client that had already started reading.
+    A refusal message on stdout would be indistinguishable from a
+    malformed JSON-RPC frame to a client that had already started
+    reading.
     """
     env = clean_env(JOBVITE_TOOLS="search_jobs")
     result = run_entry(tmp_path, env)
@@ -147,8 +169,8 @@ def test_the_server_reaches_serving_on_both_transports(
     """The broadest positive control: the unit can actually start.
 
     DESIGN.md:792-795 records that this section's variables were found
-    missing by someone trying to build against it and discovering the unit
-    could not be started at all.
+    missing by someone trying to build against it and discovering the
+    unit could not be started at all.
     """
     extra = {}
     if transport == "http":

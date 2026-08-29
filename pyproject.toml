@@ -182,7 +182,7 @@ show_missing = true
 # `line-length = 100` as do-not-copy item 16, inherited from fast-mcp-jira.
 # It was set here and never argued: a grep for line-length across DESIGN.md,
 # the plan, every ADR, DECISIONS.md and the worklogs returns nothing.
-line-length = 88  # B49, code half only; the 72-char half is B49b
+line-length = 88  # B49: the code half (python.md:35)
 target-version = "py312"
 src = ["src", "tests"]
 # docs/reviews/*.py are the design-coupling gate harnesses. They are owned by the
@@ -196,6 +196,9 @@ select = [
   # COMPLIANCE-SPEC.md:205-218 verbatim. Five [STD] families were missing and are
   # added here while src/ is one file - at U8 this becomes a whole-tree diff.
   "E", "W",   # pycodestyle       [STD] python.md:28
+  "W505",     # doc-line-too-long [STD] python.md:36 (B49b). Listed even
+              # though "W" covers it: W505 is INERT unless max-doc-length
+              # is set, so naming it here keeps the pair visible together.
   "F",        # pyflakes          [STD] quality-gates.md:63
   "I",        # isort             [STD] python.md:54-58
   "N",        # pep8-naming       [STD] python.md:62-72 (B52)
@@ -209,6 +212,14 @@ select = [
   "ANN",      # annotations       [STD] python.md:76, type hints required (B50 type-hint half)
 ]
 ignore = ["D203", "D213"]   # mutually exclusive with D211/D212
+
+[tool.ruff.lint.pycodestyle]
+# B49b. `backend/python.md:36` - "For comments and docstrings: 72
+# characters" - in a document whose frontmatter is `priority: required`.
+# The clause was unenforced from U0 to here, and the violation count grew
+# from 367 to 1608 in the days it went unmeasured. The rule ships in the
+# SAME commit as the sweep so the gate is never knowingly red.
+max-doc-length = 72
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"       # python.md:97 (B50 docstring half)

@@ -1,8 +1,8 @@
 """U1's configuration refusals (DESIGN.md:911-957).
 
-Every refusal case here is paired with a positive control, because a guard
-that refuses everything is not a guard and its refusals prove nothing
-(DESIGN.md:1370-1372).
+Every refusal case here is paired with a positive control, because a
+guard that refuses everything is not a guard and its refusals prove
+nothing (DESIGN.md:1370-1372).
 """
 
 from __future__ import annotations
@@ -44,9 +44,9 @@ def clean_env(
 ) -> pytest.MonkeyPatch:
     """Remove every JOBVITE_ variable and move off any real `.env`.
 
-    `Settings` reads `.env` from the working directory. Running in a fresh
-    tmp_path is what makes "unset" mean unset rather than "whatever the
-    developer happens to have".
+    `Settings` reads `.env` from the working directory. Running in a
+    fresh tmp_path is what makes "unset" mean unset rather than
+    "whatever the developer happens to have".
     """
     import os
 
@@ -62,10 +62,10 @@ def _set(env: pytest.MonkeyPatch, mapping: dict[str, str]) -> None:
         env.setenv(key, value)
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # The per-enabled-tool matrix, row by row, INCLUDING the negative
 # (DESIGN.md:938-945).
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -83,7 +83,7 @@ def _set(env: pytest.MonkeyPatch, mapping: dict[str, str]) -> None:
 def test_each_row_of_the_matrix_refuses_each_of_its_own_variables(
     clean_env: pytest.MonkeyPatch, tool: str, required: tuple[str, ...]
 ) -> None:
-    """Dropping any one required variable of an enabled tool refuses boot."""
+    """Dropping a required variable of an enabled tool refuses boot."""
     supplied = dict(V2_PAIR) | dict(FEED_TRIPLE)
     for dropped in required:
         env = {k: v for k, v in supplied.items() if k != dropped}
@@ -121,17 +121,17 @@ def test_a_candidate_search_deployment_is_not_asked_for_a_company_id(
 ) -> None:
     """The NEGATIVE of the matrix, stated at DESIGN.md:938-939.
 
-    "a deployment using only candidate search must not be forced to invent a
-    `companyId` it has no use for". A test that only ever adds variables
-    passes against an implementation validating the union.
+    "a deployment using only candidate search must not be forced to
+    invent a `companyId` it has no use for". A test that only ever adds
+    variables passes against an implementation validating the union.
     """
     clean_env.setenv("JOBVITE_TOOLS", SEARCH_CANDIDATES)
     _set(clean_env, V2_PAIR)
     settings = load_settings()
     assert settings.company_id is None
     assert settings.missing_for(SEARCH_CANDIDATES) == []
-    # And the union WOULD have been refused, so the assertion above is not
-    # vacuously true of any configuration.
+    # And the union WOULD have been refused, so the assertion above is
+    # not vacuously true of any configuration.
     assert settings.missing_for(GET_JOB_FEED) == [
         "JOBVITE_FEED_KEY",
         "JOBVITE_FEED_SECRET",
@@ -139,9 +139,9 @@ def test_a_candidate_search_deployment_is_not_asked_for_a_company_id(
     ]
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # JOBVITE_TOOLS (DESIGN.md:919-936).
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def test_an_unrecognised_tool_name_is_a_startup_failure(
@@ -170,16 +170,16 @@ def test_unset_tools_means_all_reads_and_never_the_write(
     assert load_settings().enabled_tools == READ_TOOLS
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # The ENABLE_WRITES / TOOLS conjunction, BOTH directions
 # (DESIGN.md:925-929).
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def test_enable_writes_true_with_tools_unset_does_not_register_the_write(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """DESIGN.md:927-928: the obvious single step is the one that does nothing."""
+    """DESIGN.md:927-928: the obvious step does nothing."""
     _set(clean_env, V2_PAIR | FEED_TRIPLE)
     clean_env.setenv("JOBVITE_ENABLE_WRITES", "true")
     settings = load_settings()
@@ -206,15 +206,18 @@ def test_both_together_do_register_the_write(clean_env: pytest.MonkeyPatch) -> N
     assert load_settings().enabled_tools == frozenset({CREATE_CANDIDATE})
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # The HTTP transport (DESIGN.md:828-834, :778-782).
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def test_http_without_tokens_is_a_startup_failure(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """DESIGN.md:832-834: an open server is the alternative, so it refuses."""
+    """DESIGN.md:832-834: an open server is the alternative.
+
+    So it refuses.
+    """
     clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
     _set(clean_env, V2_PAIR)
@@ -235,8 +238,9 @@ def test_http_with_tokens_starts(clean_env: pytest.MonkeyPatch) -> None:
 def test_stdio_without_tokens_starts(clean_env: pytest.MonkeyPatch) -> None:
     """The token requirement is keyed on the TRANSPORT, not on a tool.
 
-    DESIGN.md:948-953 sets that row of the matrix apart for this reason, so
-    the negative belongs here: stdio must not inherit an HTTP obligation.
+    DESIGN.md:948-953 sets that row of the matrix apart for this reason,
+    so the negative belongs here: stdio must not inherit an HTTP
+    obligation.
     """
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
     _set(clean_env, V2_PAIR)
@@ -248,9 +252,9 @@ def test_a_malformed_token_map_is_refused_without_echoing_it(
 ) -> None:
     """A malformed value refuses, and the refusal quotes no part of it.
 
-    The value is secret-class (DESIGN.md:828-831) and a JSON parse error's
-    own text quotes its input, so the exception must be discarded rather
-    than reported.
+    The value is secret-class (DESIGN.md:828-831) and a JSON parse
+    error's own text quotes its input, so the exception must be
+    discarded rather than reported.
     """
     secret = "s3cr3t-token-material"  # noqa: S105 - the point of the case
     clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
@@ -263,11 +267,11 @@ def test_a_malformed_token_map_is_refused_without_echoing_it(
     assert secret not in str(excinfo.value)
 
 
-# ---------------------------------------------------------------------------
-# The off-loopback TLS refusal (DESIGN.md:800-804). Three High rows rest on
-# it. The end-to-end process arms are in test_boot.py; these are the unit
-# arms.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# The off-loopback TLS refusal (DESIGN.md:800-804). Three High rows rest
+# on it. The end-to-end process arms are in test_boot.py; these are the
+# unit arms.
+# ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1", "[::1]"])
@@ -328,8 +332,9 @@ def test_the_default_loopback_bind_starts(clean_env: pytest.MonkeyPatch) -> None
 def test_the_tls_refusal_is_not_applied_on_stdio(clean_env: pytest.MonkeyPatch) -> None:
     """`JOBVITE_MCP_HOST` is only read when the transport is http.
 
-    Without this the refusal would fire on a stdio deployment that happens
-    to carry a leftover host value, which is a refusal nobody asked for.
+    Without this the refusal would fire on a stdio deployment that
+    happens to carry a leftover host value, which is a refusal nobody
+    asked for.
     """
     clean_env.setenv("JOBVITE_MCP_HOST", "0.0.0.0")  # noqa: S104
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
@@ -342,9 +347,9 @@ def test_every_reason_is_named_not_just_the_first(
 ) -> None:
     """§8 #10 requires the process to exit NAMING THE REASON.
 
-    Raising at the first refusal would report the missing tokens and never
-    the off-loopback bind, so the reason it was actually refused would never
-    be printed.
+    Raising at the first refusal would report the missing tokens and
+    never the off-loopback bind, so the reason it was actually refused
+    would never be printed.
     """
     clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
     clean_env.setenv("JOBVITE_MCP_HOST", "0.0.0.0")  # noqa: S104
@@ -358,18 +363,19 @@ def test_every_reason_is_named_not_just_the_first(
     assert "JOBVITE_TLS_TERMINATED_BY_PROXY" in joined
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # Empty is unset (the template ships empties on purpose).
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def test_an_empty_value_is_treated_as_unset(clean_env: pytest.MonkeyPatch) -> None:
     """`.env.example` ships secret-class values EMPTY on purpose.
 
-    An operator copies it and fills only what their tools need, so an empty
-    `JOBVITE_API_KEY` must be *absent*, not a present credential that is the
-    empty string - which would satisfy the required-variable check and fail
-    at Jobvite as the confusing 401 DESIGN.md:913-917 exists to prevent.
+    An operator copies it and fills only what their tools need, so an
+    empty `JOBVITE_API_KEY` must be *absent*, not a present credential
+    that is the empty string - which would satisfy the required-variable
+    check and fail at Jobvite as the confusing 401 DESIGN.md:913-917
+    exists to prevent.
     """
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
     clean_env.setenv("JOBVITE_API_KEY", "")
@@ -385,19 +391,20 @@ def test_a_whitespace_only_value_is_also_treated_as_unset(
 ) -> None:
     """A whitespace-only value is absent, which only half a test held.
 
-    `_empty_is_unset` promises "empty AND whitespace-only" and only the first
-    half was exercised.
+    `_empty_is_unset` promises "empty AND whitespace-only" and only the
+    first half was exercised.
 
-    **This was a surviving mutation.** Deleting `.strip()` from the validator
-    left the whole suite green, because every existing case uses `""` - which
-    is falsy with or without the strip. A credential of `" "` would then be a
-    PRESENT value that satisfies the required-variable check and fails at
-    Jobvite as the confusing 401 the rule exists to prevent, which is the
-    empty-string defect wearing a space.
+    **This was a surviving mutation.** Deleting `.strip()` from the
+    validator left the whole suite green, because every existing case
+    uses `""` - which is falsy with or without the strip. A credential
+    of `" "` would then be a PRESENT value that satisfies the
+    required-variable check and fails at Jobvite as the confusing 401
+    the rule exists to prevent, which is the empty-string defect wearing
+    a space.
 
-    A whitespace-only value is not exotic: it is what a `.env` line with a
-    trailing space after the `=` produces, and what a copy-paste out of a
-    terminal or a spreadsheet produces routinely.
+    A whitespace-only value is not exotic: it is what a `.env` line with
+    a trailing space after the `=` produces, and what a copy-paste out
+    of a terminal or a spreadsheet produces routinely.
     """
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
     clean_env.setenv("JOBVITE_API_KEY", blank)
@@ -410,11 +417,11 @@ def test_a_whitespace_only_value_is_also_treated_as_unset(
 
 
 def test_the_whole_committed_template_loads(clean_env: pytest.MonkeyPatch) -> None:
-    """Every line of `.env.example` parses, and the result still refuses.
+    """Every line of `.env.example` parses, and it still refuses.
 
-    Copying the template verbatim must not be an int-parse crash - which is
-    what `JOBVITE_PAGINATION_START_BASE=` (empty) would otherwise be. It
-    must be an ordinary missing-credential refusal.
+    Copying the template verbatim must not be an int-parse crash - which
+    is what `JOBVITE_PAGINATION_START_BASE=` (empty) would otherwise be.
+    It must be an ordinary missing-credential refusal.
     """
     for line in ENV_EXAMPLE.read_text().splitlines():
         if line.startswith("JOBVITE_"):
@@ -425,11 +432,12 @@ def test_the_whole_committed_template_loads(clean_env: pytest.MonkeyPatch) -> No
     assert "JOBVITE_API_KEY" in str(excinfo.value)
 
 
-# ---------------------------------------------------------------------------
-# The variable set is closed. DESIGN.md:1548-1552 makes `.env.example` the
-# single enumeration; these DIFF the sets rather than counting them, which
-# is the check that would have caught a three-variable gap in draft 2.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# The variable set is closed. DESIGN.md:1548-1552 makes `.env.example`
+# the single enumeration; these DIFF the sets rather than counting them,
+# which is the check that would have caught a three-variable gap in
+# draft 2.
+# ----------------------------------------------------------------------
 
 
 def _env_example_names() -> set[str]:
@@ -460,7 +468,7 @@ def test_env_example_and_design_declare_the_same_variables() -> None:
 
 
 def test_settings_declares_exactly_the_template_variables() -> None:
-    """`config.py` enumerates the full set and invents none of its own."""
+    """`config.py` enumerates the set and invents none."""
     assert _settings_names() == _env_example_names()
 
 
@@ -478,7 +486,7 @@ def test_the_tool_names_are_the_five_of_the_design() -> None:
 
 
 def test_validate_settings_accepts_a_settings_object_directly() -> None:
-    """`validate_settings` is usable without touching the environment."""
+    """`validate_settings` runs without touching the environment."""
     settings = Settings(
         tools="search_jobs",
         api_key=SecretStr("k"),

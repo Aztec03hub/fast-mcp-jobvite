@@ -1,10 +1,13 @@
-"""U2: `request_id_var` (DESIGN.md:601-612, IMPLEMENTATION-PLAN.md:471-478).
+"""U2: `request_id_var` (DESIGN.md:601-612).
 
-**The leak test is the known trap.** "The var is `None` after the invocation"
-passes perfectly against a `ContextVar` that was never set at any point - and
-against a module that does not set it at all. Every leak assertion here is
-therefore paired with the positive arm: inside the scope the var reads back the
-id that was set. Without the pair, the negative arm measures nothing.
+IMPLEMENTATION-PLAN.md:471-478.
+
+**The leak test is the known trap.** "The var is `None` after the
+invocation" passes perfectly against a `ContextVar` that was never set
+at any point - and against a module that does not set it at all. Every
+leak assertion here is therefore paired with the positive arm: inside
+the scope the var reads back the id that was set. Without the pair, the
+negative arm measures nothing.
 """
 
 from __future__ import annotations
@@ -31,12 +34,12 @@ RID_B = "22222222-2222-4222-8222-222222222222"
 
 
 def test_the_contextvar_is_named_request_id_var_verbatim() -> None:
-    """ai/tool-calling.md:173-175 mandates the canonical triple verbatim.
+    """ai/tool-calling.md:173-175 mandates the triple verbatim.
 
     Asserted on the attribute *and* on the var's own name, because
     `ContextVar("something_else")` bound to an attribute called
-    `request_id_var` would satisfy an attribute check alone, and the var's name
-    is what appears in a debugger and a traceback.
+    `request_id_var` would satisfy an attribute check alone, and the
+    var's name is what appears in a debugger and a traceback.
     """
     assert hasattr(correlation, "request_id_var")
     assert correlation.request_id_var.name == "request_id_var"
@@ -49,16 +52,16 @@ def test_the_contextvar_is_typed_str_or_none_and_defaults_to_none() -> None:
 
 
 def test_the_positive_arm_the_var_reads_back_the_id_inside_the_scope() -> None:
-    """Without this, every assertion below passes on a var nobody ever sets."""
+    """Without this, the assertions below pass on an unset var."""
     with correlation.request_id_scope(RID_A):
         assert correlation.request_id_var.get() == RID_A
 
 
 def test_the_id_does_not_leak_past_the_scope() -> None:
-    """DESIGN.md:605-606 - a reused worker task must not inherit the last id.
+    """DESIGN.md:605-606 - a reused task must not inherit an id.
 
-    Paired: the positive arm inside the scope is what makes the negative arm
-    after it mean anything.
+    Paired: the positive arm inside the scope is what makes the negative
+    arm after it mean anything.
     """
     assert correlation.request_id_var.get() is None
     with correlation.request_id_scope(RID_A):
@@ -67,7 +70,7 @@ def test_the_id_does_not_leak_past_the_scope() -> None:
 
 
 def test_the_id_does_not_leak_when_the_invocation_raises() -> None:
-    """The reset is in a `finally`, so an exception must not strand the id."""
+    """The reset is in a `finally`, so nothing strands the id."""
     with pytest.raises(RuntimeError), correlation.request_id_scope(RID_A):
         assert correlation.request_id_var.get() == RID_A
         raise RuntimeError("the tool body failed")
@@ -77,10 +80,11 @@ def test_the_id_does_not_leak_when_the_invocation_raises() -> None:
 def test_the_reset_is_lexically_in_a_finally() -> None:
     """Structural arm.
 
-    A `set(None)` after the `yield` would pass every behavioural test above on
-    the happy path and strand the id on the error path in production, where the
-    exception is not the one the test raises. DESIGN.md:605-606 asks for a
-    `finally` specifically, so the `finally` is asserted directly.
+    A `set(None)` after the `yield` would pass every behavioural test
+    above on the happy path and strand the id on the error path in
+    production, where the exception is not the one the test raises.
+    DESIGN.md:605-606 asks for a `finally` specifically, so the
+    `finally` is asserted directly.
     """
     tree = ast.parse(CORRELATION_PY.read_text())
     tries = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
@@ -99,13 +103,14 @@ def test_a_nested_scope_restores_the_enclosing_id_rather_than_erasing_it() -> No
 
 
 async def test_concurrent_invocations_never_read_each_others_id() -> None:
-    """DESIGN.md:608-612 - the failure a module global would cause, silently.
+    """DESIGN.md:608-612 - what a module global would cause.
 
-    Two candidates fetched in parallel would each log the other's id about half
-    the time under a module global, and every line would still carry a
-    well-formed UUID. Asserted under concurrency, not on a single call, and with
-    an interleaving forced by `sleep(0)` so the two tasks are guaranteed to be
-    open at the same time rather than merely started together.
+    Two candidates fetched in parallel would each log the other's id
+    about half the time under a module global, and every line would
+    still carry a well-formed UUID. Asserted under concurrency, not on a
+    single call, and with an interleaving forced by `sleep(0)` so the
+    two tasks are guaranteed to be open at the same time rather than
+    merely started together.
     """
     observed: list[tuple[str, str | None]] = []
 
@@ -125,11 +130,11 @@ async def test_concurrent_invocations_never_read_each_others_id() -> None:
 
 
 async def test_the_concurrency_test_would_catch_a_module_global() -> None:
-    """Positive control: the same shape, with a module global, must fail.
+    """Positive control: the same shape, with a global, fails.
 
     Otherwise the test above is a test of `asyncio.gather`, not of the
-    ContextVar. This runs the identical interleaving against a mutable holder
-    and asserts the corruption actually appears.
+    ContextVar. This runs the identical interleaving against a mutable
+    holder and asserts the corruption actually appears.
     """
     holder: dict[str, str | None] = {"request_id": None}
     observed: list[tuple[str, str | None]] = []
@@ -150,6 +155,9 @@ async def test_the_concurrency_test_would_catch_a_module_global() -> None:
 
 
 def test_correlation_declares_exactly_one_contextvar() -> None:
-    """DESIGN.md:604 - "a single ContextVar". A second one is a second truth."""
+    """DESIGN.md:604 - "a single ContextVar".
+
+    A second one is a second truth.
+    """
     source = CORRELATION_PY.read_text()
     assert len(re.findall(r"ContextVar\(", source)) == 1, source

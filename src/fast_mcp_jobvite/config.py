@@ -1,37 +1,41 @@
-"""Configuration, and the boot-time refusals it owes (DESIGN.md:909-955).
+"""Configuration, and the boot-time refusals it owes.
 
-`pydantic-settings` owns required-config validation. `fastmcp.json` cannot
-express a required environment variable - with one unset the server starts
-normally and the tool receives the literal string `${JOBVITE_API_KEY}`,
-surfacing later as a confusing Jobvite 401 (DESIGN.md:911-915). So every
-refusal in this module happens at boot, naming the variable.
+DESIGN.md:909-955.
 
-Four refusals live here, and each one has the same direction: **fail closed,
-loudly, before serving anything.**
+`pydantic-settings` owns required-config validation. `fastmcp.json`
+cannot express a required environment variable - with one unset the
+server starts normally and the tool receives the literal string
+`${JOBVITE_API_KEY}`, surfacing later as a confusing Jobvite 401
+(DESIGN.md:911-915). So every refusal in this module happens at boot,
+naming the variable.
 
-1. **Per-enabled-tool required variables** (DESIGN.md:938-944). Never the
-   union: a deployment using only candidate search must not be forced to
-   invent a `companyId` it has no use for.
+Four refusals live here, and each one has the same direction: **fail
+closed, loudly, before serving anything.**
+
+1. **Per-enabled-tool required variables** (DESIGN.md:938-944). Never
+   the union: a deployment using only candidate search must not be
+   forced to invent a `companyId` it has no use for.
 2. **An unrecognised `JOBVITE_TOOLS` name is a startup failure**
-   (DESIGN.md:929-934), not a silent skip. A typo that silently disables a
-   tool is a green start-up having done less than the operator asked.
-3. **`JOBVITE_HTTP_TOKENS` unset while the transport is `http` is a startup
-   failure** (DESIGN.md:826-832), not a server that starts with no tokens.
-   The alternative is an open server.
+   (DESIGN.md:929-934), not a silent skip. A typo that silently disables
+   a tool is a green start-up having done less than the operator asked.
+3. **`JOBVITE_HTTP_TOKENS` unset while the transport is `http` is a
+   startup failure** (DESIGN.md:826-832), not a server that starts with
+   no tokens. The alternative is an open server.
 4. **Off-loopback without TLS refuses to start** (DESIGN.md:798-802). A
-   non-loopback bind carries a bearer token and candidate PII in the clear;
-   `allowed_hosts` and `allowed_origins` address a different threat and do
-   nothing about plaintext.
+   non-loopback bind carries a bearer token and candidate PII in the
+   clear; `allowed_hosts` and `allowed_origins` address a different
+   threat and do nothing about plaintext.
 
-**Every refusal is collected, not raised at the first one.** §8 #10 requires
-that the process exit *naming the reason*, and an off-loopback deployment
-that is also missing its tokens would otherwise be told only about the
-tokens - the reason it was actually refused would never be printed.
+**Every refusal is collected, not raised at the first one.** §8 #10
+requires that the process exit *naming the reason*, and an off-loopback
+deployment that is also missing its tokens would otherwise be told only
+about the tokens - the reason it was actually refused would never be
+printed.
 
-**Credentials are `SecretStr` throughout** (DESIGN.md:322-323), resolved with
-`.get_secret_value()` only when building a request. `JOBVITE_COMPANY_ID` is
-one of them: DESIGN.md:320 classifies it as the job feed's separate
-credential, not as a public identifier.
+**Credentials are `SecretStr` throughout** (DESIGN.md:322-323), resolved
+with `.get_secret_value()` only when building a request.
+`JOBVITE_COMPANY_ID` is one of them: DESIGN.md:320 classifies it as the
+job feed's separate credential, not as a public identifier.
 """
 
 from __future__ import annotations
@@ -43,29 +47,30 @@ from typing import Any, Final, Literal
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-#: The five tools of DESIGN.md:133-139, and the only names `JOBVITE_TOOLS`
-#: accepts. A name outside this set is refused at boot.
+# : The five tools of DESIGN.md:133-139, and the only names
+# `JOBVITE_TOOLS` : accepts. A name outside this set is refused at boot.
 SEARCH_CANDIDATES: Final = "search_candidates"
 GET_CANDIDATE: Final = "get_candidate"
 SEARCH_JOBS: Final = "search_jobs"
 GET_JOB_FEED: Final = "get_job_feed"
 CREATE_CANDIDATE: Final = "create_candidate"
 
-#: The four reads. Unset `JOBVITE_TOOLS` means exactly these and never the
-#: write (DESIGN.md:919-921).
+# : The four reads. Unset `JOBVITE_TOOLS` means exactly these and never
+# the : write (DESIGN.md:919-921).
 READ_TOOLS: Final[frozenset[str]] = frozenset(
     {SEARCH_CANDIDATES, GET_CANDIDATE, SEARCH_JOBS, GET_JOB_FEED}
 )
 
-#: The one write. It is the only destructive tool and the only one gated by
-#: `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-213).
+# : The one write. It is the only destructive tool and the only one
+# gated by : `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-213).
 WRITE_TOOLS: Final[frozenset[str]] = frozenset({CREATE_CANDIDATE})
 
 KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS
 
-#: DESIGN.md:938-944's matrix, transcribed row by row. The `http` row is not
-#: here because it is keyed on the transport rather than on a tool, which is
-#: the distinction DESIGN.md:946-951 sets that row apart to make.
+# : DESIGN.md:938-944's matrix, transcribed row by row. The `http` row
+# is not : here because it is keyed on the transport rather than on a
+# tool, which is : the distinction DESIGN.md:946-951 sets that row apart
+# to make.
 TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {
     SEARCH_CANDIDATES: ("api_key", "api_secret"),
     GET_CANDIDATE: ("api_key", "api_secret"),
@@ -80,32 +85,34 @@ _LOOPBACK_NAMES: Final[frozenset[str]] = frozenset({"localhost"})
 
 
 class ConfigurationError(Exception):
-    """A boot-time refusal. Never reaches a caller, so it is not a problem.
+    """A boot-time refusal.
 
-    `errors.py` builds RFC 9457 problem objects for conditions a *caller*
-    sees. This one is raised before anything is served, so it has no
-    `request_id` to correlate against and no wire to travel on. It carries
-    the collected reasons instead, so `__main__` can name every one of them
-    on the way out.
+    Never reaches a caller, so it is not a problem.
+
+    `errors.py` builds RFC 9457 problem objects for conditions a
+    *caller* sees. This one is raised before anything is served, so it
+    has no `request_id` to correlate against and no wire to travel on.
+    It carries the collected reasons instead, so `__main__` can name
+    every one of them on the way out.
     """
 
     def __init__(self, reasons: list[str]) -> None:
         """Record every reason the configuration was refused.
 
         Args:
-            reasons: One line per refusal, each naming the variable or the
-                tool it is about.
+            reasons: One line per refusal, each naming the variable or
+                the tool it is about.
         """
         super().__init__("; ".join(reasons))
         self.reasons = list(reasons)
 
 
 def env_name(field: str) -> str:
-    """Return the environment variable a settings field is populated from.
+    """Return the environment variable a settings field reads.
 
-    Refusal messages must name the variable an operator sets, not the Python
-    attribute. Keeping the mapping in one function means a message and the
-    model cannot drift.
+    Refusal messages must name the variable an operator sets, not the
+    Python attribute. Keeping the mapping in one function means a
+    message and the model cannot drift.
 
     Args:
         field: The `Settings` attribute name, e.g. `api_key`.
@@ -142,13 +149,15 @@ def is_loopback(host: str) -> bool:
 class Settings(BaseSettings):
     """The fifteen variables, and nothing else.
 
-    The set is closed: `.env.example` and DESIGN.md hold the same fifteen,
-    and DESIGN.md:1546-1550 makes `.env.example` the single enumeration
-    everything else is checked against rather than a second hand-kept list.
+    The set is closed: `.env.example` and DESIGN.md hold the same
+    fifteen, and DESIGN.md:1546-1550 makes `.env.example` the single
+    enumeration everything else is checked against rather than a second
+    hand-kept list.
 
-    `extra="ignore"` rather than `forbid`: the process environment carries
-    hundreds of unrelated variables, and `forbid` would refuse to start on
-    `PATH`. The `JOBVITE_` prefix is what bounds the surface.
+    `extra="ignore"` rather than `forbid`: the process environment
+    carries hundreds of unrelated variables, and `forbid` would refuse
+    to start on `PATH`. The `JOBVITE_` prefix is what bounds the
+    surface.
     """
 
     model_config = SettingsConfigDict(
@@ -159,59 +168,65 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # --- Jobvite v2 credentials -------------------------------------------
+    # --- Jobvite v2 credentials
+    # -------------------------------------------
     api_key: SecretStr | None = None
     api_secret: SecretStr | None = None
 
-    # --- Jobvite v1 job-feed credentials ----------------------------------
+    # --- Jobvite v1 job-feed credentials
+    # ----------------------------------
     feed_key: SecretStr | None = None
     feed_secret: SecretStr | None = None
     company_id: SecretStr | None = None
 
-    # --- Tool surface ------------------------------------------------------
+    # --- Tool surface
+    # ------------------------------------------------------
     tools: str | None = None
     enable_writes: bool = False
 
-    # --- Transport ---------------------------------------------------------
+    # --- Transport
+    # ---------------------------------------------------------
     mcp_transport: Literal["stdio", "http"] = "stdio"
     mcp_host: str = "127.0.0.1"
     mcp_port: int = Field(default=8000, ge=1, le=65535)
     http_tokens: SecretStr | None = None
     tls_terminated_by_proxy: bool = False
 
-    # --- Limits ------------------------------------------------------------
-    #: DESIGN.md:1569-1573. 50 is the figure the caller-facing string
-    #: `showing 50 of 1,240` already uses, not an arbitrary pick.
+    # --- Limits
+    # ------------------------------------------------------------ :
+    # DESIGN.md:1569-1573. 50 is the figure the caller-facing string :
+    # `showing 50 of 1,240` already uses, not an arbitrary pick.
     max_results: int = Field(default=50, ge=1)
-    #: DESIGN.md:1574-1580. **A conservative guess, not a vendor figure** -
-    #: Jobvite documents no numeric limit at all. Checklist row 9 is what
-    #: replaces it with an observation.
+    # : DESIGN.md:1574-1580. **A conservative guess, not a vendor
+    # figure** - : Jobvite documents no numeric limit at all. Checklist
+    # row 9 is what : replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)
 
-    # --- Jobvite quirks ----------------------------------------------------
+    # --- Jobvite quirks
+    # ----------------------------------------------------
     pagination_start_base: int | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _empty_is_unset(cls, data: Any) -> Any:  # noqa: ANN401
-        """Treat an empty value as absent, because the template ships empties.
+        """Treat an empty value as absent: the template ships empties.
 
-        `.env.example` ships every secret-class value **empty on purpose**
-        (DESIGN.md's C8-I1 position), and an operator copies that file to
-        `.env` and fills in only the variables their tools need. Without
-        this, `JOBVITE_PAGINATION_START_BASE=` is an int parse failure and
-        `JOBVITE_API_KEY=` is a *present* credential that is the empty
-        string - which would satisfy the required-variable check and then
-        fail at Jobvite as a 401, the exact confusion DESIGN.md:911-915
-        exists to prevent.
+        `.env.example` ships every secret-class value **empty on
+        purpose** (DESIGN.md's C8-I1 position), and an operator copies
+        that file to `.env` and fills in only the variables their tools
+        need. Without this, `JOBVITE_PAGINATION_START_BASE=` is an int
+        parse failure and `JOBVITE_API_KEY=` is a *present* credential
+        that is the empty string - which would satisfy the
+        required-variable check and then fail at Jobvite as a 401, the
+        exact confusion DESIGN.md:911-915 exists to prevent.
 
         Args:
-            data: The raw mapping pydantic-settings assembled, or whatever
-                else a caller passed.
+            data: The raw mapping pydantic-settings assembled, or
+                whatever else a caller passed.
 
         Returns:
-            The same data with empty and whitespace-only strings removed, so
-            each such field falls back to its default.
+            The same data with empty and whitespace-only strings
+            removed, so each such field falls back to its default.
         """
         if not isinstance(data, dict):
             return data
@@ -222,7 +237,7 @@ class Settings(BaseSettings):
         }
 
     def split_tool_names(self) -> tuple[frozenset[str], list[str]]:
-        """Split `JOBVITE_TOOLS` into recognised names and unrecognised ones.
+        """Split `JOBVITE_TOOLS` into recognised and unrecognised.
 
         Returns:
             The recognised names, and the unrecognised ones in the order
@@ -239,17 +254,17 @@ class Settings(BaseSettings):
     def enabled_tools(self) -> frozenset[str]:
         """The tools that will be registered, after both gates.
 
-        Unset `JOBVITE_TOOLS` means all **read** tools and never the write
-        (DESIGN.md:919-921). The write additionally requires
-        `JOBVITE_ENABLE_WRITES=true` **and** to be named, and DESIGN.md:923-927
-        states the conjunction in both directions - so writes-on with
-        `JOBVITE_TOOLS` unset registers nothing, and naming it without the
-        flag registers nothing either.
+        Unset `JOBVITE_TOOLS` means all **read** tools and never the
+        write (DESIGN.md:919-921). The write additionally requires
+        `JOBVITE_ENABLE_WRITES=true` **and** to be named, and
+        DESIGN.md:923-927 states the conjunction in both directions - so
+        writes-on with `JOBVITE_TOOLS` unset registers nothing, and
+        naming it without the flag registers nothing either.
 
         Unrecognised names are excluded here and refused by
-        `validate_settings`; this property never raises, so a caller that
-        skipped validation gets a smaller tool set rather than a crash at
-        registration time.
+        `validate_settings`; this property never raises, so a caller
+        that skipped validation gets a smaller tool set rather than a
+        crash at registration time.
 
         Returns:
             The frozen set of tool names to register.
@@ -278,15 +293,16 @@ class Settings(BaseSettings):
 
 
 def validate_settings(settings: Settings) -> None:
-    """Apply every boot-time refusal, collecting all reasons before raising.
+    """Apply every boot-time refusal, collecting all reasons.
 
     Args:
         settings: The loaded settings.
 
     Raises:
-        ConfigurationError: If any refusal fires. Its `reasons` carry one
-            line per refusal, so §8 #10's requirement that the process exit
-            *naming the reason* holds even when several fire at once.
+        ConfigurationError: If any refusal fires. Its `reasons` carry
+            one line per refusal, so §8 #10's requirement that the
+            process exit *naming the reason* holds even when several
+            fire at once.
     """
     reasons: list[str] = []
     _check_tool_names(settings, reasons)
@@ -297,7 +313,7 @@ def validate_settings(settings: Settings) -> None:
 
 
 def _check_tool_names(settings: Settings, reasons: list[str]) -> None:
-    """Refuse an unrecognised `JOBVITE_TOOLS` name (DESIGN.md:929-934)."""
+    """Refuse an unknown `JOBVITE_TOOLS` name (DESIGN.md:929-934)."""
     _, unknown = settings.split_tool_names()
     for name in unknown:
         known = ", ".join(sorted(KNOWN_TOOLS))
@@ -308,10 +324,10 @@ def _check_tool_names(settings: Settings, reasons: list[str]) -> None:
 
 
 def _check_required_variables(settings: Settings, reasons: list[str]) -> None:
-    """Refuse a missing variable an ENABLED tool needs (DESIGN.md:936-943).
+    """Refuse a variable an ENABLED tool needs (DESIGN.md:936-943).
 
-    Scoped to the enabled set and never the union: a deployment running only
-    `search_candidates` is not asked for `JOBVITE_COMPANY_ID`.
+    Scoped to the enabled set and never the union: a deployment running
+    only `search_candidates` is not asked for `JOBVITE_COMPANY_ID`.
     """
     for tool in sorted(settings.enabled_tools):
         missing = settings.missing_for(tool)
@@ -325,8 +341,8 @@ def _check_required_variables(settings: Settings, reasons: list[str]) -> None:
 def _check_transport(settings: Settings, reasons: list[str]) -> None:
     """Refuse an unsafe HTTP transport (DESIGN.md:798-802, :806-812).
 
-    Two refusals, both keyed on the transport rather than on a tool, which
-    is why DESIGN.md:946-951 sets that row of the matrix apart.
+    Two refusals, both keyed on the transport rather than on a tool,
+    which is why DESIGN.md:946-951 sets that row of the matrix apart.
     """
     if settings.mcp_transport != "http":
         return
@@ -350,12 +366,14 @@ def _check_transport(settings: Settings, reasons: list[str]) -> None:
 def _token_map_problems(raw: SecretStr) -> list[str]:
     """Check `JOBVITE_HTTP_TOKENS` parses to a token-to-scopes object.
 
-    A malformed value is a boot-time refusal for the same reason an unset
-    one is: the server would otherwise start holding no usable tokens.
+    A malformed value is a boot-time refusal for the same reason an
+    unset one is: the server would otherwise start holding no usable
+    tokens.
 
-    **No token, key or fragment of the value appears in any message here.**
-    The value is secret-class (DESIGN.md:826-829), and a parse error's own
-    text quotes the input, so the exception is deliberately discarded.
+    **No token, key or fragment of the value appears in any message
+    here.** The value is secret-class (DESIGN.md:826-829), and a parse
+    error's own text quotes the input, so the exception is deliberately
+    discarded.
 
     Args:
         raw: The declared value.

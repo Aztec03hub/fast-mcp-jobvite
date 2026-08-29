@@ -1,23 +1,26 @@
-"""The exception hierarchy and RFC 9457 problem construction (DESIGN.md:491-540).
+"""The exception hierarchy and RFC 9457 problems (DESIGN.md:491-540).
 
-Two rules govern everything in this module, and both were corrections to an
-earlier revision of the design rather than defaults:
+Two rules govern everything in this module, and both were corrections to
+an earlier revision of the design rather than defaults:
 
-**`type` and `status` come from the registry at `error-contract.md:96-108`, never
-from Jobvite** (DESIGN.md:502-534). A Jobvite `401` reaching the caller as `401`
-tells them *their* credential failed, when the credential that failed is the one
-*this server* holds and the caller cannot touch. The registry's answer is
-`/problems/external-service-error` **502**. Validation is **422**, not 400.
-Jobvite's own status and message are not discarded: they go in `detail`.
+**`type` and `status` come from the registry at
+`error-contract.md:96-108`, never from Jobvite** (DESIGN.md:502-534). A
+Jobvite `401` reaching the caller as `401` tells them *their* credential
+failed, when the credential that failed is the one *this server* holds
+and the caller cannot touch. The registry's answer is
+`/problems/external-service-error` **502**. Validation is **422**, not
+400. Jobvite's own status and message are not discarded: they go in
+`detail`.
 
-**Problem objects are returned, never raised** (DESIGN.md:536-540). That is the
-property that makes them the one error shape no configuration can distort - being
-returned, they are untouched by `ErrorHandlingMiddleware`, by `transform_errors`
-and by `mask_error_details`. Nothing in this module raises a problem object.
+**Problem objects are returned, never raised** (DESIGN.md:536-540). That
+is the property that makes them the one error shape no configuration can
+distort - being returned, they are untouched by
+`ErrorHandlingMiddleware`, by `transform_errors` and by
+`mask_error_details`. Nothing in this module raises a problem object.
 
-The exception classes below are the *internal* signalling hierarchy: the client
-and the tool bodies raise them, and the tool boundary converts one into a problem
-object with `problem_from_exception` and returns it.
+The exception classes below are the *internal* signalling hierarchy: the
+client and the tool bodies raise them, and the tool boundary converts
+one into a problem object with `problem_from_exception` and returns it.
 """
 
 from __future__ import annotations
@@ -28,8 +31,8 @@ from typing import Any, Final
 
 INSTANCE_PREFIX: Final = "urn:fast-mcp-jobvite:invocation:"
 
-#: The seven members `error-contract.md:66` elevates to required, in the order
-#: the design lists them (DESIGN.md:495-496).
+# : The seven members `error-contract.md:66` elevates to required, in
+# the order : the design lists them (DESIGN.md:495-496).
 REQUIRED_MEMBERS: Final[tuple[str, ...]] = (
     "type",
     "title",
@@ -46,10 +49,10 @@ class ProblemKind:
     """One row of the registry at `error-contract.md:96-108`.
 
     Attributes:
-        type: The relative `/problems/<slug>` URI, or `about:blank` for an
-            unmapped HTTP status received from Jobvite (ADR-0017).
-        title: The registry's title. Stable per `type`, never per-instance
-            (`error-contract.md:73`).
+        type: The relative `/problems/<slug>` URI, or `about:blank` for
+            an unmapped HTTP status received from Jobvite (ADR-0017).
+        title: The registry's title. Stable per `type`, never
+            per-instance (`error-contract.md:73`).
         status: The registry's status. Never Jobvite's.
     """
 
@@ -58,12 +61,13 @@ class ProblemKind:
     status: int
 
 
-# ---------------------------------------------------------------------------
-# The registry. Every entry is a verbatim row of `error-contract.md:96-108`;
-# nothing here is minted locally. DESIGN.md:510-511 makes a published `type` URI a
-# contract we would owe forever, so inventing a slug is not available to us even
-# when the condition feels unlike anything in the table.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# The registry. Every entry is a verbatim row of
+# `error-contract.md:96-108`; nothing here is minted locally.
+# DESIGN.md:510-511 makes a published `type` URI a contract we would owe
+# forever, so inventing a slug is not available to us even when the
+# condition feels unlike anything in the table.
+# ----------------------------------------------------------------------
 EXTERNAL_SERVICE_ERROR: Final = ProblemKind(
     "/problems/external-service-error", "External Service Error", 502
 )
@@ -82,28 +86,28 @@ INTERNAL_ERROR: Final = ProblemKind(
     "/problems/internal-error", "Internal Server Error", 500
 )
 
-#: `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an unmapped
-#: **HTTP status received from Jobvite**, and for nothing else. ADR-0017 settled
-#: this: U2 read the design's table (then `DESIGN.md:515`) as routing an
-#: unhandled exception in our own tool body here, and that reading is replaced -
-#: the registry already names that condition `/problems/internal-error`, which
-#: is what `problem_from_exception` now returns.
-#:
-#: **No code path reaches this today**, and it stays anyway: SS5.1's registry
-#: maps every status this client is known to receive, so the fallback may be
-#: unreachable in practice, and an unreachable fallback that is correct beats a
-#: reachable one that is wrong (ADR-0017). Establishing reachability needs the
-#: live-tenant observations the credential checklist gates.
+# : `error-contract.md:115` and RFC 9457 4.2.1: the fallback for an
+# unmapped : **HTTP status received from Jobvite**, and for nothing
+# else. ADR-0017 settled : this: U2 read the design's table (then
+# `DESIGN.md:515`) as routing an : unhandled exception in our own tool
+# body here, and that reading is replaced - : the registry already names
+# that condition `/problems/internal-error`, which : is what
+# `problem_from_exception` now returns. : : **No code path reaches this
+# today**, and it stays anyway: SS5.1's registry : maps every status
+# this client is known to receive, so the fallback may be : unreachable
+# in practice, and an unreachable fallback that is correct beats a :
+# reachable one that is wrong (ADR-0017). Establishing reachability
+# needs the : live-tenant observations the credential checklist gates.
 UNMAPPED: Final = ProblemKind("about:blank", "Internal Server Error", 500)
 
 
 class FastMcpJobviteError(Exception):
     """Base of the internal exception hierarchy.
 
-    Carries the registry row its condition maps to, so the mapping is decided at
-    the point the condition is *known* rather than re-derived from a status code
-    at the boundary, which is how Jobvite's status leaked into `status` in the
-    revision DESIGN.md:502-509 corrects.
+    Carries the registry row its condition maps to, so the mapping is
+    decided at the point the condition is *known* rather than re-derived
+    from a status code at the boundary, which is how Jobvite's status
+    leaked into `status` in the revision DESIGN.md:502-509 corrects.
     """
 
     kind: ProblemKind = INTERNAL_ERROR
@@ -112,8 +116,8 @@ class FastMcpJobviteError(Exception):
         """Store the occurrence-specific explanation.
 
         Args:
-            detail: Human-readable explanation specific to this occurrence
-                (`error-contract.md:75`).
+            detail: Human-readable explanation specific to this
+                occurrence (`error-contract.md:75`).
         """
         super().__init__(detail)
         self.detail = detail
@@ -122,8 +126,9 @@ class FastMcpJobviteError(Exception):
 class JobviteUpstreamError(FastMcpJobviteError):
     """Any Jobvite failure, **including its 4xx** (DESIGN.md:515).
 
-    Jobvite's own status and message are preserved on the instance and reproduced
-    in `detail` (DESIGN.md:532-534). They are never allowed to reach `status`.
+    Jobvite's own status and message are preserved on the instance and
+    reproduced in `detail` (DESIGN.md:532-534). They are never allowed
+    to reach `status`.
     """
 
     kind = EXTERNAL_SERVICE_ERROR
@@ -132,9 +137,10 @@ class JobviteUpstreamError(FastMcpJobviteError):
         """Record what Jobvite said, and build a `detail` that keeps it.
 
         Args:
-            upstream_status: The status Jobvite reported - the HTTP status or the
-                `status.code` of its JSON envelope (DESIGN.md:339-344). `None`
-                when Jobvite gave no status at all.
+            upstream_status: The status Jobvite reported - the HTTP
+                status or the `status.code` of its JSON envelope
+                (DESIGN.md:339-344). `None` when Jobvite gave no status
+                at all.
             upstream_message: Jobvite's own message text.
         """
         shown = "none" if upstream_status is None else str(upstream_status)
@@ -144,10 +150,11 @@ class JobviteUpstreamError(FastMcpJobviteError):
 
 
 class JobviteUnavailableError(FastMcpJobviteError):
-    """Jobvite unreachable, breaker open, or the outbound budget exhausted.
+    """Jobvite unreachable, breaker open, or budget exhausted.
 
     An open breaker and a real outage share this row deliberately
-    (DESIGN.md:355-358): what distinguishes them is `detail`, not a minted type.
+    (DESIGN.md:355-358): what distinguishes them is `detail`, not a
+    minted type.
     """
 
     kind = SERVICE_UNAVAILABLE
@@ -156,11 +163,11 @@ class JobviteUnavailableError(FastMcpJobviteError):
 class ValidationError(FastMcpJobviteError):
     """A validation failure detected **inside** the tool body.
 
-    Not the pre-dispatch path. DESIGN.md:548-568 records that FastMCP rejects bad
-    arguments before the body runs, so no pre-dispatch rejection can *return*
-    anything and none carries a problem object. This row serves the other half:
-    a semantically invalid argument combination, or a validation error Jobvite
-    itself returns.
+    Not the pre-dispatch path. DESIGN.md:548-568 records that FastMCP
+    rejects bad arguments before the body runs, so no pre-dispatch
+    rejection can *return* anything and none carries a problem object.
+    This row serves the other half: a semantically invalid argument
+    combination, or a validation error Jobvite itself returns.
     """
 
     kind = VALIDATION_ERROR
@@ -173,13 +180,13 @@ class ResourceNotFoundError(FastMcpJobviteError):
 
 
 class DuplicateCandidateError(FastMcpJobviteError):
-    """A duplicate candidate on create (DESIGN.md:519, DESIGN.md:877)."""
+    """Duplicate candidate on create (DESIGN.md:519, DESIGN.md:877)."""
 
     kind = CONFLICT
 
 
 class ScopeDeniedError(FastMcpJobviteError):
-    """The caller's token lacks the scope for this tool (DESIGN.md:520)."""
+    """The caller's token lacks this tool's scope (DESIGN.md:520)."""
 
     kind = FORBIDDEN
 
@@ -188,8 +195,8 @@ def _timestamp() -> str:
     """Return an ISO 8601 UTC timestamp with the `Z` suffix.
 
     `error-contract.md:85` requires ISO 8601 UTC and its example
-    (`error-contract.md:62`) ends in `Z`, which `datetime.isoformat` renders as
-    `+00:00`.
+    (`error-contract.md:62`) ends in `Z`, which `datetime.isoformat`
+    renders as `+00:00`.
     """
     now = _dt.datetime.now(tz=_dt.UTC)
     return now.isoformat().replace("+00:00", "Z")
@@ -201,30 +208,34 @@ def build_problem(
     request_id: str,
     **extensions: object,
 ) -> dict[str, Any]:
-    """Build a complete RFC 9457 problem object - **returned, never raised**.
+    """Build a complete RFC 9457 problem - **returned, never raised**.
 
-    `request_id` is required rather than read from `request_id_var`. The var is a
-    correlation carrier for code that never sees the invocation
-    (DESIGN.md:601-606); reading it here would let a caller that forgot to set it
-    produce a problem object with `None` where a required member belongs.
+    `request_id` is required rather than read from `request_id_var`. The
+    var is a correlation carrier for code that never sees the invocation
+    (DESIGN.md:601-606); reading it here would let a caller that forgot
+    to set it produce a problem object with `None` where a required
+    member belongs.
 
     Args:
         kind: The registry row. Never derived from an upstream status.
         detail: The occurrence-specific explanation.
         request_id: The UUIDv4 minted by `audit.py` for this invocation
             (DESIGN.md:595-597).
-        **extensions: RFC 9457 extension members, e.g. the `retry_after` hint
-            DESIGN.md:358 attaches to a 503, or `errors` for a 422
-            (`error-contract.md:86`). They may not shadow a required member.
+        **extensions: RFC 9457 extension members, e.g. the `retry_after`
+            hint DESIGN.md:358 attaches to a 503, or `errors` for a 422
+            (`error-contract.md:86`). They may not shadow a required
+            member.
 
     Returns:
-        The problem object: the seven required members plus any extensions.
+        The problem object: the seven required members plus any
+        extensions.
 
     Raises:
-        ValueError: If an extension would shadow one of the seven required
-            members. That is a programming error at the call site, not a runtime
-            condition, and silently letting it overwrite `status` is the exact
-            failure DESIGN.md:502 corrects.
+        ValueError: If an extension would shadow one of the seven
+            required members. That is a programming error at the call
+            site, not a runtime condition, and silently letting it
+            overwrite `status` is the exact failure DESIGN.md:502
+            corrects.
     """
     clashes = sorted(set(extensions) & set(REQUIRED_MEMBERS))
     if clashes:
@@ -248,15 +259,16 @@ def problem_from_exception(
     request_id: str,
     **extensions: object,
 ) -> dict[str, Any]:
-    """Convert an exception into a problem object - **returned, never raised**.
+    """Convert an exception to a problem - **returned, never raised**.
 
-    An exception outside this module's hierarchy is `/problems/internal-error`,
-    500 (DESIGN.md:521, ADR-0017): it is a bug in our own code, the registry
-    names it, and `about:blank` is RFC 9457's way of saying *no additional
-    semantics* when we have semantics. Its `detail` names the exception class
-    rather than its
-    message: an arbitrary exception's `str()` can carry a URL, a credential
-    fragment or an upstream body, and this value reaches the caller.
+    An exception outside this module's hierarchy is
+    `/problems/internal-error`, 500 (DESIGN.md:521, ADR-0017): it is a
+    bug in our own code, the registry names it, and `about:blank` is RFC
+    9457's way of saying *no additional semantics* when we have
+    semantics. Its `detail` names the exception class rather than its
+    message: an arbitrary exception's `str()` can carry a URL, a
+    credential fragment or an upstream body, and this value reaches the
+    caller.
 
     Args:
         exc: The exception to convert.
