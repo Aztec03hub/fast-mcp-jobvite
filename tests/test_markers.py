@@ -1,19 +1,23 @@
-"""DESIGN.md §8 case #12 - an undeclared marker fails collection, not selects nothing.
+"""DESIGN.md §8 case #12 - an undeclared marker fails collection.
 
-This is the `--strict-markers` guarantee the whole exclusion strategy rests on
-(DESIGN.md:1237-1242). Without it, a typo in the exclusion marker's name selects
-nothing and the run goes green having tested less than it claimed - the live suite
-excluded by accident rather than by design.
+It does not merely select nothing.
+
+This is the `--strict-markers` guarantee the whole exclusion strategy
+rests on (DESIGN.md:1237-1242). Without it, a typo in the exclusion
+marker's name selects nothing and the run goes green having tested less
+than it claimed - the live suite excluded by accident rather than by
+design.
 
 Both arms are required and neither is sufficient alone:
-  - negative: pytest against a file marked with a name absent from `markers` exits
-    non-zero;
-  - positive control: the declared marker still selects its tests, so the negative
-    arm cannot be satisfied by a pytest that refuses everything.
+  - negative: pytest against a file marked with a name absent from
+    `markers` exits non-zero;
+  - positive control: the declared marker still selects its tests, so
+    the negative arm cannot be satisfied by a pytest that refuses
+    everything.
 
-Each arm runs pytest as a SUBPROCESS against a generated file. Asserting on this
-process's own config would be asserting that a dict we just read says what it says;
-the property under test is what pytest DOES with it.
+Each arm runs pytest as a SUBPROCESS against a generated file. Asserting
+on this process's own config would be asserting that a dict we just read
+says what it says; the property under test is what pytest DOES with it.
 """
 
 from __future__ import annotations
@@ -27,7 +31,10 @@ from .conftest import PYPROJECT
 
 
 def _isolated_project(tmp_path: pathlib.Path, test_body: str) -> pathlib.Path:
-    """A temp project inheriting the real pyproject, so real config is tested."""
+    """A temp project inheriting the real pyproject.
+
+    So the real config is what is tested.
+    """
     shutil.copy(PYPROJECT, tmp_path / "pyproject.toml")
     (tmp_path / "src" / "fast_mcp_jobvite").mkdir(parents=True)
     (tmp_path / "src" / "fast_mcp_jobvite" / "__init__.py").touch()
@@ -80,7 +87,10 @@ def test_an_undeclared_marker_fails_collection(tmp_path: pathlib.Path) -> None:
 
 
 def test_the_declared_marker_still_selects_its_tests(tmp_path: pathlib.Path) -> None:
-    """Positive control. A pytest that failed on everything would pass the arm above."""
+    """Positive control.
+
+    A pytest that failed on everything would pass the arm above.
+    """
     project = _isolated_project(tmp_path, DECLARED)
     proc = _run_pytest(project, "-m", "credentialed", "--collect-only", "-q")
     combined = proc.stdout + proc.stderr
@@ -96,10 +106,10 @@ def test_the_declared_marker_still_selects_its_tests(tmp_path: pathlib.Path) -> 
 def test_the_default_selection_deselects_the_credentialed_arm(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Zero skips (DESIGN.md:1229-1232), asserted on behaviour not on config.
+    """Zero skips (DESIGN.md:1229-1232), asserted on behaviour.
 
-    The credentialed test must be DESELECTED, not skipped: pytest must report
-    `1 deselected` and zero skips.
+    The credentialed test must be DESELECTED, not skipped: pytest must
+    report `1 deselected` and zero skips.
     """
     project = _isolated_project(tmp_path, DECLARED)
     proc = _run_pytest(project, "-q")

@@ -1,11 +1,11 @@
 """Shared test paths.
 
-**How tests reach the fixtures, settled here rather than invented later**
-(PLAN-REVIEW-R2.md:315-323, finding L1). The fifteen fixtures live in
-`docs/research/fixtures/` and tests read them **from there, by path**. They are
-NOT copied under `tests/`, because U4 asserts five of them byte-exact against
-real recorded Jobvite transport, and a second copy of a byte-exact ground truth
-can drift from the first silently.
+**How tests reach the fixtures, settled here rather than invented
+later** (PLAN-REVIEW-R2.md:315-323, finding L1). The fifteen fixtures
+live in `docs/research/fixtures/` and tests read them **from there, by
+path**. They are NOT copied under `tests/`, because U4 asserts five of
+them byte-exact against real recorded Jobvite transport, and a second
+copy of a byte-exact ground truth can drift from the first silently.
 
 A suite passing only against synthetic fixtures proves the client is
 self-consistent, not that it speaks Jobvite (DESIGN.md:1258-1260).

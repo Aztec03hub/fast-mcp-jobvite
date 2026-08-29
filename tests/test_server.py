@@ -1,9 +1,9 @@
 """The `FastMCP` instance and lifespan composition (DESIGN.md:958-960).
 
 DESIGN.md:959-960 states "startup in order, teardown in strict reverse,
-verified". That property had no test, and its two halves fail differently:
-an out-of-order startup is usually visible, an out-of-order teardown is
-usually not.
+verified". That property had no test, and its two halves fail
+differently: an out-of-order startup is usually visible, an out-of-order
+teardown is usually not.
 """
 
 from __future__ import annotations
@@ -53,10 +53,10 @@ def _settings() -> Settings:
 def test_mask_error_details_is_set_explicitly() -> None:
     """Never left to the framework default.
 
-    Asserted on the built instance AND on the source, because a framework
-    whose default happened to be True would satisfy the first alone - and
-    the point of this case is that a dependency bump must not be able to
-    change it silently.
+    Asserted on the built instance AND on the source, because a
+    framework whose default happened to be True would satisfy the first
+    alone - and the point of this case is that a dependency bump must
+    not be able to change it silently.
     """
     server = build_server(_settings())
     assert server._mask_error_details is True
@@ -73,8 +73,9 @@ async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> N
     """DESIGN.md:959-960, which had no test before this one.
 
     Two composed lifespans, not one: with a single extra the sequence is
-    up-then-down whatever the operator does, so a one-lifespan arm cannot
-    tell "strict reverse" from "same order" and would pass against either.
+    up-then-down whatever the operator does, so a one-lifespan arm
+    cannot tell "strict reverse" from "same order" and would pass
+    against either.
     """
     order: list[str] = []
 
@@ -97,7 +98,7 @@ async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> N
 
 
 async def test_the_base_lifespan_publishes_the_settings() -> None:
-    """Settings reach tools through the lifespan context, not a global."""
+    """Settings reach tools through the lifespan, not a global."""
     settings = _settings()
     server = build_server(settings)
     async with make_base_lifespan(settings)(server) as context:
@@ -133,15 +134,16 @@ def test_create_server_refuses_a_bad_environment(
 def test_main_returns_the_refusal_status_without_serving(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """`main` returns on the refusal path, BEFORE the `os._exit` finally.
+    """`main` returns on the refusal path, BEFORE `os._exit`.
 
-    **The `build_server` stub is a safety interlock, not a mock, and it was
-    added because the amputation harness needed it.** With the refusals
-    amputated, this call falls through to `mcp.run(transport="http")` inside
-    the pytest process and serves forever - a hang, not a failure, and one
-    that took twenty-two minutes to be recognised as a hang rather than a
-    slow run. The stub turns "the refusal did not fire" into a red test in
-    the same second. Reaching it at all is the bug.
+    **The `build_server` stub is a safety interlock, not a mock, and it
+    was added because the amputation harness needed it.** With the
+    refusals amputated, this call falls through to
+    `mcp.run(transport="http")` inside the pytest process and serves
+    forever - a hang, not a failure, and one that took twenty-two
+    minutes to be recognised as a hang rather than a slow run. The stub
+    turns "the refusal did not fire" into a red test in the same second.
+    Reaching it at all is the bug.
     """
 
     def _must_not_be_reached(*_args: object, **_kwargs: object) -> None:
@@ -159,8 +161,9 @@ def test_main_returns_the_refusal_status_without_serving(
 async def test_the_server_registers_no_tool_yet() -> None:
     """U1 owns the enable GATE, not the tools (DESIGN.md:919-936).
 
-    A tool registered here would mean U1 had written outside the files §4's
-    table gives it. The gate itself is asserted in `test_config.py`.
+    A tool registered here would mean U1 had written outside the files
+    §4's table gives it. The gate itself is asserted in
+    `test_config.py`.
     """
     server = build_server(_settings())
     async with Client(server) as client:

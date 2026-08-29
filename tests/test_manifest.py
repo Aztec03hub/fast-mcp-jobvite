@@ -1,19 +1,22 @@
-"""DESIGN.md §8 case #11 - `mcp` is pinned and the frozen resolve has no drift.
+"""DESIGN.md §8 case #11 - `mcp` is pinned, the resolve has no drift.
 
 Three arms, and the third is the one that earns the case its keep:
 
-1. `mcp` is present in `[project].dependencies` with an `==` pin. DESIGN.md:1403-1407
-   pins it explicitly rather than relying on `fastmcp` to hold it, because the
-   `ResponseLimiting` regression arrived through the transitive SDK with zero change
-   to the code that broke.
-2. `uv lock --check` exits 0 without amending `uv.lock` - the same lock CI installs
-   with `uv sync --frozen`. Asserted by hashing the file either side, because a
-   command that rewrites the lock and then reports agreement has proven nothing.
-3. **The negative arm.** A manifest with the `fastmcp-slim` line removed FAILS to
-   resolve. That comment - "transitive prerelease; must be named or resolution
-   fails" - is the only justification the line carries, and a pin whose only
-   justification is a comment is one refactor from deletion. This arm is what stops
-   a future tidy-up dropping an apparently redundant transitive
+1. `mcp` is present in `[project].dependencies` with an `==` pin.
+   DESIGN.md:1403-1407 pins it explicitly rather than relying on
+   `fastmcp` to hold it, because the `ResponseLimiting` regression
+   arrived through the transitive SDK with zero change to the code that
+   broke.
+2. `uv lock --check` exits 0 without amending `uv.lock` - the same lock
+   CI installs with `uv sync --frozen`. Asserted by hashing the file
+   either side, because a command that rewrites the lock and then
+   reports agreement has proven nothing.
+3. **The negative arm.** A manifest with the `fastmcp-slim` line removed
+   FAILS to resolve. That comment - "transitive prerelease; must be
+   named or resolution fails" - is the only justification the line
+   carries, and a pin whose only justification is a comment is one
+   refactor from deletion. This arm is what stops a future tidy-up
+   dropping an apparently redundant transitive
    (IMPLEMENTATION-PLAN.md:266-276).
 """
 
@@ -45,54 +48,69 @@ def test_mcp_is_pinned_with_a_double_equals() -> None:
 
 
 def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
-    """A CLOSED set over the whole runtime dependency list, not a claim about two pins.
+    """A CLOSED set over the whole runtime dependency list.
 
-    **This test was renamed, and the rename is the point.** It used to be called
-    `test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version` - a name describing
-    two pins, on a body that closes the ENTIRE list. That gap is collision 10: an
-    auditor asking "will my change break a test?" reads names, so a unit adding a
-    scheduled runtime dependency saw nothing relevant here and would have been
-    surprised by a red build reading as a manifest-integrity breach. Six review rounds
-    read the name and missed the body.
+    Not a claim about two pins.
 
-    The closed set is a real property and is kept: a dependency arriving without anyone
-    deciding to add it should fail here. Adding one is meant to cost a deliberate edit.
+    **This test was renamed, and the rename is the point.** It used to
+    be called
+    `test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version` - a
+    name describing two pins, on a body that closes the ENTIRE list.
+    That gap is collision 10: an auditor asking "will my change break a
+    test?" reads names, so a unit adding a scheduled runtime dependency
+    saw nothing relevant here and would have been surprised by a red
+    build reading as a manifest-integrity breach. Six review rounds read
+    the name and missed the body.
 
-    **Widen this set by APPENDING. Never relax it to a subset check**, and never remove
-    or reorder the three pins - they are DESIGN.md:1418-1420, and
-    `test_removing_fastmcp_slim_breaks_the_resolve` below is the control that proves
-    the second of them load-bearing.
+    The closed set is a real property and is kept: a dependency arriving
+    without anyone deciding to add it should fail here. Adding one is
+    meant to cost a deliberate edit.
+
+    **Widen this set by APPENDING. Never relax it to a subset check**,
+    and never remove or reorder the three pins - they are
+    DESIGN.md:1418-1420, and
+    `test_removing_fastmcp_slim_breaks_the_resolve` below is the control
+    that proves the second of them load-bearing.
     """
     assert set(_dependencies()) == {
         "fastmcp==4.0.0b4",
         "fastmcp-slim==4.0.0b4",
         "mcp==2.1.1",
-        # U3's, added under the serialised dependency slot. DESIGN.md:302-303 forbids a
-        # custom logging module and names loguru as what covers that need.
+        # U3's, added under the serialised dependency slot.
+        # DESIGN.md:302-303 forbids a custom logging module and names
+        # loguru as what covers that need.
         "loguru==0.7.3",
-        # U4's, APPENDED under the same slot - the set stays CLOSED. httpx2 is
-        # ADR-0007's client (fastmcp 4.0.0b4 installs no `httpx` at all) and ships
-        # the MockTransport DESIGN.md:1359-1360 rests the credential-free test
-        # strategy on; defusedxml parses the HR-XML hardened fallback of
-        # DESIGN.md:337-340. Both were already resolved transitively at these exact
-        # versions, so `uv lock` added four lines and moved nothing.
+        # U4's, APPENDED under the same slot - the set stays CLOSED.
+        # httpx2 is ADR-0007's client (fastmcp 4.0.0b4 installs no
+        # `httpx` at all) and ships the MockTransport
+        # DESIGN.md:1359-1360 rests the credential-free test strategy
+        # on; defusedxml parses the HR-XML hardened fallback of
+        # DESIGN.md:337-340. Both were already resolved transitively at
+        # these exact versions, so `uv lock` added four lines and moved
+        # nothing.
         "httpx2==2.12.0",
         "defusedxml==0.7.1",
-        # U1's. config.py imports pydantic_settings directly; it had been
-        # arriving transitively, so nothing would have noticed a bump that
-        # dropped it.
+        # U1's. config.py imports pydantic_settings directly; it had
+        # been arriving transitively, so nothing would have noticed a
+        # bump that dropped it.
         "pydantic-settings==2.15.0",
     }
 
 
 def test_prerelease_is_explicit() -> None:
-    """`--prerelease=allow` is global in uv; `explicit` confines it (DESIGN.md:1432)."""
+    """`--prerelease=allow` is global in uv; `explicit` confines it.
+
+    DESIGN.md:1432.
+    """
     with PYPROJECT.open("rb") as fh:
         assert tomllib.load(fh)["tool"]["uv"]["prerelease"] == "explicit"
 
 
 def test_the_fastmcp_slim_justification_comment_survives() -> None:
-    """The comment IS the specification here; arm 3 below is what makes it true."""
+    """The comment IS the specification here.
+
+    Arm 3 below is what makes it true.
+    """
     text = PYPROJECT.read_text()
     assert "must be named or resolution fails" in text
 
@@ -116,11 +134,12 @@ def test_uv_lock_check_passes_without_amending_the_lockfile() -> None:
 
 @pytest.mark.network
 def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> None:
-    """The control proving the fastmcp-slim pin is load-bearing rather than decorative.
+    """The control proving the fastmcp-slim pin is load-bearing.
 
-    Marked `network` and deselected from the default offline suite: it performs a
-    real resolve. CI runs it as its own step. It is excluded by SELECTION, never
-    by skipif - a skip is a green that tested nothing (DESIGN.md:1229-1232).
+    Marked `network` and deselected from the default offline suite: it
+    performs a real resolve. CI runs it as its own step. It is excluded
+    by SELECTION, never by skipif - a skip is a green that tested
+    nothing (DESIGN.md:1229-1232).
     """
     manifest = PYPROJECT.read_text()
     mutated = "\n".join(
@@ -148,9 +167,10 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
 def test_the_unmutated_manifest_still_resolves(tmp_path: pathlib.Path) -> None:
     """Positive control for the arm above.
 
-    A refusal-path test is not a guard unless the happy path still succeeds
-    (DESIGN.md:1370-1372). Without this, a `uv` that failed on EVERYTHING - a
-    broken binary, no network, a bad cache - would make the control above pass.
+    A refusal-path test is not a guard unless the happy path still
+    succeeds (DESIGN.md:1370-1372). Without this, a `uv` that failed on
+    EVERYTHING - a broken binary, no network, a bad cache - would make
+    the control above pass.
     """
     (tmp_path / "src" / "fast_mcp_jobvite").mkdir(parents=True)
     (tmp_path / "src" / "fast_mcp_jobvite" / "__init__.py").touch()

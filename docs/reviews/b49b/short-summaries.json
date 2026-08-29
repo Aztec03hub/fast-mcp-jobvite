@@ -1,0 +1,790 @@
+[
+  {
+    "path": "scripts/check-committed-file-types.py",
+    "qualname": "load_allowlist",
+    "summary": "Read the exception list through the SAME reader as its files."
+  },
+  {
+    "path": "scripts/check_advisories.py",
+    "qualname": "check_entries",
+    "summary": "Validate every entry and derive the flags from those that pass."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/__main__.py",
+    "qualname": "<module>",
+    "summary": "Entry point: logging, transport, signals, forced exit."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/__main__.py",
+    "qualname": "_InterceptHandler.emit",
+    "summary": "Re-emit one stdlib record through loguru, same level."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/__main__.py",
+    "qualname": "main",
+    "summary": "Load configuration, select the transport, and serve."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "<module>",
+    "summary": "The audit event, and where `request_id` originates (\u00a75.3)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "AuditPhase",
+    "summary": "Which branch of the audit-write-failure policy applies.",
+    "body": "DESIGN.md:711-727."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "AuditWriteError",
+    "summary": "The audit write failed before a side effect, so the call fails."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "resolve_request_id",
+    "summary": "Return the inbound `request_id`, or mint a fresh UUIDv4."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "audit_scope",
+    "summary": "Mint the `request_id`, bind it, and time the invocation."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "emit",
+    "summary": "Write the audit event, applying the failure policy.",
+    "body": "DESIGN.md:711-727."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "_on_audit_write_failure",
+    "summary": "The three branches, in the order DESIGN.md:712-718 gives."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/audit.py",
+    "qualname": "attach_audit_warnings",
+    "summary": "Add the `warnings` array to a SUCCESS result's content."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "<module>",
+    "summary": "Configuration, and the boot-time refusals it owes.",
+    "body": "DESIGN.md:909-955."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "env_name",
+    "summary": "Return the environment variable a settings field reads."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "Settings._empty_is_unset",
+    "summary": "Treat an empty value as absent: the template ships empties."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "Settings.split_tool_names",
+    "summary": "Split `JOBVITE_TOOLS` into recognised and unrecognised."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "validate_settings",
+    "summary": "Apply every boot-time refusal, collecting all reasons."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "_check_tool_names",
+    "summary": "Refuse an unknown `JOBVITE_TOOLS` name (DESIGN.md:929-934)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/config.py",
+    "qualname": "_check_required_variables",
+    "summary": "Refuse a variable an ENABLED tool needs (DESIGN.md:936-943)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "<module>",
+    "summary": "The exception hierarchy and RFC 9457 problems (DESIGN.md:491-540)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "JobviteUnavailableError",
+    "summary": "Jobvite unreachable, breaker open, or budget exhausted."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "DuplicateCandidateError",
+    "summary": "Duplicate candidate on create (DESIGN.md:519, DESIGN.md:877)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "ScopeDeniedError",
+    "summary": "The caller's token lacks this tool's scope (DESIGN.md:520)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "build_problem",
+    "summary": "Build a complete RFC 9457 problem - **returned, never raised**."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/errors.py",
+    "qualname": "problem_from_exception",
+    "summary": "Convert an exception to a problem - **returned, never raised**."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/server.py",
+    "qualname": "make_base_lifespan._base",
+    "summary": "Publish the validated configuration for the server's life."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/services/jobvite_client.py",
+    "qualname": "<module>",
+    "summary": "The Jobvite client: auth and error detection (DESIGN.md:308-340)."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/services/jobvite_client.py",
+    "qualname": "_excerpt",
+    "summary": "Bound and redact a body before it reaches a message or log."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/services/jobvite_client.py",
+    "qualname": "JobviteClient.__aenter__",
+    "summary": "Enter the client's context, closing the pool on exit."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/services/jobvite_client.py",
+    "qualname": "JobviteClient.jobfeed_params",
+    "summary": "Build the v1 `jobFeed` params - **the one exception**."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/services/jobvite_client.py",
+    "qualname": "JobviteClient.request",
+    "summary": "Issue ONE call, apply the invariant, return the body."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/utils/correlation.py",
+    "qualname": "request_id_scope",
+    "summary": "Bind `request_id_var` for one invocation, then reset it."
+  },
+  {
+    "path": "src/fast_mcp_jobvite/utils/redaction.py",
+    "qualname": "_split_keeping_whitespace",
+    "summary": "Split on whitespace, keeping separators so text reassembles."
+  },
+  {
+    "path": "tests/boot_process.py",
+    "qualname": "clean_env",
+    "summary": "Build an environment holding no inherited `JOBVITE_` value."
+  },
+  {
+    "path": "tests/boot_process.py",
+    "qualname": "spawn_marker_server",
+    "summary": "Spawn the marker entry script and wait for its lifespan."
+  },
+  {
+    "path": "tests/boot_process.py",
+    "qualname": "interpreter_of",
+    "summary": "Return argv[0] of a live process from `/proc/<pid>/cmdline`."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_an_entry_with_no_expiry_is_rejected",
+    "summary": "An ignore with no expiry never expires.",
+    "body": "That is the whole failure mode."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_an_entry_with_no_date_is_rejected",
+    "summary": "A missing `date` makes the 30-day budget unmeasurable.",
+    "body": "The budget is measured from `date`."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_a_blank_advisory_id_is_a_blanket_ignore",
+    "summary": "An id of whitespace names no advisory.",
+    "body": "So it suppresses all of them."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_one_illegal_entry_suppresses_every_flag_in_the_table",
+    "summary": "A partial emit would honour the legal rows.",
+    "body": "CI would meanwhile think the gate refused."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_cli_emits_the_flag_on_stdout_for_a_legal_entry",
+    "summary": "End-to-end: exit 0 AND the flag actually on stdout."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_cli_exits_non_zero_and_emits_no_flags_on_an_expired_entry",
+    "summary": "Exit code AND stdout.",
+    "body": "Either alone can be right for a wrong reason."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_the_gate_runs_clean_against_the_real_manifest",
+    "summary": "Exit 0 with no flags, against the real file and clock."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_quoted_iso_dates_are_accepted",
+    "summary": "TOML gives a bare date natively.",
+    "body": "A quoted one must not silently refuse."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_a_non_date_expiry_is_refused",
+    "summary": "`expires` set to a non-date must not read as absent.",
+    "body": "Nor as a far-future date."
+  },
+  {
+    "path": "tests/test_advisory_gate.py",
+    "qualname": "test_the_absent_table_is_still_legal",
+    "summary": "The control for all three above: a manifest with NO table."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "<module>",
+    "summary": "U3: the audit event, \u00a78 cases #2, #4, #5, #17, and the policy."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "_serialise",
+    "summary": "Flatten a captured record to text.",
+    "body": "A leak anywhere in it is then caught."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_case4_the_field_names_are_wire_shaped_snake_case",
+    "summary": "`ai/tool-calling.md:178-179`: the three required fields.",
+    "body": "`tool_name`, `request_id`, `result_status`."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_case4_the_write_records_approval_state_and_its_mechanism",
+    "summary": "DESIGN.md:1278: `approval_state` WITH the mechanism (\u00a75.3).",
+    "body": "Asserted on the write."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_case2_the_whole_url_is_covered_not_just_the_sc_parameter",
+    "summary": "DESIGN.md:312-316 classifies the URL as sensitive.",
+    "body": "Not one parameter of it."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_case2_a_stderr_failure_report_carries_no_credential",
+    "summary": "The failure channel is a log record, and formats an exception."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_case17_a_valid_traceparent_parses_the_positive_control",
+    "summary": "Without this, the cases above pass against `return None`."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_http_records_the_client_id_and_no_marker",
+    "summary": "The paired positive: attribution IS recorded when knowable."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_arm3_the_warning_tells_the_caller_not_to_retry",
+    "summary": "The whole reason this branch exists.",
+    "body": "DESIGN.md:715-717 and DESIGN.md:701-705."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_the_scope_resets_request_id_var_on_the_way_out",
+    "summary": "The absence, paired with the positive above.",
+    "body": "Built in the same construction."
+  },
+  {
+    "path": "tests/test_audit.py",
+    "qualname": "test_an_invalid_inbound_request_id_is_replaced_rather_than_used",
+    "summary": "C7-T1: a newline in the inbound id forges a log entry.",
+    "body": "DESIGN.md:1795."
+  },
+  {
+    "path": "tests/test_boot.py",
+    "qualname": "<module>",
+    "summary": "\u00a78 #10: an off-loopback bind without TLS refuses to START.",
+    "body": "DESIGN.md:1323."
+  },
+  {
+    "path": "tests/test_boot.py",
+    "qualname": "test_the_default_loopback_bind_starts",
+    "summary": "Positive control 1 of 2 (DESIGN.md:1323).",
+    "body": "IMPLEMENTATION-PLAN.md:504."
+  },
+  {
+    "path": "tests/test_boot.py",
+    "qualname": "test_a_missing_credential_exits_naming_the_variable",
+    "summary": "DESIGN.md:913-917: a missing credential fails at BOOT.",
+    "body": "And the refusal names it."
+  },
+  {
+    "path": "tests/test_boot.py",
+    "qualname": "test_an_unrecognised_tool_name_exits_naming_it",
+    "summary": "DESIGN.md:931-936, as a process arm.",
+    "body": "Rather than as a validator call."
+  },
+  {
+    "path": "tests/test_boot.py",
+    "qualname": "test_a_refusal_writes_nothing_to_stdout",
+    "summary": "Stdout is the JSON-RPC channel; diagnostics go to stderr."
+  },
+  {
+    "path": "tests/test_collection_guard.py",
+    "qualname": "<module>",
+    "summary": "Every `test_*.py` here is reachable from `testpaths`."
+  },
+  {
+    "path": "tests/test_collection_guard.py",
+    "qualname": "_discovered_test_files",
+    "summary": "Every `test_*.py` in the tree, by walking the filesystem."
+  },
+  {
+    "path": "tests/test_collection_guard.py",
+    "qualname": "_collected_test_files",
+    "summary": "Every file pytest collects, from `--collect-only -q`."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_each_row_of_the_matrix_refuses_each_of_its_own_variables",
+    "summary": "Dropping a required variable of an enabled tool refuses boot."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_enable_writes_true_with_tools_unset_does_not_register_the_write",
+    "summary": "DESIGN.md:927-928: the obvious step does nothing."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_http_without_tokens_is_a_startup_failure",
+    "summary": "DESIGN.md:832-834: an open server is the alternative.",
+    "body": "So it refuses."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_the_whole_committed_template_loads",
+    "summary": "Every line of `.env.example` parses, and it still refuses."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_settings_declares_exactly_the_template_variables",
+    "summary": "`config.py` enumerates the set and invents none."
+  },
+  {
+    "path": "tests/test_config.py",
+    "qualname": "test_validate_settings_accepts_a_settings_object_directly",
+    "summary": "`validate_settings` runs without touching the environment."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "<module>",
+    "summary": "U2: `request_id_var` (DESIGN.md:601-612).",
+    "body": "IMPLEMENTATION-PLAN.md:471-478."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_the_contextvar_is_named_request_id_var_verbatim",
+    "summary": "ai/tool-calling.md:173-175 mandates the triple verbatim."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_the_positive_arm_the_var_reads_back_the_id_inside_the_scope",
+    "summary": "Without this, the assertions below pass on an unset var."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_the_id_does_not_leak_past_the_scope",
+    "summary": "DESIGN.md:605-606 - a reused task must not inherit an id."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_the_id_does_not_leak_when_the_invocation_raises",
+    "summary": "The reset is in a `finally`, so nothing strands the id."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_concurrent_invocations_never_read_each_others_id",
+    "summary": "DESIGN.md:608-612 - what a module global would cause."
+  },
+  {
+    "path": "tests/test_correlation.py",
+    "qualname": "test_the_concurrency_test_would_catch_a_module_global",
+    "summary": "Positive control: the same shape, with a global, fails."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "<module>",
+    "summary": "U2: the error contract (DESIGN.md:491-540).",
+    "body": "IMPLEMENTATION-PLAN.md:447-470."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_a_jobvite_401_is_a_502_and_not_a_401",
+    "summary": "DESIGN.md:506-509: a 401 blames the wrong credential.",
+    "body": "The caller cannot hold the credential it blames."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_every_problem_carries_all_seven_required_members",
+    "summary": "error-contract.md:66 elevates these seven to required.",
+    "body": "DESIGN.md:495-496."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_a_jobvite_failure_with_no_status_still_keeps_its_message",
+    "summary": "The plain-text and Tomcat-HTML encodings carry no status.",
+    "body": "DESIGN.md:345-347."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_an_unmapped_exception_does_not_leak_its_message_to_the_caller",
+    "summary": "An exception's str() can carry a URL or a credential."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_a_problem_object_is_returned_never_raised",
+    "summary": "DESIGN.md:536-540 - being returned resists configuration."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "_defined_kinds",
+    "summary": "Every ProblemKind defined, minus the about:blank one."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_the_registry_constants_match_the_standards_table_verbatim",
+    "summary": "error-contract.md:96-108 is the source of the titles.",
+    "body": "A drifted title is a contract break."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "test_no_type_uri_is_minted_locally",
+    "summary": "DESIGN.md:510-511: a published type URI is owed forever."
+  },
+  {
+    "path": "tests/test_error_contract.py",
+    "qualname": "_scan_for_envelope",
+    "summary": "Return `path:line` for every `success` envelope under `roots`.",
+    "body": "`success: true` and `success: false` both count."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_the_rule_tables_are_populated",
+    "summary": "A gate with empty tables permits everything and 'runs'."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_rules_1_and_2_are_both_reachable_and_give_different_answers",
+    "summary": "The redundancy the gate claims is real and observable.",
+    "body": "It shows in the refusal message."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_the_magic_rule_and_the_extension_rule_are_independently_load_bearing",
+    "summary": "Neither rule alone suffices, proven in both directions."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_the_nul_backstop_catches_content_no_magic_signature_matches",
+    "summary": "The backstop's point: an unknown binary with no signature."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_e2e_the_gate_reads_the_index_not_the_worktree",
+    "summary": "A file poisoned in the index is refused, worktree aside."
+  },
+  {
+    "path": "tests/test_file_type_gate.py",
+    "qualname": "test_e2e_an_override_needs_its_allowlist_entry_staged",
+    "summary": "DESIGN.md:1633-1634 - the exception is in the same diff."
+  },
+  {
+    "path": "tests/test_fixture_path.py",
+    "qualname": "<module>",
+    "summary": "The fixture path resolves, and U4 asserts byte-exact on it."
+  },
+  {
+    "path": "tests/test_fixture_path.py",
+    "qualname": "test_fixtures_are_readable_and_non_empty",
+    "summary": "A zero-byte fixture satisfies a presence check, nothing more."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "<module>",
+    "summary": "DESIGN.md \u00a78 case #1 and U4's contract (DESIGN.md:308-340)."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "client",
+    "summary": "Build a client on `httpx2.MockTransport` (ADR-0007)."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_recorded_200_with_401_body_fixture_is_byte_exact",
+    "summary": "Pin the ground truth before asserting behaviour on it."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_a_json_envelope_401_on_an_http_401_fails",
+    "summary": "`error_auth_401.json` - conventional, both arms agree."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_a_tomcat_html_error_page_fails_loudly",
+    "summary": "`error_task_400.html` - the third encoding (DESIGN.md:335-337)."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_valid_json_that_is_not_an_object_fails",
+    "summary": "A bare list or `null` decodes and is not a Jobvite body."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_arm_1_fires_even_when_the_http_status_is_a_success",
+    "summary": "Symmetric to the above: the arm where HTTP cannot help."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_a_boolean_status_code_is_not_read_as_an_integer",
+    "summary": "`bool` is an `int`, and a true `code` is not a status."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_v2_credentials_travel_as_headers_and_NEVER_in_the_url",
+    "summary": "DESIGN.md:311-312, on the request the transport saw."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_jobfeed_route_is_the_ONE_url_that_carries_credentials",
+    "summary": "DESIGN.md:313-316 - the exception, only for this route."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_jobfeed_route_refuses_without_a_company_id",
+    "summary": "A missing `companyId` returns the same 401 as a bad secret."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_client_and_the_redactor_name_the_SAME_two_headers",
+    "summary": "Pins the two lists together (fix one, check its siblings)."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_a_transport_error_on_the_jobfeed_route_is_redacted",
+    "summary": "`httpx` puts the request URL in its exception text.",
+    "body": "DESIGN.md:314-315."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_an_error_body_quoting_a_credential_is_redacted_before_detail",
+    "summary": "The body is attacker-influenced text in an exception."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_an_enormous_error_body_is_truncated_before_reaching_detail",
+    "summary": "A body we do not control must not be an unbounded log line."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_no_cookie_jar_is_carried_between_requests",
+    "summary": "The `AWSALBAPP-*` values are the literal `_remove_`.",
+    "body": "There is no session behind them."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_jar_is_cleared_even_when_the_call_RAISED",
+    "summary": "Clearing is in a `finally`, so a failed call leaves nothing."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_a_redirect_is_not_followed_so_credentials_cannot_be_forwarded",
+    "summary": "A 30x must NOT be followed: it hands the credentials away."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_an_invalid_url_becomes_a_typed_error_not_an_escape",
+    "summary": "`except httpx2.HTTPError` reads as any transport failure.",
+    "body": "It is not."
+  },
+  {
+    "path": "tests/test_jobvite_client.py",
+    "qualname": "test_the_escaping_classes_are_still_outside_HTTPError",
+    "summary": "The control on the fix: needed only while this holds."
+  },
+  {
+    "path": "tests/test_logging_process.py",
+    "qualname": "<module>",
+    "summary": "What the PROCESS writes, and what happens when its sink fails."
+  },
+  {
+    "path": "tests/test_logging_process.py",
+    "qualname": "_run_script",
+    "summary": "Run a script in a real child process, no inherited JOBVITE_."
+  },
+  {
+    "path": "tests/test_logging_process.py",
+    "qualname": "test_the_process_writes_the_mandated_audit_fields",
+    "summary": "`ai/tool-calling.md:171-179`, on the process's own stderr."
+  },
+  {
+    "path": "tests/test_logging_process.py",
+    "qualname": "test_python_dash_m_gets_the_same_configured_sink",
+    "summary": "The module identity gap, closed by measurement."
+  },
+  {
+    "path": "tests/test_logging_process.py",
+    "qualname": "test_a_failing_sink_on_a_read_does_not_fail_the_read",
+    "summary": "DESIGN.md:714-715: a read is recoverable, a lost tool worse."
+  },
+  {
+    "path": "tests/test_manifest.py",
+    "qualname": "<module>",
+    "summary": "DESIGN.md \u00a78 case #11 - `mcp` is pinned, the resolve has no drift."
+  },
+  {
+    "path": "tests/test_manifest.py",
+    "qualname": "test_the_runtime_dependency_set_is_exactly_these_and_nothing_else",
+    "summary": "A CLOSED set over the whole runtime dependency list.",
+    "body": "Not a claim about two pins."
+  },
+  {
+    "path": "tests/test_manifest.py",
+    "qualname": "test_prerelease_is_explicit",
+    "summary": "`--prerelease=allow` is global in uv; `explicit` confines it.",
+    "body": "DESIGN.md:1432."
+  },
+  {
+    "path": "tests/test_manifest.py",
+    "qualname": "test_the_fastmcp_slim_justification_comment_survives",
+    "summary": "The comment IS the specification here.",
+    "body": "Arm 3 below is what makes it true."
+  },
+  {
+    "path": "tests/test_manifest.py",
+    "qualname": "test_removing_fastmcp_slim_breaks_the_resolve",
+    "summary": "The control proving the fastmcp-slim pin is load-bearing."
+  },
+  {
+    "path": "tests/test_markers.py",
+    "qualname": "<module>",
+    "summary": "DESIGN.md \u00a78 case #12 - an undeclared marker fails collection.",
+    "body": "It does not merely select nothing."
+  },
+  {
+    "path": "tests/test_markers.py",
+    "qualname": "_isolated_project",
+    "summary": "A temp project inheriting the real pyproject.",
+    "body": "So the real config is what is tested."
+  },
+  {
+    "path": "tests/test_markers.py",
+    "qualname": "test_the_default_selection_deselects_the_credentialed_arm",
+    "summary": "Zero skips (DESIGN.md:1229-1232), asserted on behaviour."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_uppercase_parameter_names_are_still_redacted",
+    "summary": "A case-sensitive redactor fails open on a hand-made URL."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_the_allow_list_does_not_contain_query",
+    "summary": "`search_candidates`'s query is free text.",
+    "body": "And a name is what you search for."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_redact_text_redacts_a_userinfo_password",
+    "summary": "`scheme://user:password@host` - the `?`/`=` arm never saw it."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_redact_text_keeps_the_username_which_is_the_diagnosis",
+    "summary": "The password is the secret; the user aids readability."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_redact_text_leaves_a_non_credential_at_sign_alone",
+    "summary": "The false-positive arm: why the pattern requires a scheme."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_a_tuple_is_walked_like_a_list",
+    "summary": "`JsonValue` declares `Sequence`; the walk tested `list`."
+  },
+  {
+    "path": "tests/test_redaction.py",
+    "qualname": "test_a_string_is_not_walked_character_by_character",
+    "summary": "The guard on the fix, without which it is worse than the defect."
+  },
+  {
+    "path": "tests/test_repo_hygiene.py",
+    "qualname": "_declared_variables",
+    "summary": "Parse `.env.example` to name -> value, from the file.",
+    "body": "Never from memory."
+  },
+  {
+    "path": "tests/test_repo_hygiene.py",
+    "qualname": "test_the_deliberate_non_secret_defaults_are_intact",
+    "summary": "The guard against emptying the values that answer Q1."
+  },
+  {
+    "path": "tests/test_repo_hygiene.py",
+    "qualname": "test_gitignore_does_not_negate_the_credential_patterns",
+    "summary": "`!.env.example` is the one legal negation in `.gitignore`.",
+    "body": "Any other un-ignores a credential."
+  },
+  {
+    "path": "tests/test_server.py",
+    "qualname": "test_the_base_lifespan_publishes_the_settings",
+    "summary": "Settings reach tools through the lifespan, not a global."
+  },
+  {
+    "path": "tests/test_server.py",
+    "qualname": "test_main_returns_the_refusal_status_without_serving",
+    "summary": "`main` returns on the refusal path, BEFORE `os._exit`."
+  },
+  {
+    "path": "tests/test_shutdown.py",
+    "qualname": "test_sigterm_runs_lifespan_teardown",
+    "summary": "The teardown side effect is seen after SIGTERM, both transports."
+  },
+  {
+    "path": "tests/test_shutdown.py",
+    "qualname": "test_only_stdio_exercises_the_forced_exit",
+    "summary": "The stdio arm's failure: teardown runs, process survives."
+  },
+  {
+    "path": "tests/test_shutdown.py",
+    "qualname": "test_the_handler_does_not_read_ambient_state",
+    "summary": "DESIGN.md:969-975: `getsignal(SIGINT)` is the defect."
+  },
+  {
+    "path": "tests/test_shutdown.py",
+    "qualname": "test_a_crashing_mcp_run_exits_70_read_from_the_process",
+    "summary": "ADR-0018 and DESIGN.md:1015-1023, on the PROCESS's status."
+  },
+  {
+    "path": "tests/test_workflow_pins.py",
+    "qualname": "<module>",
+    "summary": "Third-party action pins, across EVERY workflow.",
+    "body": "Not only the one being edited."
+  },
+  {
+    "path": "tests/test_workflow_pins.py",
+    "qualname": "test_every_pinned_action_is_at_the_required_ref",
+    "summary": "No workflow may drift from a pin the project decided."
+  },
+  {
+    "path": "tests/test_workflow_pins.py",
+    "qualname": "test_no_action_is_pinned_to_a_moving_ref",
+    "summary": "`@main` on a third-party action is arbitrary code.",
+    "body": "So is `@master`: either is arbitrary code at merge time."
+  }
+]

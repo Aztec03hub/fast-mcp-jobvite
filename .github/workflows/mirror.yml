@@ -6,6 +6,27 @@ name: Mirror to personal fork
 #
 # It is inert until the repository defines a MIRROR_TOKEN secret: a PAT on the
 # mirror account with `contents: write` on Aztec03hub/fast-mcp-jobvite.
+#
+# THIS FILE HAD NEVER RUN ONCE. Found by review R3 (R3-H1), measured from the
+# Actions API: 119 runs, 119 failures, zero successes, every one of them with
+# `"total_count": 0` jobs and a 0s duration. The cause was a job-level
+# `if: ${{ secrets.MIRROR_TOKEN != '' }}`. The `secrets` context is NOT available
+# in a job-level `if:` - GitHub allows `github`, `needs`, `vars` and `inputs`
+# there - so the expression failed to evaluate and the run died before any runner
+# was scheduled.
+#
+# TWO LESSONS ARE BUILT INTO THE SHAPE BELOW.
+#
+# First, the old comment said the job "is inert until the repository defines a
+# MIRROR_TOKEN secret". It was inert UNCONDITIONALLY, and from the outside those
+# two states looked identical - which is precisely why 119 red runs went unread.
+# A configured-off state and a broken state must not look the same, so the first
+# step now SAYS which one it is on every run.
+#
+# Second, the secret does not exist yet (`actions/secrets` reports
+# `total_count: 0`), so this workflow still mirrors nothing today. It now says so
+# in a green run instead of failing. Creating the PAT is a maintainer action and
+# is recorded in NEEDS-PHIL.md.
 
 on:
   push:
@@ -22,18 +43,41 @@ permissions:
 
 jobs:
   mirror:
-    if: ${{ secrets.MIRROR_TOKEN != '' }}
     runs-on: ubuntu-latest
+    # Job-level `env` MAY read secrets, and the `env` context IS available in a
+    # step-level `if:`. That is the whole fix: the guard moves from a context
+    # that cannot see secrets to one that can.
+    env:
+      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
     steps:
+      # Runs unconditionally and on purpose. This is the step that makes
+      # "switched off" distinguishable from "broken" without reading logs.
+      - name: Report whether the mirror is configured
+        run: |
+          if [ -z "${MIRROR_TOKEN}" ]; then
+            echo "::notice::MIRROR_TOKEN is not set, so nothing is mirrored. This run is a"
+            echo "::notice::correct no-op, not a success at mirroring. See NEEDS-PHIL.md."
+          else
+            echo "MIRROR_TOKEN is set; mirroring every branch and tag."
+          fi
+
       - uses: actions/checkout@v6
+        if: env.MIRROR_TOKEN != ''
         with:
+          # 0 fetches every branch and tag, which the refspec below then pushes.
+          # A shallow default would mirror only the ref that triggered the run.
           fetch-depth: 0
 
       - name: Push to mirror
-        env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        if: env.MIRROR_TOKEN != ''
         run: |
           set -euo pipefail
           git push --prune --force \
             "https://x-access-token:${MIRROR_TOKEN}@github.com/Aztec03hub/fast-mcp-jobvite.git" \
             "+refs/remotes/origin/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+
+          # A push that matched no refs exits 0. Mirroring nothing and mirroring
+          # everything must not both read as success - the defect this whole file
+          # is a monument to.
+          echo "mirrored refs:"
+          git for-each-ref --format='  %(refname)' refs/remotes/origin refs/tags

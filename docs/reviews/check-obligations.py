@@ -65,7 +65,10 @@ NO_ARTIFACT = {"ABSENT"}
 CLASSES = NEEDS_ARTIFACT | NO_ARTIFACT
 
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
-ROW = re.compile(r"\|\s*(B\d+)\s*\|")
+# `B\d+[a-z]?`, not `B\d+`: B49b is a real obligation id in this project and
+# the bare form SILENTLY SKIPS its row, which is the one failure this file
+# exists to prevent - a row that looks tracked and is never verified.
+ROW = re.compile(r"\|\s*(B\d+[a-z]?)\s*\|")
 ANCHOR = re.compile(r"^(?P<path>[^:]+):(?P<line>\d+)$")
 
 
