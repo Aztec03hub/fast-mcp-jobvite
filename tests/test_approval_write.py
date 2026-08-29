@@ -1149,15 +1149,66 @@ def test_the_write_method_is_not_in_the_retryable_set() -> None:
 #: below report its OWN pattern list and its own function names as
 #: claims - a checker that cannot be run over the file it lives in is a
 #: checker with a hole exactly where its author was standing.
-_CLAIMANTS = ("a human", "human", "a person")
-_HUMAN_CLAIMS = tuple(f"{who} approved" for who in _CLAIMANTS) + tuple(
-    f"approved by {who}" for who in _CLAIMANTS
+#: **The bare nouns, and the articled forms are DERIVED from them**, so
+#: that adding a claimant is one edit rather than three that can
+#: disagree. R7 evaded the original three with `a recruiter` - a
+#: claimant no more exotic than the ones already listed, in a repository
+#: about recruiting.
+_BARE_CLAIMANTS = (
+    "human",
+    "person",
+    "reviewer",
+    "recruiter",
+    "user",
+    "operator",
+    "someone",
+)
+_CLAIMANTS = _BARE_CLAIMANTS + tuple(
+    f"{'an' if who[0] in 'aeiou' else 'a'} {who}"
+    for who in _BARE_CLAIMANTS
+    if who != "someone"
+)
+
+#: The verbs that assert the act. `approved` alone let `authorised this
+#: write` through, which is the same claim in a synonym.
+_VERBS = ("approved", "authorised", "authorized", "signed off")
+
+#: The phrasings this unit may never assert, in all three shapes the
+#: claim takes: subject-verb, the passive `by`, and the hyphenated
+#: adjective form, which neither of the other two matches.
+#:
+#: **Assembled, never spelt** - and the widening proved why within
+#: minutes of being written. A first draft of this very comment wrote
+#: the hyphenated example out in full as an illustration, and the
+#: scanner reported the comment. That is the header's warning arriving
+#: on schedule: the checker with a hole where its author was standing.
+_HUMAN_CLAIMS = (
+    tuple(f"{who} {verb}" for who in _CLAIMANTS for verb in _VERBS)
+    + tuple(f"{verb} by {who}" for who in _CLAIMANTS for verb in _VERBS)
+    + tuple(
+        f"{who}-{verb}" for who in _BARE_CLAIMANTS for verb in _VERBS if " " not in verb
+    )
 )
 
 #: A denial reads as a claim to a substring search, so an occurrence is
 #: read together with the text before it.
 _NEGATORS = ("not ", "never", "cannot", "no person", "no human", "n't")
-_NEGATION_WINDOW = 160
+
+#: Where a negator stops applying: the end of the claim's own clause.
+#:
+#: **This used to be a 160-character window, and R7 measured what that
+#: cost.** A negator anywhere in the preceding 160 characters suppressed
+#: the hit, whatever it was negating, so the forbidden claim spelt
+#: exactly as `_HUMAN_CLAIMS[0]` spells it went unreported whenever any
+#: unrelated denial happened to sit nearby - 6 of 6 crafted evasions,
+#: and 24-40% of the four scanned files sat inside such a shadow. **The
+#: tripwire was blindest exactly where the prose denies the most**,
+#: which is the prose the rule exists to require.
+#:
+#: A comma is deliberately NOT a boundary: *"we never claim X, only
+#: that a response came back"* is one clause and the negator governs
+#: all of it.
+_CLAUSE_BOUNDARY = re.compile(r"[.;:!?]")
 
 
 def _unnegated_claims(text: str) -> list[str]:
@@ -1176,10 +1227,17 @@ def _unnegated_claims(text: str) -> list[str]:
     nobody made.**
 
     **This is a TRIPWIRE, not a proof.** It errs toward flagging: a
-    denial phrased with its negator further back than the window is
-    reported, and the fix is to tighten the sentence rather than widen
-    the window. It cannot see a claim made in words it does not know,
-    which is why review still applies.
+    denial phrased with its negator in an EARLIER clause than the claim
+    is reported, and the fix is to tighten the sentence rather than to
+    widen the scope. It cannot see a claim made in words it does not
+    know, which is why review still applies.
+
+    **The negator must govern the claim's own clause**, not merely sit
+    somewhere near it. R7 measured the earlier 160-character window
+    missing 6 of 6 crafted evasions - including the forbidden claim
+    spelt exactly as this file spells it, suppressed by an unrelated
+    denial in the previous sentence - with a quarter to two-fifths of
+    every scanned file inside such a shadow. See `_CLAUSE_BOUNDARY`.
 
     Args:
         text: The lower-cased source of one owned file.
@@ -1192,7 +1250,8 @@ def _unnegated_claims(text: str) -> list[str]:
     for phrase in _HUMAN_CLAIMS:
         offset = flat.find(phrase)
         while offset != -1:
-            before = flat[max(0, offset - _NEGATION_WINDOW) : offset]
+            boundaries = [m.end() for m in _CLAUSE_BOUNDARY.finditer(flat, 0, offset)]
+            before = flat[(boundaries[-1] if boundaries else 0) : offset]
             if not any(negator in before for negator in _NEGATORS):
                 found.append(flat[max(0, offset - 60) : offset + len(phrase)])
             offset = flat.find(phrase, offset + 1)
@@ -1213,13 +1272,51 @@ def test_the_wording_rule_holds_across_every_file_this_unit_owns(
 
     **This file is one of the files it scans**, which is why the
     patterns above are assembled rather than spelt.
+
+    **The scope is three CONTAINERS plus this file, not a list of
+    paths.** It was four typed paths, and R7 found two files the claim
+    could be written into that nobody had added: `errors.py`, which
+    holds `ApprovalRefusedError`, and ADR-0028, which is precisely the
+    kind of document the docstring above calls one *"a compliance
+    reader later treats as authoritative"*. Enumerating the directories
+    closes both, and closes the next file nobody thinks to add.
+
+    **Repo-wide was measured and rejected**, not assumed too broad.
+    Scanning all 243 tracked `.py`/`.md` files reports 18 hits, every
+    one of them benign: `README.md`, this repository's own review and
+    brief documents, and `FASTMCP-SPIKE-4.md` all quote the forbidden
+    phrasing in order to forbid it. The rule governs documents that
+    ASSERT how this system behaves, not documents that discuss the
+    rule, so `docs/reviews`, `docs/briefs` and `docs/research` are out
+    of scope by measurement.
     """
-    owned = [
-        repo_root / "src" / "fast_mcp_jobvite" / "approval.py",
-        repo_root / "src" / "fast_mcp_jobvite" / "tools" / "candidates.py",
-        repo_root / "tests" / "test_approval_write.py",
-        repo_root / "docs" / "worklogs" / "U10-IMPL-REPORT.md",
-    ]
+    owned = sorted(
+        {
+            *(repo_root / "src" / "fast_mcp_jobvite").rglob("*.py"),
+            *(repo_root / "docs" / "adr").glob("*.md"),
+            *(repo_root / "docs" / "worklogs").glob("*.md"),
+            repo_root / "tests" / "test_approval_write.py",
+        }
+    )
+
+    # A glob at a path that stopped resolving returns an empty list and
+    # this whole case would pass having read nothing - the wrong-zero
+    # this project has recorded three times. The floor is well under
+    # the 83 files the three containers hold today, so it fires on a
+    # broken glob without going red on ordinary deletions.
+    assert len(owned) >= 40, f"only {len(owned)} files scanned; a glob is not resolving"
+
+    # POSITIVE CONTROL on the derivation: the two files R7 found missing
+    # from the typed list must be inside what the containers produce.
+    for required in (
+        repo_root / "src" / "fast_mcp_jobvite" / "errors.py",
+        repo_root
+        / "docs"
+        / "adr"
+        / "0028-approval-mechanism-names-a-path-this-design-does-not-use.md",
+    ):
+        assert required in owned, f"the derivation does not reach {required}"
+
     for path in owned:
         assert path.exists(), f"the path does not resolve: {path}"
         text = path.read_text().lower()
@@ -1236,15 +1333,40 @@ def test_positive_control_the_wording_tripwire_can_actually_fire() -> None:
     failure mode. So the tripwire is shown catching an assertion, and
     shown NOT catching the two denials that broke its first two
     versions.
+
+    **The six evasions R7 measured are arms here, and they are the
+    ratchet.** Without them the scanner can be reverted to its
+    160-character window and its three-claimant list, and every one of
+    these claims goes silently unreported again with the suite green.
+    Each phrase is assembled from `_CLAIMANTS` and `_VERBS` rather than
+    spelt, because this file is one of the files the rule scans.
     """
-    assert _unnegated_claims(f"the write proceeded because {_HUMAN_CLAIMS[0]} it")
-    assert _unnegated_claims(f"the record was {_HUMAN_CLAIMS[3]} before it was sent")
+    claim = f"a human {_VERBS[0]}"
+
+    # It fires on the bare claim, subject-verb and passive shapes both.
+    assert _unnegated_claims(f"the write proceeded because {claim} it")
+    assert _unnegated_claims(f"the record was {_VERBS[0]} by a human before sending")
+
+    # It does NOT fire on the two denials that broke its first two
+    # versions - the negator governs the claim's own clause.
+    assert not _unnegated_claims(f"this does **not** establish that {claim} anything")
     assert not _unnegated_claims(
-        f"this does **not** establish that {_HUMAN_CLAIMS[0]} anything"
+        f"we never claim {claim} it, only that a response came back"
     )
-    assert not _unnegated_claims(
-        f"we never claim {_HUMAN_CLAIMS[0]} it, only that a response came back"
+
+    # R7's six evasions. The first three are the serious ones: the
+    # forbidden claim spelt exactly as this file spells it, formerly
+    # suppressed by an unrelated denial within 160 characters.
+    evasions = (
+        f"the elicitation handler is not optional here. {claim} this write.",
+        f"we never cache a tool that mints one-time state. {claim} this write.",
+        f"the host doesn't buffer anything. {claim} this write.",
+        f"a recruiter {_VERBS[0]} this write.",
+        f"a human {_VERBS[1]} this write.",
+        f"this write was human-{_VERBS[0]}.",
     )
+    for evasion in evasions:
+        assert _unnegated_claims(evasion), f"evasion not caught: {evasion}"
 
 
 async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:
