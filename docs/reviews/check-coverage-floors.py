@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""ADR-0010's per-module coverage floors, enforced instead of documented.
+"""ADR-0010's coverage floors, enforced instead of documented.
 
-    uv run --frozen pytest --cov --cov-report=json
-    python3 docs/reviews/check-coverage-floors.py [coverage.json]
+    uv run --frozen pytest --cov --cov-report=json python3
+    docs/reviews/check-coverage-floors.py [coverage.json]
 
 **THE DEFECT THIS EXISTS FOR, quoted from the artefact that had it.**
 `pyproject.toml` said:
@@ -21,10 +21,10 @@ this project has now refused five times: a setting nothing reads
 
 **BOTH THE FLOORS AND THE MODULE LIST ARE DERIVED, NOT TYPED.**
 
-- The floors come from `DESIGN.md`'s coverage sentence, parsed. A
-  number retyped here would be a second copy of ADR-0010's decision,
-  and this repository has watched a retyped constant rot in a brief,
-  two obligation rows, a CI comment and three harness floors.
+- The floors come from `DESIGN.md`'s coverage sentence, parsed. A number
+  retyped here would be a second copy of ADR-0010's decision, and this
+  repository has watched a retyped constant rot in a brief, two
+  obligation rows, a CI comment and three harness floors.
 - The critical-path ROLES come from the same sentence's parenthesis.
 - The role-to-MODULE mapping is NOT here. Each module declares its own
   `COVERAGE_ROLE`, and this file enumerates the package and asserts the
@@ -33,10 +33,10 @@ this project has now refused five times: a setting nothing reads
   project has found eight times, one of them in a checker written for
   that very defect**, so the list is not carried: it is joined.
 
-**WHAT AN EQUALITY FAILS ON, and both directions matter.** A role in
-the design that no module claims is an unenforced floor - the state
-this file was written to end. A role claimed by a module that the
-design does not name is a floor invented locally. Either is a stop.
+**WHAT AN EQUALITY FAILS ON, and both directions matter.** A role in the
+design that no module claims is an unenforced floor - the state this
+file was written to end. A role claimed by a module that the design does
+not name is a floor invented locally. Either is a stop.
 
 **WHAT IT DELIBERATELY DOES NOT CHECK.** Whether a covered branch is
 TESTED. Coverage is walked-through, not asserted, and this project's
@@ -93,14 +93,15 @@ DESIGN_ROLES = re.compile(r"critical paths \(([^)]*)\)")
 ROLE_NAME = "COVERAGE_ROLE"
 
 
-#: Overrides, and they exist for ONE reason: `tests/test_coverage_floors.py`
-#: has to be able to drive this checker into each of its failure arms
-#: against a synthetic design and a synthetic package. A control that
-#: cannot vary the input is a control that never fires - and a gate
-#: nobody has watched fail is not known to work. CI passes neither
-#: flag, so the real run reads the real paths and nothing else.
+#: Overrides, and they exist for ONE reason:
+#: `tests/test_coverage_floors.py` has to be able to drive this checker
+#: into each of its failure arms against a synthetic design and a
+#: synthetic package. A control that cannot vary the input is a control
+#: that never fires - and a gate nobody has watched fail is not known to
+#: work. CI passes neither flag, so the real run reads the real paths
+#: and nothing else.
 def parse_argv(argv: list[str]) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
-    """`[report] [--design PATH] [--package PATH]`, defaults to the repo's."""
+    """`[report] [--design PATH] [--package PATH]`; repo defaults."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", nargs="?", default="coverage.json")
     parser.add_argument("--design", default=None)
@@ -114,7 +115,7 @@ def parse_argv(argv: list[str]) -> tuple[pathlib.Path, pathlib.Path, pathlib.Pat
 
 
 def parse_design(text: str) -> tuple[dict[str, int], set[str]]:
-    """Floors and critical-path roles, both out of the design sentence."""
+    """Floors and critical-path roles, from the design sentence."""
     floors: dict[str, int] = {}
     missing: list[str] = []
     for name, pattern in DESIGN_FLOORS.items():

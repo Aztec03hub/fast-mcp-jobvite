@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reflow comments and docstrings to a 72-character doc line limit (B49b).
+"""Reflow comments and docstrings to a 72-character limit (B49b).
 
 Structure-preserving: fenced blocks, tables, dividers, bullets, Google
 sections and anything indented deeper than its paragraph are left alone.
@@ -29,7 +29,7 @@ ARGITEM = re.compile(r"^(\s*)(\*{0,2}[A-Za-z_][A-Za-z0-9_]*)\s*:\s+\S")
 
 
 def protect(text: str, budget: int) -> str:
-    """Make short `code spans` unbreakable, so wrapping never splits one."""
+    """Make short `code spans` unbreakable, so a wrap cannot split."""
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
@@ -67,7 +67,7 @@ def wrap_paragraph(
 
 
 def reflow_block(lines: list[str], width: int = LIMIT) -> list[str]:
-    """Reflow a run of plain text lines (already stripped of any `#`)."""
+    """Reflow plain text lines, already stripped of any `#`."""
     out: list[str] = []
     para: list[str] = []
     para_indent = ""
@@ -111,8 +111,9 @@ def reflow_block(lines: list[str], width: int = LIMIT) -> list[str]:
         if section_indent is not None and len(cur_indent) <= section_indent:
             section_indent = None
 
-        # Inside an Args:/Returns:/Raises: section, `name: description` starts
-        # a new item; its continuations hang four further columns.
+        # Inside an Args:/Returns:/Raises: section, `name: description`
+        # starts a new item; its continuations hang four further
+        # columns.
         if section_indent is not None:
             item = ARGITEM.match(line)
             if item:
@@ -132,8 +133,9 @@ def reflow_block(lines: list[str], width: int = LIMIT) -> list[str]:
             continue
 
         if para:
-            # A deeper-indented line is structure (code sample, continuation
-            # of an indented listing); do not fold it into the paragraph.
+            # A deeper-indented line is structure (code sample,
+            # continuation of an indented listing); do not fold it into
+            # the paragraph.
             if cur_indent != para_hang and cur_indent != para_indent:
                 flush()
                 para = [line]
@@ -161,8 +163,8 @@ def reflow_comment_run(run: list[tuple[int, str]]) -> list[str] | None:
     a marker turned into punctuation, and the continuation lines lost it
     entirely.
 
-    MEASURED: valid `#:` markers in the tree went from 22 to 3 across the
-    B49b sweep and the follow-up passes that used this tool. Nothing
+    MEASURED: valid `#:` markers in the tree went from 22 to 3 across
+    the B49b sweep and the follow-up passes that used this tool. Nothing
     caught it - not ruff, not mypy, not the suite. It is the same shape
     as this tool's F-2 (inline code spans split across a wrap): a reflow
     quietly becoming a rewrite, invisible to every gate.
@@ -256,7 +258,7 @@ def docstring_nodes(source: str) -> list[ast.Expr]:
 
 
 def rebuild_docstring(raw_lines: list[str], indent: str) -> list[str]:
-    """Reflow the interior of a triple-quoted docstring, quotes included."""
+    """Reflow a triple-quoted docstring, quotes included."""
     first = raw_lines[0]
     open_q = first.strip()[:3]
     if open_q not in ('"""', "'''"):
@@ -299,6 +301,7 @@ def reflow_file(path: pathlib.Path) -> bool:
 
     # 1. docstrings, bottom-up so line numbers stay valid
     for node in sorted(docstring_nodes(source), key=lambda n: n.lineno, reverse=True):
+        assert node.end_lineno is not None
         start, end = node.lineno - 1, node.end_lineno - 1
         raw = lines[start : end + 1]
         indent = raw[0][: len(raw[0]) - len(raw[0].lstrip())]
@@ -324,9 +327,10 @@ def reflow_file(path: pathlib.Path) -> bool:
         block = [(i, lines[i]) for i in run]
         if max(len(t.rstrip()) for _, t in block) <= LIMIT:
             continue
-        new = reflow_comment_run(block)
-        if new is None:
+        reflowed = reflow_comment_run(block)
+        if reflowed is None:
             continue
+        new = reflowed
         lines[run[0] : run[-1] + 1] = new
         candidate = "\n".join(lines) + "\n"
         try:

@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
-"""Re-run every measurement `docs/plans/IMPLEMENTATION-PLAN.md` rests a decision on.
+"""Re-run every measurement IMPLEMENTATION-PLAN.md rests a decision on.
 
-**Why this file exists.** The plan justifies four decisions with measurements that were
-run once, by hand, and then written up in prose. Prose about a measurement decays into a
-*claim* about one: the next reader inherits the conclusion and not the evidence, and
-nothing reports it when the underlying behaviour changes. Rounds 6 and 7 each re-ran some
-of these by hand and reproduced them, which is the right instinct and the wrong mechanism
+**Why this file exists.** The plan justifies four decisions with
+measurements that were run once, by hand, and then written up in prose.
+Prose about a measurement decays into a *claim* about one: the next
+reader inherits the conclusion and not the evidence, and nothing reports
+it when the underlying behaviour changes. Rounds 6 and 7 each re-ran
+some of these by hand and reproduced them, which is the right instinct
+and the wrong mechanism
 - it does not scale past the reviewer who happened to think of it.
 
-Each probe below is **two-armed**: a treatment that must fail and a control that must
-pass. A probe with only the arm the author expected is the failure mode this project has
-paid for repeatedly - it cannot tell a real result from an instrument that always says the
-same thing.
+Each probe below is **two-armed**: a treatment that must fail and a
+control that must pass. A probe with only the arm the author expected is
+the failure mode this project has paid for repeatedly - it cannot tell a
+real result from an instrument that always says the same thing.
 
-Run: `python3 docs/reviews/check-plan-measurements.py`
-Exit 0 = every measurement the plan cites still reproduces. Non-zero = a plan claim has
+Run: `python3 docs/reviews/check-plan-measurements.py` Exit 0 = every
+measurement the plan cites still reproduces. Non-zero = a plan claim has
 gone stale, and the plan is what needs fixing, not this script.
 
-**M4 WAS EXPECTED TO FAIL, AND NO LONGER DOES.** It is the eleventh collision, found by
-round 7 and independently reproduced: a real defect in `tests/test_collection_guard.py`,
-not a stale claim. The guard passed `-m` to its own collection call, so a file whose
-tests are all deselected read as unreachable. Dropping `-m` fixed it and M4 went green,
-which is what a documented-open probe is for - it is now a regression test rather than a
-record of a defect. Do not "fix" any probe here to make it green.
+**M4 WAS EXPECTED TO FAIL, AND NO LONGER DOES.** It is the eleventh
+collision, found by round 7 and independently reproduced: a real defect
+in `tests/test_collection_guard.py`, not a stale claim. The guard passed
+`-m` to its own collection call, so a file whose tests are all
+deselected read as unreachable. Dropping `-m` fixed it and M4 went
+green, which is what a documented-open probe is for - it is now a
+regression test rather than a record of a defect. Do not "fix" any probe
+here to make it green.
 """
 
 from __future__ import annotations
@@ -38,7 +42,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 VENV_PY = REPO_ROOT / ".venv" / "bin" / "python"
 PYTHON = str(VENV_PY if VENV_PY.exists() else sys.executable)
 
-FIXTURE_PLUGIN = "import pytest\n\n\n@pytest.fixture\ndef mock_transport():\n    return 'MT'\n"
+FIXTURE_PLUGIN = (
+    "import pytest\n\n\n@pytest.fixture\n"
+    "def mock_transport():\n    return 'MT'\n"
+)
 USES_FIXTURE = "def test_uses(mock_transport):\n    assert mock_transport == 'MT'\n"
 
 
@@ -52,13 +59,14 @@ def _pytest(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def m1_pytest_plugins_in_a_non_rootdir_conftest() -> tuple[bool, str]:
-    """§4's fixture mechanism: `pytest_plugins` in `tests/conftest.py`, not the rootdir.
+    """§4's fixture mechanism: `pytest_plugins` in `tests/conftest.py`.
 
-    The plan mandates this and the obvious objection is real elsewhere - some pytest
-    lineages refuse `pytest_plugins` outside the rootdir conftest. Treatment: it loads
-    AND the fixture resolves, which is the positive control that it actually loaded
-    rather than being silently ignored. Control: the same tree without the registration
-    must FAIL, or the treatment proves nothing.
+    The plan mandates this and the obvious objection is real elsewhere -
+    some pytest lineages refuse `pytest_plugins` outside the rootdir
+    conftest. Treatment: it loads AND the fixture resolves, which is the
+    positive control that it actually loaded rather than being silently
+    ignored. Control: the same tree without the registration must FAIL,
+    or the treatment proves nothing.
     """
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -88,11 +96,12 @@ def m1_pytest_plugins_in_a_non_rootdir_conftest() -> tuple[bool, str]:
 
 
 def m2_per_directory_conftest_does_not_cross_directories() -> tuple[bool, str]:
-    """Why §4 rejected conftest-per-directory: a fixture is invisible to a sibling dir.
+    """Why §4 rejected conftest-per-directory: siblings cannot see it.
 
-    This is the measurement the choice rests on. Treatment: the sibling directory's test
-    must ERROR with 'fixture not found'. Control: the test in the conftest's OWN
-    directory must pass, or the fixture was simply broken and the probe is vacuous.
+    This is the measurement the choice rests on. Treatment: the sibling
+    directory's test must ERROR with 'fixture not found'. Control: the
+    test in the conftest's OWN directory must pass, or the fixture was
+    simply broken and the probe is vacuous.
     """
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -110,43 +119,52 @@ def m2_per_directory_conftest_does_not_cross_directories() -> tuple[bool, str]:
         sibling = _pytest(root, "tests/client")
 
     if same_dir.returncode != 0:
-        return False, "control failed: fixture broken in its OWN directory, probe vacuous"
+        return False, (
+            "control failed: fixture broken in its OWN directory, probe vacuous"
+        )
     if "fixture 'mock_transport' not found" not in sibling.stdout:
         return False, "sibling directory RESOLVED the fixture - §4's rejection is stale"
     return True, "sibling cannot see it; same directory can - rejection holds"
 
 
 def m3_manifest_asserts_a_closed_dependency_set() -> tuple[bool, str]:
-    """Collision 10: `tests/test_manifest.py` closes the runtime dependency list.
+    """Collision 10: `test_manifest.py` closes the dependency list.
 
-    **This probe RUNS the test. An earlier version graded a SUBSTRING of it, and a
-    review demonstrated the difference.** It checked `"set(_dependencies()) ==" in
-    manifest_test`, which is a grep of the test's source. Renaming the function so
-    pytest stops collecting it - the most realistic form of "someone disabled a test" -
-    left the string in place, so M3 stayed PASS with identical output while the suite
-    quietly ran one test fewer. `assert ... or True`, `if False:`, and deleting the
-    function while its docstring still quoted the line all survived too.
+    **This probe RUNS the test. An earlier version graded a SUBSTRING of
+    it, and a review demonstrated the difference.** It checked
+    `"set(_dependencies()) ==" in manifest_test`, which is a grep of the
+    test's source. Renaming the function so pytest stops collecting it -
+    the most realistic form of "someone disabled a test" - left the
+    string in place, so M3 stayed PASS with identical output while the
+    suite quietly ran one test fewer. `assert ... or True`, `if False:`,
+    and deleting the function while its docstring still quoted the line
+    all survived too.
 
-    That is a citation check dressed as a measurement, in the file whose premise is
-    that prose about a measurement decays into a claim about one. The machinery to do
-    it properly already existed three functions down, in M4.
+    That is a citation check dressed as a measurement, in the file whose
+    premise is that prose about a measurement decays into a claim about
+    one. The machinery to do it properly already existed three functions
+    down, in M4.
 
-    Treatment: add a dependency to a COPY of the manifest and the test must FAIL.
-    Control: against the unmutated copy the same test must PASS, or the treatment
-    proves nothing.
+    Treatment: add a dependency to a COPY of the manifest and the test
+    must FAIL. Control: against the unmutated copy the same test must
+    PASS, or the treatment proves nothing.
     """
     src = (REPO_ROOT / "pyproject.toml").read_text()
     if not tomllib.loads(src)["project"]["dependencies"]:
         return False, "no runtime dependencies declared at all - the probe read nothing"
 
-    # THE NODE ID, not the file. Running the whole module passes for the wrong
-    # reason: test_manifest.py holds five tests, so renaming the closed-set one
-    # leaves four others, and one of THOSE also reddens on an added dependency.
-    # The first version of this fix graded the file and stayed green through the
-    # exact mutation it was written to catch. A node id that does not exist makes
-    # pytest exit non-zero, so a renamed or deleted test fails the CONTROL arm,
-    # which is where it should be caught.
-    node = "tests/test_manifest.py::test_the_runtime_dependency_set_is_exactly_these_and_nothing_else"
+    # THE NODE ID, not the file. Running the whole module passes for the
+    # wrong reason: test_manifest.py holds five tests, so renaming the
+    # closed-set one leaves four others, and one of THOSE also reddens
+    # on an added dependency. The first version of this fix graded the
+    # file and stayed green through the exact mutation it was written to
+    # catch. A node id that does not exist makes pytest exit non-zero,
+    # so a renamed or deleted test fails the CONTROL arm, which is where
+    # it should be caught.
+    node = (
+        "tests/test_manifest.py::"
+        "test_the_runtime_dependency_set_is_exactly_these_and_nothing_else"
+    )
 
     def run_in(root: Path) -> subprocess.CompletedProcess[str]:
         return _pytest(root, node, "-p", "no:cacheprovider")
@@ -190,13 +208,16 @@ def m3_manifest_asserts_a_closed_dependency_set() -> tuple[bool, str]:
 def m4_collection_guard_survives_a_wholly_credentialed_file() -> tuple[bool, str]:
     """Collision 11: the guard collects THROUGH the marker selector.
 
-    `_collected_test_files()` passes `-m "not credentialed and not network"`, so a file
-    whose tests are ALL deselected is discovered and not collected, reads as an orphan,
-    and turns the suite red. U5 is scheduled to add the first credentialed arm.
+    `_collected_test_files()` passes
+    `-m "not credentialed and not network"`, so a file whose tests are
+    ALL deselected is discovered and not collected, reads as an orphan,
+    and turns the suite red. U5 is scheduled to add the first
+    credentialed arm.
 
-    Treatment: plant one wholly-credentialed and one wholly-network file - the guard must
-    still PASS for this probe to be green. Control: without them the guard must pass, or
-    the harness itself is broken and the treatment says nothing.
+    Treatment: plant one wholly-credentialed and one wholly-network file
+    - the guard must still PASS for this probe to be green. Control:
+    without them the guard must pass, or the harness itself is broken
+    and the treatment says nothing.
     """
     guard = REPO_ROOT / "tests" / "test_collection_guard.py"
     if not guard.exists():
@@ -226,24 +247,31 @@ def m4_collection_guard_survives_a_wholly_credentialed_file() -> tuple[bool, str
         return False, "control failed: the guard is red on a clean tree, probe vacuous"
     if treatment.returncode != 0:
         return False, (
-            "a wholly-credentialed/network file reads as an ORPHAN and reds the suite - "
-            "collision 11, and U5 is scheduled to create exactly this file"
+            "a wholly-credentialed/network file reads as an ORPHAN and reds the suite "
+            "- collision 11, and U5 is scheduled to create exactly this file"
         )
-    return True, "wholly-deselected files no longer trip the guard - collision 11 closed"
+    return True, (
+        "wholly-deselected files no longer trip the guard - collision 11 closed"
+    )
 
 
 PROBES = [
-    ("M1 pytest_plugins in a non-rootdir conftest", m1_pytest_plugins_in_a_non_rootdir_conftest),
-    ("M2 per-directory conftest cannot cross", m2_per_directory_conftest_does_not_cross_directories),
-    ("M3 manifest closes the dependency set", m3_manifest_asserts_a_closed_dependency_set),
-    ("M4 guard vs a wholly-deselected file", m4_collection_guard_survives_a_wholly_credentialed_file),
+    ("M1 pytest_plugins in a non-rootdir conftest",
+     m1_pytest_plugins_in_a_non_rootdir_conftest),
+    ("M2 per-directory conftest cannot cross",
+     m2_per_directory_conftest_does_not_cross_directories),
+    ("M3 manifest closes the dependency set",
+     m3_manifest_asserts_a_closed_dependency_set),
+    ("M4 guard vs a wholly-deselected file",
+     m4_collection_guard_survives_a_wholly_credentialed_file),
 ]
 
-# Empty, and it should stay that way. M4 was the one entry: collision 11, a real
-# defect in tests/test_collection_guard.py that this harness documented rather
-# than tolerated. It was fixed by dropping `-m` from the guard's collection call,
-# so M4 now PASSES and is no longer excused. An entry here means "known broken",
-# never "expected to fail forever".
+# Empty, and it should stay that way. M4 was the one entry: collision
+# 11, a real defect in tests/test_collection_guard.py that this harness
+# documented rather than tolerated. It was fixed by dropping `-m` from
+# the guard's collection call, so M4 now PASSES and is no longer
+# excused. An entry here means "known broken", never "expected to fail
+# forever".
 KNOWN_OPEN: set[str] = set()
 
 
@@ -263,9 +291,14 @@ def main() -> int:
 
     print()
     if unexpected:
-        print(f"{unexpected} plan claim(s) no longer reproduce. Fix the PLAN, not this script.")
+        print(
+            f"{unexpected} plan claim(s) no longer reproduce. "
+            "Fix the PLAN, not this script."
+        )
         return 1
-    print("Every plan measurement reproduces. Known-open items are listed as OPEN above.")
+    print(
+        "Every plan measurement reproduces. Known-open items are listed as OPEN above.",
+    )
     return 0
 
 

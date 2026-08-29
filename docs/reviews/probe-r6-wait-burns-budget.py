@@ -1,16 +1,23 @@
+# mypy: allow-untyped-defs, allow-untyped-calls
+# ^ This file is a PROBE: its helpers build throwaway clients and
+#   responders whose only caller is the arms below. mypy READS it -
+#   that is the point of putting docs/reviews in `files` - and every
+#   other strict check applies; only the two annotation knobs the ruff
+#   per-file-ignores entry already relaxes for ANN are relaxed here, so
+#   the two tools say the same thing about the same population.
 """R6 probe: does the `Retry-After` clamp sleep out the WHOLE budget?
 
-`_wait_for_retry` clamps the wait to `max(remaining, 0.0)`.  When Jobvite
-asks for longer than the budget has left, the clamp makes us sleep exactly
-the remaining budget - and `_attempt`'s pre-attempt check then refuses the
-attempt we slept for.
+`_wait_for_retry` clamps the wait to `max(remaining, 0.0)`. When Jobvite
+asks for longer than the budget has left, the clamp makes us sleep
+exactly the remaining budget - and `_attempt`'s pre-attempt check then
+refuses the attempt we slept for.
 
-ARM 1  Retry-After far larger than the budget.  Measure wall-clock from the
-       call to the 503.  If the clamp sleeps the budget out, elapsed is
-       ~budget; if the loop stops at once, elapsed is ~0.
-ARM 1c the same drive with NO Retry-After header, where the jittered backoff
-       is small, so the run is short.  Proves the harness times the call
-       rather than something constant.
+ARM 1  Retry-After far larger than the budget. Measure wall-clock
+       from the call to the 503. If the clamp sleeps the budget out,
+       elapsed is ~budget; if the loop stops at once, elapsed is ~0.
+ARM 1c the same drive with NO Retry-After header, where the jittered
+       backoff is small, so the run is short. Proves the harness
+       times the call rather than something constant.
 """
 
 from __future__ import annotations
@@ -30,10 +37,10 @@ BUDGET = 1.0
 
 
 class _Secret:
-    def __init__(self, value):
+    def __init__(self, value: str) -> None:
         self._value = value
 
-    def get_secret_value(self):
+    def get_secret_value(self) -> str:
         return self._value
 
 

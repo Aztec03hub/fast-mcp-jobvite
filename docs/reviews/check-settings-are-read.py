@@ -3,18 +3,19 @@
 
     python3 docs/reviews/check-settings-are-read.py
 
-**This exists because the question it asks has produced two findings in one
-day and no gate here asked it.** `DESIGN.md:373-375` promised a total
-outbound budget and nothing implemented one until U7. `DESIGN.md:1576-1581`
-specifies a self-throttle and **`outbound_rate_limit` is still read by
-nothing** - it is declared, typed, defaulted, documented in `.env.example`
-and covered by config tests, every one of which passes on a setting no
-code consumes.
+**This exists because the question it asks has produced two findings in
+one day and no gate here asked it.** `DESIGN.md:373-375` promised a
+total outbound budget and nothing implemented one until U7.
+`DESIGN.md:1576-1581` specifies a self-throttle and
+**`outbound_rate_limit` is still read by nothing** - it is declared,
+typed, defaulted, documented in `.env.example` and covered by config
+tests, every one of which passes on a setting no code consumes.
 
 **A declared-and-unread setting is worse than a missing one.** A missing
-setting fails loudly at the first attempt to use it. A declared one ships
-in `.env.example`, an operator sets it, and it silently does nothing - and
-`server.json` advertises it to registry consumers as a knob that works.
+setting fails loudly at the first attempt to use it. A declared one
+ships in `.env.example`, an operator sets it, and it silently does
+nothing - and `server.json` advertises it to registry consumers as a
+knob that works.
 
 **THE RULE IS "READ ANYWHERE BUT ITS OWN DECLARATION", AND MY FIRST
 VERSION HAD IT WRONG.** I began with "read outside `config.py`", which
@@ -33,9 +34,9 @@ is never used passes here. That is the same "resolves is not correct"
 gap the citation checkers have, said out loud rather than discovered
 later.
 
-Fields may be exempted with a reason in `EXEMPT`, and an exemption without
-a reason is refused - which is the shape `.file-type-allowlist` already
-uses for the committed-file-type gate.
+Fields may be exempted with a reason in `EXEMPT`, and an exemption
+without a reason is refused - which is the shape `.file-type-allowlist`
+already uses for the committed-file-type gate.
 """
 
 from __future__ import annotations
@@ -47,8 +48,8 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
 
-#: Fields that are deliberately not read by `src/`, each with the reason a
-#: reader needs. A bare name is refused: the reason IS the exemption.
+#: Fields that are deliberately not read by `src/`, each with the reason
+#: a reader needs. A bare name is refused: the reason IS the exemption.
 EXEMPT: dict[str, str] = {
     "outbound_rate_limit": (
         "ADR-0025 (Proposed): the self-throttle does not exist yet, and the "
@@ -59,7 +60,7 @@ EXEMPT: dict[str, str] = {
 
 
 def settings_fields() -> dict[str, int]:
-    """Every annotated `Settings` field, mapped to its declaration line."""
+    """Every annotated `Settings` field, mapped to its own line."""
     tree = ast.parse(CONFIG.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "Settings":
@@ -81,11 +82,12 @@ def _code_lines(path: pathlib.Path) -> list[str]:
     the `outbound_rate_limit` gap was invisible: `jobvite_client.py`
     names it once, in a comment, to say what it is NOT.
     """
-    return [line.split("#", 1)[0] for line in path.read_text(encoding="utf-8").splitlines()]
+    body = path.read_text(encoding="utf-8").splitlines()
+    return [line.split("#", 1)[0] for line in body]
 
 
 def references(field: str, declaration_line: int) -> list[str]:
-    """Every code reference to `field` that is not its own declaration."""
+    """Every reference to `field` that is not its declaration."""
     hits = []
     for path in sorted((ROOT / "src").rglob("*.py")):
         for num, code in enumerate(_code_lines(path), 1):
@@ -106,7 +108,10 @@ def main() -> int:
     unread = {f: h for f, h in unread.items() if not h}
 
     print(f"`Settings` fields: {len(fields)}")
-    print(f"Referenced in src/ outside their own declaration: {len(fields) - len(unread)}")
+    print(
+        f"Referenced in src/ outside their own declaration: "
+        f"{len(fields) - len(unread)}",
+    )
 
     bad = [f for f in unread if f not in EXEMPT]
     stale = [f for f in EXEMPT if f not in unread]

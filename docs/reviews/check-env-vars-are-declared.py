@@ -42,10 +42,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
 PREFIX = "JOBVITE_"
-# `(?<![\w])` IS LOAD-BEARING. Without it this matched `_JOBVITE_BREAKER`,
-# a PRIVATE MODULE VARIABLE, and reported it as an undeclared environment
-# variable - one false finding out of five on the first run. A checker
-# whose first output is 20% noise is one nobody reads twice.
+# `(?<![\w])` IS LOAD-BEARING. Without it this matched
+# `_JOBVITE_BREAKER`, a PRIVATE MODULE VARIABLE, and reported it as an
+# undeclared environment variable - one false finding out of five on the
+# first run. A checker whose first output is 20% noise is one nobody
+# reads twice.
 NAME = re.compile(r"(?<![\w])JOBVITE_[A-Z][A-Z0-9_]*")
 
 #: Names that are deliberately not `Settings` fields, each with the
@@ -85,7 +86,7 @@ def declared() -> set[str]:
 
 
 def mentioned() -> dict[str, list[str]]:
-    """Every `JOBVITE_*` literal in `src/`, mapped to where it appears."""
+    """Every `JOBVITE_*` literal in `src/`, mapped to where it is."""
     found: dict[str, list[str]] = {}
     for path in sorted((ROOT / "src").rglob("*.py")):
         for num, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):

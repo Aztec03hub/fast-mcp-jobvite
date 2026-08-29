@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Classify every W505 violation as flowing prose vs a structure 72 was never about.
+"""Classify each W505 as flowing prose vs structure 72 is not about.
 
-PEP 8's 72-character limit is a readability rule for FLOWING TEXT. W505 counts every
-line inside a docstring or comment, including fenced code blocks, markdown tables, and
-transcript output pasted as evidence - none of which can be rewrapped without either
-breaking the code or destroying the alignment that makes the table readable.
+PEP 8's 72-character limit is a readability rule for FLOWING TEXT. W505
+counts every line inside a docstring or comment, including fenced code
+blocks, markdown tables, and transcript output pasted as evidence - none
+of which can be rewrapped without either breaking the code or destroying
+the alignment that makes the table readable.
 
-The point of this script is to decide whether complying is cheap or whether the clause
-needs a scoped ADR, by MEASURING the split instead of guessing at it.
+The point of this script is to decide whether complying is cheap or
+whether the clause needs a scoped ADR, by MEASURING the split instead of
+guessing at it.
 
-Reads `ruff check --select W505` output, then re-reads each cited line in context.
+Reads `ruff check --select W505` output, then re-reads each cited line
+in context.
 
 **THIS IS A ONE-SHOT ANALYSIS TOOL. It is deliberately NOT wired into
 CI, and it cannot be.** Its question - "is complying with B49b cheap, or
@@ -64,7 +67,7 @@ def violations() -> list[tuple[pathlib.Path, int]]:
 
 
 def string_spans(path: pathlib.Path) -> list[tuple[int, int]]:
-    """Line ranges of every string literal, so we can tell docstring from comment."""
+    """String-literal line ranges, to tell docstring from comment."""
     spans = []
     with path.open("rb") as handle:
         for tok in tokenize.tokenize(handle.readline):
@@ -85,11 +88,13 @@ def classify(lines: list[str], row: int, spans: list[tuple[int, int]]) -> str:
     else:
         return "other"
 
-    # A markdown table row: leading and trailing pipes with a pipe inside.
+    # A markdown table row: leading and trailing pipes with a pipe
+    # inside.
     if stripped.startswith("|") and stripped.count("|") >= 2:
         return f"{kind_prefix}: table"
 
-    # Inside a fenced block? Count fences opened before this row within the docstring.
+    # Inside a fenced block? Count fences opened before this row within
+    # the docstring.
     fences = 0
     for probe in range(row - 1):
         if lines[probe].strip().startswith("```"):
@@ -97,10 +102,11 @@ def classify(lines: list[str], row: int, spans: list[tuple[int, int]]) -> str:
     if fences % 2 == 1:
         return f"{kind_prefix}: fenced code"
 
-    # A single token longer than the limit cannot be wrapped at all. In this
-    # repository all 18 turned out to be 79-character `# ---` section dividers
-    # rather than the URLs and paths this branch was written for, which is why
-    # the measurement had to be read rather than trusted to its own label.
+    # A single token longer than the limit cannot be wrapped at all. In
+    # this repository all 18 turned out to be 79-character `# ---`
+    # section dividers rather than the URLs and paths this branch was
+    # written for, which is why the measurement had to be read rather
+    # than trusted to its own label.
     longest = max((len(word) for word in stripped.split()), default=0)
     if longest > 60:
         return f"{kind_prefix}: unbreakable token"

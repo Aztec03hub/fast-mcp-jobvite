@@ -5,9 +5,9 @@
 
 `documentation/readme-standard.md:66` is `priority: required` and says
 **"Quickstart parity: the Quickstart commands MUST be exercised by CI on
-every merge to the default branch."** Nothing did. `tests/test_readme.py`
-checks the README's structure, links, configuration table and tool count;
-none of that runs a command.
+every merge to the default branch."** Nothing did.
+`tests/test_readme.py` checks the README's structure, links,
+configuration table and tool count; none of that runs a command.
 
 **THE COMMANDS ARE PARSED OUT OF `README.md`, NOT COPIED HERE.** A copy
 would be a second list: the README changes, the copy does not, and the
@@ -22,10 +22,10 @@ reach this point. Both are recognised by prefix and REPORTED as skipped;
 an unrecognised command is a FAILURE, not a skip, so a new Quickstart
 line cannot be quietly ignored.
 
-**Exit code is not enough for the one command that matters.** `fastmcp
-inspect` prints an ERROR and exits 0 when pointed at a path with no
-server object - measured, and it is how a wrong factory path looks
-identical to a working one. So the output is asserted too.
+**Exit code is not enough for the one command that matters.**
+`fastmcp inspect` prints an ERROR and exits 0 when pointed at a path
+with no server object - measured, and it is how a wrong factory path
+looks identical to a working one. So the output is asserted too.
 """
 
 from __future__ import annotations
@@ -38,8 +38,8 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 README = ROOT / "README.md"
 
-#: Prefixes that are correct to skip in CI, each with the reason a reader
-#: needs. Anything not matching one of these is a failure.
+#: Prefixes that are correct to skip in CI, each with the reason a
+#: reader needs. Anything not matching one of these is a failure.
 SKIPPABLE: dict[str, str] = {
     "git clone": "cannot run against the repository it is already inside",
     "uv sync": "CI has already done this to reach this step",
@@ -53,7 +53,7 @@ MUST_NOT_PRINT = ("ERROR", "Traceback")
 
 
 def quickstart_commands() -> list[str]:
-    """The fenced bash block under `## Quickstart`, as whole commands."""
+    """The fenced bash block under `## Quickstart`, as commands."""
     text = README.read_text(encoding="utf-8")
     block = re.search(r"^## Quickstart\b.*?```bash\n(.*?)^```", text, re.S | re.M)
     if block is None:
@@ -75,7 +75,10 @@ def main() -> int:
     ran = 0
 
     for command in commands:
-        skip = next((why for p, why in SKIPPABLE.items() if command.startswith(p)), None)
+        skip = next(
+            (why for p, why in SKIPPABLE.items() if command.startswith(p)),
+            None,
+        )
         if skip:
             print(f"  SKIP  {command[:58]:<58} {skip}")
             continue

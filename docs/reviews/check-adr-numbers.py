@@ -60,7 +60,8 @@ def main() -> int:
             mismatched.append(f"{path.name}: first line is not `# ADR-NNNN`")
         elif int(heading.group(1)) != number:
             mismatched.append(
-                f"{path.name}: filename says {number:04d}, heading says {heading.group(1)}"
+                f"{path.name}: filename says {number:04d}, heading says "
+                f"{heading.group(1)}"
             )
 
     if not numbers:
@@ -71,7 +72,8 @@ def main() -> int:
     lowest, highest = min(numbers), max(numbers)
     gaps = [n for n in range(lowest, highest + 1) if n not in numbers]
 
-    print(f"ADRs: {sum(len(v) for v in numbers.values())}, numbered {lowest:04d}-{highest:04d}")
+    print(f"ADRs: {sum(len(v) for v in numbers.values())}, numbered "
+          f"{lowest:04d}-{highest:04d}")
 
     for number, names in sorted(duplicates.items()):
         print(f"  DUPLICATE {number:04d}:")
@@ -141,7 +143,9 @@ def _report_branches(highest_here: int) -> None:
 
     elsewhere = sorted(n for n in claimed if n > highest_here)
     for number in elsewhere:
-        print(f"  ELSEWHERE {number:04d} exists on {', '.join(sorted(claimed[number]))}")
+        print(
+            f"  ELSEWHERE {number:04d} exists on {', '.join(sorted(claimed[number]))}",
+        )
         print("            but NOT in this checkout - do not reuse this number.")
 
     print(f"NEXT FREE ADR NUMBER: {max(highest, highest_here) + 1:04d}")
