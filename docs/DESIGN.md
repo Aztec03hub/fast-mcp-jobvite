@@ -1262,10 +1262,11 @@ when a key lands; rows 1-4 are blocking.
 
 Required cases, each failing if its defence is removed:
 - the 200-with-401-body trap;
-- **the log stream carries records for an invocation that produced them** - the positive pairing for
-  the case below, on the same construction the audit pair uses: an absence passes trivially against
-  a server that emits no log record at all, so the two are paired and neither can be satisfied by
-  silence;
+- **the log stream carries records for an invocation that produced them** - required by **C5-I1**
+  (§4.1, §5.3), whose mitigation is redaction at one enforcement point and which is untestable
+  against a stream nothing proves non-empty. The positive pairing for the case below, on the same
+  construction the audit pair uses: an absence passes trivially against a server that emits no log
+  record at all, so the two are paired and neither can be satisfied by silence;
 - **a secret never reaching a log record, including the `jobFeed` URL** - asserted against the log
   stream the case above proves non-empty, not against silence (ADR-0013);
 - **`.gitignore` covers the credential patterns and `.env.example` carries no real value** - asserted

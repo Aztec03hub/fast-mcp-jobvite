@@ -152,7 +152,7 @@ limits on the word "verified". This is the document's strongest property and it 
 
 ### H-1. §11's count paragraph says "Two" over an empty table, and its written-out arithmetic does not reconcile. Third recurrence of the failure mode the paragraph exists to prevent.
 
-**Location:** `DESIGN.md:1621-1643`.
+**Location:** `DESIGN.md:1622-1644`.
 
 The must-mitigate table at `:1573-1575` is empty:
 
@@ -567,7 +567,7 @@ One character. Verify by re-reading `error-contract.md:212` rather than trusting
 
 ### L-4. §11's threshold prose merges the Medium production-release list with the Critical/High must-mitigate table, and credits a Medium row with emptying the High table.
 
-`DESIGN.md:1651-1660`. The paragraph is headed **"Mitigate before production release (inherent
+`DESIGN.md:1652-1661`. The paragraph is headed **"Mitigate before production release (inherent
 Medium, unmitigated)"** and then says:
 
 > **C9-D1 (B72), C5-R1 (B39, B40) and C5-E1 (B21) have now left it too**, which empties the

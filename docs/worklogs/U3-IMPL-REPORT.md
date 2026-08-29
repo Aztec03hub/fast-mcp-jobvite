@@ -32,7 +32,7 @@ All were correct. Two citations *inside the design* were not - see §6.
 
 ### §8 #4 (positive) and #5 (absence), as a pair - **PASS**
 
-`DESIGN.md:1279-1282` requires the pairing. Implemented as the plan specifies: **#5 asserts against
+`DESIGN.md:1280-1283` requires the pairing. Implemented as the plan specifies: **#5 asserts against
 the record #4 proves exists, inside the same test**, not against a stream some other test blessed.
 
 | Test | Asserts |
@@ -195,7 +195,7 @@ attribute nodes anywhere in the module. An AST walk sees code and cannot see pro
 
 - **A4 leaves `test_case17_arm2` (trace absent) passing.** Correct and expected: with the
   `traceparent` never read, the fields are absent, which is what arm 2 asserts. **This is precisely
-  why arm 2 alone is not the case** - it is the single-arm test `DESIGN.md:1337-1342` warns about,
+  why arm 2 alone is not the case** - it is the single-arm test `DESIGN.md:1338-1343` warns about,
   and arm 1 is what dies.
 - **A7 leaves both `test_the_scope_resets_request_id_var_*` passing.** Same shape: with the var
   never bound it reads `None` on the way out, which is what those tests assert. They are paired
@@ -241,7 +241,7 @@ Reported to the lead early; **already filed as ADR-0019 by the lead**, so I did 
 
 ### D2 - the approval "mechanism" is required by two rows and defined nowhere → **ADR-0021 (Proposed)**
 
-`DESIGN.md:1277` (§8's audit-event case) and `DESIGN.md:1755` (threat row **C4-R1**, rated
+`DESIGN.md:1278` (§8's audit-event case) and `DESIGN.md:1756` (threat row **C4-R1**, rated
 **High**) both require the event to carry *"the mechanism that produced"* `approval_state`, and both
 cite **§5.3**. Grepping `mechanism` across §5.3's entire range (`:567-713`) returns **one** hit,
 `:596`, which is about the `ContextVar`. §5.3's approval paragraph (`:663-669`) settles *what* is
@@ -274,7 +274,7 @@ Filed as a task rather than an ADR; neither file is mine.
 ## 7. Implementation notes worth carrying forward
 
 **`redact_arguments` is a fail-closed allow-list, not a deny-list of PII key names.** A deny-list
-fails *open* on the argument nobody thought of, which is the direction `DESIGN.md:1787` (C6-I2)
+fails *open* on the argument nobody thought of, which is the direction `DESIGN.md:1788` (C6-I2)
 already rejects for output fields. An unlisted key's value becomes `[REDACTED:<type>]` - the type
 is not sensitive, and keeping it is what lets the audit event answer *"was a résumé body supplied
 on this call"* without answering *"what did it say"*. `query` is deliberately not on the list: a

@@ -10,7 +10,7 @@
 
 ## Context
 
-`DESIGN.md:1762`, threat row **C8-I1**, rated **Critical**, states that `.env.example` is
+`DESIGN.md:1763`, threat row **C8-I1**, rated **Critical**, states that `.env.example` is
 
 > *"committed with empty values"*
 

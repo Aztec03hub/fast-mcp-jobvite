@@ -162,7 +162,7 @@ def spawn_marker_server(
 def interpreter_of(pid: int) -> str:
     """Return argv[0] of a live process, read from `/proc/<pid>/cmdline`.
 
-    DESIGN.md:1341-1343 requires the shutdown case to resolve the
+    DESIGN.md:1342-1344 requires the shutdown case to resolve the
     **interpreter** PID rather than a wrapper's. Reading the kernel's own
     record is what makes that claim checkable rather than assumed.
 

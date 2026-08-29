@@ -41,7 +41,7 @@ disappears from the only signal that survives log rotation.
 
 **This is the same failure shape §8 #18 already reasons about, on the other side.** That case
 refuses to assert shutdown by the exit code, "since a process that dies uncleanly can still exit 0"
-(`DESIGN.md:1340-1341`). The design identified that an exit code can lie about an unclean death and
+(`DESIGN.md:1341-1342`). The design identified that an exit code can lie about an unclean death and
 then, four hundred lines earlier, specified the code that makes it lie.
 
 **What the design does not claim, and why this is not a reading error.** `DESIGN.md:1011` says only

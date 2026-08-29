@@ -201,7 +201,7 @@ adopt it; naming them is the design's call, which is the entire lesson of B15.
 
 **Evidence.** `DESIGN.md:43-45` names exactly two mechanisms that *"sit among executed results and
 borrow their credibility"*: the capability-drift diff (§10) and the circuit breaker (§4.3).
-`DESIGN.md:1907` records the diff as marked `UNVERIFIED:` at its point of use; `:1819` carries it as
+`DESIGN.md:1908` records the diff as marked `UNVERIFIED:` at its point of use; `:1819` carries it as
 a Residual Risk; C9-T1 is one of the 17 Critical/High rows.
 
 The plan preserves the ceiling for one of the pair and drops it for the other. The circuit breaker
@@ -293,7 +293,7 @@ the defect on the next commit.
 `IMPLEMENTATION-PLAN.md:953-959` offers, as a hypothesis, *"add a check that every §8 required case
 is either named by at least one §11 row or carries an explicit exemption marker"*. That check exists
 at HEAD. `git diff 9d65cc0 HEAD -- docs/reviews/check-coupling.py` shows a 35-line block labelled
-`2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2)`, and `DESIGN.md:1296-1297` now carries the measured
+`2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2)`, and `DESIGN.md:1297-1298` now carries the measured
 residual in the case #18 bullet itself, including the conclusion the plan reached independently:
 *"GATE-2 now requires every case to name its owner… **it does not make deletion visible.**"*
 
@@ -304,7 +304,7 @@ credit. But as it stands, an agent reading §9 files work that is done.
 in place rather than appending to it: keep the two-arm mutation table as the measurement, then
 replace the suggested-fix paragraph with *"**Landed at `cc94459`.** `check-coupling.py` now carries
 `2a-ter (GATE-2)`, requiring every §8 case to be named by a §11 row or to cite a B-number or section
-as its owner; `DESIGN.md:1296-1297` records the same measured residual, that GATE-2 stops a case's
+as its owner; `DESIGN.md:1297-1298` records the same measured residual, that GATE-2 stops a case's
 justification being stripped but does not make its deletion visible. The seven orphans this section
 enumerated are the population that check now addresses. Nothing remains open here."* Re-derive the
 orphan count against HEAD before publishing that sentence - I did not re-run the extraction.
@@ -327,8 +327,8 @@ not repoint drift:
 
 | Plan line | Cites | Actually at that line (`9d65cc0`) | Correct cite |
 |---|---|---|---|
-| `:345` | `DESIGN.md:1305-1306` for `MockTransport` | §8 bullets #23 and #24 | `:1262-1263` |
-| `:750` | `DESIGN.md:1312-1314` for `utils/redaction.py` holding both halves | the `MockTransport` paragraph | `:1269-1271` |
+| `:345` | `DESIGN.md:1306-1307` for `MockTransport` | §8 bullets #23 and #24 | `:1262-1263` |
+| `:750` | `DESIGN.md:1313-1315` for `utils/redaction.py` holding both halves | the `MockTransport` paragraph | `:1269-1271` |
 
 The plan's own §1 table cites `:1255` and `:1256` correctly for cases #23 and #24, so the document
 contradicts itself about what lives at those lines.
@@ -398,7 +398,7 @@ re-implementing U5's reporting string."*
 
 ### M7 - §8 #16's error arm is scheduled in no unit
 
-`DESIGN.md:1281` requires `request_id` on every result across **four arms**: successful read,
+`DESIGN.md:1282` requires `request_id` on every result across **four arms**: successful read,
 successful write, audit-failure warning branch, and error - which the plan's own §1 table records at
 `:92`. U5 (`:382`) takes the read arm. U10 (`:580`) takes *"write arms: `request_id` on the wire for
 a successful write **and** for the audit-failure warning branch"*. The **error** arm is claimed
@@ -414,7 +414,7 @@ Check against `DESIGN.md:600-605` that the error half is carried by the problem 
 
 ### M8 - The blanket positive-control rule is stated in §1 and then not carried into four units' verification lists
 
-`:103-105` correctly derives that `DESIGN.md:1323-1324` requires a paired positive control for
+`:103-105` correctly derives that `DESIGN.md:1324-1325` requires a paired positive control for
 cases #1, #7, #8, #9, #10, #12, #15, #21, #22, #23 and #25 *"not only where the bullet says so"*.
 Checking each against the unit that owns it: #1 (U4) ✓, #8 (U14) ✓, #10 (U1) ✓, #12 (U0) ✓,
 #15 (U11) ✓, #21 (U7 - the row counter serves) ✓, #23 (U7) ✓. Missing:
@@ -430,10 +430,10 @@ rule is named for: four arms that all assert "the row count did not move" pass p
 `create_candidate` that is broken and never writes at all.
 
 **Suggested fix (my suggestion, verify before adopting - cheap).** Add to U10 `:572`: *"Positive
-control, required by `DESIGN.md:1323-1324` and load-bearing here: an **approved** write moves the
+control, required by `DESIGN.md:1324-1325` and load-bearing here: an **approved** write moves the
 row counter by one. Without it, four refusal arms asserting the count did not move all pass against
 a write that never works."* Add to U14 `:679`: *"#7 and #9 each carry the blanket positive control
-of `DESIGN.md:1323-1324` - a well-formed argument passes schema validation, and a payload just
+of `DESIGN.md:1324-1325` - a well-formed argument passes schema validation, and a payload just
 inside each of the four structural limits is accepted."*
 
 ### M9 - U0's CI invokes a script U11 builds, and U11 depends on U0
@@ -460,7 +460,7 @@ Several are covered in substance by a §8 case the plan does schedule (C8-I1 by 
 #22's accept-carrying-false arm in U10). Two are not:
 - **C9-T1** is the capability-drift diff - see H3.
 - **C5-E1** is the read-only-key High residual. U13 schedules the README sentence and §8 #14 asserts
-  its presence, but the *ceiling* - `DESIGN.md:1727-ish`, *"whether Jobvite issues read-only keys at
+  its presence, but the *ceiling* - `DESIGN.md:1728-ish`, *"whether Jobvite issues read-only keys at
   all is unknown, so if the answer is no the residual stands"* - is carried nowhere in the plan. It
   reads as discharged by writing a sentence.
 
@@ -514,7 +514,7 @@ quotes it.
 until CI exists** (`:70` forbids a static badge…)"*. The nearest antecedent is
 `CREDENTIAL-CHECKLIST.md`, whose line 70 is blank (line 71 begins *"Row 9 - run it last"*). The rule
 is `readme-standard.md:70` - *"**Badges are live**: each badge MUST point at a live source. Static
-SVGs that no longer reflect reality are forbidden."* The design gets this right at `DESIGN.md:1570`,
+SVGs that no longer reflect reality are forbidden."* The design gets this right at `DESIGN.md:1571`,
 where `:70` sits in a paragraph whose antecedent *is* `readme-standard.md`; the plan copied the bare
 form across an antecedent change.
 

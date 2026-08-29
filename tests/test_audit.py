@@ -2,7 +2,7 @@
 
 **Three of the four §8 cases this file carries are ABSENCE claims, and each is
 paired with a positive in the SAME construction** - not merely somewhere else
-in the file. DESIGN.md:1279-1282 states the rule for #4/#5 and this file
+in the file. DESIGN.md:1280-1283 states the rule for #4/#5 and this file
 extends it to #2 and #17:
 
 - **#4 is the positive for #5.** The PII absence is asserted against the record
@@ -13,7 +13,7 @@ extends it to #2 and #17:
   emitting nothing, the absence alone passes and proves nothing. #4 does not
   supply this pairing - #4 proves the *audit event* exists, and #2 is about the
   loguru stream.
-- **#17 needs both arms** (DESIGN.md:1337-1342): a field always absent and a
+- **#17 needs both arms** (DESIGN.md:1338-1343): a field always absent and a
   field always synthesised each pass a single-arm test, and the second is the
   failure that matters.
 
@@ -113,7 +113,7 @@ def _emit_one(**kwargs: Any) -> None:
 
 # ---------------------------------------------------------------------------
 # §8 #4 - the audit event is emitted and carries its mandated fields.
-# POSITIVE ON PURPOSE (DESIGN.md:1279-1281).
+# POSITIVE ON PURPOSE (DESIGN.md:1280-1282).
 # ---------------------------------------------------------------------------
 
 
@@ -131,7 +131,7 @@ def test_case4_the_event_carries_every_mandated_field(
     """Every field the standard names, verbatim.
 
     `ai/tool-calling.md:171-173`: tool name, redacted arguments, result status,
-    latency, correlation id - plus DESIGN.md:1275-1277's transport and the
+    latency, correlation id - plus DESIGN.md:1276-1278's transport and the
     resolved client id.
     """
     _emit_one(
@@ -163,7 +163,7 @@ def test_case4_the_field_names_are_wire_shaped_snake_case() -> None:
 def test_case4_the_write_records_approval_state_and_its_mechanism(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """DESIGN.md:1277: on the write, `approval_state` WITH the mechanism (§5.3)."""
+    """DESIGN.md:1278: on the write, `approval_state` WITH the mechanism (§5.3)."""
     with audit_scope("create_candidate", Transport.HTTP) as event:
         event.approval_state = "accepted"
         event.approval_mechanism = "elicitation"
@@ -284,7 +284,7 @@ def test_case2_a_stderr_failure_report_carries_no_credential(
 
 
 # ---------------------------------------------------------------------------
-# §8 #17 - trace context, BOTH arms (DESIGN.md:1337-1342).
+# §8 #17 - trace context, BOTH arms (DESIGN.md:1338-1343).
 # ---------------------------------------------------------------------------
 
 
@@ -299,7 +299,7 @@ def test_case17_arm1_trace_context_is_recorded_when_the_caller_supplies_it(
     extra = audit_records[0]["extra"]
     # The values come FROM the header. Asserting only "a 32-hex string is
     # present" would pass against a synthesised id, which is the failure
-    # DESIGN.md:1340-1342 says is the one that matters.
+    # DESIGN.md:1341-1343 says is the one that matters.
     assert extra["trace_id"] == TRACE_ID
     assert extra["span_id"] == SPAN_ID
 
@@ -582,7 +582,7 @@ def test_a_valid_inbound_uuid4_is_echoed() -> None:
 def test_an_invalid_inbound_request_id_is_replaced_rather_than_used(
     bad: str | None,
 ) -> None:
-    """C7-T1 (DESIGN.md:1794): a newline in the inbound id forges a log entry."""
+    """C7-T1 (DESIGN.md:1795): a newline in the inbound id forges a log entry."""
     resolved = resolve_request_id(bad)
     assert resolved != bad
     assert uuid.UUID(resolved).version == 4

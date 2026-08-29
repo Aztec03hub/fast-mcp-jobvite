@@ -118,12 +118,12 @@ three times each.**
 
 | Plan says | Cites | Actually at that line | True line |
 |---|---|---|---|
-| C3-I1 | `DESIGN.md:1690` | **C2-I1** (`include_payloads` flipped to True) | **`:1654`** |
+| C3-I1 | `DESIGN.md:1691` | **C2-I1** (`include_payloads` flipped to True) | **`:1654`** |
 | C6-D1 | `:1683` | **C5-R1** (retries/breaker not logged) | **`:1697`** |
 
 At `IMPLEMENTATION-PLAN.md:319`, `:512` and `:1095`.
 
-Both are off by exactly -14, and I traced why: **at `9d65cc0`, `DESIGN.md:1690` really was
+Both are off by exactly -14, and I traced why: **at `9d65cc0`, `DESIGN.md:1691` really was
 C3-I1** (`git show 9d65cc0:docs/DESIGN.md | sed -n 1640p`). These are draft-2 anchors carried
 forward untouched. This is round 1's M2 - *"the §10/§10.1/§11 repoint is still outstanding"* -
 applied to §10 and §10.1 and **not** to §11.
@@ -140,10 +140,10 @@ Why this is HIGH rather than a typo:
 3. It falsifies the one guarantee the plan asks implementation agents to trust.
 
 **The underlying claim is true.** I verified C3-I1 at `:1654` and C6-D1 at `:1697`: both read
-`unmitigated (B15)`, and `DESIGN.md:1839` lists both on the mitigate-before-production-release
+`unmitigated (B15)`, and `DESIGN.md:1840` lists both on the mitigate-before-production-release
 list. Only the anchors are wrong.
 
-**Suggested fix (mine, verify before adopting):** replace `DESIGN.md:1690` → `DESIGN.md:1704`
+**Suggested fix (mine, verify before adopting):** replace `DESIGN.md:1691` → `DESIGN.md:1705`
 and `:1683` → `:1697` at plan lines 319, 512 and 1095. Then re-run the text-identity repoint
 over §11 specifically, since the sweep that produced the header's claim demonstrably did not
 cover the threat table - and state in the header that §11 anchors were included, because that
@@ -221,7 +221,7 @@ appear), #5 passes (no PII is emitted), #20 passes (no field is stringified). #1
 cases and the normalisation arm do exercise real data, so the unit is not fully vacuous - but
 the three arms carrying the unit's two Criticals (C6-I1, C6-S1) are the vacuous ones.
 
-The blanket rule at `DESIGN.md:1334-1335` is exactly this, and draft 3 applied it correctly to
+The blanket rule at `DESIGN.md:1335-1336` is exactly this, and draft 3 applied it correctly to
 U10 (`:698-702`) and U14 (`:816-819`). U8 did not get the same pass.
 
 **Suggested fix (mine, verify before adopting):** add to U8's list - *"Positive control: a

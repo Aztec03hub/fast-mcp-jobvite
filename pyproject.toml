@@ -7,7 +7,7 @@ license = "Apache-2.0"  # B89 SPDX id; README section deferred with B77
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "evolv Consulting" }]
 
-# Verbatim from DESIGN.md:1417-1419 (the pins; the block is :1366-1370). Every line is load-bearing and the comments are
+# Verbatim from DESIGN.md:1418-1420 (the pins; the block is :1366-1370). Every line is load-bearing and the comments are
 # part of the specification: the fastmcp-slim line is NOT redundant. Removing only that
 # line makes the resolve fail outright ("there is no version of
 # fastmcp-slim[client]==4.0.0b4 ... --prerelease=allow"), which is control-tested by
@@ -32,7 +32,7 @@ dependencies = [
   # module that imports a package nobody declared breaks the day the intermediate
   # drops it. It also ships MockTransport in the box, which is what lets the
   # credential-free test strategy add NO third-party mocking library
-  # (DESIGN.md:1358-1359).
+  # (DESIGN.md:1359-1360).
   "httpx2==2.12.0",
   # DESIGN.md:337-340 makes HR-XML a HARDENED FALLBACK rather than a handled
   # case: it appears on /v1/candidate, which we do not call, and if XML ever
@@ -85,7 +85,7 @@ dev = [
   # `uv run --with pip-audit`, which resolves UNPINNED outside uv.lock - the exact
   # defect ADR-0015 records for pip-licenses one entry above.
   "pip-audit>=2.7",
-  # C8-I1 is a CRITICAL row and DESIGN.md:1623-1636's two commit-time gates are its
+  # C8-I1 is a CRITICAL row and DESIGN.md:1624-1637's two commit-time gates are its
   # stated mitigation. `.pre-commit-config.yaml` existed and pre-commit itself was
   # declared NOWHERE, so on a fresh clone `uv sync --frozen` produced an environment
   # in which the hooks could never install: the mitigation was in force only for the
@@ -98,7 +98,7 @@ dev = [
 # Advisory-ignore table. Owned by U11 (scripts/check_advisories.py), landed empty
 # here so U11 only ever edits rows inside it - IMPLEMENTATION-PLAN.md:920-922.
 #
-# DESIGN.md:1512-1522: an entry is legal ONLY for an advisory our code cannot
+# DESIGN.md:1513-1523: an entry is legal ONLY for an advisory our code cannot
 # reach, and only with an id, a date, a written unreachability reason, and an
 # expiry no more than 30 days out. Never a blanket ignore, never a raised
 # threshold. check_advisories.py reads this table, emits pip-audit's

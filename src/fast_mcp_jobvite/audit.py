@@ -76,7 +76,7 @@ RESULT_STATUS_ERROR: Final = "error"
 #: A UUIDv4 in canonical form: version nibble `4`, variant nibble `8`/`9`/`a`/`b`.
 #:
 #: Inbound `X-Request-ID` is validated against this before use
-#: (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1794). An unvalidated inbound
+#: (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1795). An unvalidated inbound
 #: id is a log-forging vector: a value carrying a newline writes a second,
 #: attacker-authored line into the audit stream.
 _UUID4_RE: Final = re.compile(
@@ -173,7 +173,7 @@ class AuditEvent:
         **Optional fields are OMITTED, never emitted as `None`.** A `trace_id`
         of `None` is a field that is always present, and §8's trace case exists
         because a field that is always there passes a single-arm test
-        (DESIGN.md:1337-1342).
+        (DESIGN.md:1338-1343).
         """
         record: dict[str, JsonValue] = {
             "tool_name": self.tool_name,
@@ -205,7 +205,7 @@ def resolve_request_id(inbound_request_id: str | None = None) -> str:
     An inbound `X-Request-ID` is **echoed only if it is a valid UUIDv4**
     (DESIGN.md:597-599). Anything else is discarded silently and replaced,
     rather than rejected: a malformed correlation header is not a reason to
-    fail a tool call, and C7-T1 (DESIGN.md:1794) asks for the value to be
+    fail a tool call, and C7-T1 (DESIGN.md:1795) asks for the value to be
     "validated as a UUIDv4 before use and replaced if invalid".
 
     Args:

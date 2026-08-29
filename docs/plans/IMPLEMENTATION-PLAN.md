@@ -18,7 +18,7 @@ each re-ran some of these by hand and reproduced them, which is the right instin
 mechanism: it does not survive the reviewer who does not think of it, and **there is no round 8.**
 **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6, FROZEN** at commit `135c3ac` - no open Critical,
-High or Medium findings and an empty must-mitigate table (`DESIGN.md:1845`). **The design being
+High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
 finding against the design is no longer an edit request - it is an ADR, and every open item below
 is written that way.
@@ -132,7 +132,7 @@ a write.** Collisions 7 and 8 are named, and §4 now carries a second kind of ro
 
 **The third High was a decision that existed only in a message.** U0 declined the two commit-time
 gates and asked for a ruling; the ruling was given and never written down, so the plan still listed
-them under a unit that had declined them while `DESIGN.md:1810` names them as a **Critical** row's
+them under a unit that had declined them while `DESIGN.md:1811` names them as a **Critical** row's
 mitigation. They are now **U15**.
 
 The Mediums: U5 had no row in any wave table - the "U8 had no wave" defect one unit over, and the
@@ -201,7 +201,7 @@ section and the tree disagree, the tree is simply later.
 
 **There was no CI, and the design says so once, plainly.** `.github/workflows/` contained exactly
 one file, `mirror.yml`, which pushes to the mirror remote. Draft 1 reported this against a design
-that used the present tense; `DESIGN.md:1465-1471` now states that **every "CI runs" sentence in
+that used the present tense; `DESIGN.md:1466-1472` now states that **every "CI runs" sentence in
 that document is a specification of what the pipeline must do, not a report of what it does**, and
 that standing the pipeline up is the first unit of implementation. `:1426` reads *"CI **must** run"*
 accordingly.
@@ -269,7 +269,7 @@ own text:
 | 24 | `:1302` | the `eId`/`EId` casing asymmetry pinned | - |
 | 25 | `:1303` | approval on **both eras** | asserts **row count unchanged**, not error shape |
 
-Plus the blanket rule at `DESIGN.md:1369-1370`: **every refusal-path test is paired with a positive
+Plus the blanket rule at `DESIGN.md:1370-1371`: **every refusal-path test is paired with a positive
 control showing the happy path still succeeds.** That applies to #1, #7, #8, #9, #10, #12, #15,
 #21, #22, #23 and #25, not only where the bullet says so.
 
@@ -374,14 +374,14 @@ sentence most likely to be misread by an agent working alone - "below" bounded t
 sensible, "below in this plan" hands one agent precedence over twelve hundred lines, and it had no
 floor at all while every other deviation in this document routes through an ADR.*
 
-**Its first act was standing up CI**, because nothing ran there before it (`DESIGN.md:1465-1471`)
+**Its first act was standing up CI**, because nothing ran there before it (`DESIGN.md:1466-1472`)
 and every gate below was hand-run. **That is now done**: `.github/workflows/ci.yml` exists and every
 gate in this plan is a machine constraint rather than a habit. The reason it was first is the reason
 it stays first for anyone rebuilding this order - until the workflow exists, no unit's verification
 means anything durable, it means someone ran something once.
 
 **Builds.** `pyproject.toml` with the verbatim three-pin block and `prerelease = "explicit"`
-(`DESIGN.md:1408-1417`); `uv.lock` committed; `[tool.pytest.ini_options]` with
+(`DESIGN.md:1409-1418`); `uv.lock` committed; `[tool.pytest.ini_options]` with
 `addopts` carrying `--strict-markers`, the declared `markers` list including the
 credential-dependent marker, `asyncio_mode = "auto"`, and coverage `branch = true`
 (`DESIGN.md:1234-1235`); **the 80% overall coverage floor**; `.github/workflows/ci.yml`. CI's
@@ -425,7 +425,7 @@ diffed between builds. **Every trigger above also fires on a WEEKLY `cron: '0 0 
 every other trigger fires on a change: without it CodeQL, TruffleHog and the licence gate only ever
 see the tree on the day someone pushes, and an advisory published against the pinned beta stack after
 the last merge is invisible until the next one. **The two commit-time gates are NOT U0's** - U0 declined them and the ruling
-is now written down: they are **U15** (`DESIGN.md:1626-1636`), for the reasons that unit states.
+is now written down: they are **U15** (`DESIGN.md:1627-1637`), for the reasons that unit states.
 
 **Inherited limit, carried not resolved: the capability-drift diff.** `DESIGN.md:64-68` names
 exactly **two** mechanisms in the whole design that *"sit among executed results and borrow their
@@ -477,7 +477,7 @@ at all, and all three fail if their defence is removed:
   wrongly**, passing for the wrong reason. Draft 3 said nine - a wrong number inside the correction
   of a wrong number - so this one is counted off the committed file rather than carried. The cheapest way to make draft 2's
   assertion pass is to empty them, which un-answers Q1 and re-blocks U1, U6 and U7. The design says
-  `.env.example` carries **no real value** (`DESIGN.md:1271`), meaning no real credential; draft 2
+  `.env.example` carries **no real value** (`DESIGN.md:1272`), meaning no real credential; draft 2
   tightened that into something else. Verified today: the six above are empty, and the list is
   derived from the file rather than remembered.
 
@@ -509,7 +509,7 @@ build. The gate exits 0; the controls harness exits 0 with every control it hold
 post-run re-check; the sweep exits 0 with **0 escapes are holes**.
 
 **The resolve is EXECUTED, not inherited, and U0's first act is no longer a risk item.** Draft 2
-carried 72 as a figure quoted from `DESIGN.md:1408-1412` and listed reproducing it among what this
+carried 72 as a figure quoted from `DESIGN.md:1409-1413` and listed reproducing it among what this
 plan had not verified. It has since been run, in a scratch directory outside the repo, against a
 probe manifest written verbatim from that block:
 
@@ -534,7 +534,7 @@ whose only justification is a comment is one refactor from deletion, **that remo
 §8 #11's test beside its positive arm.**
 
 **Toolchain confirmed at the same time**, so U0 does not discover it late: uv **0.11.3**, Python
-**3.12.3** against the design's `>=3.12` floor (`DESIGN.md:1403`), git 2.43.0, gh 2.45.0. Both
+**3.12.3** against the design's `>=3.12` floor (`DESIGN.md:1404`), git 2.43.0, gh 2.45.0. Both
 `pyproject.toml` and `uv.lock` were created here and are committed.
 
 **What has been amended in U0's files SINCE U0's own commit, because this section is otherwise a
@@ -635,7 +635,7 @@ import lifespan` with `|` composition); the off-loopback TLS refusal of `:778-78
 three the review found missing - `JOBVITE_MCP_HOST` (default `127.0.0.1`), `JOBVITE_MCP_PORT`
 (default `8000`) and secret-class `JOBVITE_HTTP_TOKENS`, a JSON token-to-scopes map, empty in the
 template. **Fifteen variables, and `.env.example` and `DESIGN.md` hold the same fifteen** - I
-diffed the two sets rather than counting them, which is the check `DESIGN.md:1545-1551` asks for and
+diffed the two sets rather than counting them, which is the check `DESIGN.md:1546-1552` asks for and
 the one that would have caught this gap in draft 2. `config.py` can therefore enumerate the full set
 and `server.json` can declare every variable, both of which were unsatisfiable before.
 
@@ -653,7 +653,7 @@ failure direction that matters, since the alternative is an open server.
   High rows (C1-S1, C1-T1, C1-I1) rest on this refusal. **This bullet was unbuildable in draft 2** -
   no variable existed that could make the bind off-loopback - and `JOBVITE_MCP_HOST` is what closed
   it.
-- §8 **#18**, on **both transports** (`DESIGN.md:1339-1345`): lifespan teardown runs on SIGTERM,
+- §8 **#18**, on **both transports** (`DESIGN.md:1340-1346`): lifespan teardown runs on SIGTERM,
   asserted by **observing the teardown side effect** - the resource the lifespan opened is released
   - and **not** by the exit code, since a process that dies uncleanly can still exit 0. Where the
   test does resolve a PID (the stdio arm, whose distinctive failure is that the process survives
@@ -671,7 +671,7 @@ handler-plus-`os._exit` snippet **has never been run end to end on HTTP**, and *
 simulated**. The test above is what closes both, and until it runs green the plan carries them as
 open. §12 item 5 additionally records that shutdown depends on a uvicorn implementation detail.
 
-**Unblocked by `9d65cc0` - draft 1 had this unit stalled.** `DESIGN.md:1548-1563` now names both
+**Unblocked by `9d65cc0` - draft 1 had this unit stalled.** `DESIGN.md:1549-1564` now names both
 settings, and both are in `.env.example`, so `config.py` can enumerate the full set:
 
 | Variable | Default | What the plan may say about it |
@@ -679,12 +679,12 @@ settings, and both are in `.env.example`, so `config.py` can enumerate the full 
 | `JOBVITE_MAX_RESULTS` | **50** | Not arbitrary. 50 is the figure already in the caller-facing string `showing 50 of 1,240` used by §4.5 and C3-I1, so any other value would make two parts of the document disagree about a number a caller reads |
 | `JOBVITE_OUTBOUND_RATE_LIMIT` | **6** per minute | **A conservative guess, not a vendor figure.** Jobvite documents no numeric limit at all - its only stated envelope is prose. **Checklist row 9 is what replaces this with an observation** |
 
-**Neither default is verified, and the plan does not describe them as such.** `DESIGN.md:1583-1584`
+**Neither default is verified, and the plan does not describe them as such.** `DESIGN.md:1584-1585`
 says it directly: what B15 closed is the *blocking* half - the names exist and the template is
 complete - and **whether either default is right remains open and only a live tenant can settle
 it.** U6 and U7 restate this at the point they consume the values.
 
-**And the threat-model rows did not move.** C3-I1 (`DESIGN.md:1745`) and C6-D1 (`:1738`) still read
+**And the threat-model rows did not move.** C3-I1 (`DESIGN.md:1746`) and C6-D1 (`:1738`) still read
 `unmitigated (B15)`, and both are still on the mitigate-before-production-release list (`:1830`).
 Naming a variable is not mitigating the row. An implementer who reads `.env.example`, finds a
 default, and treats C3-I1 as closed would be making exactly the substitution this design keeps
@@ -735,14 +735,14 @@ from `ctx.request_context.meta`, and implements the three-branch audit-write-fai
 
 **Verified by.**
 
-- §8 **#4** (positive) and **#5** (absence), **as a pair** - `DESIGN.md:1279-1282` requires them
+- §8 **#4** (positive) and **#5** (absence), **as a pair** - `DESIGN.md:1280-1283` requires them
   paired so neither can be satisfied by silence. #5 asserts against the event #4 proves exists.
 - §8 **#2**: a secret never reaches a log record, **including the whole `jobFeed` URL**; `sc=`
   redacted at the one enforcement point - **asserted against a log stream proven non-empty**: the
   same call emits a log record carrying the request's non-secret attributes, and the `sc=` value is
   absent from *that record*. Against a misconfigured logger emitting nothing, the absence alone
   passes. The design solved this exact shape for the audit stream by pairing #4 with #5
-  (`DESIGN.md:1279-1281`); **#2 has no such pair in the design and #4 does not supply one** - #4
+  (`DESIGN.md:1280-1282`); **#2 has no such pair in the design and #4 does not supply one** - #4
   proves the audit event exists, a different stream from the `loguru` records #2 is about. This
   pairing is therefore the plan's rather than the design's, and it is raised as
   [Q6](#q6---8-2-asserts-an-absence-with-no-paired-positive-in-the-design).
@@ -797,7 +797,7 @@ with no caller.
   record (joins U3's #2).
 - The cookie jar is CLEARED after every request, in a `finally` so a call that raised cannot leave one behind either (`JOBVITE-CONTRACT.md:2.3`, ADR-0022 - the `AWSALBAPP-*` values are the literal `_remove_`, and `httpx2` persists and resends them by default, so an omission ships the session Jobvite told us not to carry).
 
-Transport substitution is `httpx2`'s built-in `MockTransport` (`DESIGN.md:1358-1359`, ADR-0007). No
+Transport substitution is `httpx2`'s built-in `MockTransport` (`DESIGN.md:1359-1360`, ADR-0007). No
 third-party mocking library is added, at any point in this plan.
 
 ---
@@ -838,7 +838,7 @@ second-riskiest unit early (see [§6](#6-the-riskiest-unit)). Job fields take an
   `/problems/external-service-error` **502** with `is_error=True`.
 - §8 **#16**, read arm: `request_id` present **on the wire result**, under the namespaced key,
   matched against the audit event's own id, **and** the structured content still validates against
-  the output model. `DESIGN.md:1331-1333` is explicit that asserting on the `ToolResult` object
+  the output model. `DESIGN.md:1332-1334` is explicit that asserting on the `ToolResult` object
   would pass while the wire carried nothing.
 - **U5 adds the FIRST credentialed arm, and tightens CI's credentialed-collect step from
   `exit 0 or 5` to `exit 0 with a non-zero count`.** U0 left it accepting 5 because it cannot tell
@@ -902,7 +902,7 @@ both said U5, which needlessly delayed U6 and therefore U8 and U12, both of whic
 - The structural assertion that `start=0` is accepted and returns records
   (`JOBVITE-API.md:399`).
 
-**The result cap is now named:** `JOBVITE_MAX_RESULTS`, default **50** (`DESIGN.md:1571-1574`), and
+**The result cap is now named:** `JOBVITE_MAX_RESULTS`, default **50** (`DESIGN.md:1572-1575`), and
 it is the configured half of `min(transport_cap, configured_result_cap)`. 50 was chosen to agree
 with the `showing 50 of 1,240` string a caller already reads, which makes it internally consistent
 and **not** a measurement of anything. **U5 built the in-tool half; U6 adds the transport half and
@@ -912,7 +912,7 @@ behaviour split across two files, which is why neither unit may assume it owns a
 **Inherited ceiling.** Whether `start` is 0- or 1-based is unresolved as a fact about Jobvite
 (§12 item 2), and whether 500 is a real server limit is unobserved. Checklist rows 2 and 3 settle
 both. **C3-I1 and C6-D1 remain `unmitigated (B15)`** in the threat model even now the variable has
-a name (`DESIGN.md:1745`, `:1738`), because what closed was the naming, not the exposure. The plan
+a name (`DESIGN.md:1746`, `:1738`), because what closed was the naming, not the exposure. The plan
 ships the design's base-agnostic scan and does **not** treat any of these as established.
 
 ---
@@ -933,7 +933,7 @@ distinguished by `detail` plus a `retry_after` hint; a `429` retried then mapped
 **Verified by.**
 
 - §8 **#13**, the concurrent arm: **two invocations driven in parallel**, each forced to retry, each
-  log line matched to the invocation that produced it. `DESIGN.md:1312-1314` states that a
+  log line matched to the invocation that produced it. `DESIGN.md:1313-1315` states that a
   single-call version passes against a module global, which is the bug `request_id_var` exists to
   prevent - **so the concurrent arm is the case and a single call does not satisfy it.** The same
   case asserts **no URL** appears in a retry line.
@@ -945,7 +945,7 @@ distinguished by `detail` plus a `retry_after` hint; a `429` retried then mapped
   (`DESIGN.md:353`), so the assertion is the row count.
 - The total outbound budget bounds a slow upstream into a typed 503 rather than an unbounded wait.
 - The self-throttle honours `JOBVITE_OUTBOUND_RATE_LIMIT`, default **6 requests per minute**
-  (`DESIGN.md:1575-1582`). **Say what it is at the point it is used: a conservative guess, not a
+  (`DESIGN.md:1576-1583`). **Say what it is at the point it is used: a conservative guess, not a
   vendor figure.** Jobvite documents no numeric limit at all, only the prose envelope *call it on an
   as-needed basis, and anything more frequent than once a day must be filtered*. **Checklist row 9
   is what replaces the guess with an observation**, and row 9 carries its own safety condition -
@@ -1027,7 +1027,7 @@ the whole unit.
   stringified) - **three green arms over a tool that returns nothing**, on the unit carrying C6-I1
   and C6-S1. #19's red-team cases and the normalisation arm do exercise real data, so the unit was
   never fully vacuous; the arms that were vacuous are precisely the ones the Criticals hang on.
-  Draft 3 applied `DESIGN.md:1369-1370`'s blanket rule to U10 and U14 and skipped U8.
+  Draft 3 applied `DESIGN.md:1370-1371`'s blanket rule to U10 and U14 and skipped U8.
 - §8 **#6**: EEO fields never appear in any tool result, **asserted against the output models**, not
   by inspection. C6-I1, Critical.
 - §8 **#19**: fencing, including content that tries to **close its own fence** - the red-team cases
@@ -1094,7 +1094,7 @@ are dropped.
   regression.
 - **Positive control for that absence assertion, and it is what gives the assertion meaning: the
   three adopted middleware are present in the constructed stack**, and `StructuredLoggingMiddleware`
-  is constructed with `include_payloads=False` (C2-I1, `DESIGN.md:1731`). Five absences asserted
+  is constructed with `include_payloads=False` (C2-I1, `DESIGN.md:1732`). Five absences asserted
   against a stack never proven non-empty cannot tell *"excluded"* from *"no middleware at all"*.
   Draft 3 positively verified only `RateLimitingMiddleware`, leaving `Timing` and
   `StructuredLogging` - including the `include_payloads` value a threat row exists for - with no
@@ -1132,7 +1132,7 @@ registered only under `JOBVITE_ENABLE_WRITES=true` **and** naming in `JOBVITE_TO
   the no-handler arm **raises `MCPError` on sessionless and returns `is_error=True` on handshake**
   (`FASTMCP-SPIKE-4.md:2153-2165`), so an error-shape assertion passes on one era and fails on the
   other.
-- **Positive control for #22 and #25, required by `DESIGN.md:1369-1370` and load-bearing here: an
+- **Positive control for #22 and #25, required by `DESIGN.md:1370-1371` and load-bearing here: an
   APPROVED write moves the row counter by exactly one, on both eras.** Without it, four refusal arms
   all asserting *the row count did not move* pass perfectly against a `create_candidate` that is
   broken and never writes at all - the guard-that-refuses-everything the blanket rule is named for.
@@ -1162,7 +1162,7 @@ evaluated and **cannot be built** because nothing establishes Jobvite accepts on
 
 ### U11 - `scripts/check_advisories.py`
 
-**Builds.** The file `DESIGN.md:1515-1521` names as **the advisory-expiry owner** and which does not
+**Builds.** The file `DESIGN.md:1516-1522` names as **the advisory-expiry owner** and which does not
 exist. It reads the ignore table from `pyproject.toml`, **emits the `--ignore-vuln` flags
 `pip-audit` actually takes** - the tool has no expiry concept and no `pyproject.toml` ignore section
 of its own - and **exits non-zero on any expired entry**. The table is the single source for both
@@ -1177,7 +1177,7 @@ control showing an unexpired entry is **honoured** and its flag emitted. Additio
 with no expiry is rejected; an expiry more than 30 days out is rejected; a blanket ignore is
 rejected.
 
-**The policy this enforces is four ordered steps** (`DESIGN.md:1504-1523`) and step 1 -
+**The policy this enforces is four ordered steps** (`DESIGN.md:1505-1524`) and step 1 -
 reachability - is **human judgement written down, not a tool output**. The script owns steps 3 and
 4 only.
 
@@ -1191,7 +1191,7 @@ amputation trees, all fired. The same precedence rule U0 carries applies here an
 way: **where this section and the build disagree, the build wins, and never past `docs/DESIGN.md`.**
 One HIGH from that report is **not fixed and is carried below** rather than left in a worklog.
 
-**Builds.** The two gates of `DESIGN.md:1626-1636`, both of which the design says exceed the
+**Builds.** The two gates of `DESIGN.md:1627-1637`, both of which the design says exceed the
 standard deliberately: **secret scanning pre-commit**, not only in CI, because on a public remote a
 pushed secret is compromised the instant it lands; and the **committed-file-type gate** -
 allowlist-first, extension denylist, magic-number sniffing, NUL-byte backstop, fail-closed, with
@@ -1214,9 +1214,9 @@ three times - and this time the sibling landed before the rule did.
 **Why it is a unit and not a bullet in U0.** Draft 5 listed both gates inside U0's CI paragraph.
 **U0 declined them and asked for a ruling, correctly**: they are not a CI step, they are
 allowlist-first magic-number sniffing with a NUL backstop and a fail-closed default - real software
-with its own test surface, in a repository where **`DESIGN.md:1810` names these two gates as the
+with its own test surface, in a repository where **`DESIGN.md:1811` names these two gates as the
 mitigation for C8-I1, a Critical row.** A control carrying a Critical, whose own design admits
-(`DESIGN.md:1635-1636`) that it *"does nothing about confidential prose pasted into Markdown, which
+(`DESIGN.md:1636-1637`) that it *"does nothing about confidential prose pasted into Markdown, which
 is the incident we actually had"*, earns its own scrutiny rather than a line in another unit's
 list.
 
@@ -1231,7 +1231,7 @@ list.
 - An override requires an allowlist entry **in the same commit**, and an override without one is
   refused.
 - Secret scanning refuses a staged credential pre-commit; positive control: a clean tree commits.
-- **The stated ceiling is carried, not quietly dropped:** `DESIGN.md:1634-1636` says this gate stops
+- **The stated ceiling is carried, not quietly dropped:** `DESIGN.md:1635-1637` says this gate stops
   a *file* of the wrong type and does nothing about confidential prose pasted into Markdown, which
   is the incident that actually occurred. Review and `JOBVITE-API.md` §0.2 cover that, and no test
   here may be written as though the gate closed it.
@@ -1303,7 +1303,7 @@ per-resource base configured.
 
 ### U13 - README and the documentation obligations
 
-**Builds.** The README, which `DESIGN.md:1533-1540` **deliberately withholds until now** because a
+**Builds.** The README, which `DESIGN.md:1534-1541` **deliberately withholds until now** because a
 README describing an unbuilt system is a false claim in the present tense. All fourteen sections
 with **headings matching exactly**; the Configuration table **checked against `.env.example`**
 rather than hand-maintained; an `mcp-name:` string **added before the first PyPI upload, not after**;
@@ -1337,7 +1337,7 @@ outright.
 
 **Depends on.** U1-U12.
 
-**Verified by.** §8 **#14**'s README arm goes **live** here - `DESIGN.md:1317-1320` requires it
+**Verified by.** §8 **#14**'s README arm goes **live** here - `DESIGN.md:1318-1321` requires it
 **gated on the file's presence rather than skipped**, because a skip is a green that tested nothing.
 Heading text asserted exactly; the Configuration table asserted equal to `.env.example`'s
 enumeration; CI runs the Quickstart commands.
@@ -1378,7 +1378,7 @@ assertion passes over an empty corpus and keeps passing whether or not later uni
 is already the unit whose whole job is a completeness sweep after every tool has landed, so it is
 where the rule acquires teeth.
 
-**All three carry the blanket positive control of `DESIGN.md:1369-1370`**, and draft 2 stated it for
+**All three carry the blanket positive control of `DESIGN.md:1370-1371`**, and draft 2 stated it for
 only one: a well-formed argument passes schema validation (#7); an ordinary name passes the
 control-character check (#8); and **a payload sitting just inside each of the four structural limits
 is accepted** (#9). A limit test with no accepting arm cannot tell a correct limit from a rejector.
@@ -1513,7 +1513,7 @@ three parts and not a note. **`[project] dependencies` is not in the `pyproject.
 and `uv.lock` appears nowhere in §4 at all**, which is how a surface every implementing unit must
 touch reached round six unowned.
 
-**This is not an ADR.** `DESIGN.md:1415-1420` gives the three-pin block as the packaging recipe and
+**This is not an ADR.** `DESIGN.md:1416-1421` gives the three-pin block as the packaging recipe and
 nowhere says the runtime dependency list is closed - the design names `loguru`, `tenacity` and
 `defusedxml` itself. **The exact-set assertion is U0's build going past the design**, and the plan
 records that rather than treating a test as authority.
@@ -1637,7 +1637,7 @@ the surfaces that actually collide are the ones nobody classified as code:
    argument against scheduling U12 early; the U5/U6 pair is the same relationship with reader and
    writer swapped, and it is scheduled concurrent on purpose.
 2. **`utils/redaction.py` holds secret redaction (U3) and untrusted-content fencing (U8).**
-   `DESIGN.md:1365-1367` names both, and ADR-0010 puts `utils/` at the standard's **95%** because of
+   `DESIGN.md:1366-1368` names both, and ADR-0010 puts `utils/` at the standard's **95%** because of
    it. Two agents cannot both own it. Sequence U3 → U8, or give one agent both halves.
 3. **U8 and U10 both write `tools/candidates.py`.** Sequential, U8 then U10.
 4. **The `/v1/jobFeed` page cap of 1000 has one home and two claimants.** `DESIGN.md:434` puts it in
@@ -1860,7 +1860,7 @@ compound in one unit:
    unit can no longer stall on the question - but the survey is still unrun and the mechanism is
    still unexecuted, which is what keeps it first on this list.
 3. **A High that just came off the must-mitigate table depends on it.** C5-R1 left the table in
-   revision 5 (`DESIGN.md:1866`) on the strength of `request_id_var` plus retry and breaker
+   revision 5 (`DESIGN.md:1867`) on the strength of `request_id_var` plus retry and breaker
    logging. If the breaker cannot carry `request_id`, that row reopens - and it reopens *after* the
    design was declared settled.
 4. **Its required test is the hardest one in §8.** #13 demands two invocations in parallel, each
@@ -1993,7 +1993,7 @@ Stated plainly, because an unstated omission reads as coverage.
   call-path constraint. U7 names the one experiment; nobody has run it.
 - **The threat ids named in §2 are not a coverage map and must not be read as one.** The rows named
   by no unit are **C1-R1, C2-R1, C4-E1, C7-I1, C7-I2 and C8-I1** - stated as a list, with no total, per
-  `DESIGN.md:1847`'s own rule that a count in prose beside the thing it counts is a second source of
+  `DESIGN.md:1848`'s own rule that a count in prose beside the thing it counts is a second source of
   truth nothing keeps in step. Most are covered in substance by a §8 case some unit does schedule:
   C8-I1 by #3 in U0, C4-E1 by #22's accept-carrying-false arm in U10, C7-I1 by #5 in U3. The two
   that were genuinely thin now have homes - C9-T1 in U0's inherited-limit paragraph and in §6, and
@@ -2005,12 +2005,12 @@ Stated plainly, because an unstated omission reads as coverage.
 
   **`C7-I2` is added by draft 7 and appeared NOWHERE in draft 6's 1,543 lines** - not on this list,
   not in a unit, not once. That is worse than the ids that are here: the frozen design puts it on the
-  *"Mitigate before production release"* list at `DESIGN.md:1880-1881` beside C3-I1, C6-D1 and C8-R1,
+  *"Mitigate before production release"* list at `DESIGN.md:1881-1882` beside C3-I1, C6-D1 and C8-R1,
   and the plan carries the other three by name and with care - C3-I1 and C6-D1 in U1, U6 and Q1;
   C8-R1 in Q3, which explicitly declines to specify a mitigation and says so. **C7-I2 was dropped
   rather than declined**, so a reader got three tracked rows and no signal a fourth existed, from a
   sentence claiming to enumerate. It does not block implementation - the *"must mitigate before
-  implementation proceeds"* table at `DESIGN.md:1845` is genuinely empty and that is verified - but
+  implementation proceeds"* table at `DESIGN.md:1846` is genuinely empty and that is verified - but
   the enumeration claimed a completeness it did not have.
 
   **Its disposition is Q3's, and this plan declines to specify it for the same reason.** `:1749`
@@ -2091,11 +2091,11 @@ that, each of these needs a numbered ADR carrying a `Type:` field.
 ### Q1 - answered, U1 unblocked
 
 `JOBVITE_MAX_RESULTS` default **50** and `JOBVITE_OUTBOUND_RATE_LIMIT` default **6/min**, both in
-`.env.example` (`DESIGN.md:1548-1563`). U1 enumerates the full configuration set; U6 and U7 consume
+`.env.example` (`DESIGN.md:1549-1564`). U1 enumerates the full configuration set; U6 and U7 consume
 the values and each says at the point of use that **6/min is a conservative guess and not a vendor
 figure**, per `:1525-1532`.
 
-**Two things the plan carries forward rather than treating as closed.** `DESIGN.md:1583-1584` says
+**Two things the plan carries forward rather than treating as closed.** `DESIGN.md:1584-1585` says
 what closed is B15's *blocking* half and that whether either default is right *"no amount of
 specification settles and only a live tenant can"*. And **C3-I1 and C6-D1 still read `unmitigated
 (B15)`** (`:1695`, `:1738`) and remain on the mitigate-before-production-release list (`:1830`).
@@ -2104,7 +2104,7 @@ default in `.env.example` and conclude otherwise.
 
 ### Q2 - answered, and the residual has since landed
 
-**Answered.** The §7.4 shutdown requirement is now §8 case **#18** (`DESIGN.md:1339-1345`). It
+**Answered.** The §7.4 shutdown requirement is now §8 case **#18** (`DESIGN.md:1340-1346`). It
 asserts the **teardown side effect** rather than the exit code, which is a better assertion than the
 one draft 1 scheduled - a process that dies uncleanly can still exit 0. U1 follows the case.
 
@@ -2121,7 +2121,7 @@ deleting it is invisible.
 
 **Landed at `cc94459`; nothing here remains open.** `check-coupling.py` now carries a 35-line block
 labelled `2a-ter. EVERY §8 CASE HAS AN OWNER (GATE-2)` (`check-coupling.py:305`), requiring every
-§8 case to be named by a §11 row or to cite a B-number or section as its owner. `DESIGN.md:1343`
+§8 case to be named by a §11 row or to cite a B-number or section as its owner. `DESIGN.md:1344`
 records the same measured residual in case #18's own bullet, in the same terms this plan reached
 independently: **GATE-2 stops a case's justification being quietly stripped, and it does not make
 deletion visible.** Only a §11 row naming a case does that, and no threat row models a resource leak
@@ -2134,7 +2134,7 @@ filed work that is done**, which is why it is rewritten in place rather than app
 
 ### Q3 - stands, and that is the correct outcome
 
-C8-R1, startup configuration logging, remains `unmitigated` (`DESIGN.md:1809`) and on the
+C8-R1, startup configuration logging, remains `unmitigated` (`DESIGN.md:1810`) and on the
 mitigate-before-production-release list. The plan adds no startup log line, because specifying an
 unspecified mitigation is not a plan's job and the ADR-0011 interaction is unresolved. Carried, not
 worked around.
@@ -2184,13 +2184,13 @@ corrected here and in collision 8 to gate on **Accepted**. Nothing about the sub
 ### Q6 - §8 #2 asserts an absence with no paired positive in the design
 
 **Open, and it is a plan-level fix today rather than a design change - raised so it can become one.**
-`DESIGN.md:1279-1281` shows the design already knows this shape: #4 is *"positive on purpose"*
+`DESIGN.md:1280-1282` shows the design already knows this shape: #4 is *"positive on purpose"*
 precisely so #5's absence *"cannot be satisfied by silence"*, and the two are explicitly paired.
 
 **#2 has no such pair.** It asserts a secret never reaches a log record, and against a logger that
 is misconfigured and emits nothing it passes. #4 does not cover it: #4 proves the **audit event**
 exists, which is a different stream from the `loguru` records #2 is about, and the design's own
-blanket positive-control rule (`DESIGN.md:1369-1370`) does not list #2 among the refusal-path cases.
+blanket positive-control rule (`DESIGN.md:1370-1371`) does not list #2 among the refusal-path cases.
 U7's #13 does prove retry log lines exist, but that is four units later than U3.
 
 U3 now carries the pairing as a **plan** decision: #2 is asserted against a log stream proven

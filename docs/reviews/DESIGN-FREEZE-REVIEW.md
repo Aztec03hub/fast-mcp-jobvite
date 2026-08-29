@@ -10,7 +10,7 @@ Everything else: **OUT OF SCOPE, NOT ASSESSED.**
 **DO NOT FREEZE.**
 
 **TALLY: 0 Critical / 0 High / 3 Medium / 3 Low.**
-§11's must-mitigate table is empty (`DESIGN.md:1804` reads `*(none)*`), so that half of the freeze
+§11's must-mitigate table is empty (`DESIGN.md:1805` reads `*(none)*`), so that half of the freeze
 condition holds. The review half does not: three Mediums stand.
 
 All three suggested fixes are small and local. This is not a "the delta is wrong" verdict - the
@@ -34,7 +34,7 @@ The controls file's own claim of 34 was verified by reading the run, not the num
 
 ### M-1 (Medium). §8's SIGTERM bullet overstates GATE-2's bar, and the mutation that proves it is the bullet's own
 
-`docs/DESIGN.md:1308` says:
+`docs/DESIGN.md:1309` says:
 
 > GATE-2 now requires every case to name its owner, which stops a case's justification being
 > quietly stripped
@@ -111,7 +111,7 @@ a design call, not mine.
 
 ### M-3 (Medium). §12 still says two variables had no name; §7.1 now says two more did
 
-`docs/DESIGN.md:1527-1528`:
+`docs/DESIGN.md:1528-1529`:
 
 > **The two variables that had no name now have one, because leaving them unnamed made
 > `.env.example` incomplete by construction and blocked `config.py` (B15).**
@@ -172,7 +172,7 @@ transport-conditioned requirement."*
 
 ### L-2 (Low). Two §11 rows carry an unbalanced `**` after the emphasis fix
 
-`docs/DESIGN.md:1704` (C3-I1) and `:1697` (C6-D1) each contain three `**` markers on one line. The
+`docs/DESIGN.md:1705` (C3-I1) and `:1697` (C6-D1) each contain three `**` markers on one line. The
 fix removed two of the four leading asterisks and left the trailing pair, so the Mitigation cell
 renders emphasis from `(B15)` onward or shows literal asterisks. Checked the whole file: these are
 the only two single-line rows with an odd count; every other odd line is a bold span wrapping across
@@ -215,7 +215,7 @@ These were hunted specifically and hold.
   earlier *"no library is selected yet (B47)"* was wrong, and the replacement characterisation -
   one experiment against the blessed candidate, inline fallback if it fails - is accurate. This is
   not one wrong characterisation swapped for another.
-- **The new B37 citation resolves.** `docs/DESIGN.md:1316` cites `backend/resilience.md:166-168`
+- **The new B37 citation resolves.** `docs/DESIGN.md:1317` cites `backend/resilience.md:166-168`
   for the 4xx clause. Read at source: file lines 166-168 are *"Count **only outage-class errors**
   toward the breaker via `expected_exception` - a caller error (4xx) is not an outage and MUST NOT
   trip it."* Exact. (Note `STANDARDS.md:316-317` cites both `:159-161` and `:166-168`; the design

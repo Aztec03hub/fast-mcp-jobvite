@@ -75,8 +75,8 @@ swept the remainder. Six are wrong, and two of them anchor the plan's most load-
 | b | `:667`, `:1106` | `DESIGN.md:44-47` | *"the two mechanisms `DESIGN.md:44-47` names as **never executed**"* | Same freeze-condition paragraph | **`:64-68`** |
 | c | `:1062` | `DESIGN.md:39-51` | *"says **no claim about a Jobvite success response is verified, because none has ever been observed**"* | Same freeze-condition paragraph | **`:63`** (the sentence is quoted verbatim there) |
 | d | `:451`, `:1318` | `DESIGN.md:1238-1241` | *"The design solved this exact shape for the audit stream by pairing #4 with #5"* / *"shows the design already knows this shape"* | `--strict-markers` and the typo-in-marker-name argument. Nothing about #4/#5 | **`:1229-1231`** |
-| e | `:711`, `:1324` | `DESIGN.md:1334-1335` | *"the blanket rule"* / *"the design's own blanket positive-control rule"* | Case **#17**, trace context, *"two arms... both are required"* | **`:1319-1320`** |
-| f | `:1262` | `DESIGN.md:1329` | *"records the same measured residual in case **#18**'s own bullet"* | Case **#16**, *"The success arms assert it in `_meta`..."* | **`:1293`** |
+| e | `:711`, `:1324` | `DESIGN.md:1335-1336` | *"the blanket rule"* / *"the design's own blanket positive-control rule"* | Case **#17**, trace context, *"two arms... both are required"* | **`:1319-1320`** |
+| f | `:1262` | `DESIGN.md:1330` | *"records the same measured residual in case **#18**'s own bullet"* | Case **#16**, *"The success arms assert it in `_meta`..."* | **`:1293`** |
 
 Four observations that make this High rather than Medium:
 
@@ -271,7 +271,7 @@ C1-R1 `:1669`, C1-I1 `:1670`, C2-R1 `:1680`, C4-S1 `:1703`, C4-R1 `:1705`, C4-E1
 C8-I1 `:1760`, C9-T1 `:1770`. **The "17" is correct.**
 
 This is a count carried through its own correction - the defect the plan names at `:89-94`,
-`:285-286` and `:1048-1051`, and which `DESIGN.md:1847-1856` legislates against directly (*"This
+`:285-286` and `:1048-1051`, and which `DESIGN.md:1848-1857` legislates against directly (*"This
 table is the count. No sentence in this section states a total for it."*).
 
 > **Suggested fix (MY SUGGESTION - verify before adopting).** Replace the first sentence and the list
@@ -285,7 +285,7 @@ table is the count. No sentence in this section states a total for it."*).
 > > homes: C9-T1 in U0's inherited-limit paragraph and in §6, and C5-E1's ceiling in U13.
 >
 > Better still, given this document's history with counts: state the **list** and drop the totals
-> entirely, per `DESIGN.md:1847`.
+> entirely, per `DESIGN.md:1848`.
 
 ---
 
@@ -363,11 +363,11 @@ Two consequences, in opposite directions, and the second is the one that matters
 
 ---
 
-## L1 - `DESIGN.md:1332-1334` spills into the next case
+## L1 - `DESIGN.md:1333-1335` spills into the next case
 
 **Severity: Low.**
 
-Plan `:547`: *"`DESIGN.md:1332-1334` is explicit that asserting on the `ToolResult` object would
+Plan `:547`: *"`DESIGN.md:1333-1335` is explicit that asserting on the `ToolResult` object would
 pass while the wire carried nothing."*
 
 The sentence runs `:1281-1283`. Line `:1284` is the **first line of case #17**, trace context. The
@@ -375,8 +375,8 @@ cite starts one line late and ends one line into a different case. It resolves t
 plausible text, and the claim it supports is true - the exact profile the plan's own header warns
 about at `:41-46`.
 
-> **Suggested fix (MY SUGGESTION - verify before adopting).** Change `DESIGN.md:1332-1334` to
-> **`DESIGN.md:1331-1333`**.
+> **Suggested fix (MY SUGGESTION - verify before adopting).** Change `DESIGN.md:1333-1335` to
+> **`DESIGN.md:1332-1334`**.
 
 ---
 
@@ -439,7 +439,7 @@ same log stream, carrying a High. A pairing stated in the design's §8 would hav
    whether the design wants the pairing stated where it states the other one, so a future reader of
    §8 sees #2 and #4 as the same construction rather than discovering the asymmetry in a plan."*
    That is the right question and the right answer is yes.
-3. **The design already made this call once, for the same reason.** `DESIGN.md:1279-1281` pairs #4
+3. **The design already made this call once, for the same reason.** `DESIGN.md:1280-1282` pairs #4
    and #5 explicitly *"so that neither can be satisfied by silence."* #2 is the same construction on
    a different stream. Leaving one pair in the design and its twin in a plan is the two-lists defect
    the design designs around at `:1497-1501` and `:202-205`.

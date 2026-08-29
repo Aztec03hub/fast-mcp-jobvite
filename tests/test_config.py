@@ -2,7 +2,7 @@
 
 Every refusal case here is paired with a positive control, because a guard
 that refuses everything is not a guard and its refusals prove nothing
-(DESIGN.md:1369-1371).
+(DESIGN.md:1370-1372).
 """
 
 from __future__ import annotations
@@ -396,7 +396,7 @@ def test_the_whole_committed_template_loads(clean_env: pytest.MonkeyPatch) -> No
 
 
 # ---------------------------------------------------------------------------
-# The variable set is closed. DESIGN.md:1547-1551 makes `.env.example` the
+# The variable set is closed. DESIGN.md:1548-1552 makes `.env.example` the
 # single enumeration; these DIFF the sets rather than counting them, which
 # is the check that would have caught a three-variable gap in draft 2.
 # ---------------------------------------------------------------------------
@@ -425,7 +425,7 @@ def _server_json_names() -> set[str]:
 
 
 def test_env_example_and_design_declare_the_same_variables() -> None:
-    """DESIGN.md:1545-1551's check, as a DIFF and never as a count."""
+    """DESIGN.md:1546-1552's check, as a DIFF and never as a count."""
     assert _env_example_names() == _design_names()
 
 

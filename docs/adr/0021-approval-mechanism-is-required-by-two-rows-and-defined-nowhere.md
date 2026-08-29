@@ -14,10 +14,10 @@ put the field on the wire.
 
 **Two rows require the field.**
 
-`DESIGN.md:1275-1277`, §8's required case for the audit event, states that the event carries
+`DESIGN.md:1276-1278`, §8's required case for the audit event, states that the event carries
 *"on the write `approval_state` together with the mechanism that produced it (§5.3)"*.
 
-`DESIGN.md:1755`, threat row **C4-R1**, rated **High**, states its mitigation as
+`DESIGN.md:1756`, threat row **C4-R1**, rated **High**, states its mitigation as
 *"**Mitigated in §5.3:** the audit event includes `approval_state` and the mechanism that produced
 it"*, and names §8's audit-event case as its test.
 
@@ -47,7 +47,7 @@ that resolves is not a citation that supports.
 
 **And the field is not obvious.** §7.5 makes approval **dual-era** - elicitation on one era,
 sampling with `ctx.input_responses` on the other, and a no-handler arm that fails closed and
-surfaces differently on each (`DESIGN.md:1360-1363`). "The mechanism that produced it" is most
+surfaces differently on each (`DESIGN.md:1361-1364`). "The mechanism that produced it" is most
 plausibly *which of those paths answered*, which is exactly the distinction §8's approval case
 turns on. But that is an inference. Two implementers will not make the same one, and the value ends
 up in an audit record that a compliance reader will later treat as authoritative.
@@ -61,7 +61,7 @@ up in an audit record that a compliance reader will later treat as authoritative
    a closed set: `elicitation`, `sampling`, `no_handler`. The set is closed for the same reason
    `error-contract.md`'s registry is closed (`DESIGN.md:510-511`): a value emitted into an audit
    record is a contract, and an open string invites a fourth spelling of the first three.
-2. Repoint `DESIGN.md:1277` and `DESIGN.md:1755` at that sentence once it exists. Until then both
+2. Repoint `DESIGN.md:1278` and `DESIGN.md:1756` at that sentence once it exists. Until then both
    cite a subject their target does not carry.
 3. §8's audit-event case gains the corresponding arm: on the write, `approval_mechanism` is present
    and is one of the three.

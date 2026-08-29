@@ -344,7 +344,7 @@ class JobviteClient:
                 Required only for `jobFeed`, so it is optional here and the
                 failure for a missing one is raised at the call.
             transport: Substituted in tests with `httpx2.MockTransport`
-                (DESIGN.md:1358-1359, ADR-0007). `None` in production.
+                (DESIGN.md:1359-1360, ADR-0007). `None` in production.
             timeout: Explicit and per-phase (DESIGN.md:346). **No SDK default and
                 no single scalar**: `httpx2`'s own default is a 5-second scalar,
                 which is a resilience decision made by a library rather than by

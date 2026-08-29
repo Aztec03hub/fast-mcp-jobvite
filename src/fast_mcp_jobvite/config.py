@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     """The fifteen variables, and nothing else.
 
     The set is closed: `.env.example` and DESIGN.md hold the same fifteen,
-    and DESIGN.md:1545-1549 makes `.env.example` the single enumeration
+    and DESIGN.md:1546-1550 makes `.env.example` the single enumeration
     everything else is checked against rather than a second hand-kept list.
 
     `extra="ignore"` rather than `forbid`: the process environment carries
@@ -180,10 +180,10 @@ class Settings(BaseSettings):
     tls_terminated_by_proxy: bool = False
 
     # --- Limits ------------------------------------------------------------
-    #: DESIGN.md:1568-1572. 50 is the figure the caller-facing string
+    #: DESIGN.md:1569-1573. 50 is the figure the caller-facing string
     #: `showing 50 of 1,240` already uses, not an arbitrary pick.
     max_results: int = Field(default=50, ge=1)
-    #: DESIGN.md:1573-1579. **A conservative guess, not a vendor figure** -
+    #: DESIGN.md:1574-1580. **A conservative guess, not a vendor figure** -
     #: Jobvite documents no numeric limit at all. Checklist row 9 is what
     #: replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)

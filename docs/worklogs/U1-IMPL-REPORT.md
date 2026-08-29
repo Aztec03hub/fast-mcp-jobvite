@@ -98,7 +98,7 @@ five-row matrix.
 **B75 is not a repoint and I want it read.** That row was `CONTRADICTED` - three commented-out CI
 blocks with no ADR excusing them. U11 enabled the advisory one; U1 enables the other two. **No
 commented-out step remains**, so the row is now `MET` and there is nothing left for an ADR to
-excuse. What it does **not** close is `DESIGN.md:1493-1496`'s `UNVERIFIED` marker on the drift diff
+excuse. What it does **not** close is `DESIGN.md:1494-1497`'s `UNVERIFIED` marker on the drift diff
 itself, and the row now says so.
 
 **`config.py`.** `pydantic-settings`, `SecretStr` on all five credential variables **and on
@@ -211,7 +211,7 @@ Docker daemon into CI for one arm is a required check that goes red for reasons 
 `scripts/check-u1-pid1-shutdown.sh` - **prose about a measurement decays into a claim about one**,
 and I would rather commit the script.
 
-**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1344-1345` says. Mutant M12
+**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1345-1346` says. Mutant M12
 removes it and `test_only_stdio_exercises_the_forced_exit` goes red; the HTTP arm stays green
 against the same mutant. A single-transport test would have shipped it.
 
@@ -447,7 +447,7 @@ Things I could not settle, not things I did not try.
   `server.py:create_server`, with the minimum environment that passes the refusals. I confirmed
   `fastmcp inspect --help` requires a SERVER-SPEC and that a factory is the right shape, and I did
   **not** execute the step end to end. The **capability-drift diff itself remains UNVERIFIED** -
-  `DESIGN.md:1493-1496` carries that marker and standing the step up does not remove it. A diff that
+  `DESIGN.md:1494-1497` carries that marker and standing the step up does not remove it. A diff that
   has never seen a real capability change has only ever compared a build to itself.
 - **Whether `JOBVITE_MAX_RESULTS=50` or `JOBVITE_OUTBOUND_RATE_LIMIT=6` are right.** They are
   defaults, the second is an explicit guess, and only a live tenant settles either. I did not

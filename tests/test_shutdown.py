@@ -1,6 +1,6 @@
 """§8 #18: lifespan teardown runs on SIGTERM, on BOTH transports.
 
-DESIGN.md:1339-1345. Three of the design's stated verification gaps close
+DESIGN.md:1340-1346. Three of the design's stated verification gaps close
 only on this case: the upstream defect at PrefectHQ/fastmcp#4927, the
 `os._exit(0)` workaround, and the uvicorn implementation detail §12 item 5
 records.
@@ -9,7 +9,7 @@ records.
 that dies uncleanly can still exit 0, so an exit-code assertion would pass
 against exactly the failure this case exists to catch.
 
-**Both transports, because they fail differently** (DESIGN.md:1344-1345).
+**Both transports, because they fail differently** (DESIGN.md:1345-1346).
 The HTTP arm passes on teardown alone; **only the stdio arm exercises the
 `os._exit(0)` half**, where teardown runs but the process does not die
 because a non-daemon AnyIO worker thread blocks interpreter shutdown. A
@@ -69,7 +69,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
     assert "opened" in marker.read_text()
     assert "closed" not in marker.read_text()
 
-    # DESIGN.md:1341-1343: resolve the INTERPRETER via /proc/<pid>/cmdline
+    # DESIGN.md:1342-1344: resolve the INTERPRETER via /proc/<pid>/cmdline
     # rather than trusting that the pid we hold is the process we signalled.
     assert interpreter_of(proc.pid) == sys.executable
 

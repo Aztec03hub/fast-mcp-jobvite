@@ -2,7 +2,7 @@ name: CI
 
 # U0. Before this file existed, every gate in DESIGN.md was hand-run and every
 # "CI runs X" sentence in the design was a specification rather than a report
-# (DESIGN.md:1465-1471). This workflow is what turns those sentences true.
+# (DESIGN.md:1466-1472). This workflow is what turns those sentences true.
 #
 # WHAT HAS AND HAS NOT BEEN EXECUTED, stated here because the alternative is a
 # workflow that reads as tested and is not:
@@ -32,7 +32,7 @@ name: CI
 #     coverage floors -> U1 (src/fast_mcp_jobvite holds only __init__.py, so a
 #       coverage run reports "No data collected" or a vacuous 100%)
 #     fastmcp inspect capability-drift diff -> U1 (`fastmcp inspect` takes a
-#       server spec; server.py is U1's file). Note DESIGN.md:1493-1496: standing
+#       server spec; server.py is U1's file). Note DESIGN.md:1494-1497: standing
 #       this up in CI does NOT execute it. A diff that has never seen a real
 #       capability change has only ever compared a build to itself.
 
@@ -89,6 +89,30 @@ jobs:
 
       - name: Coupling gate
         run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
+
+      # Wired the day it went green, and not one commit before. It exited 1 on
+      # exactly one finding - `DESIGN.md:603`'s `SS5.4`, a section that does not
+      # exist - and was deliberately left unwired, because a knowingly red gate
+      # trains everyone to ignore the gate. ADR-0019 fixed the finding and this
+      # step lands in the same commit.
+      #
+      # It has already earned its place: the ADR batch introduced a NEW unresolved
+      # reference (an "RFC 9457 SS4.2.1" whose filename sat on the previous line,
+      # so the checker read it as internal), in the very commit that fixed the
+      # original one. Nothing else would have caught that.
+      - name: Section cross-references resolve
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-cross-references.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::a SSn.m reference does not resolve in its own document"; exit 1
+          fi
+          # Selector control: a green over zero references means nothing. The
+          # count is not hard-coded - it grows with the documents - but it must
+          # not be zero, which is what a broken heading parser would produce.
+          printf '%s\n' "$out" | grep -qE '[1-9][0-9]* references' || {
+            echo "::error::the checker found no references at all; its green means nothing"; exit 1; }
 
       # ASSERT THE EXIT CODE AND THE "ALL FIRED" PROPERTY, NEVER A LITERAL COUNT.
       # This harness has reported 21, 32 and 34 to three readers in one day
@@ -227,7 +251,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # The lockfile is the cure, not the hand-written pins (DESIGN.md:1425-1429).
+      # The lockfile is the cure, not the hand-written pins (DESIGN.md:1426-1430).
       # --frozen installs exactly uv.lock and fails rather than resolving.
       - name: Install from the frozen lock
         run: uv sync --frozen
@@ -309,7 +333,7 @@ jobs:
           [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
           [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
 
-      # ----- U15, the two commit-time gates (DESIGN.md:1626-1636, C8-I1) -----
+      # ----- U15, the two commit-time gates (DESIGN.md:1627-1637, C8-I1) -----
       # The pre-commit hooks are the primary control and they run on a
       # developer machine, which means they can be skipped with --no-verify or
       # simply not installed. These steps are the backstop that notices.
@@ -456,7 +480,7 @@ jobs:
       # LANDED BY U11. pip-audit has no severity threshold: one advisory anywhere
       # in the transitive tree turns a required check red, and we pinned a beta
       # stack deliberately, so we expect this and owe it a sanctioned response
-      # (DESIGN.md:1498-1528). scripts/check_advisories.py is that response - it
+      # (DESIGN.md:1499-1529). scripts/check_advisories.py is that response - it
       # reads the [tool.fast-mcp-jobvite.advisory-ignores] table (landed empty in
       # pyproject.toml), emits pip-audit's --ignore-vuln flags from it, and exits
       # non-zero on any expired entry.
@@ -494,7 +518,7 @@ jobs:
 
       # The audit half. The flags come from the table via the script, so the
       # table is the single source for both, and a hand-maintained flag list
-      # cannot drift from it - the two-lists defect DESIGN.md:1519-1521 names.
+      # cannot drift from it - the two-lists defect DESIGN.md:1520-1522 names.
       #
       # The script's STDOUT IS the flag list and nothing else, which is why this
       # captures it directly. I first wrote `--flags-only` here, an option that
@@ -516,7 +540,7 @@ jobs:
             echo "::error::pip-audit found an advisory with no sanctioned ignore."
             echo "::error::Fix or remove the dependency. If genuinely unreachable,"
             echo "::error::add a time-boxed single-advisory entry to"
-            echo "::error::[tool.fast-mcp-jobvite.advisory-ignores] per DESIGN.md:1504-1523."
+            echo "::error::[tool.fast-mcp-jobvite.advisory-ignores] per DESIGN.md:1505-1524."
             echo "::error::NEVER a blanket ignore and NEVER a raised threshold."
             exit 1; }
 
@@ -524,7 +548,7 @@ jobs:
 
       # `fastmcp inspect` takes a server spec and server.py is U1's file. The
       # report is emitted and uploaded so the NEXT build can diff against it,
-      # which is what DESIGN.md:1491-1496 asks for.
+      # which is what DESIGN.md:1492-1497 asks for.
       #
       # UNVERIFIED, and U1 does not remove the marker: standing this up does
       # NOT execute it. A diff that has never seen a real capability change
@@ -575,7 +599,7 @@ jobs:
       security-events: write
     steps:
       # TruffleHog needs FULL history: a secret removed in a later commit is still
-      # compromised, and a shallow clone cannot see it (DESIGN.md:1489-1490).
+      # compromised, and a shallow clone cannot see it (DESIGN.md:1490-1491).
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -620,7 +644,7 @@ jobs:
       # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
       # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
       # produced from an unfrozen resolve documents a build nobody shipped
-      # (DESIGN.md:1430-1434).
+      # (DESIGN.md:1431-1435).
       - name: SBOM (CycloneDX)
         uses: anchore/sbom-action@v0
         with:
@@ -695,7 +719,7 @@ jobs:
   #     it exists to make authoritative.
   #
   # STATED CEILING, so this gate is not over-trusted. This project cites almost
-  # entirely as BARE TEXT - `DESIGN.md:1533`, `quality-gates.md:76-81` - not as
+  # entirely as BARE TEXT - `DESIGN.md:1534`, `quality-gates.md:76-81` - not as
   # markdown links. Only 27 links in the whole tree are even in scope. So this
   # satisfies readme-standard.md:69 and it is NOT the control for this project's
   # citation decay: the coupling gates in docs/reviews/ and the citation audits

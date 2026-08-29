@@ -101,6 +101,7 @@ uv run --frozen pip-audit $(uv run --frozen python scripts/check_advisories.py)
 
 # The `design-gates` job
 python3 docs/reviews/check-coupling.py docs/DESIGN.md
+python3 docs/reviews/check-cross-references.py   # every SSn.m resolves in its own document
 python3 docs/reviews/check-coupling-controls.py
 python3 docs/reviews/check-coupling-sweep.py
 python3 docs/reviews/check-obligations.py
@@ -122,6 +123,25 @@ required check that goes red for reasons nobody caused trains everyone to ignore
 It exits **2** when Docker is missing, never 0 - a skip that reports success is a green that tested
 nothing. Read the header before trusting a pass; it states exactly what the measurement does and
 does not cover.
+
+**`check-design-citations.py` is NOT a gate, and that is deliberate.** Run it around any edit to
+`docs/DESIGN.md`:
+
+```bash
+python3 docs/reviews/check-design-citations.py                 # bounds + inventory
+python3 docs/reviews/check-design-citations.py --since <sha>   # what your edit moved
+python3 docs/reviews/repoint-design-citations.py <sha> --write # apply the MOVED lines
+```
+
+There are 847 `DESIGN.md:N` citations across 82 files and a five-line insertion moves most of them,
+so an edit that skips this ships hundreds of wrong citations. It is not in CI because **the check
+it can perform is not the one that matters**: it verifies that a cited line EXISTS, never that the
+line still carries its subject, and a contracted range still resolves and still reads plausibly.
+Three such defects were found by hand and none by any instrument. Wiring it would publish a green
+that means less than a reader would assume. The repointer skips `BROKEN` lines - where the cited
+line itself changed - because only a human re-reading the subject can repoint those, and it skips
+any line marked `REPOINT-EXEMPT`, which is how a script that WRITES an example citation says it is
+not citing anything.
 
 **`mypy` is the type gate, not `pyright`.** `pyright` may be on your PATH; it is not declared in
 `pyproject.toml`, is not what CI runs, and `backend/python.md:370` names mypy. Running it proves

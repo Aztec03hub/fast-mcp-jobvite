@@ -28,14 +28,14 @@ Read in full, from the frozen object where the brief said to:
 **`scripts/check_advisories.py`** - 291 lines, stdlib only.
 
 - Reads `[tool.fast-mcp-jobvite.advisory-ignores] entries` from `pyproject.toml` with `tomllib`.
-- Emits `--ignore-vuln <id>` pairs on stdout, **derived from the same table rows it validates**. There is no second list of ids anywhere in the file - the two-lists defect `DESIGN.md:1519-1521` names by name.
+- Emits `--ignore-vuln <id>` pairs on stdout, **derived from the same table rows it validates**. There is no second list of ids anywhere in the file - the two-lists defect `DESIGN.md:1520-1522` names by name.
 - Exits non-zero on any expired entry.
 
 Exit codes, fail-closed: `0` every entry legal, `1` an entry refused, `2` the gate could not run (unreadable file, unparseable TOML, unreadable `--now`). A missing manifest is `2`, never a `0` "empty table".
 
-**One design question I had to settle, stated because it is a real decision and the design does not spell it out.** `DESIGN.md:1516` says "an expiry date no more than 30 days out" without saying *out from when*. I measure the budget from the entry's recorded `date`, not from now. Measured from now the budget would refill on every CI run and an entry could sit legal forever, which is the exact drift the expiry exists to stop; measured from `date` the budget is fixed when the judgement is made and cannot be extended without editing a recorded date that shows up in a diff. This is reasoning from the design's stated intent, not a licence the design granted, and `test_the_30_day_budget_is_measured_from_the_recorded_date_not_from_now` pins it. **If the team lead reads `:1466` the other way, that test is the one to change and the ADR is small.**
+**One design question I had to settle, stated because it is a real decision and the design does not spell it out.** `DESIGN.md:1517` says "an expiry date no more than 30 days out" without saying *out from when*. I measure the budget from the entry's recorded `date`, not from now. Measured from now the budget would refill on every CI run and an entry could sit legal forever, which is the exact drift the expiry exists to stop; measured from `date` the budget is fixed when the judgement is made and cannot be extended without editing a recorded date that shows up in a diff. This is reasoning from the design's stated intent, not a licence the design granted, and `test_the_30_day_budget_is_measured_from_the_recorded_date_not_from_now` pins it. **If the team lead reads `:1466` the other way, that test is the one to change and the ADR is small.**
 
-**Field requirements** (`DESIGN.md:1512-1517`): `id` required and non-blank, `date` required, `reason` required and non-blank, `expires` required, within budget, and not past.
+**Field requirements** (`DESIGN.md:1513-1518`): `id` required and non-blank, `date` required, `reason` required and non-blank, `expires` required, within budget, and not past.
 
 **No runtime dependency added.** `tomllib` is stdlib on `requires-python = ">=3.12"`. `pyproject.toml` was touched **not at all** - the table was already correct and already empty, and U11's job was the mechanism, not ignores. `impl-u1-boot`'s edits to `[project.scripts]` and `[project] dependencies` cannot conflict with a file I did not modify.
 
@@ -164,7 +164,7 @@ mypy:0            (not on the brief's list; run anyway, 16 source files)
 
 ## The defect I found
 
-**`pip-audit` is required by `DESIGN.md:1488` and is run by no CI step at all.** Filed as **task #26**; not fixed here.
+**`pip-audit` is required by `DESIGN.md:1489` and is run by no CI step at all.** Filed as **task #26**; not fixed here.
 
 `grep -rn "pip-audit" .github/` returns **only comment lines**. My step enforces the expiry half correctly and prints the `--ignore-vuln` flags, but **nothing consumes them** - the design's model is `pip-audit $(python scripts/check_advisories.py)`, and the tool half was never wired. The ignore mechanism is now fully built and connected to nothing, and the dependency tree is not audited.
 

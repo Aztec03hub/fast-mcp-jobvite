@@ -131,7 +131,7 @@ comparing two documents to each other can confirm consistency and can never find
 
 | # | File | Class | Evidence |
 |---|---|---|---|
-| 3.0.1 | `README.md` | SCHEDULED | Absent from the tree; deliberately withheld to U13 — `DESIGN.md:1533-1540`, `IMPLEMENTATION-PLAN.md:992-1010` |
+| 3.0.1 | `README.md` | SCHEDULED | Absent from the tree; deliberately withheld to U13 — `DESIGN.md:1534-1541`, `IMPLEMENTATION-PLAN.md:992-1010` |
 | 3.0.2 | `CHANGELOG.md` | **MET BY ACCIDENT** | A-5 below |
 | 3.0.3 | `LICENSE` | SUPERSEDED | Apache-2.0, not the spec's MIT (ruling G2). Superseded by D7/D13, `docs/DECISIONS.md:183-215` — a reasoned, Phil-authorised reversal. `NOTICE` present. |
 | 3.0.4 | **`CONTRIBUTING.md` or inlined rules** (`readme-standard.md:56`) | **MISSING** | F-6 |
@@ -142,7 +142,7 @@ comparing two documents to each other can confirm consistency and can never find
 | 3.0.9 | `.env.example` | MET | `.env.example:1-90`; asserted by `tests/test_repo_hygiene.py:78-108` |
 | 3.0.10 | `.gitignore` covers `.env`, `.env.local`, `.env.*.local`, `*.pem`, `*.key`, `secrets/` | MET | `.gitignore:13-16,32-33`; **guarded** by `tests/test_repo_hygiene.py:111-131`, which also forbids any negation but `!.env.example` |
 | 3.1.1 | README's 14 sections, exact headings, exact order | SCHEDULED | `IMPLEMENTATION-PLAN.md:992-997` requires all fourteen with headings matching exactly |
-| 3.1.2 | README ≤500 lines; every env var in the Configuration table | SCHEDULED | `IMPLEMENTATION-PLAN.md:995-996` (table derived from `.env.example`, not hand-maintained); `DESIGN.md:1557` |
+| 3.1.2 | README ≤500 lines; every env var in the Configuration table | SCHEDULED | `IMPLEMENTATION-PLAN.md:995-996` (table derived from `.env.example`, not hand-maintained); `DESIGN.md:1558` |
 | 3.1.3 | Live CI badge | SCHEDULED | `IMPLEMENTATION-PLAN.md:1021-1025` — legitimate from U0 onward |
 | 3.2.1 | Keep a Changelog 1.1.0, `## [Unreleased]`, subsections, no internal-only entries | MET (see A-5 for the recording gap) | `CHANGELOG.md:5`, `:10` |
 

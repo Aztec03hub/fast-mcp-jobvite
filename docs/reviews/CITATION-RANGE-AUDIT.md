@@ -207,7 +207,7 @@ paragraph that already exists and is already correct.
 `ai/agent-guardrails.md:80-84`. **Cited by nothing.**
 
 **Satisfied:** §7.5's conjunction *"`action == "accept" and content.get("approve") is True`"*
-(`DESIGN.md:945`, mirrored in the §11 row C4-E1 at `DESIGN.md:1613`) and *"What we may honestly
+(`DESIGN.md:945`, mirrored in the §11 row C4-E1 at `DESIGN.md:1614`) and *"What we may honestly
 claim"* (`DESIGN.md:1029`), which states the server never claims a human approved.
 
 **Suggested fix (corpus edit):** include `:80-84` in B18's range alongside F3, or give it its own
@@ -216,7 +216,7 @@ B-number.
 ### F5 - UNCITED BUT SATISFIED - "Approvals are scoped and expire"
 
 `ai/agent-guardrails.md:77-79`. **`:79` alone is cited** - by ADR-0009 (`docs/adr/0009-approver-identity-unknowable.md:7`),
-`DESIGN.md:1609` and `DESIGN.md:1850`, all for the *"record who approved"* half. **`:77-78` -
+`DESIGN.md:1610` and `DESIGN.md:1851`, all for the *"record who approved"* half. **`:77-78` -
 *"An approval authorizes one specific call (or a narrow, declared batch), not a standing
 capability"* - is cited nowhere.** Half a bullet tracked, half not: the same shape again.
 
@@ -276,7 +276,7 @@ working for two - one from each outcome class.
 3. **Absence established, not assumed.** `grep -rn 'agent-guardrails.md:5[4-6]' docs/` -> zero hits.
    `grep -rn 'tool-calling.md:10[4-9]|tool-calling.md:11[01]' docs/` -> zero hits. **Positive
    control:** the identical grep for `agent-guardrails.md:79` returns five hits across four files
-   (`DESIGN.md:1609`, `DESIGN.md:1850`, `adr/0009-...:7`, `THREAT-MODEL-DRAFT.md:266`,
+   (`DESIGN.md:1610`, `DESIGN.md:1851`, `adr/0009-...:7`, `THREAT-MODEL-DRAFT.md:266`,
    `CITATION-AUDIT.md:213`), so the pattern shape and the corpus path are both live and the zero is
    a real absence rather than a broken instrument.
 4. **ADRs checked by reading, not by title.** ADR-0005: grants B9-B26 in full - inapplicable, no
@@ -460,10 +460,10 @@ auto-retry, and both are discharged that way: B36 is SATISFIED because §4.3 exc
 (`:152`). The skipped clause is about the **other** replay path - a caller re-issuing the write -
 and names its remedy: an idempotency key.
 
-That other path is not hypothetical here. `DESIGN.md:1612` (row C4-D2) reads: *"An authorised write
+That other path is not hypothetical here. `DESIGN.md:1613` (row C4-D2) reads: *"An authorised write
 is made twice - **a model retrying after a timeout, or a human approving twice** - creating a
 duplicate candidate and a second email to a live person ... **Detection, not prevention**"*, rated
-Medium and carried to Residual Risks at `DESIGN.md:1760`. **That is precisely the harm
+Medium and carried to Residual Risks at `DESIGN.md:1761`. **That is precisely the harm
 `resilience.md:146-148` exists to prevent, and the design accepted it as residual without any
 instrument ever pointing at the clause that names the remedy.**
 
@@ -475,7 +475,7 @@ The standard is dismissed because a B-number covers the residue; the B-number is
 something that is not the residue; and the clause bridging them is uncited. Each step reads sound
 in isolation.
 
-**The design already suspects this.** `DESIGN.md:1870`, in the freeze procedure: *"`devops/docker.md`
+**The design already suspects this.** `DESIGN.md:1871`, in the freeze procedure: *"`devops/docker.md`
 and `backend/idempotency.md` are the two most likely to have gone live."* `DESIGN-R5.md:497` asked
 round 6 to re-check exactly those two. So the suspicion was recorded and the instrument that would
 have settled it does not exist.

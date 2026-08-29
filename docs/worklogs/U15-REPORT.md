@@ -62,7 +62,7 @@ staged-credential                  exit=1 head_moved=NO  Passed/Failed/
 
 **Read the last column.** The PDF is refused by the file-type gate while the secret scanner passes
 it; the credential is refused by the secret scanner while the file-type gate passes it. That is
-`DESIGN.md:1629-1631`'s claim - *"a CONFIDENTIAL PDF ... passes every secret scanner cleanly"* -
+`DESIGN.md:1630-1632`'s claim - *"a CONFIDENTIAL PDF ... passes every secret scanner cleanly"* -
 **measured on this tree rather than repeated from the design.** Neither gate is redundant with the
 other, and the measurement is what says so.
 
@@ -79,7 +79,7 @@ vendor-spec.md: PDF document, version 1.4, 1 page(s)
 ```
 
 ```
-COMMIT REFUSED by the committed-file-type gate (DESIGN.md:1629-1636).
+COMMIT REFUSED by the committed-file-type gate (DESIGN.md:1630-1637).
 A CONFIDENTIAL vendor PDF and an unlicensed RAML reached public remotes
 on this project once already. History rewriting did not close it.
 
@@ -110,7 +110,7 @@ Reasons emitted, one per class:
 
 ### 2.4 The override, and the "same commit" property
 
-`DESIGN.md:1632-1633` requires that an override be reviewable in the diff. That is not a property of
+`DESIGN.md:1633-1634` requires that an override be reviewable in the diff. That is not a property of
 the allowlist file, it is a property of **reading the allowlist through the index**:
 
 ```
@@ -273,7 +273,7 @@ finding gets silenced without review", which is true of an *unaudited* one and f
 Excluding `docs/research/` is a blanket hole over exactly the directory vendor material lands in.
 Inline `pragma: allowlist secret` edits research prose that is not this unit's file. The baseline
 records path, line and a hash per entry, so it appears in the diff and a changed line re-fires -
-the same reviewable shape `DESIGN.md:1632-1633` demands of the file-type gate's override. Both
+the same reviewable shape `DESIGN.md:1633-1634` demands of the file-type gate's override. Both
 entries carry `is_secret=false`.
 
 ### D3 - MEDIUM. I broke U0's control harness, and it would have gone red in CI.
@@ -544,7 +544,7 @@ in §6.2, is fixed, and the harness that found it is committed so the fix cannot
 
 ## 8. The stated ceiling, carried not dropped
 
-`DESIGN.md:1634-1636` says this gate stops a **file** of the wrong type and does nothing about
+`DESIGN.md:1635-1637` says this gate stops a **file** of the wrong type and does nothing about
 confidential prose pasted into Markdown - *"which is the incident we actually had"*.
 
 `IMPLEMENTATION-PLAN.md:950-953` requires that no test here be written as though the gate closed

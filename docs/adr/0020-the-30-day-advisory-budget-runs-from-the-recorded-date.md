@@ -8,7 +8,7 @@
 
 ## Context
 
-`DESIGN.md:1512-1517` requires that a time-boxed advisory ignore carry *"the advisory id, the date,
+`DESIGN.md:1513-1518` requires that a time-boxed advisory ignore carry *"the advisory id, the date,
 the reason it is unreachable, and **an expiry date no more than 30 days out**."*
 
 **It does not say what the 30 days run FROM.** Two readings are available and they are not
@@ -37,7 +37,7 @@ firing.
 On day 100 the same entry is still legal, because "no more than 30 days out" is re-evaluated against
 a clock that keeps moving. **The entry never expires and the mechanism never fires.**
 
-That is precisely the drift the expiry exists to stop. `DESIGN.md:1517` says so in the same sentence:
+That is precisely the drift the expiry exists to stop. `DESIGN.md:1518` says so in the same sentence:
 *"exits non-zero on any expired entry, **so the ignore cannot outlive its justification by
 drifting**."* A reading under which nothing ever expires cannot be the reading that clause intends,
 so the ambiguity resolves on the design's own stated purpose rather than on taste.

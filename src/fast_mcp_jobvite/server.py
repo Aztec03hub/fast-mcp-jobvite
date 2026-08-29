@@ -22,7 +22,7 @@ and that nothing may depend on cross-call memory from a module-level
 variable. Putting the validated settings in the lifespan context keeps the
 one long-lived object on the framework's own lifetime.
 
-**Why `extra_lifespan` exists and is not a test hook.** DESIGN.md:1337-1343
+**Why `extra_lifespan` exists and is not a test hook.** DESIGN.md:1338-1344
 requires the shutdown case to assert the **teardown side effect** - the
 resource the lifespan opened is released - and not the exit code, because a
 process that dies uncleanly can still exit 0. U1 opens no resource, so

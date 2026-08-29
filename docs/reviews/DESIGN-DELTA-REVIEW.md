@@ -16,7 +16,7 @@ deletions, 4 commits: `f5c63e7`, `90b0504`, `f62733d`, `9d65cc0`).
 | NIT | 1 |
 
 The freeze rule is 0C/0H/0M **and** §11's must-mitigate table empty. The table **is** empty
-(`docs/DESIGN.md:1790`, `*(none)*`), so the second condition holds. The first does not: this round
+(`docs/DESIGN.md:1791`, `*(none)*`), so the second condition holds. The first does not: this round
 returns 2 HIGH and 2 MEDIUM.
 
 Both HIGHs are the same shape and it is the shape the brief predicted: **four locally sound edits,
@@ -87,7 +87,7 @@ Every suggested fix below is **MY SUGGESTION, to be verified before adoption.** 
 
 ## H1 - HIGH. C5-E1's Mitigation cell still asserts the README states the requirement, in the same row whose Test cell was fixed to say it does not
 
-**Where:** `docs/DESIGN.md:1722`, the C5-E1 row of §11.
+**Where:** `docs/DESIGN.md:1723`, the C5-E1 row of §11.
 
 `f5c63e7` exists to remove the claim that a nonexistent README states the read-only-key requirement.
 It corrected §7.2 (`828-835`) and it corrected C5-E1's **Test** cell, which now reads *"in the
@@ -118,7 +118,7 @@ repeated after the fix rather than trusted from this review.
 
 ## H2 - HIGH. Two §11 rows and a §11 closing list still say the result-cap default is undocumented, which §12 in this same delta made false
 
-**Where:** `docs/DESIGN.md:1690` (C3-I1), `:1683` (C6-D1), `:1775-1776` (the "Mitigate before
+**Where:** `docs/DESIGN.md:1691` (C3-I1), `:1683` (C6-D1), `:1775-1776` (the "Mitigate before
 production release" list).
 
 `9d65cc0` names `JOBVITE_MAX_RESULTS`, defaults it to 50, puts it in `.env.example` (verified at
@@ -162,7 +162,7 @@ a wording change adjacent to them is exactly where a selector silently stops mat
 
 ## M1 - MEDIUM. The CI disclaimer's selector is narrower than the defect it disclaims, and the sentence 13 lines below it was not corrected
 
-**Where:** `docs/DESIGN.md:1419-1425` (the disclaimer), `:1390` (the uncorrected sibling), plus
+**Where:** `docs/DESIGN.md:1420-1426` (the disclaimer), `:1390` (the uncorrected sibling), plus
 `:944`, `:1139`, `:1205`, `:1513`.
 
 The disclaimer is exactly right about the fact and it is well placed as a single statement. Its

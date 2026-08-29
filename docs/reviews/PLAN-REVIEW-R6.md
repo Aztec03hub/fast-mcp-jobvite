@@ -102,7 +102,7 @@ mechanism §4 mandates is more robust than the plan claims, not less.
 
 ```python
 def test_fastmcp_and_fastmcp_slim_are_pinned_at_the_same_version() -> None:
-    """The three-pin block of DESIGN.md:1408-1412, checked as a set not as prose."""
+    """The three-pin block of DESIGN.md:1409-1413, checked as a set not as prose."""
     assert set(_dependencies()) == {
         "fastmcp==4.0.0b4",
         "fastmcp-slim==4.0.0b4",
@@ -161,7 +161,7 @@ Three properties compound:
    which is the correct thing to do for a package it imports — the suite goes red. U4 is Wave B and
    U7 is Wave C concurrent with four other lanes.
 
-**This is not an ADR.** `DESIGN.md:1415-1420` gives the three-pin block as the packaging recipe and
+**This is not an ADR.** `DESIGN.md:1416-1421` gives the three-pin block as the packaging recipe and
 nowhere says the dependency list is closed at three; the exact-set assertion is a property U0's
 *build* added, not one the design mandates. Verified: `git show 135c3ac:docs/DESIGN.md` lines
 1358-1384 contain no closure claim.
@@ -171,7 +171,7 @@ table at `:1274-1278`, in the same container-and-rows form the section already u
 
 | Shared file | Rule |
 |---|---|
-| `pyproject.toml` `[project] dependencies` + `uv.lock` + `tests/test_manifest.py` | **U0 owns all three, and they move together or not at all.** A unit adding a runtime dependency (`loguru` U3, `defusedxml` U4, `tenacity` and the breaker U7, `pydantic-settings` U1) appends **one line** to `[project] dependencies`, runs `uv lock`, and adds the same string to the expected set in `tests/test_manifest.py:49`. **The three pins in that set are never removed, reordered or relaxed** — they are `DESIGN.md:1415-1420`, and `test_removing_fastmcp_slim_breaks_the_resolve` is the control that proves it. **`uv.lock` is regenerated whole, so two units may not add a dependency in overlapping time**: within a wave, dependency additions are serialised, and the unit that lands second re-runs `uv lock` on top rather than merging |
+| `pyproject.toml` `[project] dependencies` + `uv.lock` + `tests/test_manifest.py` | **U0 owns all three, and they move together or not at all.** A unit adding a runtime dependency (`loguru` U3, `defusedxml` U4, `tenacity` and the breaker U7, `pydantic-settings` U1) appends **one line** to `[project] dependencies`, runs `uv lock`, and adds the same string to the expected set in `tests/test_manifest.py:49`. **The three pins in that set are never removed, reordered or relaxed** — they are `DESIGN.md:1416-1421`, and `test_removing_fastmcp_slim_breaks_the_resolve` is the control that proves it. **`uv.lock` is regenerated whole, so two units may not add a dependency in overlapping time**: within a wave, dependency additions are serialised, and the unit that lands second re-runs `uv lock` on top rather than merging |
 
 and add it to the numbered list as **collision 10**, restating the floor-not-ceiling sentence at
 `:1376-1383` with the count corrected. Consider also loosening `test_manifest.py:49` from

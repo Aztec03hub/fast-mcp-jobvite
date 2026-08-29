@@ -154,7 +154,7 @@ import this file's golden-dataset structure into a server that judges nothing.
 `threat-modeling.md:6-8` is `applicable_to: all`, `priority: required`. The row's rationale —
 "process/design-artifact standards rather than code obligations" — was already found wrong by
 `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` ("`architecture/threat-modeling.md` — BINDS") and
-`:344` ("dismissed UNREAD"). `docs/DESIGN.md:1561` now states the model is "Required by
+`:344` ("dismissed UNREAD"). `docs/DESIGN.md:1562` now states the model is "Required by
 `architecture/threat-modeling.md`", §11 supplies the STRIDE grid, and B110 tracks it.
 
 `data-flow.md:6` is `applicable_to: [system-design]`;
@@ -193,7 +193,7 @@ discretionary.
 | D15 | `devops/git-workflow.md` | Delegating leg: the workflow gap it leaves is closed by `devops/development-workflow.md`, extracted as B89-B96 (`STANDARDS.md:1061-1063`), not by the dismissal itself. Non-circular | STANDING |
 | D16 | `ai/*` (9 files) | `grep -n -iE "bedrock\|anthropic\|openai\|langchain\|embedding\|foundation model" docs/DESIGN.md` → **zero hits**. The server is a tool provider; it calls no model, holds no prompt template, spends no tokens | STANDING |
 | D19 | `architecture/api-versioning.md` | `standards/architecture/api-versioning.md:6-11` is `applicable_to: [fastapi, express, dotnet, nextjs, rest-api]`, `priority: recommended`, zero `MUST`. MCP protocol eras (`docs/DESIGN.md:787-792`) are the framework's versioning axis, not a URL-versioned REST surface of ours | STANDING |
-| D23 | documentation templates | `docs/DESIGN.md:1466-1506` (§10.1) commits to `readme-standard.md`'s fourteen sections and to `docs/adr/`. No PRD/BRD/discovery/onboarding/glossary deliverable is produced or promised | STANDING |
+| D23 | documentation templates | `docs/DESIGN.md:1467-1507` (§10.1) commits to `readme-standard.md`'s fourteen sections and to `docs/adr/`. No PRD/BRD/discovery/onboarding/glossary deliverable is produced or promised | STANDING |
 
 ---
 
@@ -225,7 +225,7 @@ at `STANDARDS.md:791` with:
 
 `docs/research/STANDARDS.md:794` still reads "Not read in full; both are process/design-artifact
 standards rather than code obligations. Flagged in 'What I could NOT verify'." That is contradicted
-by `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` and by `docs/DESIGN.md:1561`, where §11 exists
+by `docs/reviews/CONFORMANCE-DESIGN-ARTIFACT.md:44` and by `docs/DESIGN.md:1562`, where §11 exists
 *because* the standard binds. `STANDARDS.md:1070-1073` (item 4) repeats the stale claim.
 
 **Suggested fix (my suggestion — verify before adoption).** Rewrite the row at `STANDARDS.md:794`

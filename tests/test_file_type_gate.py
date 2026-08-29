@@ -1,4 +1,4 @@
-"""U15 - the committed-file-type gate. `DESIGN.md:1626-1636`, threat row C8-I1.
+"""U15 - the committed-file-type gate. `DESIGN.md:1627-1637`, threat row C8-I1.
 
 **How this suite is built to be falsifiable in BOTH directions**, because a
 refusal-only suite is green against a gate that refuses everything, and a
@@ -14,7 +14,7 @@ permission-only suite is green against a gate that permits everything:
   than a function called the way its author had in mind.
 
 **The gate's stated ceiling is not tested here and must not be**
-(`DESIGN.md:1634-1636`): it stops a *file* of the wrong type. It does nothing
+(`DESIGN.md:1635-1637`): it stops a *file* of the wrong type. It does nothing
 about confidential prose pasted into Markdown, which is the incident that
 actually happened. `test_the_gate_does_NOT_stop_confidential_prose_in_markdown`
 pins that limit as a fact so nobody later reads this suite as closing it.
@@ -229,7 +229,7 @@ def test_the_nul_backstop_catches_content_no_magic_signature_matches() -> None:
 
 # ---------------------------------------------------------------------------
 # The stated ceiling, pinned as a fact rather than left for a reader to assume
-# away. DESIGN.md:1634-1636.
+# away. DESIGN.md:1635-1637.
 # ---------------------------------------------------------------------------
 
 
@@ -237,7 +237,7 @@ def test_the_gate_does_NOT_stop_confidential_prose_in_markdown() -> None:
     """This asserts a LIMIT, not a capability. It must keep passing.
 
     The incident that actually happened was confidential *prose*. This gate
-    permits it, by design, and `DESIGN.md:1634-1636` says so. If someone later
+    permits it, by design, and `DESIGN.md:1635-1637` says so. If someone later
     makes this test fail by teaching the gate to scan prose, that is a design
     change and needs an ADR - not a quiet edit here.
     """
@@ -382,7 +382,7 @@ def test_e2e_the_gate_reads_the_index_not_the_worktree(
 def test_e2e_an_override_needs_its_allowlist_entry_staged(
     scratch_repo: pathlib.Path,
 ) -> None:
-    """DESIGN.md:1632-1633 - the exception must be in the same commit's diff."""
+    """DESIGN.md:1633-1634 - the exception must be in the same commit's diff."""
     (scratch_repo / "thing.bin").write_text("hello\n")
     (scratch_repo / ".file-type-allowlist").write_text("thing.bin\n")
     _git(scratch_repo, "add", "thing.bin")  # allowlist NOT staged

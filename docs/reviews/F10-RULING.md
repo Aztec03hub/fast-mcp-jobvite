@@ -30,7 +30,7 @@ docs/DESIGN.md` returns **nothing** in any section - `DESIGN.md` disposes of B10
 does not dispose of B108 anywhere. So the live defect is *"a B-number in the corpus that the design
 never answers"*, not *"a clause nobody has noticed"*.
 
-**C4-D2 is as described.** `DESIGN.md:1652` - *"a model retrying after a timeout, or a human
+**C4-D2 is as described.** `DESIGN.md:1653` - *"a model retrying after a timeout, or a human
 approving twice - creating a duplicate candidate and a second email to a live person"*, M x M =
 Medium, *"**Detection, not prevention**, and the `409` shape is inferred rather than observed"*,
 carried to Residual Risks at `:1759`.
@@ -127,11 +127,11 @@ returns **zero lines**. Positive control: the same grep returns hits in
 `DESIGN-R7-CONFIRM.md`, so the instrument finds these strings where they exist. The step was
 requested and skipped.
 
-**So the count is now two.** `architecture/caching.md` tripped unnoticed (`DESIGN.md:1919-1923`);
+**So the count is now two.** `architecture/caching.md` tripped unnoticed (`DESIGN.md:1920-1924`);
 `backend/idempotency.md` tripped unnoticed and was caught by an audit rather than by the procedure.
 The procedure has never once caught its own quarry.
 
-**And `DESIGN.md:1924` is now stale in the worst possible direction.** It reads *"`devops/docker.md`
+**And `DESIGN.md:1925` is now stale in the worst possible direction.** It reads *"`devops/docker.md`
 and `backend/idempotency.md` are the two most likely to have gone live"* - future tense about a
 condition that **has already tripped**, in a sentence a freeze reader will use as a to-do list. The
 document predicted its own failure and then outlived the prediction without noticing.
@@ -141,7 +141,7 @@ document predicted its own failure and then outlived the prediction without noti
 
 - No `Dockerfile`, `*.dockerfile`, or `docker-compose*` exists anywhere in the repo (`find`).
 - `.github/workflows/` contains only `mirror.yml`; no image build or push.
-- §10 (`DESIGN.md:1320-1350`, and `grep -i "pypi|uvx|wheel|publish"`) describes a Python `>=3.12`
+- §10 (`DESIGN.md:1321-1351`, and `grep -i "pypi|uvx|wheel|publish"`) describes a Python `>=3.12`
   package with pinned dependencies and a PyPI upload (`:1428`). No image is a deliverable.
 - The `docker` hits in `DESIGN.md` (`:872`, `:881`, `:915`) are §7.4 discussing SIGTERM in a
   container an **operator** might run us in - not an image we ship.
@@ -201,7 +201,7 @@ resilience policy rather than about the write's blast radius.
 > credential or Jobvite documentation shows a dedupe key exists on this endpoint, at which point the
 > clause becomes a live obligation on the client.
 
-### Fix 2 - point C4-D2 at the disposal (`DESIGN.md:1652`, and the Residual Risks row at `:1759`)
+### Fix 2 - point C4-D2 at the disposal (`DESIGN.md:1653`, and the Residual Risks row at `:1759`)
 
 Append to the mitigation cell, so a reader auditing the residual can see the remedy was considered
 rather than skipped. **No re-rating**: L=M x I=M is Medium by the matrix and stays Medium.
@@ -210,7 +210,7 @@ rather than skipped. **No re-rating**: L=M x I=M is Medium by the matrix and sta
 > unavailable to us; see §2.2 (B108). The `409` may in fact prevent rather than merely detect the
 > duplicate, but its shape is inferred and unobserved, so nothing here is claimed on it.
 
-### Fix 3 - rewrite `DESIGN.md:1924`, in place, not appended
+### Fix 3 - rewrite `DESIGN.md:1925`, in place, not appended
 
 > `backend/idempotency.md` **did** go live - reopened as B108 and disposed of in §2.2 - which is the
 > second time a conditional dismissal tripped without this procedure catching it. `devops/docker.md`
@@ -218,7 +218,7 @@ rather than skipped. **No re-rating**: L=M x I=M is Medium by the matrix and sta
 > package rather than an image, so **its condition has not tripped and its dismissal stands**. Both
 > are re-tested at freeze regardless; a dismissal that held once is still a dated claim.
 
-### Fix 4 - add one sentence to the freeze procedure at `DESIGN.md:1919`
+### Fix 4 - add one sentence to the freeze procedure at `DESIGN.md:1920`
 
 Because the procedure's failure is that nobody is accountable for running it:
 

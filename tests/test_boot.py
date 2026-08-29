@@ -1,4 +1,4 @@
-"""§8 #10: an off-loopback bind without TLS refuses to START (DESIGN.md:1322).
+"""§8 #10: an off-loopback bind without TLS refuses to START (DESIGN.md:1323).
 
 Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and none
 of them rested on a test before.
@@ -52,7 +52,7 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
 
 
 def test_the_default_loopback_bind_starts(tmp_path: pathlib.Path) -> None:
-    """Positive control 1 of 2 (DESIGN.md:1322, IMPLEMENTATION-PLAN.md:504)."""
+    """Positive control 1 of 2 (DESIGN.md:1323, IMPLEMENTATION-PLAN.md:504)."""
     port = free_port()
     env = clean_env(
         JOBVITE_MCP_TRANSPORT="http",
@@ -76,7 +76,7 @@ def test_off_loopback_with_the_assertion_declared_starts(
 
     Binding the wildcard address is what an operator behind a terminating
     proxy actually does, so a refusal that fired here too would be a guard
-    that refuses everything (DESIGN.md:1369-1371).
+    that refuses everything (DESIGN.md:1370-1372).
     """
     port = free_port()
     env = clean_env(
