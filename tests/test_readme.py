@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
 
-#: `readme-standard.md:44-58`, in the prescribed order. Title and the
+#: `readme-standard.md:45-58`, in the prescribed order. Title and the
 #: one-line description are not `##` headings, and status badges are
 #: images directly under the description, so the check starts at
 #: Quickstart.
@@ -66,7 +66,7 @@ def test_the_readme_exists_and_the_rest_of_this_module_is_not_vacuous() -> None:
 
 
 def test_the_required_sections_are_present_in_the_prescribed_order() -> None:
-    """readme-standard.md:44 - exact headings, prescribed order."""
+    """readme-standard.md:45 - exact headings, prescribed order."""
     found = [h for h in headings() if h in REQUIRED_SECTIONS]
     missing = [s for s in REQUIRED_SECTIONS if s not in found]
     assert not missing, f"missing required sections: {missing}"
@@ -165,7 +165,7 @@ def test_the_readme_is_within_the_length_cap() -> None:
     ["coming soon", "TBD", "lorem ipsum", "TODO:"],
 )
 def test_the_readme_contains_no_placeholder_prose(phrase: str) -> None:
-    """`readme-standard.md:75-77` forbids these outright.
+    """`readme-standard.md:76-77` forbids these outright.
 
     Note what is NOT forbidden: saying plainly that something does not
     exist yet. "The server exposes no tool yet" is a statement of

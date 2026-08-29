@@ -392,9 +392,9 @@ def _warn_on_stderr(message: str) -> None:
     """Write one line to stderr, best effort.
 
     `sys.stderr.write` and not `print`: ruff's `T20` is on for `src/`
-    (`pyproject.toml`, `observability.md:642`), and `print` would be the
-    wrong call anyway - it is the audit stream's failure channel, not
-    output.
+    (`pyproject.toml`, `architecture/observability.md:642`), and
+    `print` would be the wrong call anyway - it is the audit stream's
+    failure channel, not output.
 
     **The write is best effort, and this is a policy requirement rather
     than defensiveness.** Since `__main__.configure_logging` puts the
