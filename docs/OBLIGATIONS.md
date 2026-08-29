@@ -2,6 +2,13 @@
 
 **Owner:** CONF-6 · **Seeded:** 2026-08-28 · **Checked by:** `docs/reviews/check-obligations.py`
 
+**ABSENT rows last READ against their clauses: 2026-08-29.** The checker verifies that a
+MAPPED row's anchor still contains its subject. **An ABSENT row has no anchor, so nothing
+checks it and its prose decays silently** - which is how BASH-2 sat stale in three ways it
+named itself, and how B79 below claimed the 500-line cap was "named nowhere" while a test
+enforced it. A green from the checker is not evidence about these rows. **Re-read them when a
+unit lands that could discharge one**, and record the date here.
+
 ## Why this file exists
 
 CONF-6 measured how obligations from the conformance corpus reached the repository, and found the
@@ -107,7 +114,7 @@ the map exists to make visible.
 
 | B | Class | Artifact | Subject | Standard clause | Note |
 |---|---|---|---|---|---|
-| B16 | ABSENT | - | - | `ai/tool-calling.md:55-57` | No tool descriptions exist yet and no unit schedules their review |
+| B16 | ABSENT | - | - | `ai/tool-calling.md:55-57` | **Its first half is now false and the row stays ABSENT for its SECOND half.** Three tools ship names and descriptions (`search_jobs`, `search_candidates`, `get_candidate`), so "no tool descriptions exist yet" expired when U5 landed. What is still absent is the clause's actual requirement: they are **reviewed like prompts**, and no unit, gate or checklist schedules that review. Re-read when U10 or U12 adds a tool |
 | B49 | MET | `pyproject.toml` | `line-length = 88` | `backend/python.md:35` | The code half. The comment/docstring half is B49b below, met in the same commit that swept it |
 | B49b | MET | `pyproject.toml` | `max-doc-length = 72` | `backend/python.md:36` | `W505`, enabled in the same commit as the 1608-line sweep so the gate was never knowingly red. W505 is INERT without this setting, so this row anchors on it, not on the `W505` select entry |
 | B50 | MET | `pyproject.toml` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
@@ -123,12 +130,12 @@ the map exists to make visible.
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
 | B77 | MET | `tests/test_readme.py` | `test_the_required_sections_are_present_in_the_prescribed_order` | `documentation/readme-standard.md:43` | Sections present in order, enforced by a test rather than by review |
 | B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
-| B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
+| B79 | MET | `tests/test_readme.py` | `LENGTH_CAP = 500` | `documentation/readme-standard.md:64` | The cap is enforced by a test, not by review. **The row said "named nowhere" and was stale**: U13 named it when it landed, and an ABSENT row has no anchor for `check-obligations.py` to check, so nothing could notice. Both of its citing sites said `:63`, which is BLANK; the cap is at `:64`, which this row had right and the test had wrong |
 | B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
 | B82 | MET | `.github/workflows/ci.yml` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | MET | `README.md` | `## License` | `documentation/readme-standard.md:57` | SPDX id and a link to LICENSE, in the required section |
-| B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |
+| B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys. **RE-VERIFIED 2026-08-29 and still absent**: the clause sets QUARTERLY rotation for third-party API keys with a vendor-breach trigger, and `grep -ic rotat docs/CREDENTIAL-CHECKLIST.md` returns **0** - the one document that would carry it does not use the word. The sharpest of the ABSENT rows and the least likely to be discharged by a unit, because no unit owns it |
 | B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
 | B100 | MET | `.github/pull_request_template.md` | `Completed PR template` | `devops/quality-gates.md:50` | Untracked when seeded. Closing this does NOT close B101 |
 | B101 | MET | `docs/CODE-REVIEW-CHECKLIST.md` | `Reviewers must verify` | `devops/development-workflow.md:248` | The PR template's checklist is the AUTHOR's self-check (B100); this is the reviewer's. Kept out of the template deliberately. The rows of the standard with no subject here are listed with reasons rather than dropped |

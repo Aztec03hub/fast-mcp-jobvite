@@ -47,7 +47,7 @@ REQUIRED_SECTIONS = [
     "Maintainers",
 ]
 
-LENGTH_CAP = 500  # readme-standard.md:63
+LENGTH_CAP = 500  # readme-standard.md:64
 
 
 def headings() -> list[str]:
@@ -155,7 +155,7 @@ def test_every_relative_link_resolves() -> None:
 
 
 def test_the_readme_is_within_the_length_cap() -> None:
-    """readme-standard.md:63 - the 500-line cap."""
+    """readme-standard.md:64 - the 500-line cap."""
     lines = len(README.read_text().splitlines())
     assert lines <= LENGTH_CAP, f"README is {lines} lines, cap is {LENGTH_CAP}"
 
