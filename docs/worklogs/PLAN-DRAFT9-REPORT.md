@@ -7,7 +7,7 @@ Worktree: `/tmp/plan-draft9-work`, created with `git worktree add` at the pinned
 checked out, never edited, and never had a branch moved in it.** The only write to it was none; the
 only reads were `git -C <shared> log/status/diff`.
 **One file changed: `docs/plans/IMPLEMENTATION-PLAN.md`.** Plus this report.
-Rebased onto `origin/main` at **`20e55ef`**. Plan is **2,340 lines** (`wc -l`), status line reads
+Rebased onto `origin/main` at **`90bade0`**. Plan is **2,341 lines** (`wc -l`), status line reads
 **DRAFT 9**, and the two agree because I read both off the file rather than asserting either.
 
 **Read "The tree moved under me" below before the finding-by-finding section** - **seven commits
@@ -241,6 +241,7 @@ findings. Every row re-read in the finished file on this branch, not from memory
 | 26 | The rule that outlives the fix still binds U5 | own judgement | **yes, 3 places** |
 | 27 | U0 harness: `9ca76fe` break and `d48c112` fix both in the amendment table | own finding + `d48c112` | **yes** |
 | 28 | `main`'s concurrent edits merged, not overwritten | rebase | **yes, both conflicts** |
+| 29 | Plan passes the new cross-reference gate | `90bade0` | **yes, 164 refs / 0 unresolved** |
 
 Bold rows are what this draft added or changed; the rest were verified as surviving. **Rows 1-24
 were re-checked against the finished text a second time after the rebase**, because the rebase is
@@ -249,7 +250,7 @@ numbers) are the ones a merge would most easily have restored. All three are sti
 
 ---
 
-## Two things I found by running, that no reading would have caught
+## What I found by running, that no reading would have caught
 
 ### 1. `scripts/check-u0-test-controls.sh` was RED at `ff9461a`, and CI gates on it - **since fixed at `d48c112`, found independently**
 
@@ -280,7 +281,30 @@ that wired two OTHER controls into the same job.** So the lesson is sharper than
 controls*: **wiring a control makes it enforceable and does nothing to make anyone read the run.**
 That is now §10.3's fifth bullet on what the gates do not cover.
 
-### 2. R7's own "eleven closed-set assertions" is a count behind its own list
+### 2. The new cross-reference gate found a wrong-subject citation in the plan, and it was pre-existing
+
+`90bade0` landed `docs/reviews/check-cross-references.py`. Run on this branch it reported **two**
+failures, not the one its commit message names:
+
+```
+FAIL: docs/DESIGN.md:603: §5.4 does not exist in this document          <- ADR-0019, known, not mine
+FAIL: docs/plans/IMPLEMENTATION-PLAN.md:1150: §16.3 does not exist in this document
+```
+
+The second is in my file. **It is pre-existing** - the same sentence sits at `:1091` in `main`'s
+copy, so my insertions only moved it - and it is a genuine wrong-subject citation of the kind this
+project has now found nine times: *"this is the §16.3 lesson the spike records against itself"*
+cites a section of `FASTMCP-SPIKE-4.md` with no document named, so it reads as a reference to the
+plan's own §16.3, which does not exist. **Fixed by naming the subject**, after verifying it exists:
+`FASTMCP-SPIKE-4.md:1431` is `### 16.3 Positive-control failure I hit first, and why it is recorded`.
+The plan now reports **164 references, 0 unresolved**. The remaining `DESIGN.md:603` failure is
+ADR-0019's, in a file that is not mine.
+
+*Worth noting for its own sake: a gate that landed after I was briefed found a defect in the
+document I had been rewriting all session, and neither I nor seven review rounds had seen it. That is
+§10.2's argument arriving one more time, from a direction I did not expect.*
+
+### 3. R7's own "eleven closed-set assertions" is a count behind its own list
 
 R7's sweep table names **thirteen** sites in **ten** rows and the prose above it says *"eleven
 sites"*. The plan had inherited *"all eleven closed-set assertions"*. **The number is deleted** and
@@ -308,12 +332,18 @@ replaced by the §4 standing check, which does not depend on any sweep having be
 
 **The rewrite moved both, exactly as the brief predicted. New line numbers:**
 
-| B | Subject | Old (as `main` has it) | **New, on this branch** |
+| B | Subject | `main` has it at (`d0193ab`) | **New, on this branch** |
 |---|---|---|---|
-| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1248` | **`:1307`** |
-| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1293` | **`:1352`** |
+| B78 | `headings matching exactly` | `docs/plans/IMPLEMENTATION-PLAN.md:1307` | **`:1308`** |
+| B81 | `A CI status badge` | `docs/plans/IMPLEMENTATION-PLAN.md:1352` | **`:1353`** |
 
-*Measured after the final rebase onto `20e55ef`, so the "old" column is `main`'s current value.*
+**Both move by exactly one line**, because the only change left on this branch is the one-line
+citation fix below. You repointed these to `1307`/`1352` in `d0193ab` while I was rebasing, and a
+one-line edit in an unrelated section 150 lines above them invalidated both. *That is the
+anchor-stability argument in its smallest possible form, and `d0193ab`'s own message - "stop keying
+exemptions on line numbers" - is the same conclusion reached independently.*
+
+*Measured after the final rebase onto `90bade0`, so the "old" column is `main`'s current value.*
 **`check-obligations.py --controls` is also red, for the same two anchors and not independently** -
 it aborts with *"the real map is already red, so no control below proves anything"*, which is the
 harness refusing to report a vacuous green. Both go green the moment these two rows are repointed.
@@ -355,7 +385,7 @@ I have not created board tasks for these; say the word and I will, or fold them 
    guard checks **reachability, not selection**, so a wholly-marker-excluded arm here is fine - and
    **do not narrow the guard to green something**, because that is what makes the credentialed
    subtree rot unwatched. R7 asked for this and it is not my file.
-4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1307` and B81 to `:1352` when this branch merges.
+4. **`docs/OBLIGATIONS.md`** - repoint B78 to `:1308` and B81 to `:1353` when this branch merges - a one-line shift from where `d0193ab` put them.
    **Re-run `check-obligations.py` after merging rather than trusting these two numbers**: `main`
    moved four times during this task, and if it moves again before the merge the checker will name
    the correct lines itself.
@@ -369,13 +399,12 @@ I have not created board tasks for these; say the word and I will, or fold them 
 git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite merge --no-ff plan/draft9
 ```
 
-Branch **`plan/draft9`**, **rebased onto `origin/main` at `20e55ef`** (U3's dependency slot), five
-commits: the draft, this report, and three reconciliations with the commits that landed mid-task.
+Branch **`plan/draft9`**, **rebased onto `origin/main` at `90bade0`** (ADR-0019 and the cross-reference checker), eight commits: the draft, this report, and three reconciliations with the commits that landed mid-task.
 **No `--ff-only` is promised** - `main` demonstrably moves under me, **seven commits across three
 rebases during this task alone**, and the amendment table was brought back into exact agreement with
 its own derivation command after every one (final: **20 rows, 20 commits, both differences empty**).
 
-**Every line number and count in this report is a snapshot at `20e55ef`.** Re-run
+**Every line number and count in this report is a snapshot at `90bade0`.** Re-run
 `check-obligations.py` after merging rather than trusting the two anchor numbers - it names the
 correct lines itself, which is the whole argument for the gate. **I did not merge and did not push.** If `main` has moved again, rebase rather than
 merge-commit; the two files this branch touches are `docs/plans/IMPLEMENTATION-PLAN.md` and
@@ -428,7 +457,7 @@ For what I could not settle, not for what I did not try.
 ---
 
 *`impl-plan-draft9`, 2026-08-28. Worktree pinned at `ff9461a`, then rebased onto `origin/main` at
-`20e55ef`; branch `plan/draft9`, six commits. One plan file changed plus this report - no `tests/`,
+`90bade0`; branch `plan/draft9`, eight commits. One plan file changed plus this report - no `tests/`,
 no `scripts/`, no `ci.yml`, no ADR, no `docs/OBLIGATIONS.md`. `docs/DESIGN.md` read only from the
 frozen object `135c3ac` and not edited. **The shared checkout was never written to and never had a
 branch moved in it.** Nothing was pushed and nothing was merged. Worktree removed.*

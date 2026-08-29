@@ -1147,8 +1147,9 @@ registered only under `JOBVITE_ENABLE_WRITES=true` **and** naming in `JOBVITE_TO
   populated on both eras** and are measured traps (`FASTMCP-SPIKE-4.md:2073-2074`). Assert the
   discriminator is `protocol_version`.
 - **The whole harness rests on a server-side row counter as its control**, exactly as the spike ran
-  it. Without a counter the refusal arms assert nothing; this is the §16.3 lesson the spike records
-  against itself.
+  it. Without a counter the refusal arms assert nothing; this is the lesson the spike records
+  against itself at `FASTMCP-SPIKE-4.md:1431` (*"Positive-control failure I hit first, and why it is
+  recorded"*).
 
 **What may never be claimed.** *"The server requires an approval response from the host and refuses
 to write without one"* - **never** *"a human approved this."* C4-S1 is a **High residual** and is
