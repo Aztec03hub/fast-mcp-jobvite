@@ -58,42 +58,45 @@ from loguru import logger
 from .utils.correlation import request_id_scope
 from .utils.redaction import JsonValue, redact_arguments, redact_text
 
-# : The message every audit record carries, so the audit stream is
-# greppable as : one thing. The mandated fields travel as structured
-# `extra`, not inside this : string: `ai/tool-calling.md:178-179`
-# requires wire-shaped snake_case fields, : and a message you have to
-# parse is not a field.
+#: The message every audit record carries, so the audit stream is
+#: greppable as one thing. The mandated fields travel as structured
+#: `extra`, not inside this string: `ai/tool-calling.md:178-179`
+#: requires wire-shaped snake_case fields, and a message you have to
+#: parse is not a field.
 AUDIT_EVENT_NAME: Final = "tool_invocation"
 
-# : What `caller_attribution` says on stdio (DESIGN.md:698-703). : :
-# **This string must never be `"global"` and must never contain it.**
-# `"global"` : is what `get_client_id` returns on stdio, and recording
-# it would assert an : identity that does not exist. §8's stdio arm
-# asserts this marker and asserts : the absence of that literal, which
-# is the implementer error the row exists : to prevent.
+#: What `caller_attribution` says on stdio (DESIGN.md:698-703).
+#:
+#: **This string must never be `"global"` and must never contain it.**
+#: `"global"` is what `get_client_id` returns on stdio, and recording it
+#: would assert an identity that does not exist. §8's stdio arm asserts
+#: this marker and asserts the absence of that literal, which is the
+#: implementer error the row exists to prevent.
 ATTRIBUTION_UNAVAILABLE: Final = "unavailable:stdio-has-no-caller-token"
 
-# : `RESULT_STATUS_*` - the `result_status` field of
-# `ai/tool-calling.md:171-172`.
+#: `RESULT_STATUS_*` - the `result_status` field of
+#: `ai/tool-calling.md:171-172`.
 RESULT_STATUS_SUCCESS: Final = "success"
 RESULT_STATUS_ERROR: Final = "error"
 
-# : A UUIDv4 in canonical form: version nibble `4`, variant nibble
-# `8`/`9`/`a`/`b`. : : Inbound `X-Request-ID` is validated against this
-# before use : (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1795). An
-# unvalidated inbound : id is a log-forging vector: a value carrying a
-# newline writes a second, : attacker-authored line into the audit
-# stream.
+#: A UUIDv4 in canonical form: version nibble `4`, variant nibble
+#: `8`/`9`/`a`/`b`.
+#:
+#: Inbound `X-Request-ID` is validated against this before use
+#: (DESIGN.md:597-599, threat C7-T1 at DESIGN.md:1795). An unvalidated
+#: inbound id is a log-forging vector: a value carrying a newline writes
+#: a second, attacker-authored line into the audit stream.
 _UUID4_RE: Final = re.compile(
     r"\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z",
     re.IGNORECASE,
 )
 
-# : W3C `traceparent`: `version-trace_id-span_id-flags`. : : The
-# all-zero trace id and the all-zero span id are invalid per the W3C
-# Trace : Context recommendation, and both are rejected here. Accepting
-# them would put : a field in the event that looks like a join and is
-# not one, which is exactly : what DESIGN.md:663-665 forbids.
+#: W3C `traceparent`: `version-trace_id-span_id-flags`.
+#:
+#: The all-zero trace id and the all-zero span id are invalid per the
+#: W3C Trace Context recommendation, and both are rejected here.
+#: Accepting them would put a field in the event that looks like a join
+#: and is not one, which is exactly what DESIGN.md:663-665 forbids.
 _TRACEPARENT_RE: Final = re.compile(
     r"\A00-(?!0{32})([0-9a-f]{32})-(?!0{16})([0-9a-f]{16})-[0-9a-f]{2}\Z"
 )
@@ -116,16 +119,16 @@ class AuditPhase(enum.StrEnum):
     for its first emission and `AFTER_WRITE` for its second.
     """
 
-    # : Before the side effect. An audit failure fails the call: no
-    # audit, no write.
+    #: Before the side effect. An audit failure fails the call: no
+    #: audit, no write.
     BEFORE_SIDE_EFFECT = "before_side_effect"
-    # : A read tool. An audit failure logs to stderr and the call
-    # continues, : because losing the tool is worse than losing one
-    # audit line.
+    #: A read tool. An audit failure logs to stderr and the call
+    #: continues, because losing the tool is worse than losing one audit
+    #: line.
     READ = "read"
-    # : After a successful write. An audit failure returns success with
-    # a warning, : never an error - an error makes the model retry, and
-    # a retry emails a : second live human.
+    #: After a successful write. An audit failure returns success with a
+    #: warning, never an error - an error makes the model retry, and a
+    #: retry emails a second live human.
     AFTER_WRITE = "after_write"
 
 
@@ -152,11 +155,11 @@ class AuditEvent:
     tool_name: str
     request_id: str
     transport: Transport
-    # : Already redacted. The type is `JsonValue` and not "the raw
-    # arguments" : on purpose: passing raw arguments here and redacting
-    # inside `to_record` : would put an unredacted copy on the event
-    # object, which is the value a : debugger, a traceback or a `repr`
-    # would print.
+    #: Already redacted. The type is `JsonValue` and not "the raw
+    #: arguments" on purpose: passing raw arguments here and redacting
+    #: inside `to_record` would put an unredacted copy on the event
+    #: object, which is the value a debugger, a traceback or a `repr`
+    #: would print.
     arguments: JsonValue = None
     client_id: str | None = None
     trace_id: str | None = None
@@ -164,9 +167,9 @@ class AuditEvent:
     result_status: str = RESULT_STATUS_SUCCESS
     approval_state: str | None = None
     approval_mechanism: str | None = None
-    # : Monotonic start, set by `audit_scope`. `perf_counter` and not :
-    # `time.time`: a clock adjustment mid-invocation would otherwise
-    # produce a : negative latency.
+    #: Monotonic start, set by `audit_scope`. `perf_counter` and not
+    #: `time.time`: a clock adjustment mid-invocation would otherwise
+    #: produce a negative latency.
     started_at: float = dataclasses.field(default_factory=time.perf_counter)
 
     @property
