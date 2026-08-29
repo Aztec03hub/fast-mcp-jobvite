@@ -430,7 +430,14 @@ jobs:
           set -uo pipefail
           out=$(uv run --frozen pytest 2>&1); rc=$?
           [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
-          if grep -qE '[0-9]+ skipped'; then <<< "$out"
+          # THE HERE-STRING BELONGS TO THE GREP, NOT AFTER `then`. It was
+          # `... skipped'; then <<< "$out"` from the SIGPIPE sweep (#85) until
+          # actionlint's shellcheck integration reported SC2188. In that form
+          # grep read STDIN instead of "$out", found nothing, and the guard
+          # NEVER FIRED - so the step whose own comment says "a skip is a green
+          # that tested nothing" was itself testing nothing. Measured both ways
+          # against "1 passed, 3 skipped": broken form silent, this form fires.
+          if grep -qE '[0-9]+ skipped' <<< "$out"; then
             echo "$out"
             echo "::error::the suite skipped tests. A skip is a green that tested nothing."
             exit 1

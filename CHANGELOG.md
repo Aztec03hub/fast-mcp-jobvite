@@ -332,6 +332,18 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **CI's zero-skips guard read the wrong input and never fired, and CI has been red all day behind
+  cancelled runs.** The step's here-string sat after `then` rather than on its `grep`, so the grep
+  read standard input instead of the captured pytest output, matched nothing, and the guard stayed
+  silent on a run full of skips - the step whose own comment says *"a skip is a green that tested
+  nothing"* was itself testing nothing. It came from the SIGPIPE sweep, where pipes were converted
+  to here-strings and one landed a token too late. Found because **every CI run on `main` today was
+  `cancelled` by the next push** - 54 of them - so the five that did complete, all failures, were
+  the only evidence and nothing on the dashboard read as red. A cancelled run is not a failure, and
+  that is what let it hide. Reproduced locally by running actionlint at CI's pinned version WITH
+  shellcheck installed: without shellcheck on PATH, actionlint silently disables the integration and
+  exits 0, which is why the local gate had passed. (2026-08-29 12:07 PM CDT)
+
 - **A harness's two row floors could disagree, and one of them did.** A floor lives in two places:
   `ROW_FLOOR=<n>` inside the harness and `--min-rows <n>` on its gate line in `ci.yml`. They are
   derived at different times by different people, so where a harness carries both they are two
