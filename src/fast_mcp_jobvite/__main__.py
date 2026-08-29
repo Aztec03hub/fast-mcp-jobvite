@@ -96,26 +96,29 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 # server in ahead of the logging configuration it exists to protect.
 from fast_mcp_jobvite.utils.redaction import redact_text
 
-# : The one sink. **`serialize=True` and not a `{extra}` format**,
-# decided : because `ai/tool-calling.md:171-179` cares that the mandated
-# fields ARRIVE, : not that a line is readable. A human-readable format
-# names each field it : prints, so a field added to
-# `AuditEvent.to_record()` later - or one whose : value contains the
-# format's own separator - is dropped without any run : going red: that
-# is H-1 a second time, in a different disguise. `serialize` : emits the
-# whole `extra` mapping structurally, so a new field arrives by :
-# construction rather than by somebody remembering to widen a format
-# string. : : `catch=False` (H-2). Loguru handlers default to
-# `catch=True`, which prints : `--- End of logging error ---` to stderr
-# and lets `.info()` RETURN : NORMALLY. Under that default
-# `audit.emit`'s `except` is unreachable and the : `BEFORE_SIDE_EFFECT`
-# branch of DESIGN.md's audit-failure policy - no audit, : no write, the
-# branch that stops a second live candidate being emailed - : cannot
-# fire in production no matter what the tests say. The policy is only :
-# a policy if the failure reaches the code that implements it. : :
-# `diagnose=False`: loguru's variable-value annotations would put local
-# : values into the traceback, and §5.3 treats the log stream as
-# sensitive.
+#: The one sink. **`serialize=True` and not a `{extra}` format**,
+#: decided because `ai/tool-calling.md:171-179` cares that the mandated
+#: fields ARRIVE, not that a line is readable. A human-readable format
+#: names each field it prints, so a field added to
+#: `AuditEvent.to_record()` later - or one whose value contains the
+#: format's own separator - is dropped without any run going red: that
+#: is H-1 a second time, in a different disguise. `serialize` emits the
+#: whole `extra` mapping structurally, so a new field arrives by
+#: construction rather than by somebody remembering to widen a format
+#: string.
+#:
+#: `catch=False` (H-2). Loguru handlers default to `catch=True`, which
+#: prints `--- End of logging error ---` to stderr and lets `.info()`
+#: RETURN NORMALLY. Under that default `audit.emit`'s `except` is
+#: unreachable and the `BEFORE_SIDE_EFFECT` branch of DESIGN.md's
+#: audit-failure policy - no audit, no write, the branch that stops a
+#: second live candidate being emailed - cannot fire in production no
+#: matter what the tests say. The policy is only a policy if the failure
+#: reaches the code that implements it.
+#:
+#: `diagnose=False`: loguru's variable-value annotations would put local
+#: values into the traceback, and §5.3 treats the log stream as
+#: sensitive.
 _LOG_LEVEL = "INFO"
 
 
@@ -359,16 +362,16 @@ from fast_mcp_jobvite.server import build_server  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# : Exit status for a refused configuration. Distinct from 1 so a
-# supervisor : can tell "this deployment is misconfigured, retrying will
-# not help" from : an ordinary failure.
+#: Exit status for a refused configuration. Distinct from 1 so a
+#: supervisor can tell "this deployment is misconfigured, retrying will
+#: not help" from an ordinary failure.
 EXIT_CONFIGURATION_REFUSED = 78
 
-# : `EX_SOFTWARE` from `sysexits.h`: the serving path ended abnormally.
-# ADR-0018: : a crash must not report itself as a clean stop, because
-# Docker restart : policies, Kubernetes `restartPolicy` and systemd
-# `Restart=on-failure` all : read the exit status and `0` means *do not
-# restart, do not alarm*.
+#: `EX_SOFTWARE` from `sysexits.h`: the serving path ended abnormally.
+#: ADR-0018: a crash must not report itself as a clean stop, because
+#: Docker restart policies, Kubernetes `restartPolicy` and systemd
+#: `Restart=on-failure` all read the exit status and `0` means *do not
+#: restart, do not alarm*.
 EXIT_SOFTWARE = 70
 
 

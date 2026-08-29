@@ -31,9 +31,9 @@ from fast_mcp_jobvite.utils.redaction import (
     redact_url,
 )
 
-# : Obvious non-values. `CONTRIBUTING.md:133-135` forbids a real tenant
-# id, : client name or credential anywhere in the repository, tests
-# included.
+#: Obvious non-values. `CONTRIBUTING.md:133-135` forbids a real tenant
+#: id, client name or credential anywhere in the repository, tests
+#: included.
 FAKE_API = "FAKE-API-KEY-0000"
 FAKE_SC = "FAKE-SC-SECRET-1111"
 FAKE_COMPANY = "FAKE-COMPANY-2222"

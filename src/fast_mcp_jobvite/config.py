@@ -47,30 +47,30 @@ from typing import Any, Final, Literal
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# : The five tools of DESIGN.md:133-139, and the only names
-# `JOBVITE_TOOLS` : accepts. A name outside this set is refused at boot.
+#: The five tools of DESIGN.md:133-139, and the only names
+#: `JOBVITE_TOOLS` accepts. A name outside this set is refused at boot.
 SEARCH_CANDIDATES: Final = "search_candidates"
 GET_CANDIDATE: Final = "get_candidate"
 SEARCH_JOBS: Final = "search_jobs"
 GET_JOB_FEED: Final = "get_job_feed"
 CREATE_CANDIDATE: Final = "create_candidate"
 
-# : The four reads. Unset `JOBVITE_TOOLS` means exactly these and never
-# the : write (DESIGN.md:919-921).
+#: The four reads. Unset `JOBVITE_TOOLS` means exactly these and never
+#: the write (DESIGN.md:919-921).
 READ_TOOLS: Final[frozenset[str]] = frozenset(
     {SEARCH_CANDIDATES, GET_CANDIDATE, SEARCH_JOBS, GET_JOB_FEED}
 )
 
-# : The one write. It is the only destructive tool and the only one
-# gated by : `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-213).
+#: The one write. It is the only destructive tool and the only one
+#: gated by `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-213).
 WRITE_TOOLS: Final[frozenset[str]] = frozenset({CREATE_CANDIDATE})
 
 KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS
 
-# : DESIGN.md:938-944's matrix, transcribed row by row. The `http` row
-# is not : here because it is keyed on the transport rather than on a
-# tool, which is : the distinction DESIGN.md:946-951 sets that row apart
-# to make.
+#: DESIGN.md:938-944's matrix, transcribed row by row. The `http` row
+#: is not here because it is keyed on the transport rather than on a
+#: tool, which is the distinction DESIGN.md:946-951 sets that row apart
+#: to make.
 TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {
     SEARCH_CANDIDATES: ("api_key", "api_secret"),
     GET_CANDIDATE: ("api_key", "api_secret"),
@@ -193,13 +193,13 @@ class Settings(BaseSettings):
     tls_terminated_by_proxy: bool = False
 
     # --- Limits
-    # ------------------------------------------------------------ :
-    # DESIGN.md:1569-1573. 50 is the figure the caller-facing string :
-    # `showing 50 of 1,240` already uses, not an arbitrary pick.
+    # ------------------------------------------------------------
+    #: DESIGN.md:1569-1573. 50 is the figure the caller-facing string
+    #: `showing 50 of 1,240` already uses, not an arbitrary pick.
     max_results: int = Field(default=50, ge=1)
-    # : DESIGN.md:1574-1580. **A conservative guess, not a vendor
-    # figure** - : Jobvite documents no numeric limit at all. Checklist
-    # row 9 is what : replaces it with an observation.
+    #: DESIGN.md:1574-1580. **A conservative guess, not a vendor
+    #: figure** - Jobvite documents no numeric limit at all. Checklist
+    #: row 9 is what replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)
 
     # --- Jobvite quirks

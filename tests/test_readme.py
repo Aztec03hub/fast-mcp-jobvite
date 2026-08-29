@@ -29,10 +29,10 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
 
-# : `readme-standard.md:44-58`, in the prescribed order. Title and the
-# one-line : description are not `##` headings, and status badges are
-# images directly under : the description, so the check starts at
-# Quickstart.
+#: `readme-standard.md:44-58`, in the prescribed order. Title and the
+#: one-line description are not `##` headings, and status badges are
+#: images directly under the description, so the check starts at
+#: Quickstart.
 REQUIRED_SECTIONS = [
     "Quickstart",
     "Installation",

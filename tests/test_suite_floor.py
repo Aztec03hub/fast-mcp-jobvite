@@ -22,26 +22,29 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check-suite-floor.sh"
 
-# : A real summary line, copied verbatim from a run rather than
-# hand-written. A : hand-written fixture tests the format the author had
-# in mind. : : `noqa: E501` rather than a reflow: pytest's own summary
-# is 97 columns wide and : its exact bytes are the fixture. Wrapping it,
-# or trimming the `=` padding to : fit, would make this a line
-# resembling pytest's output instead of one of them - : and the padding
-# is precisely what the guard's regex has to survive.
+#: A real summary line, copied verbatim from a run rather than
+#: hand-written. A hand-written fixture tests the format the author had
+#: in mind.
+#:
+#: `noqa: E501` rather than a reflow: pytest's own summary is 97 columns
+#: wide and its exact bytes are the fixture. Wrapping it, or trimming
+#: the `=` padding to fit, would make this a line resembling pytest's
+#: output instead of one of them - and the padding is precisely what the
+#: guard's regex has to survive.
 REAL_SUMMARY = (
     "====================== 333 passed, 2 deselected in 21.73s ======================"  # noqa: E501
 )
 
-# : DERIVED from REAL_SUMMARY, never written twice. : : These were
-# literals until updating REAL_SUMMARY to a fresher run left them :
-# behind. The damage was not a red test - it was that :
-# `test_a_run_below_the_floor_fails` would have fed a 333-test summary
-# against a : floor of 323, which the guard correctly PASSES. The test
-# asserting the guard : rejects a shrunken suite would have been
-# asserting the opposite, and its name : would still have read
-# correctly. A test name is an unverified claim about its : body, and a
-# stale literal is how the two come apart.
+#: DERIVED from REAL_SUMMARY, never written twice.
+#:
+#: These were literals until updating REAL_SUMMARY to a fresher run left
+#: them behind. The damage was not a red test - it was that
+#: `test_a_run_below_the_floor_fails` would have fed a 333-test summary
+#: against a floor of 323, which the guard correctly PASSES. The test
+#: asserting the guard rejects a shrunken suite would have been
+#: asserting the opposite, and its name would still have read correctly.
+#: A test name is an unverified claim about its body, and a stale
+#: literal is how the two come apart.
 COUNT = int(re.search(r"(\d+) passed", REAL_SUMMARY).group(1))  # type: ignore[union-attr]
 ABOVE = str(COUNT + 1)
 AT = str(COUNT)

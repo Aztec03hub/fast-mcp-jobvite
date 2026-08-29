@@ -76,30 +76,30 @@ from ..utils.redaction import redact_headers, redact_text, redact_url
 V2_BASE_URL: Final = "https://api.jobvite.com/api/v2"
 V1_BASE_URL: Final = "https://api.jobvite.com/v1"
 
-# : The v2 credential headers (DESIGN.md:311). `utils/redaction.py`
-# holds the same : two names in `SECRET_HEADERS`; a test pins the two
-# lists together so a rename : here cannot leave the redactor watching a
-# header that no longer exists.
+#: The v2 credential headers (DESIGN.md:311). `utils/redaction.py`
+#: holds the same two names in `SECRET_HEADERS`; a test pins the two
+#: lists together so a rename here cannot leave the redactor watching a
+#: header that no longer exists.
 API_KEY_HEADER: Final = "x-jvi-api"
 # noqa on the next line: S105 flags the NAME of a header, not a
 # credential. The value never appears in this file; it arrives as a
 # SecretValue at construction.
 API_SECRET_HEADER: Final = "x-jvi-sc"  # noqa: S105
 
-# : The one route that structurally requires credentials in the query
-# string : (DESIGN.md:313-316, `JOBVITE-CONTRACT.md` §2.1 rule 2).
+#: The one route that structurally requires credentials in the query
+#: string (DESIGN.md:313-316, `JOBVITE-CONTRACT.md` §2.1 rule 2).
 JOBFEED_PATH: Final = "/jobFeed"
 
-# : The threshold in `status.code >= 400` and `http_status < 400` :
-# (DESIGN.md:332-333). Named rather than inlined twice, so the two arms
-# cannot : drift apart under a later edit.
+#: The threshold in `status.code >= 400` and `http_status < 400`
+#: (DESIGN.md:332-333). Named rather than inlined twice, so the two arms
+#: cannot drift apart under a later edit.
 ERROR_STATUS_THRESHOLD: Final = 400
 
-# : How much of an undecodable body may appear in an exception `detail`.
-# Jobvite's : Tomcat HTML page is small, but nothing guarantees the next
-# one is, and this : string reaches a log line. Truncation is a bound on
-# the blast radius, not a : substitute for `redact_text`, which is
-# applied as well.
+#: How much of an undecodable body may appear in an exception `detail`.
+#: Jobvite's Tomcat HTML page is small, but nothing guarantees the next
+#: one is, and this string reaches a log line. Truncation is a bound on
+#: the blast radius, not a substitute for `redact_text`, which is
+#: applied as well.
 MAX_BODY_EXCERPT_CHARS: Final = 500
 
 # ----------------------------------------------------------------------

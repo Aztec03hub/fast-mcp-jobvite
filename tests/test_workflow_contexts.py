@@ -39,8 +39,8 @@ import pytest
 
 WORKFLOWS = Path(__file__).resolve().parent.parent / ".github" / "workflows"
 
-# : Contexts GitHub allows in a JOB-level `if:`. `secrets` is
-# deliberately : absent - that absence is the whole finding.
+#: Contexts GitHub allows in a JOB-level `if:`. `secrets` is
+#: deliberately absent - that absence is the whole finding.
 JOB_IF_CONTEXTS = frozenset(
     {"github", "needs", "vars", "inputs", "always", "success", "failure", "cancelled"}
 )
