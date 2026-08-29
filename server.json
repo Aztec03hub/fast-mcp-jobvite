@@ -1,0 +1,122 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.evolvconsulting/fast-mcp-jobvite",
+  "description": "An MCP server for the Jobvite ATS: candidate and job reads, and one gated write.",
+  "status": "active",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/evolvconsulting/fast-mcp-jobvite",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "fast-mcp-jobvite",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "JOBVITE_API_KEY",
+          "description": "Jobvite v2 API key, sent as the x-jvi-api header. Required by every tool except get_job_feed.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_API_SECRET",
+          "description": "Jobvite v2 API secret, sent as the x-jvi-sc header. Required by every tool except get_job_feed.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_FEED_KEY",
+          "description": "Jobvite v1 job-feed key. Required only by get_job_feed.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_FEED_SECRET",
+          "description": "Jobvite v1 job-feed secret. Required only by get_job_feed. Travels in the query string, so the feed URL is treated as sensitive.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_COMPANY_ID",
+          "description": "The job feed's separate credential: the value after c= in the career-site URL. Required only by get_job_feed.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_TOOLS",
+          "description": "Comma-separated allow-list of tool names. Unset means all read tools and never the write. An unrecognised name is a startup failure.",
+          "isSecret": false,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_ENABLE_WRITES",
+          "description": "create_candidate is registered only when this is true AND the tool is named in JOBVITE_TOOLS. Defaults to false.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "false"
+        },
+        {
+          "name": "JOBVITE_MCP_TRANSPORT",
+          "description": "stdio (default) or http. stdio is unauthenticated by design; the operating system process boundary is the control.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "stdio",
+          "choices": ["stdio", "http"]
+        },
+        {
+          "name": "JOBVITE_MCP_HOST",
+          "description": "HTTP bind address. Only read when the transport is http. A non-loopback value requires JOBVITE_TLS_TERMINATED_BY_PROXY=true or the server refuses to start.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "127.0.0.1"
+        },
+        {
+          "name": "JOBVITE_MCP_PORT",
+          "description": "HTTP bind port. Only read when the transport is http.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "8000"
+        },
+        {
+          "name": "JOBVITE_HTTP_TOKENS",
+          "description": "Bearer tokens for the HTTP transport, as a JSON object mapping each token to its scopes over the three data classes. Unset while the transport is http is a startup failure, not an open server.",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "JOBVITE_TLS_TERMINATED_BY_PROXY",
+          "description": "Set true only when TLS is terminated by a proxy in front of this server. It is an operator assertion the server cannot verify, and deliberately not a check of X-Forwarded-Proto, which is spoofable.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "false"
+        },
+        {
+          "name": "JOBVITE_MAX_RESULTS",
+          "description": "In-tool result cap. A search returning more reports the total rather than truncating silently.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "50"
+        },
+        {
+          "name": "JOBVITE_OUTBOUND_RATE_LIMIT",
+          "description": "Outbound self-throttle against Jobvite, requests per minute. A conservative guess, not a vendor figure: Jobvite documents no numeric rate limit.",
+          "isSecret": false,
+          "isRequired": false,
+          "default": "6"
+        },
+        {
+          "name": "JOBVITE_PAGINATION_START_BASE",
+          "description": "Pagination base per resource. Ships 1-based on Jobvite's own v1 documentation; scans start at 0 regardless so a 0-based server cannot lose record zero. Override only against a live tenant.",
+          "isSecret": false,
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

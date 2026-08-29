@@ -490,22 +490,48 @@ jobs:
             echo "::error::NEVER a blanket ignore and NEVER a raised threshold."
             exit 1; }
 
-      # DEFERRED TO U1. `fastmcp inspect` takes a server spec and server.py is U1's
-      # file (`fastmcp inspect --help` confirms SERVER-SPEC is required). When it
-      # lands: emit the report, diff it against the previous build's, and surface
-      # capability drift arriving through a dependency bump in review rather than
-      # at runtime. DESIGN.md:1443-1446 carries UNVERIFIED on it and U0 does not
-      # remove that marker: standing a diff up in CI does not execute it.
-      #
-      # - name: Capability drift diff
-      #   run: uv run --frozen fastmcp inspect src/fast_mcp_jobvite/server.py -f mcp -o inspect.json
+      # ----- U1, enabled here (IMPLEMENTATION-PLAN.md:1272) -----
 
-      # DEFERRED TO U1. Only __init__.py exists, so this reports "No data
-      # collected" or a vacuous 100%. Floors are ADR-0010's, configured in
-      # pyproject.toml already.
+      # `fastmcp inspect` takes a server spec and server.py is U1's file. The
+      # report is emitted and uploaded so the NEXT build can diff against it,
+      # which is what DESIGN.md:1441-1446 asks for.
       #
-      # - name: Coverage
-      #   run: uv run --frozen pytest --cov --cov-report=term-missing
+      # UNVERIFIED, and U1 does not remove the marker: standing this up does
+      # NOT execute it. A diff that has never seen a real capability change
+      # has only ever compared a build to itself. The `ResponseLimiting`
+      # regression is the case it is modelled on and nobody has replayed that
+      # bump against this check.
+      #
+      # The spec is the FACTORY, not the module: server.py builds its FastMCP
+      # instance from validated settings, so there is no importable
+      # module-level `mcp` object to point at. The env below is the minimum
+      # loopback-stdio configuration that passes config.py's refusals.
+      - name: Capability drift report
+        env:
+          JOBVITE_API_KEY: inspect-only-not-a-credential
+          JOBVITE_API_SECRET: inspect-only-not-a-credential
+          JOBVITE_TOOLS: search_jobs
+        run: |
+          set -uo pipefail
+          uv run --frozen fastmcp inspect \
+            "src/fast_mcp_jobvite/server.py:create_server" \
+            -f mcp -o inspect.json || {
+              echo "::error::fastmcp inspect failed"; exit 1; }
+          test -s inspect.json || {
+            echo "::error::inspect.json is empty"; exit 1; }
+
+      - name: Upload the capability report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastmcp-inspect
+          path: inspect.json
+
+      # Floors are ADR-0010's, configured in pyproject.toml already
+      # (fail_under = 80, branch = true). --cov-fail-under is NOT passed here:
+      # the floor must live in ONE place, and a flag would silently win over
+      # the file the ADR points at.
+      - name: Coverage
+        run: uv run --frozen pytest --cov --cov-report=term-missing
 
   # ---------------------------------------------------------------------------
   # Supply chain. NONE of the actions in this job have ever been executed - see

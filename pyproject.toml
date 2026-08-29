@@ -24,6 +24,11 @@ dependencies = [
   "loguru==0.7.3",
 ]
 
+# U1's key, and only this key (IMPLEMENTATION-PLAN.md:1273). U0 deliberately
+# omitted it because it names a function U1 writes.
+[project.scripts]
+fast-mcp-jobvite = "fast_mcp_jobvite.__main__:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

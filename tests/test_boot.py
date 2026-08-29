@@ -1,0 +1,172 @@
+"""§8 #10: an off-loopback bind without TLS refuses to START (DESIGN.md:1272).
+
+Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and none
+of them rested on a test before.
+
+These arms run the **real process**. `test_config.py` proves the validator
+raises; only a process arm proves the server *exits naming the reason*
+rather than warning and continuing, which is what the case actually says.
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+
+import pytest
+
+from fast_mcp_jobvite.__main__ import EXIT_CONFIGURATION_REFUSED
+from tests.boot_process import (
+    clean_env,
+    free_port,
+    run_entry,
+    spawn_marker_server,
+    wait_for_port,
+)
+
+TOKENS = json.dumps({"tok": ["candidates:read", "jobs:read", "feed:read"]})
+V2 = {"JOBVITE_API_KEY": "k", "JOBVITE_API_SECRET": "s"}
+
+
+def test_off_loopback_without_tls_exits_naming_the_reason(
+    tmp_path: pathlib.Path,
+) -> None:
+    """§8 #10. No certificates configured here, the assertion undeclared."""
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT="http",
+        JOBVITE_MCP_HOST="0.0.0.0",  # noqa: S104
+        JOBVITE_MCP_PORT=str(free_port()),
+        JOBVITE_HTTP_TOKENS=TOKENS,
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+    )
+    result = run_entry(tmp_path, env)
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED
+    combined = result.stdout + result.stderr
+    # NAMING THE REASON: the variable an operator must set, and the host that
+    # triggered it. An exit code alone is a refusal nobody can act on.
+    assert "JOBVITE_TLS_TERMINATED_BY_PROXY" in combined
+    assert "0.0.0.0" in combined  # noqa: S104
+    # And it exited rather than warning and continuing.
+    assert "Uvicorn running" not in combined
+
+
+def test_the_default_loopback_bind_starts(tmp_path: pathlib.Path) -> None:
+    """Positive control 1 of 2 (DESIGN.md:1272, IMPLEMENTATION-PLAN.md:504)."""
+    port = free_port()
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT="http",
+        JOBVITE_MCP_PORT=str(port),
+        JOBVITE_HTTP_TOKENS=TOKENS,
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+    )
+    proc, _marker, output = spawn_marker_server(tmp_path, env, stdio=False)
+    try:
+        assert wait_for_port("127.0.0.1", port), output.read_text()
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_off_loopback_with_the_assertion_declared_starts(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Positive control 2 of 2. The refusal is about TLS, not about binding.
+
+    Binding the wildcard address is what an operator behind a terminating
+    proxy actually does, so a refusal that fired here too would be a guard
+    that refuses everything (DESIGN.md:1319-1321).
+    """
+    port = free_port()
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT="http",
+        JOBVITE_MCP_HOST="0.0.0.0",  # noqa: S104
+        JOBVITE_MCP_PORT=str(port),
+        JOBVITE_TLS_TERMINATED_BY_PROXY="true",
+        JOBVITE_HTTP_TOKENS=TOKENS,
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+    )
+    proc, _marker, output = spawn_marker_server(tmp_path, env, stdio=False)
+    try:
+        assert wait_for_port("127.0.0.1", port), output.read_text()
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_http_without_tokens_exits_rather_than_serving_openly(
+    tmp_path: pathlib.Path,
+) -> None:
+    """DESIGN.md:810-812, as a process arm. An open server is the alternative."""
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT="http",
+        JOBVITE_MCP_PORT=str(free_port()),
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+    )
+    result = run_entry(tmp_path, env)
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED
+    assert "JOBVITE_HTTP_TOKENS" in result.stdout + result.stderr
+
+
+def test_a_missing_credential_exits_naming_the_variable(tmp_path: pathlib.Path) -> None:
+    """DESIGN.md:891-895: a missing credential fails at BOOT, naming it."""
+    env = clean_env(JOBVITE_TOOLS="search_jobs")
+    result = run_entry(tmp_path, env)
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED
+    assert "JOBVITE_API_KEY" in result.stdout + result.stderr
+
+
+def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> None:
+    """DESIGN.md:909-914, as a process arm rather than a validator call."""
+    env = clean_env(JOBVITE_TOOLS="serch_jobs", **V2)
+    result = run_entry(tmp_path, env)
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED
+    assert "serch_jobs" in result.stdout + result.stderr
+
+
+def test_a_refusal_writes_nothing_to_stdout(tmp_path: pathlib.Path) -> None:
+    """Stdout is the JSON-RPC channel on stdio; diagnostics go to stderr.
+
+    A refusal message on stdout would be indistinguishable from a malformed
+    JSON-RPC frame to a client that had already started reading.
+    """
+    env = clean_env(JOBVITE_TOOLS="search_jobs")
+    result = run_entry(tmp_path, env)
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED
+    assert result.stdout == ""
+    assert "JOBVITE_API_KEY" in result.stderr
+
+
+@pytest.mark.parametrize("transport", ["stdio", "http"])
+def test_the_server_reaches_serving_on_both_transports(
+    tmp_path: pathlib.Path, transport: str
+) -> None:
+    """The broadest positive control: the unit can actually start.
+
+    DESIGN.md:770-773 records that this section's variables were found
+    missing by someone trying to build against it and discovering the unit
+    could not be started at all.
+    """
+    extra = {}
+    if transport == "http":
+        extra = {
+            "JOBVITE_MCP_PORT": str(free_port()),
+            "JOBVITE_HTTP_TOKENS": TOKENS,
+        }
+    env = clean_env(
+        JOBVITE_MCP_TRANSPORT=transport,
+        JOBVITE_TOOLS="search_jobs",
+        **V2,
+        **extra,
+    )
+    proc, marker, _output = spawn_marker_server(
+        tmp_path, env, stdio=transport == "stdio"
+    )
+    try:
+        assert "opened" in marker.read_text()
+    finally:
+        proc.kill()
+        proc.wait()
