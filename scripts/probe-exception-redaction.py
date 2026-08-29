@@ -1,35 +1,39 @@
-"""Task #15: does an exception's text reach the serialized sink unredacted?
+"""Task #15: does an exception reach the sink unredacted?
 
     uv run --frozen python scripts/probe-exception-redaction.py
 
-Exits 0 if the sink redacted the planted secrets, 1 if they reached the stream in
-the clear. **At the time of writing it exits 1**, which is the finding.
+Exits 0 if the sink redacted the planted secrets, 1 if they reached the
+stream in the clear. **At the time of writing it exits 1**, which is the
+finding.
 
-WHY THIS IS A SCRIPT AND NOT A PARAGRAPH. The fourth audit-logging defect - httpx2
-logging the jobFeed URL at INFO in the clear - was invisible for exactly one
-reason: every check looked at a sink the checker configured, not at the sink the
-process actually writes to. A prose note saying "record['exception'] looks
-unredacted" would decay into a claim about a measurement nobody can repeat. This
-runs.
+WHY THIS IS A SCRIPT AND NOT A PARAGRAPH. The fourth audit-logging
+defect - httpx2 logging the jobFeed URL at INFO in the clear - was
+invisible for exactly one reason: every check looked at a sink the
+checker configured, not at the sink the process actually writes to. A
+prose note saying "record['exception'] looks unredacted" would decay
+into a claim about a measurement nobody can repeat. This runs.
 
 THE MECHANISM. `configure_logging()` installs one stderr sink with
-`serialize=True`, which renders `record["message"]` AND `record["exception"]`.
-`_redact_message` assigns only `record["message"]`. Two producers reach the
-exception field:
+`serialize=True`, which renders `record["message"]` AND
+`record["exception"]`. `_redact_message` assigns only
+`record["message"]`. Two producers reach the exception field:
 
-  1. Our own `__main__.py`'s `logger.exception("the server terminated
-     abnormally")` - anything that propagates that far.
+  1. Our own `__main__.py`'s
+     `logger.exception("the server terminated abnormally")` - anything
+     that propagates that far.
   2. `_InterceptHandler.emit`, which forwards EVERY stdlib record with
-     `exception=record.exc_info`. That is every third-party library in the
-     process, including the one whose INFO-level logging was the fourth defect.
+     `exception=record.exc_info`. That is every third-party library in
+     the process, including the one whose INFO-level logging was the
+     fourth defect.
 
-WHAT THIS DOES NOT SHOW, and the distinction is the honest part: it proves the
-FIELD is unredacted, using planted secrets. It does not prove that a real Jobvite
-credential reaches an exception message today. `diagnose=False` and
-`backtrace=False` are set, so loguru renders neither local variable values nor
-extended frames - which bounds the exposure to the exception's own text and the
-source line that raised it. Whether a live credential lands in that text is a
-separate question about the producers, not about this sink.
+WHAT THIS DOES NOT SHOW, and the distinction is the honest part: it
+proves the FIELD is unredacted, using planted secrets. It does not prove
+that a real Jobvite credential reaches an exception message today.
+`diagnose=False` and `backtrace=False` are set, so loguru renders
+neither local variable values nor extended frames - which bounds the
+exposure to the exception's own text and the source line that raised it.
+Whether a live credential lands in that text is a separate question
+about the producers, not about this sink.
 """
 
 from __future__ import annotations
@@ -39,9 +43,14 @@ import subprocess
 import sys
 import textwrap
 
-#: Shaped like a real jobFeed URL, because that is the string the fourth defect
-#: was actually leaking. The tokens are nonsense; the SHAPE is the fixture.
-SECRET_URL = "https://api.jobvite.com/api/v2/job?api=PROBEKEY123&sc=PROBECOMPANY"  # noqa: S105
+# : Shaped like a real jobFeed URL, because that is the string the
+# fourth defect : was actually leaking. The tokens are nonsense; the
+# SHAPE is the fixture.
+SECRET_URL = (
+    # A planted fixture, not a credential. Ruff excludes a
+    # trailing `noqa` from the width it measures, so this fits.
+    "https://api.jobvite.com/api/v2/job?api=PROBEKEY123&sc=PROBECOMPANY"  # noqa: S105
+)
 TOKENS = ("PROBEKEY123", "PROBECOMPANY")
 
 CHILD = f"""
@@ -67,8 +76,9 @@ except ConnectionError:
 
 
 def main() -> int:
-    # A REAL CHILD PROCESS. Configuring logging in-process and reading a fixture's
-    # sink is the exact idiom that hid this defect class twice.
+    # A REAL CHILD PROCESS. Configuring logging in-process and reading a
+    # fixture's sink is the exact idiom that hid this defect class
+    # twice.
     proc = subprocess.run(  # noqa: S603 - the child source is a literal in this file
         [sys.executable, "-c", textwrap.dedent(CHILD)],
         capture_output=True,
