@@ -357,15 +357,21 @@ credential path to it.
 ## Commits, and the merge
 
 ```
-d1e15c7  Re-stamp the freeze at c15b138, and repoint the obligation anchors it moved
-c4b5c04  Repoint the one post-base citation the batch could not have seen (task #11)
-c15b138  Wire check-cross-references.py into ci.yml and CONTRIBUTING  <- THE FROZEN SHA
-d08a96c  Fix the cross-reference gate's one finding, and exempt the checkers' own examples
-31db393  ADR-0018, ADR-0022, and all eight statuses to Accepted
-2efc093  ADR-0017: the unmapped condition is /problems/internal-error, not about:blank
-f6bfc5b  Repoint 713 DESIGN.md citations, from the checker's own parsed output
-e6ec5cb  Apply the six design-text ADRs to the frozen DESIGN.md
+28be78a Apply the six design-text ADRs to the frozen DESIGN.md
+b0e86b8 Repoint 713 DESIGN.md citations, from the checker's own parsed output
+61233a7 ADR-0017: the unmapped condition is /problems/internal-error, not about:blank
+a39bd2a ADR-0018, ADR-0022, and all eight statuses to Accepted
+e87a859 Fix the cross-reference gate's one finding, and exempt the checkers' own examples
+c15b138 Wire check-cross-references.py into ci.yml and CONTRIBUTING, now that it is green   <- THE FROZEN SHA
+540e2bf Repoint the one post-base citation the batch could not have seen (task #11)
+d46c0a4 Re-stamp the freeze at 09ea30c, repoint the anchors it moved, and report
+bf2abfa Describe the two pre-rebase repoint bases rather than quoting dead SHAs
+8c767a4 Re-derive the freeze at c15b138 after main moved, and repoint REVIEW-CODE-R2
 ```
+
+One earlier commit message names `09ea30c`, the freeze SHA from BEFORE the second rebase. It is a
+record of what that commit did at the time and the commit after it corrects the tree; the live
+freeze SHA is `c15b138` and nothing in the tree still says otherwise.
 
 ```bash
 git checkout main && git merge --ff-only adr/batch && git push origin main
