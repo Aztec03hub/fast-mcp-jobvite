@@ -314,21 +314,28 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
 
 
 def _input_models() -> list[tuple[str, type[BaseModel]]]:
-    """Every `*Input` model under `tools/`.
+    """Every `*Input` model under `tools/`, discovered not listed.
+
+    **The element type is `type[BaseModel]`, not bare `type`, and mypy
+    was RED on that for two commits.** A bare `type` has no
+    `model_json_schema`, so the type gate failed on the one line that
+    calls it - the annotation was the defect, not the call. It went
+    unseen because the gate being run was `mypy src` while ci.yml:422
+    runs bare `mypy`: a strict subset, reporting success for the files
+    it looked at.
 
     **SCOPED DELIBERATELY, and the scope is narrower than "the inbound
     surface" - do not widen it without reading this.** ADR-0032's claim
     is about what `DereferenceRefsMiddleware` rewrites, which is the
     TOOL schema path. `ApprovalAnswer` lives outside `tools/` and its
-    schema reaches the host through `requested_schema=`, not through a
+    schema reaches the host through `requested_schema=`, never through a
     published tool schema, so it is correctly absent here even though it
-    IS an inbound model.
+    IS an inbound model - route C of the sweep is what covers it.
 
     **The `endswith("Input")` filter is still a name filter, which is
-    the shape this project refuses elsewhere** - the sweep in
-    `test_arguments_sweep.py` excludes output models by their
-    `output_schema=` USE, precisely so that a naming convention is not
-    load-bearing. It is tolerable here only
+    the shape this project refuses elsewhere** - the sweep excludes
+    output models by their `output_schema=` USE, precisely so that a
+    naming convention is not load-bearing. It is tolerable here only
     because the property under test is about a published tool's schema
     and every such model is reachable from a `@server.tool` signature.
 
@@ -339,18 +346,16 @@ def _input_models() -> list[tuple[str, type[BaseModel]]]:
     import importlib
     import pkgutil
 
-    import pydantic
-
     import fast_mcp_jobvite.tools as tools_pkg
 
-    found: list[tuple[str, type]] = []
+    found: list[tuple[str, type[BaseModel]]] = []
     for info in pkgutil.iter_modules(tools_pkg.__path__):
         module = importlib.import_module(f"{tools_pkg.__name__}.{info.name}")
         for attr in dir(module):
             obj = getattr(module, attr)
             if (
                 isinstance(obj, type)
-                and issubclass(obj, pydantic.BaseModel)
+                and issubclass(obj, BaseModel)
                 and attr.endswith("Input")
             ):
                 found.append((attr, obj))

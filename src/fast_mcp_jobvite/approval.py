@@ -74,7 +74,9 @@ from fastmcp import Context
 from fastmcp.server.elicitation import AcceptedElicitation
 from fastmcp.tools.base import InputRequiredToolResult
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
+
+from fast_mcp_jobvite.utils.constraints import InboundModel
 
 #: The sessionless era, and the tuple FastMCP's own guard compares
 #: against (`FASTMCP-SPIKE-4.md:2085`). MRTR is available here and
@@ -92,7 +94,7 @@ MODERN_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2026-07-28",)
 HANDSHAKE_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2025-11-25",)
 
 
-class ApprovalAnswer(BaseModel):
+class ApprovalAnswer(InboundModel):
     """The one field an approval response carries.
 
     **BOTH ERAS ASK FOR EXACTLY THIS SHAPE**, and that is deliberate. A
@@ -127,6 +129,23 @@ class ApprovalAnswer(BaseModel):
     #: Every one of the six tool input models already sets this. This
     #: model did not, because no sweep reaches it: it lives outside
     #: `tools/`, which is R8-H1.
+    #:
+    #: **AND `InboundModel` IS THE REST OF R8-H1.** This class
+    #: declared two thirds of SS2.1 - `extra="forbid"` and
+    #: `strict=True` - and not the third, the four structural limits,
+    #: because the sweep asserting all three reached only `tools/`. It
+    #: now reaches here (`tests/test_arguments_sweep.py`, route C), and
+    #: this base is what that arm asks for.
+    #:
+    #: **It changes no outcome today and that is the argument for it,
+    #: not against it.** With one `bool` field under `strict=True` and
+    #: extra keys forbidden, every payload the limits would refuse is
+    #: already refused for a different reason - which is exactly the
+    #: "fail-closed by accident" `NestedProbe` was written about, and
+    #: it evaporates the first time this model grows a `dict` or a
+    #: `list` field. No contract moves: SS2.1's limits are stated for
+    #: an argument payload, and applying them to a response this
+    #: server asked its host for adds a refusal, never an acceptance.
     model_config = ConfigDict(extra="forbid", strict=True)
 
     approve: bool
