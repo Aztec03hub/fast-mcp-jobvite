@@ -604,3 +604,40 @@ Kept for what I could not settle, not for what I did not try.
   The preamble's baseline of "322 passed, 2 deselected, 0 skipped" was measured at `0d34c66`; the
   growth to 333 is commits landing since, and `ci.yml:296` already floors at 333 "measured at
   025aa55". Consistent, not stale.
+
+---
+
+## Addendum - citations re-derived against `main` at `1965d36`
+
+Everything above cites my base, `61d1171`. While I was reviewing, `main` advanced by three commits
+(`e4a3fb1`, `370ac32`, `1965d36`) - the b49b 72-char doc-line sweep, which reflowed docstrings in
+essentially every source file. **Docstring reflow moves the code below it**, so some of my line
+numbers were stale within the hour.
+
+This project has a recorded history of exactly this decay - `docs/reviews/check-design-citations.py`
+exists because "a contracted range still resolves, still quotes accurately, and lands the reader on
+text that reads exactly like it could be the subject". So rather than hand over numbers that resolve
+to the wrong line, here is every citation re-derived by `git grep -n` **against `main`**, by subject.
+
+| Finding | Subject grepped | at `61d1171` | at `main` `1965d36` |
+|---|---|---|---|
+| R3-M1 | `for scopes in parsed.values():` | `config.py:375` | **`config.py:393`** |
+| R3-L1 | `TOOL_REQUIREMENTS.get(tool, ())` | `config.py:275` | **`config.py:290`** |
+| R3-L3 | `optional: dict[str, JsonValue] = {` | `audit.py:186` | **`audit.py:197`** |
+| R3-M2 | `if [ "$transport" = "http" ]; then` | `check-u1-pid1-shutdown.sh:128` | `:128` (file untouched) |
+| R3-M2 | `MARKER_ENTRY = """` | `boot_process.py:27` | **`boot_process.py:29`** |
+| R3-H1 | `if: ${{ secrets.MIRROR_TOKEN != '' }}` | `mirror.yml:25` | `:25` (file untouched) |
+| R3-L4 | `coverage floors -> U1 (...` | `ci.yml:32` | `:32` (unchanged) |
+| R3-L4 | `pytest --cov --cov-report=term-missing` | `ci.yml:656` | `:656` (unchanged) |
+| R3-L4 | `NOT wired into addopts` | `pyproject.toml:155` | `:155` (unchanged) |
+| R3-L5 | `assert "mask_error_details=True" in source` | `test_server.py:69` | `:69` (unchanged) |
+
+**Every finding above still reproduces on `main`.** None was fixed by the sweep; three moved.
+
+Two notes for whoever applies these:
+
+- `.github/workflows/mirror.yml` was **not** touched by the sweep, which is consistent with R3-H1's
+  point that nothing in the process looks at that file.
+- `scripts/check-u1-pid1-shutdown.sh:83` also matches `if [ "$transport" = "http" ]; then`. The one
+  R3-M2 is about is the **second** occurrence, at `:128` - the assertion block, not the env-args
+  block at `:83`. Grepping the string alone finds both; this is the subject to disambiguate on.
