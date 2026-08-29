@@ -35,6 +35,7 @@ records that failure happening).
 from __future__ import annotations
 
 import json
+import logging as stdlib_logging
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -44,9 +45,10 @@ from fastmcp import Client
 from loguru import logger
 from pydantic import SecretStr, ValidationError
 
+from fast_mcp_jobvite.__main__ import configure_logging
 from fast_mcp_jobvite.audit import AUDIT_EVENT_NAME
 from fast_mcp_jobvite.config import GET_JOB_FEED, SEARCH_JOBS, Settings
-from fast_mcp_jobvite.models.job_feed import JOB_FEED_ENVELOPE_KEY, JobFeedResult
+from fast_mcp_jobvite.models.job_feed import JOB_FEED_ENVELOPE_KEY
 from fast_mcp_jobvite.models.jobs import JOBS_ENVELOPE_KEY
 from fast_mcp_jobvite.server import build_server
 from fast_mcp_jobvite.services.jobvite_client import (
@@ -85,7 +87,25 @@ def log_records() -> Iterator[list[dict[str, Any]]]:
     DEBUG (`jobvite_client.py:request`), and a sink added at INFO would
     make the positive arm of the C5-I1 pairing fail for a reason that
     has nothing to do with the behaviour under test.
+
+    **`configure_logging()` FIRST, and this is not tidiness.** It is
+    what routes the stdlib records into loguru
+    (`__main__.py:299-350`), and `httpx2` logs the request URL - the
+    whole of it, credentials included - through the stdlib logger.
+    Without the bridge that record never reaches this stream, and every
+    absence assertion below passes because the one producer that
+    handles the URL was not present. **MEASURED**: with the bridge left
+    to arrive by test ordering, the mutation that removes `api` and
+    `companyId` from `SECRET_QUERY_PARAMS` SURVIVED - the arm was
+    reading a stream the dangerous producer had never written to.
+
+    It also removes loguru's autoinit handler, so it must run before
+    the sink is added, not after.
     """
+    saved_handlers = list(stdlib_logging.root.handlers)
+    saved_level = stdlib_logging.root.level
+    configure_logging()
+
     captured: list[dict[str, Any]] = []
 
     def sink(message: Any) -> None:
@@ -96,6 +116,8 @@ def log_records() -> Iterator[list[dict[str, Any]]]:
         yield captured
     finally:
         logger.remove(sink_id)
+        stdlib_logging.root.handlers = saved_handlers
+        stdlib_logging.root.setLevel(saved_level)
 
 
 def record_text(record: dict[str, Any]) -> str:
@@ -266,7 +288,9 @@ async def test_case2_no_log_record_carries_the_jobfeed_secret(
         assert f"sc={FEED_SECRET}" not in text, f"`sc=` in the clear: {text}"
 
 
-async def test_case2_the_url_bearing_producer_emits_it_redacted() -> None:
+async def test_case2_the_url_bearing_producer_emits_it_redacted(
+    log_records: list[dict[str, Any]],
+) -> None:
     """THE ARM THAT MEASURES THE ENFORCEMENT POINT FIRING.
 
     **`httpx2` logs the request URL itself**, through the stdlib
@@ -280,11 +304,11 @@ async def test_case2_the_url_bearing_producer_emits_it_redacted() -> None:
     `configure_logging()` is what routes it into loguru, through
     `_InterceptHandler` and `_redact_message`
     (`__main__.py:299-350`) - the second depth at which
-    `utils/redaction.py` runs. **This test installs it deliberately
-    rather than inheriting it**: in the full suite another module had
-    already imported `__main__`, so this record appeared in the stream
-    by accident of ordering, and an arm that depends on test order is
-    an arm that reports whatever the ordering gives it.
+    `utils/redaction.py` runs. **The `log_records` fixture installs it
+    deliberately rather than inheriting it**: in the full suite another
+    module had already imported `__main__`, so this record appeared in
+    the stream by accident of ordering, and an arm that depends on test
+    order reports whatever the ordering gives it.
 
     The assertion is POSITIVE ON BOTH SIDES: the record exists (so the
     stream is not silent and the producer really ran), the URL is in
@@ -292,22 +316,8 @@ async def test_case2_the_url_bearing_producer_emits_it_redacted() -> None:
     secret. An absence alone could not tell "redacted" from "httpx2
     logged nothing today".
     """
-    import logging as stdlib_logging
-
-    from fast_mcp_jobvite.__main__ import configure_logging
-
-    saved_handlers = list(stdlib_logging.root.handlers)
-    saved_level = stdlib_logging.root.level
-    configure_logging()
-
-    captured: list[dict[str, Any]] = []
-    sink_id = logger.add(lambda m: captured.append(dict(m.record)), level="DEBUG")
-    try:
-        await call_feed(fixture_bytes(JOBFEED_SUCCESS))
-    finally:
-        logger.remove(sink_id)
-        stdlib_logging.root.handlers = saved_handlers
-        stdlib_logging.root.setLevel(saved_level)
+    await call_feed(fixture_bytes(JOBFEED_SUCCESS))
+    captured = log_records
 
     http_lines = [
         record
@@ -369,6 +379,69 @@ async def test_case2_the_url_never_reaches_a_log_record_whole(
 # ======================================================================
 # THE SEPARATE CREDENTIAL CLASS (DESIGN.md:312-321)
 # ======================================================================
+
+
+async def call_feed_through_the_registration_factory(
+    seen: list[httpx2.Request],
+) -> None:
+    """Drive the tool with **no `client_factory`**, so `_client()` runs.
+
+    **The gap this closes.** Every other case here injects a
+    `client_factory`, which means the client the TEST built is the one
+    that reaches the wire - and `_register_get_job_feed._client()`, the
+    code that decides WHICH credential class this route authenticates
+    with, is never executed. A mutation swapping `feed_key` for
+    `api_key` there would survive the entire module. U5 recorded the
+    same shape as "the composition point U4 could not exercise".
+
+    The recorder is a REAL `JobviteClient` subclass with a
+    `MockTransport`, not a fake: a stand-in with its own `request`
+    would prove the tool called something, not that the credential the
+    factory chose reached the query string.
+    """
+    settings_obj = settings(
+        api_key=SecretStr(API_KEY),
+        api_secret=SecretStr(API_SECRET),
+        tools=f"{SEARCH_JOBS},{GET_JOB_FEED}",
+    )
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, content=fixture_bytes(JOBFEED_SUCCESS))
+
+    class RecordingClient(JobviteClient):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs, transport=httpx2.MockTransport(handler))
+
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr("fast_mcp_jobvite.tools.jobs.JobviteClient", RecordingClient)
+    try:
+        server = build_server(settings_obj)
+        async with Client(server) as client:
+            await client.call_tool(GET_JOB_FEED, {"params": {}}, raise_on_error=False)
+    finally:
+        monkeypatched.undo()
+
+
+async def test_the_registration_factory_uses_the_FEED_credential_class() -> None:
+    """The three credentials the tool sends are the FEED's, not v2's.
+
+    The settings carry BOTH pairs, with different values, so a factory
+    reaching for `api_key`/`api_secret` sends something this test can
+    see. DESIGN.md:320-321 keeps the classes apart precisely so they
+    can be scoped apart (§7.2), and a server that authenticates the
+    feed with the v2 key has collapsed the axis while still working.
+    """
+    seen: list[httpx2.Request] = []
+    await call_feed_through_the_registration_factory(seen)
+
+    assert len(seen) == 1, "the registration factory made no request"
+    query = dict(seen[0].url.params)
+    assert query["api"] == FEED_KEY, "the v2 api_key authenticated the feed"
+    assert query["sc"] == FEED_SECRET, "the v2 api_secret authenticated the feed"
+    assert query["companyId"] == COMPANY_ID
+    assert API_KEY not in str(seen[0].url)
+    assert API_SECRET not in str(seen[0].url)
 
 
 async def test_the_feed_credentials_travel_as_query_parameters() -> None:
@@ -706,12 +779,30 @@ async def test_request_id_reaches_the_caller_in_meta(
     assert wire_id == events[0]["extra"]["request_id"]
 
 
-def test_the_output_schema_is_built_in_serialisation_mode() -> None:
-    """`showing` and `summary` are in the ADVERTISED schema.
+async def test_the_output_schema_is_built_in_serialisation_mode() -> None:
+    """`showing` and `summary` are in the schema THE SERVER ADVERTISES.
 
     pydantic's default `mode="validation"` omits computed fields, and
-    `extra="forbid"` renders as `additionalProperties: false`, so the
-    client then rejects our own success payload (U5 measured this).
+    `extra="forbid"` renders as `additionalProperties: false`, so a
+    validating client then rejects our own success payload (U5 measured
+    exactly that).
+
+    **This case used to call `JobFeedResult.model_json_schema(
+    mode="serialization")` itself and assert on the result** - which
+    asserts that pydantic does what it does, and passes whatever
+    `@server.tool` was given. The mutation that removes `mode=` from
+    the registration SURVIVED it. The schema is now read back off the
+    registered tool, over the wire, which is the only place the
+    argument's value is observable.
     """
-    schema = JobFeedResult.model_json_schema(mode="serialization")
-    assert {"showing", "summary", "jobs", "total"} <= set(schema["properties"])
+    server = build_server(
+        settings(), client_factory=client_factory(fixture_bytes(JOBFEED_SUCCESS))
+    )
+    async with Client(server) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+
+    advertised = tools[GET_JOB_FEED].outputSchema
+    assert advertised is not None
+    assert {"showing", "summary", "jobs", "total"} <= set(advertised["properties"]), (
+        f"the advertised schema omits the computed fields: {advertised}"
+    )

@@ -162,8 +162,12 @@ PY
 # deletes the only signal that a page was capped.
 mutate "M1  total is counted from the items, not read from the envelope" \
   "$TOOLS" "$SUITE::test_the_cap_reads_total_from_the_envelope_not_from_the_items" \
-  '    total = raw_total if isinstance(raw_total, int) else len(items)' \
-  '    total = len(items)'
+  '    jobs = [_to_job(item) for item in items[:max_results] if isinstance(item, dict)]
+    raw_total = payload.get(TOTAL_ENVELOPE_KEY)
+    total = raw_total if isinstance(raw_total, int) else len(items)' \
+  '    jobs = [_to_job(item) for item in items[:max_results] if isinstance(item, dict)]
+    raw_total = payload.get(TOTAL_ENVELOPE_KEY)
+    total = len(items)'
 
 # The cap is not applied to the slice. Everything Jobvite returned is
 # forwarded, and `showing` equals the page size.
@@ -188,8 +192,28 @@ mutate "M3  the _meta key is not the namespaced one the design specifies" \
 # well-formed, which is what makes this the quiet failure.
 mutate "M4  the problem carries a fresh uuid, not the invocation's id" \
   "$TOOLS" "$SUITE::test_case16_error_arm_request_id_in_the_problem_object" \
-  '                problem = problem_from_exception(exc, event.request_id)' \
-  '                import uuid as _u
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                problem = problem_from_exception(exc, event.request_id)' \
+  '                result = build_result(payload, settings.max_results)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a problem
+                event.result_status = "error"
+                # AuditPhase.READ: a read is recoverable and losing the
+                # tool is worse than losing one audit line
+                # (DESIGN.md:713-715). The warnings it can return are
+                # for a POST-WRITE failure only, so a read discards
+                # them - there is no success payload to attach them to
+                # on this branch.
+                emit(event, AuditPhase.READ)
+                import uuid as _u
 
                 problem = problem_from_exception(exc, str(_u.uuid4()))'
 
@@ -256,8 +280,10 @@ mutate "M8  the generated path uses the snake_case model attribute" \
 # mutation was wrong, which is the same shape U4's A12 row hit.
 mutate "M9a an admitted field forwards the whole raw Jobvite object" \
   "$TOOLS" "$SUITE::test_an_unadmitted_jobvite_field_is_dropped_not_returned" \
-  '        title=raw.get("title") or "",' \
-  '        title=str(raw),'
+  '        eid=raw.get("eId") or "",
+        title=raw.get("title") or "",' \
+  '        eid=raw.get("eId") or "",
+        title=str(raw),'
 
 # The other direction, and it is the one DESIGN.md:192-195 actually
 # specifies: an unknown field must be DROPPED, not raised on. Handing
