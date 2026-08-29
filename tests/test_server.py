@@ -179,14 +179,44 @@ def test_main_returns_the_refusal_status_without_serving(
     assert main() == EXIT_CONFIGURATION_REFUSED
 
 
-async def test_the_server_registers_no_tool_yet() -> None:
+async def test_the_server_registers_exactly_the_enabled_tools() -> None:
     """U1 owns the enable GATE, not the tools (DESIGN.md:919-936).
 
-    A tool registered here would mean U1 had written outside the files
-    §4's table gives it. The gate itself is asserted in
-    `test_config.py`.
+    **Rewritten by U5, which is the unit that made the old assertion
+    false.** It read `assert await client.list_tools() == []` under the
+    name `test_the_server_registers_no_tool_yet`, and that was a true
+    statement about a server with no tool modules rather than a
+    property anyone wanted to keep - the moment a tool existed it had
+    to change. What it was actually protecting is that registration
+    goes through `settings.enabled_tools` and not around it, so that is
+    what it asserts now, in both directions.
+
+    The gate's own refusals are asserted in `test_config.py`; the
+    tool's behaviour is asserted in `test_tools_jobs.py`. This case
+    covers only the join between them, which is the part U1 owns.
     """
-    server = build_server(_settings())
+    settings = _settings()
+    assert settings.enabled_tools == frozenset({"search_jobs"})
+    server = build_server(settings)
+    async with Client(server) as client:
+        assert {tool.name for tool in await client.list_tools()} == {"search_jobs"}
+
+
+async def test_a_server_with_no_enabled_tool_registers_nothing() -> None:
+    """PAIRED with the case above: the gate can still say no.
+
+    This is what survives of the original assertion, and it is the
+    half worth keeping. A `register` that ignored
+    `settings.enabled_tools` entirely would pass the case above and
+    fail here, which is the only way to tell "registration honours the
+    gate" from "registration happens to register the one tool that
+    exists".
+    """
+    settings = Settings(
+        tools="get_candidate",
+        api_key=SecretStr("k"),
+        api_secret=SecretStr("s"),  # noqa: S106
+    )
+    server = build_server(settings)
     async with Client(server) as client:
         assert await client.list_tools() == []
-    assert _settings().enabled_tools == frozenset({"search_jobs"})

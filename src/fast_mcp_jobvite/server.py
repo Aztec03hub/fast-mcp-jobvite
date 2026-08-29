@@ -37,7 +37,7 @@ connection pool and U9's HTTP resources next.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from fastmcp import FastMCP
@@ -45,6 +45,8 @@ from fastmcp.server.lifespan import Lifespan, lifespan
 
 from fast_mcp_jobvite import __version__
 from fast_mcp_jobvite.config import Settings, load_settings
+from fast_mcp_jobvite.services.jobvite_client import JobviteClient
+from fast_mcp_jobvite.tools import jobs
 
 SERVER_NAME = "fast-mcp-jobvite"
 
@@ -97,17 +99,25 @@ def build_server(
     settings: Settings,
     *,
     extra_lifespan: Lifespan | None = None,
+    client_factory: Callable[[], JobviteClient] | None = None,
 ) -> FastMCP[Any]:
     """Build the server instance for a validated configuration.
 
-    No tool is registered here. `settings.enabled_tools` is the
-    allow-list the tool units register against, and U1 owns the gate
-    rather than the tools (DESIGN.md:917-934).
+    **`settings.enabled_tools` is the allow-list, and each tool module
+    registers itself against it** (DESIGN.md:917-934). U1 owns the
+    gate rather than the tools: this function calls each module's
+    `register`, and the module returns without registering when its
+    name is not enabled. That keeps the deploy-time control
+    server-side and client-independent, which DESIGN.md:216-220 calls
+    the only unconditionally enforceable gate this design has.
 
     Args:
         settings: Settings that have already passed `validate_settings`.
         extra_lifespan: A lifespan composed after the base one with `|`,
             so teardown runs in strict reverse (DESIGN.md:958).
+        client_factory: Builds the Jobvite client for one invocation.
+            Substituted in tests to inject `httpx2.MockTransport`
+            (DESIGN.md:1359-1360). `None` uses the real client.
 
     Returns:
         The configured `FastMCP` instance.
@@ -115,7 +125,7 @@ def build_server(
     composed = make_base_lifespan(settings)
     if extra_lifespan is not None:
         composed = composed | extra_lifespan
-    return FastMCP(
+    server: FastMCP[Any] = FastMCP(
         name=SERVER_NAME,
         instructions=INSTRUCTIONS,
         version=__version__,
@@ -124,6 +134,8 @@ def build_server(
         # docstring.
         mask_error_details=True,
     )
+    jobs.register(server, settings, client_factory=client_factory)
+    return server
 
 
 def create_server() -> FastMCP[Any]:
