@@ -392,6 +392,7 @@ files and re-broke nothing, and `check-harness-anchors.py` was re-run after it.
 | `bash scripts/check-harness-anchors-controls.sh` | 9/9 controls fired | 0 |
 | `bash scripts/check-u1-boot-controls.sh` | **23/23 controls fired** | 0 |
 | `bash scripts/check-u3-audit-controls.sh` | 15 killed, 0 not killed | 0 |
+| `bash scripts/check-u1-boot-amputation.sh` | 14 amputations A-N, every assertion died | 0 |
 | `python3 scripts/check-committed-file-types.py --all` | 238 checked, none refused | 0 |
 | `python3 docs/reviews/check-design-citation-shape.py` | clean - **still 0, not 1** | 0 |
 | `python3 docs/reviews/check-obligations.py` | 31 mappings, 23 anchors verified | 0 |
@@ -409,13 +410,13 @@ anchor floor  171  ->  174      (+3: M21, M22, M23)
 
 # What I could NOT settle
 
-1. **Whether the U1 boot AMPUTATION harness passes.** `check-u1-boot-amputation.sh` was started and
-   had not finished when this report was written; the mutation harness for the same unit
-   (`check-u1-boot-controls.sh`, 23/23) did pass, and `check-harness-anchors.py` proves all 12 of the
-   amputation harness's anchors still resolve uniquely. **Run it before merging.** The two files it
-   amputates, `config.py` and `__main__.py`, are both files I changed.
+1. **SETTLED after the table above was written**, and recorded here rather than parked:
+   `bash scripts/check-u1-boot-amputation.sh` finished at **exit 0**, all fourteen amputations
+   A-N - *"Every declared assertion died under its own amputation."* It is the harness that
+   amputates `config.py` and `__main__.py`, both of which I changed, so it is the one that mattered
+   most. Added to the gate table.
 
-2. **The remaining nine CI harnesses were not run** - `check-u0-test-controls.sh`,
+2. **The remaining eight CI harnesses were not run** - `check-u0-test-controls.sh`,
    `check-u4-client-*`, `check-u5-jobs-*`, `check-u11-*`, `check-u15-*`,
    `check-suite-floor-amputation.sh`. None anchors on a file I edited except through
    `check-u3-audit-controls.sh`, which I did run, and the static anchor checker covers all 174
@@ -433,5 +434,5 @@ anchor floor  171  ->  174      (+3: M21, M22, M23)
    `7bfd3eb` and was never rebased; `services/jobvite_client.py` was not opened, which is the file
    those units are in.
 
-The worktree at `/tmp/r2-fixes-work` is left in place until the branch is merged, because the
-amputation harness above still has to be run in it. Remove it after.
+The worktree at `/tmp/r2-fixes-work` is left in place until the branch is merged, in case a gate
+has to be re-run in it. Remove it after.
