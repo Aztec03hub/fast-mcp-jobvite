@@ -18,10 +18,30 @@ with nothing in the tree that would notice a regression. Delete `"DTZ",` from `p
 B51 silently reverts; no check anywhere mentions B51.
 
 So this file is the executable version of that record. Each row names an obligation, the artifact
-that discharges it at `file:line`, and **a subject string that must appear on that line**. The
-script asserts the third, not merely the second: an anchor that resolves to *some* line is exactly
-how a citation rots, and `docs/reviews/CITATION-RANGE-AUDIT.md` records that failure happening in
-this corpus already.
+that discharges it, and **a subject string that must appear in that artifact**. The script asserts
+the subject, not merely that a path resolves: an anchor that resolves to *some* line is exactly how
+a citation rots, and `docs/reviews/CITATION-RANGE-AUDIT.md` records that failure happening in this
+corpus already.
+
+**Anchors carry NO line number, and that is deliberate.** They used to. In a single day, four
+separate repointing operations were needed - a `ci.yml` insertion moved two anchors, a docstring
+reflow moved a third, and deleting two stale comment lines moved eight - and **every one was
+mechanical, carried no information, and risked retyping a number just read.** A line number pins
+nothing the subject does not already pin, and it is the only part of an anchor that drifts.
+
+**The subject must therefore be UNIQUE in the file, and the checker refuses ambiguity rather than
+resolving it to the first hit** - a first hit is not evidence of anything. If a subject appears
+twice, quote more of the line. That is a strictly stronger property than "appears at line N", which
+any duplicate would also have satisfied.
+
+`file:line` is still parsed, for a subject that genuinely cannot be made unique. Nothing uses it
+today, and a row that reverts to one is a row that reintroduces the drift.
+
+**Two controls guard the scheme.** `_c_duplicate_subject` proves ambiguity is caught. And
+`_n_move_subject` is a NEGATIVE control - shifting a cited file by five lines must leave the map
+**green**. Without it the scheme's central claim would be untested, and every other control would
+still pass against a checker that had quietly gone back to matching line numbers. It replaced two
+controls that line-free anchors had made unfirable, and which reported themselves as not firing.
 
 ```
 python3 docs/reviews/check-obligations.py            # verify every mapping
@@ -63,34 +83,34 @@ the map exists to make visible.
 | B | Class | Artifact | Subject | Standard clause | Note |
 |---|---|---|---|---|---|
 | B16 | ABSENT | - | - | `ai/tool-calling.md:55-57` | No tool descriptions exist yet and no unit schedules their review |
-| B49 | MET | `pyproject.toml:190` | `line-length = 88` | `backend/python.md:35` | The code half. The comment/docstring half is B49b below, met in the same commit that swept it |
-| B49b | MET | `pyproject.toml:227` | `max-doc-length = 72` | `backend/python.md:36` | `W505`, enabled in the same commit as the 1608-line sweep so the gate was never knowingly red. W505 is INERT without this setting, so this row anchors on it, not on the `W505` select entry |
-| B50 | MET | `pyproject.toml:230` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
-| B51 | MET | `pyproject.toml:215` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
-| B52 | MET | `pyproject.toml:209` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
-| B53 | MET | `.env.example:30` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
-| B58 | MET | `tests/test_collection_guard.py:189` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
-| B59 | MET | `.github/workflows/ci.yml:279` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
+| B49 | MET | `pyproject.toml` | `line-length = 88` | `backend/python.md:35` | The code half. The comment/docstring half is B49b below, met in the same commit that swept it |
+| B49b | MET | `pyproject.toml` | `max-doc-length = 72` | `backend/python.md:36` | `W505`, enabled in the same commit as the 1608-line sweep so the gate was never knowingly red. W505 is INERT without this setting, so this row anchors on it, not on the `W505` select entry |
+| B50 | MET | `pyproject.toml` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
+| B51 | MET | `pyproject.toml` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
+| B52 | MET | `pyproject.toml` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
+| B53 | MET | `.env.example` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
+| B58 | MET | `tests/test_collection_guard.py` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
+| B59 | MET | `.github/workflows/ci.yml` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
-| B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md:117` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
+| B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
 | B74 | ABSENT | - | - | `documentation/agentic-coding-standard.md:171` | No TODO in code and no CI check. Inherits B73's prefix problem and nothing connects them |
-| B75 | MET | `.github/workflows/ci.yml:655` | `name: Capability drift report` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out step blocks with no ADR.** U11 enabled the advisory audit; U1 enabled the capability-drift diff and the coverage floors. `grep -n '^\s*#\s*-\s*name:'` over `ci.yml` now returns NOTHING, so the obligation is discharged by each owning unit enabling its own block rather than by anyone deleting them. **Residue: `ERA` is still unselected in ruff**, so nothing stops a NEW commented-out block - the rule is met by the tree's state, not by a gate |
+| B75 | MET | `.github/workflows/ci.yml` | `name: Capability drift report` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out step blocks with no ADR.** U11 enabled the advisory audit; U1 enabled the capability-drift diff and the coverage floors. `grep -n '^\s*#\s*-\s*name:'` over `ci.yml` now returns NOTHING, so the obligation is discharged by each owning unit enabling its own block rather than by anyone deleting them. **Residue: `ERA` is still unselected in ruff**, so nothing stops a NEW commented-out block - the rule is met by the tree's state, not by a gate |
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
-| B77 | MET | `tests/test_readme.py:68` | `test_the_required_sections_are_present_in_the_prescribed_order` | `documentation/readme-standard.md:43` | Sections present in order, enforced by a test rather than by review |
-| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1309` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
+| B77 | MET | `tests/test_readme.py` | `test_the_required_sections_are_present_in_the_prescribed_order` | `documentation/readme-standard.md:43` | Sections present in order, enforced by a test rather than by review |
+| B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
 | B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
-| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1354` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
-| B82 | MET | `.github/workflows/ci.yml:825` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
+| B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
+| B82 | MET | `.github/workflows/ci.yml` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
-| B89 | MET | `README.md:217` | `## License` | `documentation/readme-standard.md:57` | SPDX id and a link to LICENSE, in the required section |
+| B89 | MET | `README.md` | `## License` | `documentation/readme-standard.md:57` | SPDX id and a link to LICENSE, in the required section |
 | B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |
-| B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md:25` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
-| B100 | MET | `.github/pull_request_template.md:3` | `Completed PR template` | `devops/quality-gates.md:50` | Untracked when seeded. Closing this does NOT close B101 |
-| B101 | MET | `docs/CODE-REVIEW-CHECKLIST.md:3` | `Reviewers must verify` | `devops/development-workflow.md:248` | The PR template's checklist is the AUTHOR's self-check (B100); this is the reviewer's. Kept out of the template deliberately. The rows of the standard with no subject here are listed with reasons rather than dropped |
-| B102 | MET | `CONTRIBUTING.md:64` | `Squash merge` | `devops/development-workflow.md:192` | Untracked when seeded. Enforcement is branch protection, which is out of tree |
-| B103 | MET | `README.md:1` | `# fast-mcp-jobvite` | `documentation/readme-standard.md:32-35` | README.md exists at the repository top level |
-| B104 | MET | `CONTRIBUTING.md:3` | `readme-standard.md:56` | `documentation/readme-standard.md:56` | Untracked when seeded |
-| B105 | SUPERSEDED | `SECURITY.md:9` | `security@evolvconsulting.com` | `documentation/readme-standard.md:58` | Team-lead ruling: `:58` allows "people **or team aliases**" and this alias is published, so no person need be named in a public repo. CONF-6 had called this ABSENT; the clause's own wording overrides that. Residual, small: the alias is published for vulnerability REPORTING, and `:58` asks for the owner responsible for review and release. U13 should carry it under the Maintainers heading in that second sense |
+| B98 | SUPERSEDED | `docs/adr/0006-single-main-branch.md` | `squash merge` | `devops/development-workflow.md:73` | Prose half only. The wiring is a GitHub settings object no file here can hold |
+| B100 | MET | `.github/pull_request_template.md` | `Completed PR template` | `devops/quality-gates.md:50` | Untracked when seeded. Closing this does NOT close B101 |
+| B101 | MET | `docs/CODE-REVIEW-CHECKLIST.md` | `Reviewers must verify` | `devops/development-workflow.md:248` | The PR template's checklist is the AUTHOR's self-check (B100); this is the reviewer's. Kept out of the template deliberately. The rows of the standard with no subject here are listed with reasons rather than dropped |
+| B102 | MET | `CONTRIBUTING.md` | `Squash merge` | `devops/development-workflow.md:192` | Untracked when seeded. Enforcement is branch protection, which is out of tree |
+| B103 | MET | `README.md` | `# fast-mcp-jobvite` | `documentation/readme-standard.md:32-35` | README.md exists at the repository top level |
+| B104 | MET | `CONTRIBUTING.md` | `readme-standard.md:56` | `documentation/readme-standard.md:56` | Untracked when seeded |
+| B105 | SUPERSEDED | `SECURITY.md` | `security@evolvconsulting.com` | `documentation/readme-standard.md:58` | Team-lead ruling: `:58` allows "people **or team aliases**" and this alias is published, so no person need be named in a public repo. CONF-6 had called this ABSENT; the clause's own wording overrides that. Residual, small: the alias is published for vulnerability REPORTING, and `:58` asks for the owner responsible for review and release. U13 should carry it under the Maintainers heading in that second sense |
 
 ## Adding a row
 

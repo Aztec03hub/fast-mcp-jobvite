@@ -190,6 +190,17 @@ jobs:
           if [ "$total" -eq 0 ] || [ "$fired" -ne "$total" ]; then
             echo "::error::$fired of $total controls fired; every control must fire"; exit 1
           fi
+          # The NEGATIVE controls must exist and be tolerated. A wrongly-fired
+          # one already makes the harness exit non-zero, but DELETING the
+          # negative list would not: it would print a clean "N/M controls
+          # fired." and exit 0. That is the unwired-control shape this repo has
+          # been bitten by six times, so the section is asserted, not assumed.
+          printf '%s\n' "$out" | grep -q 'negative controls' || {
+            echo "::error::the harness ran no negative controls, so the guarantee"
+            echo "::error::that line drift does not matter is untested"; exit 1; }
+          printf '%s\n' "$out" | grep -qE '^  tolerated ' || {
+            echo "::error::no negative control was tolerated: either none ran, or"
+            echo "::error::the checker has gone back to matching line numbers"; exit 1; }
           printf '%s\n' "$out" | grep -q 'post-run re-check of the real OBLIGATIONS.md: exit=0' || {
             echo "::error::the harness did not leave OBLIGATIONS.md green"; exit 1; }
 

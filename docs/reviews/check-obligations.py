@@ -69,7 +69,17 @@ UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 # the bare form SILENTLY SKIPS its row, which is the one failure this file
 # exists to prevent - a row that looks tracked and is never verified.
 ROW = re.compile(r"\|\s*(B\d+[a-z]?)\s*\|")
-ANCHOR = re.compile(r"^(?P<path>[^:]+):(?P<line>\d+)$")
+#: `path` or `path:line`. **The line number is OPTIONAL and deprecated.**
+#:
+#: A line number in an anchor pins nothing the SUBJECT does not already pin,
+#: and it is the only part that drifts. Four separate repoint operations were
+#: needed in one day - a ci.yml insertion moved two anchors, a docstring reflow
+#: moved a third, and deleting two stale comment lines moved eight - and every
+#: one was mechanical, carried no information, and risked retyping a number.
+#:
+#: A line-free anchor cannot drift. The subject must then be UNIQUE in the
+#: file, which is a stronger property than "appears at line N" and is checked.
+ANCHOR = re.compile(r"^(?P<path>[^:]+)(?::(?P<line>\d+))?$")
 
 
 def cells(line: str) -> list[str]:
@@ -153,6 +163,26 @@ def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
         )
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+    if anchor.group("line") is None:
+        # Line-free anchor: the subject locates itself, and must be unique.
+        hits = [i for i, line in enumerate(lines, 1) if subject in line]
+        if not hits:
+            return (
+                f"{bnum}: {subject!r} is nowhere in {artifact}. Either the "
+                f"obligation regressed or the artifact moved; {row['clause']} "
+                "is the clause to re-read."
+            )
+        if len(hits) > 1:
+            return (
+                f"{bnum}: {subject!r} appears {len(hits)} times in {artifact} "
+                f"(lines {hits}). A line-free anchor needs a subject that is "
+                "unique in the file - quote more of the line. Ambiguity is "
+                "refused rather than resolved to the first hit, because the "
+                "first hit is not evidence of anything."
+            )
+        return None
+
     want = int(anchor.group("line"))
     if want > len(lines):
         return f"{bnum}: {artifact} is past the end of the file ({len(lines)} lines)."
@@ -222,15 +252,23 @@ def _first_mapped(rows: list[dict[str, str]], want_class: str = "MET") -> dict[s
     raise AssertionError(f"no {want_class} row to mutate")
 
 
-def _c_break_line(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
-    """Point a good anchor at line 1."""
+def _c_duplicate_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
+    """Make a subject appear twice, so it no longer locates one line.
+
+    **This control REPLACED `_c_break_line`.** That one pointed a good
+    anchor at line 1 and expected a failure, which is unfirable once
+    anchors carry no line - it went green and said so, which is how the
+    replacement got written. Ambiguity is the property a line-free anchor
+    actually rests on, so it is what gets a control.
+    """
     row = _first_mapped(rows)
-    path = tree / DEFAULT_MAP
+    path = tree / row["artifact"].rsplit(":", 1)[0]
     text = path.read_text(encoding="utf-8")
-    good = row["artifact"]
-    bad = good.rsplit(":", 1)[0] + ":1"
-    path.write_text(text.replace(f"`{good}`", f"`{bad}`", 1), encoding="utf-8")
-    return f"anchor repointed at line 1 ({row['b']})"
+    first = next(
+        line for line in text.splitlines() if row["subject"] in line
+    )
+    path.write_text(text.replace(first, first + "\n" + first, 1), encoding="utf-8")
+    return f"subject duplicated so it is no longer unique ({row['b']})"
 
 
 def _c_delete_target(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
@@ -249,8 +287,18 @@ def _c_regress_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
     return f"subject removed from the artifact ({row['b']})"
 
 
-def _c_move_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
-    """Shift the artifact so the subject is still present but at a different line."""
+def _n_move_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
+    """NEGATIVE control: shifting the artifact must NOT fail the map.
+
+    **This is the guarantee the whole line-free scheme exists to make**,
+    and it is the one property no ordinary control can express, because
+    a control asserts that something FIRES. Drift must not fire, so it
+    is run in its own list with the verdict inverted.
+
+    Without it, the scheme's central claim is untested: every remaining
+    control would still pass against a checker that had quietly gone
+    back to matching on line numbers.
+    """
     row = _first_mapped(rows)
     path = tree / row["artifact"].rsplit(":", 1)[0]
     text = path.read_text(encoding="utf-8")
@@ -314,11 +362,12 @@ def _c_empty_map(tree: pathlib.Path, _rows: list[dict[str, str]]) -> str:
     return "every mapping removed (selector control)"
 
 
+NEGATIVE_CONTROLS = [_n_move_subject]
+
 CONTROLS = [
-    _c_break_line,
+    _c_duplicate_subject,
     _c_delete_target,
     _c_regress_subject,
-    _c_move_subject,
     _c_trivial_subject,
     _c_regress_b51_dtz,
     _c_duplicate_row,
@@ -360,6 +409,36 @@ def run_controls(map_path: pathlib.Path) -> int:
                 print(f"  fired         {label}")
 
     print(f"\n{len(CONTROLS) - bad}/{len(CONTROLS)} controls fired.")
+
+    # NEGATIVE controls: these must leave the map GREEN. A control list
+    # that only ever asserts failure cannot express "this must not
+    # matter", and "line drift must not matter" is the entire point of a
+    # line-free anchor.
+    print("--- negative controls (these must NOT fire) ---")
+    for control in NEGATIVE_CONTROLS:
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = pathlib.Path(tmp) / "tree"
+            shutil.copytree(
+                root, tree, ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__")
+            )
+            try:
+                label = control(tree, rows)
+            except (AssertionError, StopIteration, FileNotFoundError) as exc:
+                print(f"  BROKEN        {control.__name__}: could not apply ({exc})")
+                bad += 1
+                continue
+            result = subprocess.run(
+                [sys.executable, __file__, str(tree / DEFAULT_MAP)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                print(f"  tolerated     {label}")
+            else:
+                print(f"  WRONGLY FIRED {label}")
+                print(f"                {result.stdout.strip().splitlines()[-1]}")
+                bad += 1
+
     if bad:
         return 1
     print(f"post-run re-check of the real {map_path.name}: exit={check(map_path, root)}")
