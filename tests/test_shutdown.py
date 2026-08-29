@@ -10,7 +10,7 @@ process that dies uncleanly can still exit 0, so an exit-code assertion
 would pass against exactly the failure this case exists to catch.
 
 **Both transports, because they fail differently**
-(DESIGN.md:1345-1346). The HTTP arm passes on teardown alone; **only the
+(DESIGN.md:1038-1040). The HTTP arm passes on teardown alone; **only the
 stdio arm exercises the `os._exit(0)` half**, where teardown runs but
 the process does not die because a non-daemon AnyIO worker thread blocks
 interpreter shutdown. A single-transport test would have shipped that
@@ -74,7 +74,7 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
     assert "opened" in marker.read_text()
     assert "closed" not in marker.read_text()
 
-    # DESIGN.md:1342-1344: resolve the INTERPRETER via
+    # DESIGN.md:1037-1038: resolve the INTERPRETER via
     # /proc/<pid>/cmdline rather than trusting that the pid we hold is
     # the process we signalled.
     assert interpreter_of(proc.pid) == sys.executable
@@ -141,11 +141,12 @@ def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
 def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     """The arms above run `main()`, not a copy of it written in a test.
 
-    DESIGN.md:986-1025 is explicit that the mitigation this replaced was
-    also called verified and was not. A shutdown case that reimplements
-    the handler and the `finally` proves only that the test author can
-    write them - so this asserts the entry script imports the shipped
-    `main`, and that `main`'s own source still carries both halves.
+    DESIGN.md:1026-1034 is explicit that the mitigation this one
+    replaced was also called verified and was not. A shutdown case
+    that reimplements the handler and the `finally` proves only that
+    the test author can write them - so this asserts the entry script
+    imports the shipped `main`, and that `main`'s own source still
+    carries both halves.
     """
     from tests.boot_process import MARKER_ENTRY
 

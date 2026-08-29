@@ -100,7 +100,7 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
 def test_prerelease_is_explicit() -> None:
     """`--prerelease=allow` is global in uv; `explicit` confines it.
 
-    DESIGN.md:1432.
+    DESIGN.md:1437-1439.
     """
     with PYPROJECT.open("rb") as fh:
         assert tomllib.load(fh)["tool"]["uv"]["prerelease"] == "explicit"

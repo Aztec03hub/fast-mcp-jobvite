@@ -120,7 +120,7 @@ def test_each_row_starts_when_its_own_variables_are_present(
 def test_a_candidate_search_deployment_is_not_asked_for_a_company_id(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """The NEGATIVE of the matrix, stated at DESIGN.md:938-939.
+    """The NEGATIVE of the matrix, stated at DESIGN.md:937-938.
 
     "a deployment using only candidate search must not be forced to
     invent a `companyId` it has no use for". A test that only ever adds

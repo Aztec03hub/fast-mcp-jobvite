@@ -13,7 +13,7 @@ somewhere else in the file. DESIGN.md:1280-1283 states the rule for
   Against a misconfigured logger emitting nothing, the absence alone
   passes and proves nothing. #4 does not supply this pairing - #4 proves
   the *audit event* exists, and #2 is about the loguru stream.
-- **#17 needs both arms** (DESIGN.md:1338-1343): a field always absent
+- **#17 needs both arms** (DESIGN.md:1335-1339): a field always absent
   and a field always synthesised each pass a single-arm test, and the
   second is the failure that matters.
 
@@ -305,7 +305,7 @@ def test_case2_a_stderr_failure_report_carries_no_credential(
 
 
 # ----------------------------------------------------------------------
-# §8 #17 - trace context, BOTH arms (DESIGN.md:1338-1343).
+# §8 #17 - trace context, BOTH arms (DESIGN.md:1335-1339).
 # ----------------------------------------------------------------------
 
 
@@ -320,7 +320,7 @@ def test_case17_arm1_trace_context_is_recorded_when_the_caller_supplies_it(
     extra = audit_records[0]["extra"]
     # The values come FROM the header. Asserting only "a 32-hex string
     # is present" would pass against a synthesised id, which is the
-    # failure DESIGN.md:1341-1343 says is the one that matters.
+    # failure DESIGN.md:1337-1339 says is the one that matters.
     assert extra["trace_id"] == TRACE_ID
     assert extra["span_id"] == SPAN_ID
 
@@ -529,7 +529,7 @@ def test_arm3_after_a_successful_write_it_returns_a_warning_not_an_error(
 def test_arm3_the_warning_tells_the_caller_not_to_retry(broken_audit: None) -> None:
     """The whole reason this branch exists.
 
-    DESIGN.md:715-717 and DESIGN.md:701-705.
+    DESIGN.md:715-717 and DESIGN.md:723-727.
 
     A retry emails a second live human, so a warning that does not say
     so invites the exact harm the branch was written to prevent.

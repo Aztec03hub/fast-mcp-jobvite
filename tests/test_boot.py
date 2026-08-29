@@ -1,6 +1,6 @@
 """§8 #10: an off-loopback bind without TLS refuses to START.
 
-DESIGN.md:1323.
+DESIGN.md:1297-1300.
 
 Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and
 none of them rested on a test before.
@@ -61,7 +61,7 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
 def test_the_default_loopback_bind_starts_a_real_process(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Positive control for the REAL-PROCESS pair (DESIGN.md:1323).
+    """Positive control for the REAL-PROCESS pair (DESIGN.md:1297-1300).
 
     Its partner is
     `test_off_loopback_with_the_assertion_declared_starts`. Named for
@@ -236,7 +236,7 @@ def test_the_server_reaches_serving_on_both_transports(
 ) -> None:
     """The broadest positive control: the unit can actually start.
 
-    DESIGN.md:792-795 records that this section's variables were found
+    DESIGN.md:795-798 records that this section's variables were found
     missing by someone trying to build against it and discovering the
     unit could not be started at all.
     """

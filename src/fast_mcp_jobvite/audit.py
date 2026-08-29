@@ -187,7 +187,7 @@ class AuditEvent:
         **Optional fields are OMITTED, never emitted as `None`.** A
         `trace_id` of `None` is a field that is always present, and §8's
         trace case exists because a field that is always there passes a
-        single-arm test (DESIGN.md:1338-1343).
+        single-arm test (DESIGN.md:1335-1339).
         """
         record: dict[str, JsonValue] = {
             "tool_name": self.tool_name,
