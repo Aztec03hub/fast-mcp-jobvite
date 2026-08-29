@@ -108,7 +108,7 @@ def build_server(
     gate rather than the tools: this function calls each module's
     `register`, and the module returns without registering when its
     name is not enabled. That keeps the deploy-time control
-    server-side and client-independent, which DESIGN.md:216-220 calls
+    server-side and client-independent, which DESIGN.md:227-229 calls
     the only unconditionally enforceable gate this design has.
 
     Args:

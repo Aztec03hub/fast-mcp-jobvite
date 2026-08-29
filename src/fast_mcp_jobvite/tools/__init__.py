@@ -1,4 +1,4 @@
-"""Tool bodies and their INPUT models (DESIGN.md:294-296).
+"""Tool bodies and their INPUT models (DESIGN.md:289-290).
 
 An input model lives beside its tool, never under `models/` - that
 package holds the allow-listed **output** models only. The shared

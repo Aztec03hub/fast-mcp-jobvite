@@ -218,7 +218,7 @@ amputate "A6  a field with no fencing decision is silently skipped" "$FENCING" \
 
 # ---------------------------------------------------------------------------
 # A7 - THE ENABLE GATE IS GONE. `register` always registers, whatever
-# `JOBVITE_TOOLS` says. DESIGN.md:216-220 calls this the only
+# `JOBVITE_TOOLS` says. DESIGN.md:227-229 calls this the only
 # unconditionally enforceable control the design has, so its deletion
 # must be visible.
 # ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@ amputate "A7  registration ignores the enable gate entirely" "$TOOLS" \
 # A8 - THE OUTPUT ALLOW-LIST IS GONE in the direction that leaks: an
 # admitted field carries the whole raw object, so every unadmitted key
 # reaches the caller through a field that was allowed. Containment
-# (DESIGN.md:186-190) is deleted while every field name still looks
+# (DESIGN.md:192-195) is deleted while every field name still looks
 # right.
 # ---------------------------------------------------------------------------
 amputate "A8  an admitted field forwards the entire raw Jobvite object" \

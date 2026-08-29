@@ -284,7 +284,7 @@ async def test_case16_error_arm_request_id_in_the_problem_object(
     audited = audit_event(audit_records)["request_id"]
     assert problem["request_id"] == audited
     assert problem["instance"].endswith(audited)
-    # DESIGN.md:1219-1221 requires the id on EVERY result, so the
+    # DESIGN.md:621-622 requires the id on EVERY result, so the
     # error arm carries it in `_meta` as well - but the problem
     # member is what `error-contract.md` specifies and is asserted
     # above in its own right.
@@ -418,7 +418,7 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
 
 
 def test_an_unadmitted_jobvite_field_is_dropped_not_returned() -> None:
-    """An unadmitted Jobvite field is dropped (DESIGN.md:186-190)."""
+    """An unadmitted Jobvite field is dropped (DESIGN.md:192-195)."""
     payload = {
         JOBS_ENVELOPE_KEY: [
             {
@@ -439,7 +439,7 @@ def test_an_unadmitted_jobvite_field_is_dropped_not_returned() -> None:
 def test_an_unadmitted_field_does_not_fail_the_call() -> None:
     """PAIRED with the case above, and it is the direction that matters.
 
-    DESIGN.md:186-190 requires an unknown field to be **dropped**, not
+    DESIGN.md:192-195 requires an unknown field to be **dropped**, not
     to be an error. A model handed Jobvite's object directly with
     `extra="forbid"` would also keep the field out of the result - by
     raising, and taking the whole call down on a Jobvite schema
@@ -639,7 +639,7 @@ def test_a_control_character_or_bidi_override_is_rejected(
 ) -> None:
     """A well-formed short string that every length check admits.
 
-    B25 and DESIGN.md:176-183: `max_length` does not cover this and
+    B25 and DESIGN.md:172-179: `max_length` does not cover this and
     the output allow-list cannot, because it is an output filter.
     """
     with pytest.raises(ValidationError):
@@ -652,7 +652,7 @@ def test_an_ordinary_identifier_still_passes() -> None:
 
 
 def test_an_unknown_argument_is_refused() -> None:
-    """`extra="forbid"`: never a free-form dict (DESIGN.md:154)."""
+    """`extra="forbid"`: never a free-form dict (DESIGN.md:152-153)."""
     with pytest.raises(ValidationError):
         SearchJobsInput(datestart="2026-01-01")  # type: ignore[call-arg]
 

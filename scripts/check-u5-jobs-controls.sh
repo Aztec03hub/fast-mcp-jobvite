@@ -255,7 +255,7 @@ mutate "M9a an admitted field forwards the whole raw Jobvite object" \
   '        title=raw.get("title") or "",' \
   '        title=str(raw),'
 
-# The other direction, and it is the one DESIGN.md:186-190 actually
+# The other direction, and it is the one DESIGN.md:192-195 actually
 # specifies: an unknown field must be DROPPED, not raised on. Handing
 # Jobvite's object straight to the model keeps the field out of the
 # result by taking the whole call down on a Jobvite schema change.

@@ -15,9 +15,17 @@ and each field carries its own explicit answer to the second question.
 
 **This module registers decisions; it does not fence.** U8 owns the
 code that actually fences, in `utils/redaction.py`. Job fields take an
-explicit "not free text" decision (DESIGN.md:828-833 in the plan), and
-U8 is where fencing fires - on candidate free text, which is the
-attacker-authored class.
+explicit "not free text" decision, and U8 is where fencing fires - on
+candidate free text, which is the attacker-authored class.
+
+The source of that decision is
+`docs/plans/IMPLEMENTATION-PLAN.md`, under **"Why the
+fencing-decision registry lands here and not in U8"**. It was cited
+here as `DESIGN.md:828-833`, which was the right LINES in the wrong
+FILE: `DESIGN.md:828-833` at the frozen `c15b138` is the
+`JOBVITE_HTTP_TOKENS` paragraph, a different subject entirely. The
+plan is not frozen and those lines have already moved once, so it is
+cited by heading rather than by number.
 
 **Why a missing decision RAISES rather than defaulting.** A default
 would be the same shape as the defect R3-L1 removed from

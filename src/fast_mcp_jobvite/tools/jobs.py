@@ -118,7 +118,7 @@ def _to_job(raw: dict[str, Any]) -> Job:
     than by handing Jobvite's object to pydantic and trusting
     `extra="forbid"` to reject it. The two differ in the direction
     that matters: `extra="forbid"` would make a **new Jobvite field**
-    an error and take the whole call down, while DESIGN.md:186-190
+    an error and take the whole call down, while DESIGN.md:192-195
     requires it to be **dropped** - "a new Jobvite field is dropped
     until someone admits it deliberately". Failing closed here means
     dropping the field, not failing the tool.

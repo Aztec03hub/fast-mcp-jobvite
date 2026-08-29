@@ -1,9 +1,9 @@
-"""The allow-listed output model for `search_jobs` (DESIGN.md:186-190).
+"""The allow-listed output model for `search_jobs` (DESIGN.md:192-195).
 
 **Outputs are allow-listed models, not passthrough.** A field Jobvite
 returns that is not declared here does not reach the caller, and it
 fails closed: a new Jobvite field is dropped until someone admits it
-deliberately. That is *containment*, and DESIGN.md:186-190 is explicit
+deliberately. That is *containment*, and DESIGN.md:192-195 is explicit
 that it is a different control from fencing - a field can be correctly
 admitted and still carry an injection payload, which is why every
 field below also carries a `Fenced` decision.
