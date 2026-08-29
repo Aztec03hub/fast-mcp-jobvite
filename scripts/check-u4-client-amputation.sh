@@ -157,11 +157,15 @@ amputate "A4  _decode_json_object returns {} for anything it cannot parse" "$CLI
 # defusedxml anywhere in the path. An entity bomb would reach json.loads
 # instead of a hardened parser, which is a different (and quieter) failure.
 # ---------------------------------------------------------------------------
+# THE ANCHOR IS THE `if`, NOT THE BLOCK. It used to span the whole branch,
+# comment included - and the comment was reflowed, so this row applied to
+# nothing and silently tested nothing until the static anchor checker read it.
+# A prose line inside an anchor is a line that WILL be rewrapped; anchoring on
+# the condition alone amputates the same behaviour (the branch is unreachable,
+# so `_raise_from_markup` is never called) with nothing reflowable in it.
 amputate "A5  markup is never routed to defusedxml at all" "$CLIENT" \
-  '    if text.startswith("<"):
-        # Markup: the Tomcat HTML page, or HR-XML. Neither is ever a success.
-        _raise_from_markup(http_status, text)' \
-  '    pass'
+  '    if text.startswith("<"):' \
+  '    if False:  # AMPUTATED-A5'
 
 # ---------------------------------------------------------------------------
 # A6 - v2 authentication is gone. No credential headers are sent at all.

@@ -109,19 +109,26 @@ uv run --frozen ruff check .           # lint
 uv run --frozen ruff format --check .  # format
 uv run --frozen mypy                   # types
 uv run --frozen pytest                 # the default offline suite, zero skips
-bash scripts/check-u0-test-controls.sh # U0's controls, all must fire
-bash scripts/check-u15-gate-controls.sh
-bash scripts/check-u15-gate-amputation.sh  # survivors are the OUTPUT, not a failure
-bash scripts/check-u11-advisory-controls.sh
-bash scripts/check-u1-boot-controls.sh     # U1 mutation: every row must fire
-bash scripts/check-u1-boot-amputation.sh   # U1 amputation: survivors are the OUTPUT
-bash scripts/check-u3-audit-controls.sh    # U3 mutation: every row must be killed
-bash scripts/check-u3-audit-amputation.sh  # U3 amputation: survivors are the OUTPUT
-bash scripts/check-u4-client-controls.sh   # U4 mutation: every row must be killed
-bash scripts/check-u4-client-amputation.sh # U4 amputation: survivors are the OUTPUT
-bash scripts/check-u5-jobs-controls.sh     # U5 mutation: every row must be killed
-bash scripts/check-u5-jobs-amputation.sh   # U5 amputation: survivors are the OUTPUT
-bash scripts/check-suite-floor-amputation.sh  # the guard that floors the suite size
+# THE CHEAP ONE FIRST. Reads every anchor out of every harness and greps its
+# target file, in milliseconds, without running a harness at all. A harness run
+# is minutes; this is what to run after any reformatting sweep. The floor is in
+# ci.yml, the one place it lives.
+python3 scripts/check-harness-anchors.py --self-check
+bash scripts/check-harness-anchors-controls.sh   # and the controls on that checker
+
+# THE HARNESSES. This used to be a hand-typed list of the same thirteen scripts
+# CI runs, which is the two-lists defect in its plainest form: ci.yml moves, the
+# list here does not, and the list keeps looking right. It is now DERIVED from
+# ci.yml, so it cannot disagree with what CI actually runs.
+#
+# Read it before you run it - it is thirteen harnesses and takes a while.
+# The trailing `"` is stripped: one step must be a QUOTED YAML scalar because
+# its --require pattern contains ": ", which a plain scalar reads as a mapping.
+grep -hoE "scripts/ci-harness-gate\.sh [^\"]*" .github/workflows/ci.yml
+# then run them, one at a time, stopping to read anything that fails:
+grep -hoE "scripts/ci-harness-gate\.sh [^\"]*" .github/workflows/ci.yml \
+  | while read -r cmd; do bash $cmd || echo "FAILED: $cmd"; done
+
 python3 scripts/check-committed-file-types.py --all
 uv run --frozen python scripts/check_advisories.py        # the expiry half
 uv run --frozen pip-audit $(uv run --frozen python scripts/check_advisories.py)
