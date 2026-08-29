@@ -37,15 +37,23 @@ edit. This is the one task on the board that cannot run concurrently with anythi
 src               370        <- repoint
 tests             336        <- repoint
 scripts           125        <- repoint
-docs/briefs        42        <- repoint (instructions, must point at current)
+docs/briefs        42        <- repoint only THREE of these (see below)
 docs/adr           60        <- LEAVE (an ADR quotes the design it is amending)
 docs/worklogs     170        <- LEAVE (a worklog records what that unit saw)
 docs/reviews      519        <- LEAVE (a review cites the design as it stood)
 ```
 
-**831 to repoint, 749 to leave alone**, and the split is a judgement you should re-derive rather than
-inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this reason
-and says so; the same argument covers `docs/worklogs/` and applied ADRs.
+**834 to repoint, 788 to leave alone**, and the split is a judgement you should re-derive rather
+than inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this
+reason and says so; the same argument covers `docs/worklogs/` and applied ADRs.
+
+**`docs/briefs/` splits INSIDE itself, which is why its 42 is not 42.** A brief is an instruction
+while its task is open - a stale line number then sends an agent to the wrong text. Once the unit is
+done the brief is a RECORD of what that agent was told, and repointing it rewrites history exactly
+as repointing a worklog would. Measured: 19 brief files carry citations, `PREAMBLE.md` carries
+**ZERO**, and only two briefs belong to open tasks - `ADR-BATCH.md` (1) and `CRITICAL-COVERAGE.md`
+(2). **So the live brief set is 3 citations, not 42.** Re-derive that list at the time; more tasks
+will have closed.
 
 ## The recorded hazards, every one measured on this project
 
