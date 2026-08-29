@@ -606,6 +606,15 @@ def test_a_valid_inbound_uuid4_is_echoed() -> None:
         "",
         "not-a-uuid",
         "11111111-1111-4111-8111-111111111111\ninjected=audit_bypass",
+        # A BARE trailing newline. NOT a duplicate of the row
+        # above: Python's `$` matches immediately before a
+        # trailing newline and `\Z` does not, so relaxing the
+        # anchor by one character reopens C7-T1 - and the row
+        # above cannot see it, because the text after ITS
+        # newline breaks the match either way. Measured: with
+        # `$` for `\Z` this module passed 43/43 while
+        # resolve_request_id echoed the value back.
+        "11111111-1111-4111-8111-111111111111\n",
         "11111111-1111-1111-8111-111111111111",  # v1, not v4
         "11111111-1111-4111-c111-111111111111",  # bad variant nibble
     ],
