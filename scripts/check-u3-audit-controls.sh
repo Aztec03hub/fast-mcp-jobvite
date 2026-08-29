@@ -211,8 +211,13 @@ run_mutation "M14 the allow-list becomes leaf-keyed instead of path-keyed" "$RED
                 else _redacted_value(value)' \
   'test_a_container_under_an_unlisted_key_is_redacted_WHOLE'
 
+# The anchor was `out.append(redact_url(token) if ... else token)` until R2's
+# nit-3 split the trailing-punctuation run off the token, which turned that
+# expression into an if/else block. Repointed at the redacting call itself,
+# which is the SUBJECT of the mutation and the smallest thing that survives a
+# reflow of the lines around it.
 run_mutation "M15 the exception-message arm stops redacting" "$REDACT" \
-  'out.append(redact_url(token) if "?" in token and "=" in token else token)' \
+  'out.append(redact_url(core) + token[len(core) :])' \
   'out.append(token)' \
   'test_a_url_embedded_in_an_exception_message_is_redacted'
 

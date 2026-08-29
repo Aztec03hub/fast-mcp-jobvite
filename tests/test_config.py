@@ -527,6 +527,35 @@ def test_a_whitespace_only_value_is_also_treated_as_unset(
     )
 
 
+@pytest.mark.parametrize("blank", ["", " ", "\t"])
+def test_a_directly_constructed_blank_secret_is_also_unset(blank: str) -> None:
+    """R2-nit-2: `_empty_is_unset` only ever looked at `str`.
+
+    Environment variables are always `str`, so this cannot arrive from
+    the environment - which is why it is a nit. But `Settings(...)` is
+    constructed directly all over this suite (`test_config.py`,
+    `test_server.py`), and a `SecretStr("")` built that way reached
+    `_check_required_variables` as a PRESENT, empty credential: the
+    exact condition the whole empty-is-unset rule exists to refuse,
+    admitted through the one door that did not check.
+
+    Held here rather than in `validate_settings` because the rule is
+    already stated in one place and this is the same rule, not a second
+    one - `_empty_is_unset` promised "empty and whitespace-only" and
+    delivered it for one type.
+    """
+    settings = Settings(
+        tools="search_jobs",
+        api_key=SecretStr(blank),
+        api_secret=SecretStr("s"),
+    )
+    with pytest.raises(ConfigurationError) as excinfo:
+        validate_settings(settings)
+    assert "JOBVITE_API_KEY" in str(excinfo.value), (
+        f"a blank SecretStr ({blank!r}) was accepted as a present credential"
+    )
+
+
 def test_the_whole_committed_template_loads(clean_env: pytest.MonkeyPatch) -> None:
     """Every line of `.env.example` parses, and it still refuses.
 

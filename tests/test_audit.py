@@ -29,6 +29,7 @@ import ast
 import json
 import pathlib
 import re
+import traceback
 import uuid
 from collections.abc import Iterator
 from typing import Any
@@ -448,6 +449,62 @@ def test_arm1_before_the_side_effect_the_call_fails(
             emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
 
 
+#: A redactable credential, in the shape `redact_text` is built for: a
+#: `jobFeed` URL whose `sc=` parameter is the secret. The sink failure
+#: this file simulates carries the URL in its exception message, which
+#: is exactly how one reaches `_on_audit_write_failure`.
+_LEAKY_SINK_MESSAGE = (
+    "connect failed for https://api.jobvite.com/v1/jobFeed"
+    "?companyId=c&api=a&sc=SUPERSECRETSC after 3 tries"
+)
+_SINK_SENTINEL = "SUPERSECRETSC"
+
+
+def test_arm1_the_raise_does_not_carry_the_unredacted_exception_along(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R2-M-1: `redact_text` cleans the message, `__context__` does not.
+
+    `_on_audit_write_failure` redacts the detail it formats, and then
+    raised **from inside an `except` block**, so Python attached the raw
+    `OSError` as `__context__` and every formatted traceback printed the
+    credential the line above had just removed. `from None` is the whole
+    fix; these assertions are what would have noticed.
+
+    Asserted on **bools**, per this module's secret-safe convention: a
+    red run must not print the credential it caught leaking.
+    """
+    monkeypatch.setattr(audit, "logger", _ExplodingLogger(_LEAKY_SINK_MESSAGE))
+    with audit_scope("create_candidate", Transport.HTTP) as event:
+        with pytest.raises(AuditWriteError) as excinfo:
+            emit(event, AuditPhase.BEFORE_SIDE_EFFECT)
+
+    raised = excinfo.value
+    # POSITIVE CONTROL for the whole arm: the secret really was in the
+    # sink's exception, so an absence below is redaction working rather
+    # than a probe that never carried anything.
+    assert _SINK_SENTINEL in _LEAKY_SINK_MESSAGE
+    # Bools computed FIRST, per this module's secret-safe convention:
+    # passing the haystack into the assert prints it on failure, which
+    # is the credential these arms exist to catch.
+    message_leaks = _leaks(str(raised), _SINK_SENTINEL)
+    assert not message_leaks, "the message itself leaks"
+    # THE LEAK PATH FIRST, because it is the assertion that has to be
+    # able to fail: R2-M-1's own reproduction table read
+    # "full traceback: leaks True".
+    formatted = "".join(
+        traceback.format_exception(type(raised), raised, raised.__traceback__)
+    )
+    traceback_leaks = _leaks(formatted, _SINK_SENTINEL)
+    assert not traceback_leaks, "the raw exception text reached a formatted traceback"
+    # And the mechanism that closes it. `from None` sets
+    # `__suppress_context__`; it does NOT clear `__context__`, which is
+    # still reachable on the object - so the verdict's suggested
+    # `assert excinfo.value.__context__ is None` fails against the
+    # correct fix. Measured here before it was believed.
+    assert raised.__suppress_context__, "the context is not suppressed"
+
+
 def test_arm2_on_a_read_it_logs_to_stderr_and_continues(
     broken_audit: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -594,8 +651,27 @@ def test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself()
     assert not direct_sets, "audit.py sets request_id_var directly, bypassing the scope"
 
 
-def test_a_valid_inbound_uuid4_is_echoed() -> None:
-    inbound = "11111111-1111-4111-8111-111111111111"
+@pytest.mark.parametrize(
+    "inbound",
+    [
+        "11111111-1111-4111-8111-111111111111",
+        # THE ROW THAT MAKES THIS TEST ABLE TO FAIL. R2's nit-4: the
+        # literal above is all digits and hyphens, so `.lower()` is the
+        # identity on it and deleting the call from
+        # `resolve_request_id` left the whole suite green. Only a
+        # literal carrying a LETTER in upper case can tell "echoed" from
+        # "echoed lower-cased" apart.
+        "A1B2C3D4-1111-4111-8111-11111111CDEF",
+    ],
+)
+def test_a_valid_inbound_uuid4_is_echoed_unchanged(inbound: str) -> None:
+    """The caller's id comes back byte for byte, case included.
+
+    `_UUID4_RE` is `IGNORECASE`, so case was never a validity question,
+    and an operator joining a log line to a caller's record does it by
+    exact string match. Canonicalising a value we were asked to echo
+    breaks that join for no stated requirement.
+    """
     assert resolve_request_id(inbound) == inbound
 
 

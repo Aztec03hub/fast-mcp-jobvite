@@ -45,6 +45,7 @@ import json
 from typing import Any, Final, Literal
 
 from pydantic import Field, SecretStr, model_validator
+from pydantic import ValidationError as PydanticValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: The five tools of DESIGN.md:133-139, and the only names
@@ -105,6 +106,30 @@ class ConfigurationError(Exception):
         """
         super().__init__("; ".join(reasons))
         self.reasons = list(reasons)
+
+
+def _is_blank(value: object) -> bool:
+    """True for an empty or whitespace-only string, however it arrived.
+
+    **`SecretStr` is checked too (R2-nit-2).** This used to be an inline
+    `isinstance(value, str)`, so a `Settings(api_key=SecretStr(""))` -
+    the shape this suite constructs directly all over `test_config.py`
+    and `test_server.py` - travelled past the empty-is-unset rule and
+    reached `_check_required_variables` as a PRESENT, empty credential.
+    Environment variables are always `str`, so this cannot fire from the
+    environment; it is the direct-construction door that was not
+    checked.
+
+    Args:
+        value: Any value from the raw settings mapping.
+
+    Returns:
+        True if the value is a string, or a secret wrapping a string,
+        that carries nothing but whitespace.
+    """
+    if isinstance(value, SecretStr):
+        value = value.get_secret_value()
+    return isinstance(value, str) and not value.strip()
 
 
 def env_name(field: str) -> str:
@@ -230,11 +255,7 @@ class Settings(BaseSettings):
         """
         if not isinstance(data, dict):
             return data
-        return {
-            key: value
-            for key, value in data.items()
-            if not (isinstance(value, str) and not value.strip())
-        }
+        return {key: value for key, value in data.items() if not _is_blank(value)}
 
     def split_tool_names(self) -> tuple[frozenset[str], list[str]]:
         """Split `JOBVITE_TOOLS` into recognised and unrecognised.
@@ -258,8 +279,13 @@ class Settings(BaseSettings):
         write (DESIGN.md:919-921). The write additionally requires
         `JOBVITE_ENABLE_WRITES=true` **and** to be named, and
         DESIGN.md:923-927 states the conjunction in both directions - so
-        writes-on with `JOBVITE_TOOLS` unset registers nothing, and
-        naming it without the flag registers nothing either.
+        writes-on with `JOBVITE_TOOLS` unset registers **no write**, and
+        naming the write without the flag registers no write either. In
+        neither case is the result empty: the read tools are registered
+        throughout, and only the write is withheld. (R2-nit-1: this said
+        "registers nothing" twice, which is the wrong claim in the first
+        case and reads as a stronger one than the code makes in the
+        second.)
 
         Unrecognised names are excluded here and refused by
         `validate_settings`; this property never raises, so a caller
@@ -444,12 +470,57 @@ def _token_map_problems(raw: SecretStr) -> list[str]:
 def load_settings() -> Settings:
     """Load the environment and apply every boot-time refusal.
 
+    **`Settings()` is inside the `try` on purpose (R2-M-2).** Seven
+    fields carry pydantic constraints - the port range, the transport
+    `Literal`, `max_results`, and the rest - and a value that fails one
+    of them is a misconfiguration in exactly the sense
+    `__main__.py:62-65` reserves `EXIT_CONFIGURATION_REFUSED` for. Left
+    uncaught it exited **1 with a traceback**, so a mistyped port was
+    indistinguishable to a supervisor from a crash, while every
+    hand-written refusal beside it exited 78. One door for every
+    boot-time refusal.
+
+    **The reasons are rebuilt from `loc` and `msg`, never from
+    `str(exc)`.** pydantic's rendering echoes the offending value back
+    as `input_value=`, and a refusal message is written to a log. No
+    secret-class field carries a constraint today, so nothing leaks
+    through it right now; building the message this way is what keeps
+    that true when one does.
+
     Returns:
         Settings that have passed every refusal.
 
     Raises:
         ConfigurationError: If any refusal fires.
     """
-    settings = Settings()
+    try:
+        settings = Settings()
+    except PydanticValidationError as exc:
+        # `from None` for the same reason as `audit.py`'s (R2-M-1): the
+        # chained pydantic exception carries `input_value` in its own
+        # text, and a traceback printing it would undo the line above.
+        raise ConfigurationError(_validation_reasons(exc)) from None
     validate_settings(settings)
     return settings
+
+
+def _validation_reasons(exc: PydanticValidationError) -> list[str]:
+    """Turn a pydantic failure into refusal lines naming the variables.
+
+    Args:
+        exc: The validation error `Settings()` raised.
+
+    Returns:
+        One line per invalid field, naming the environment variable and
+        pydantic's own explanation - and never the value.
+    """
+    reasons: list[str] = []
+    for error in exc.errors():
+        location = error["loc"]
+        # A model-level error has an empty `loc` and names no field.
+        # Reporting it without a variable name is worse than the
+        # alternative only if the alternative is dropping it, which
+        # would refuse the boot while naming nothing.
+        where = env_name(str(location[0])) if location else "the configuration"
+        reasons.append(f"{where}: {error['msg']}")
+    return reasons

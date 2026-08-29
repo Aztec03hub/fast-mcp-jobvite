@@ -158,20 +158,93 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
         / "fast_mcp_jobvite"
         / "__main__.py"
     ).read_text()
-    assert "signal.signal(signal.SIGTERM, _term)" in source
-    assert "os._exit(status)" in source
+    # PARSED, NOT GREPPED (R2-L-6). The sibling test below already made
+    # this argument for this same file - "this module's own prose NAMES
+    # the defect in order to warn about it, and a substring search
+    # cannot tell the warning from the thing it warns against" - and
+    # then this test grepped it anyway. `__main__.py`'s module docstring
+    # discusses `os._exit(0)`, `os._exit(status)` and the SIGTERM
+    # handler at length, so every assertion below was satisfiable by a
+    # comment. The two `MARKER_ENTRY` assertions above stay substring
+    # checks: those ARE string literals, and a substring search is the
+    # right instrument for a string.
+    tree = ast.parse(source)
+
+    def _exit_calls() -> list[ast.Call]:
+        return [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_exit"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "os"
+        ]
+
+    handler_installs = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "signal"
+        and len(node.args) == 2
+        and isinstance(node.args[1], ast.Name)
+        and node.args[1].id == "_term"
+    ]
+    assert handler_installs, "no signal.signal(..., _term) call in the shipped source"
+
     # The forced exit must be in a `finally`, not on the success path
     # only: DESIGN.md:996-1010 places it there so teardown completes
-    # first.
-    finally_block = source.split("finally:")[-1]
-    assert "os._exit(status)" in finally_block
+    # first. `Try.finalbody` is the structure; splitting on the text
+    # "finally:" also matched the docstring's discussion of it.
+    in_finally = [
+        call
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Try)
+        for statement in node.finalbody
+        for call in ast.walk(statement)
+        if call in _exit_calls()
+    ]
+    assert in_finally, "no os._exit call inside a `finally`"
+
     # ADR-0018: the constant is the defect, not the call. A crash must
-    # not report itself as a clean stop, so the status is the one the
-    # run earned and the abnormal arm sets it. Asserting the ABSENCE of
-    # `os._exit(0)` is what stops this reverting silently.
-    assert "os._exit(0)" not in source
-    assert "status = EXIT_SOFTWARE" in source
-    assert "EXIT_SOFTWARE = 70" in source
+    # not report itself as a clean stop, so EVERY forced exit takes the
+    # status the run earned. Stated as "no literal argument anywhere"
+    # rather than "the string `os._exit(0)` is absent": `os._exit(1)`
+    # and `os._exit( 0 )` both pass the substring form.
+    literal_exits = [
+        call
+        for call in _exit_calls()
+        if any(isinstance(a, ast.Constant) for a in call.args)
+    ]
+    assert literal_exits == [], (
+        "a forced exit passes a literal status, not the earned one"
+    )
+    assert all(
+        isinstance(a, ast.Name) and a.id == "status"
+        for call in _exit_calls()
+        for a in call.args
+    ), "a forced exit passes something other than `status`"
+
+    # The abnormal arm sets that status from the named constant.
+    abnormal = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "status" for t in node.targets)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "EXIT_SOFTWARE"
+    ]
+    assert abnormal, "nothing assigns EXIT_SOFTWARE to the exit status"
+
+    # R2-M-3: `assert "EXIT_SOFTWARE = 70" in source` was the ONLY thing
+    # in the repository pinning either `sysexits.h` number to its value,
+    # and it pinned it by grepping for its own assignment. Rewritten as
+    # the real comparison, because a supervisor reads the NUMBER and not
+    # our constant's name. Its sibling, `EXIT_CONFIGURATION_REFUSED`, is
+    # pinned the same way in `test_boot.py` - it was pinned nowhere at
+    # all, and 78 -> 1 survived the whole suite.
+    assert EXIT_SOFTWARE == 70
 
 
 def test_the_handler_does_not_read_ambient_state() -> None:
@@ -221,14 +294,15 @@ def test_a_crashing_mcp_run_exits_70_read_from_the_process(
     """ADR-0018 and DESIGN.md:1015-1023, on the PROCESS's status.
 
     **The structural assertion above is not a discharge of this.** It
-    reads `__main__.py`'s source and finds `os._exit(status)` and
-    `EXIT_SOFTWARE = 70` in it. Every one of those substrings can be
-    present while the process exits 0 - a stray `finally` above, a
-    `status` rebound, a swallowed exception - and this file's own
-    opening paragraph says why that matters: a process that dies
-    uncleanly can still exit 0, which is exactly why §8 #18 refuses to
-    assert teardown by exit code. A defect ABOUT exit codes cannot be
-    discharged by grepping for one.
+    parses `__main__.py` and finds an `os._exit(status)` call inside a
+    `finally`, and `EXIT_SOFTWARE == 70`. Every one of those can hold
+    while the process exits 0 - a stray `finally` above, a `status`
+    rebound between the assignment and the exit, a swallowed exception -
+    and this file's own opening paragraph says why that matters: a
+    process that dies uncleanly can still exit 0, which is exactly why
+    §8 #18 refuses to assert teardown by exit code. A defect ABOUT exit
+    codes cannot be discharged by reading the source for one, parsed or
+    grepped.
 
     So this forces `mcp.run` to fail for a real reason - a bound port,
     the cheapest one, and the one DESIGN.md:1021-1023 names - and reads
