@@ -56,7 +56,13 @@ PY
 
   local out
   out=$(cd "$REPO" && uv run --frozen pytest "$TESTS" -q 2>&1 | tail -1)
-  if printf '%s\n' "$out" | grep -q "failed"; then
+  # `grep -q` exits on its FIRST match; if the writer is still
+  # writing it takes SIGPIPE, and `pipefail` promotes that 141 to
+  # the pipeline's status - so a string that IS present reports as
+  # ABSENT, but only once the output outruns the pipe buffer.
+  # Measured: present+large 141, present+small 0. A bash test has
+  # no second process and cannot SIGPIPE.
+  if [[ "$out" == *"failed"* ]]; then
     echo "  KILLED   $name -> $out"
     fired=$((fired + 1))
   else

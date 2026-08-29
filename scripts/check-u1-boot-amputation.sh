@@ -114,7 +114,10 @@ report() {  # $1 = label, $2.. = the test ids this row MUST kill
   # THE FINDING, FIRST. Anything below it is context.
   local t unexpected_here=0
   for t in "${must_die[@]}"; do
-    if printf '%s\n' "$survivors" | grep -Fxq -- "$t"; then
+    # `grep -Fxq` is a WHOLE-LINE match, so the builtin needs the
+    # newlines around it to mean the same thing - a bare substring
+    # test would match a survivor that merely CONTAINS this name.
+    if [[ $'\n'"$survivors"$'\n' == *$'\n'"$t"$'\n'* ]]; then
       echo "  UNEXPECTED SURVIVOR: $t"
       echo "    This assertion exists to notice THIS amputation and did not."
       unexpected_here=1

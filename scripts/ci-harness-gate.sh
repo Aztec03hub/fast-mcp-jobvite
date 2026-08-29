@@ -150,7 +150,13 @@ fail=0
 
 # ---- the anchor gate, uniform and never inoperative ------------------------
 for phrase in "${present[@]}"; do
-  if printf '%s\n' "$out" | grep -qF -- "$phrase"; then
+  # `grep -q` exits on its FIRST match; if the writer is still
+  # writing it takes SIGPIPE, and `pipefail` promotes that 141 to
+  # the pipeline's status - so a string that IS present reports as
+  # ABSENT, but only once the output outruns the pipe buffer.
+  # Measured: present+large 141, present+small 0. A bash test has
+  # no second process and cannot SIGPIPE.
+  if [[ "$out" == *"$phrase"* ]]; then
     echo "::error::$harness printed '$phrase' - a row's anchor moved and that row"
     echo "         tested NOTHING. The harness still exited 0; that is the point."
     fail=1
@@ -158,7 +164,10 @@ for phrase in "${present[@]}"; do
 done
 
 # ---- a hang measures nothing, and a timed-out row reads as a pass ----------
-if printf '%s\n' "$out" | grep -q 'TIMED OUT'; then
+# THIS SITE FAILED OPEN: a 141 read as "no TIMED OUT found", on
+# exactly the run whose output is longest - the run most likely to
+# have timed out. See the SIGPIPE note above.
+if [[ "$out" == *"TIMED OUT"* ]]; then
   echo "::error::$harness: a row hung. It produced no result lines, so every"
   echo "         assertion 'did not survive' and the row reads as a pass."
   fail=1
@@ -232,7 +241,19 @@ fi
 
 # ---- arbitrary required lines ---------------------------------------------
 for re in ${requires+"${requires[@]}"}; do
-  if ! printf '%s\n' "$out" | grep -qE -- "$re"; then
+  # The `!` made this site fail CLOSED - a 141 became a gate failure,
+  # so it was loud rather than silent, and still wrong.
+  #
+  # **A HERE-STRING, NOT bash's `=~`, AND THE DIFFERENCE IS SEMANTIC.**
+  # `grep -qE` matches PER LINE; bash `=~` matches the whole string, so
+  # `^` anchors to the start of the OUTPUT rather than of a line. Every
+  # row regex here starts with `^`, so `=~` would only ever match when
+  # the very first line is a row. Measured on an output whose second
+  # line is a row: pipe 141, `=~` 1, here-string 0.
+  #
+  # A here-string has no pipeline, so `pipefail` has nothing to promote
+  # and grep's own status is the result.
+  if ! grep -qE -- "$re" <<< "$out"; then
     echo "::error::$harness did not print a line matching: $re"; fail=1
   fi
 done
