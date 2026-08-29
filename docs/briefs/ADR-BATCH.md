@@ -28,8 +28,59 @@ edit. This is the one task on the board that cannot run concurrently with anythi
 | 0032 | the fifth middleware is adopted and C2 gains a row |
 | 0033 | `approval_state`'s four values are a published vocabulary |
 
-**Several carry a ruling that contradicts or corrects the body. APPLY THE RULING.** 0024, 0025 and
-0026 are the ones where reading only the Decision section produces the wrong edit.
+**Several carry a ruling that contradicts or corrects the body. APPLY THE RULING.** The
+orchestrator read 0024, 0025 and 0026 in full on `8f5bb6f` and settled them; do not re-derive these
+three, verify them. `docs/worklogs/ADR-AUDIT-REPORT.md` covers the other seven.
+
+### ADR-0024 - the Decision says `MAX_PAGES`, the ruling says RECORDS
+
+Decision: *"A page ceiling not derived from `total`. A named `MAX_PAGES` beside `SCAN_START`."*
+Ruling: *"ACCEPTED. Both mechanisms, and the bound is in RECORDS rather than pages."* The ruling's
+reason is internal to the ADR - the ADR elsewhere requires any bound be *"sane at both 50 and 500
+records per page"*, and a page ceiling is a different record count at each page size.
+
+**ALREADY IMPLEMENTED, and correctly.** `jobvite_client.py:518` is
+`MAX_SCAN_RECORDS: Final = 100_000`, and `:475-478` carries a comment recording this exact
+conflict. **The design must describe the code**: a record ceiling. Writing `MAX_PAGES` into
+`DESIGN.md` would make the design describe something that does not exist.
+
+### ADR-0025 - the Decision asks three questions, the ruling ANSWERS them
+
+Applying the Decision section alone writes three open questions into the design, which is a
+re-deferral wearing the ADR's name. The answers are Q1 exhaustive scans use the **raw transport
+cap**; Q2 the throttle is **per-process**; Q3 the budget bounds wall-clock **including throttle
+waiting**.
+
+**Q3 IS PARTLY ALREADY IN THE DESIGN.** The ruling says so itself: `DESIGN.md:373-375` already
+states the budget *"bounds all attempts for one tool invocation"*, and the ruling records nearly
+ruling past it. Do not write that half twice.
+
+**Q1 CONTRADICTS THE SHIPPED CODE, AND THIS IS THE BIGGEST THING IN THIS BRIEF.**
+`jobvite_client.py:2039-2049` uses `min(transport_cap, configured_result_cap)` for the exhaustive
+path with no branch, and carries a comment arguing FOR that: *"A separate 'exhaustive scans use the
+raw transport cap' rule would be a paging policy this design does not state, invented here, and
+untestable without a knob invented to test it."* U6 was right at the time - the design stated no
+policy. The ruling now states one, and it is the opposite of the shipped behaviour.
+
+**So applying ADR-0025 is not a documentation edit.** It needs a code change in
+`jobvite_client.py`, that comment REWRITTEN IN PLACE (it currently argues against the decision),
+tests, and a harness row - or a decision from the orchestrator to narrow the ruling. **Stop and ask
+rather than choosing.** Do not write the design into disagreement with the code and leave it.
+
+### ADR-0026 - the Decision section contains no decision
+
+It lists three options and weighs them. **A menu is not a decision**, and applying that section
+would put the menu in the design. The ruling picks **option 1** - `JobviteClient` installs the
+filter, with an opt-out **constructor keyword** and never a `Settings` field - and adds a constraint
+the ADR never states: **the install must be IDEMPOTENT**, because the client is constructed once per
+invocation. A later Correction fixes the logger name from `httpx` to `httpx2` in place, and records
+why: a filter on `httpx` attaches to a logger this library never writes to, so *"the fix would have
+been inoperative and every test of it would have passed."*
+
+**ALREADY IMPLEMENTED, and correctly.** `redaction.py:489` is `HTTPX_LOGGER_NAME: Final = "httpx2"`,
+`install_log_redaction` at `:498` is idempotent, and the constructor keyword is
+`jobvite_client.py:1234`. The design must say `httpx2`. **The ADR body still says `httpx` in the
+options it lists** - that text is superseded, not authoritative.
 
 ## The citation surface, re-measured at `1a51107` rather than estimated
 
