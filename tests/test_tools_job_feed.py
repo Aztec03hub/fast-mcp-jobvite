@@ -73,10 +73,10 @@ JOBFEED_EMPTY = "jobfeed_empty.json"
 #: classes apart - and telling them apart is DESIGN.md:320-321's whole
 #: reason for having three (§7.2's token-scoping axis).
 FEED_KEY = "feed-key-value-U12"
-FEED_SECRET = "feed-secret-value-U12"  # noqa: S105 - a test literal
+FEED_SECRET = "feed-secret-value-U12"  # noqa: S105 - a test literal  # pragma: allowlist secret
 COMPANY_ID = "company-id-value-U12"
-API_KEY = "v2-api-key-not-the-feeds"
-API_SECRET = "v2-api-secret-not-the-feeds"  # noqa: S105 - a test literal
+API_KEY = "v2-api-key-not-the-feeds"  # pragma: allowlist secret
+API_SECRET = "v2-api-secret-not-the-feeds"  # noqa: S105 - a test literal  # pragma: allowlist secret
 
 
 @pytest.fixture

@@ -36,8 +36,8 @@ import io
 import logging
 import sys
 
-API_KEY = "PROBEAPIKEYVALUE"  # noqa: S105 - a probe literal, never a credential
-API_SECRET = "PROBESECRETVALUE"  # noqa: S105 - a probe literal
+API_KEY = "PROBEAPIKEYVALUE"  # noqa: S105 - a probe literal, never a credential  # pragma: allowlist secret
+API_SECRET = "PROBESECRETVALUE"  # noqa: S105 - a probe literal  # pragma: allowlist secret
 COMPANY_ID = "PROBECOMPANYVALUE"
 
 
