@@ -108,6 +108,22 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         "page",
         "eId",
         "companyId",
+        # U5's `search_jobs` argument, admitted DELIBERATELY by the rule
+        # above: its value is a Jobvite `eId`, structurally the same
+        # identifier as `eId` and `job_id`, which are already here.
+        #
+        # THE NAME IS GENERIC AND THAT IS THE RISK, written down rather
+        # than left for someone to rediscover. This set is keyed by
+        # argument NAME across every tool, so admitting `ids` admits it
+        # for any future tool using that word. It is tolerable only
+        # while the rule above holds - "structurally an identifier, a
+        # bound or a page cursor". A later tool whose `ids` means
+        # anything else MUST RENAME ITS ARGUMENT rather than lean on
+        # this entry, and the reviewer's job is to notice.
+        #
+        # Not a new class: `candidate_id` is already admitted, so a
+        # candidate identifier is already deemed loggable here.
+        "ids",
     }
 )
 

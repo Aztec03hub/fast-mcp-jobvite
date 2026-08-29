@@ -305,7 +305,8 @@ async def test_the_audit_event_records_this_invocation(
         settings(), client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS))
     )
     async with Client(server) as client:
-        await client.call_tool(SEARCH_JOBS, {"params": {"ids": "TESTJOB1"}})
+        requested_id = "TESTJOB1"
+        await client.call_tool(SEARCH_JOBS, {"params": {"ids": requested_id}})
 
     event = audit_event(audit_records)
     assert event["tool_name"] == SEARCH_JOBS
@@ -313,20 +314,18 @@ async def test_the_audit_event_records_this_invocation(
     assert event["latency_ms"] >= 0
     assert event["transport"] == "stdio"
 
-    # `ids` is REDACTED, and that is `redact_arguments` working as
-    # DESIGN.md:312-316 specifies rather than a defect in this tool:
-    # the allow-list is fail-closed, so "a tool added later
-    # contributes its arguments to the audit event redacted, and stays
-    # that way until someone adds the key here deliberately - which is
-    # the point" (`utils/redaction.py`).
+    # `ids` is now IN THE CLEAR, and the deliberate act U5 declined to
+    # take has been taken by the allow-list's owner: its value is a
+    # Jobvite `eId`, structurally the same identifier as `eId` and
+    # `job_id`, which were already admitted. U5 was right to report it
+    # rather than edit a fail-closed security allow-list from a passing
+    # unit.
     #
-    # This unit does NOT add the key: `utils/redaction.py` is not U5's
-    # file, and adding a row to a fail-closed security allow-list is
-    # exactly the deliberate act its owner should make. Recorded as a
-    # finding with a suggested fix instead. What the event still
-    # answers is the auditing question - an `ids` argument was
-    # supplied, and it was a string.
-    assert event["arguments"] == {"ids": "[REDACTED:str]"}
+    # This assertion pins the VALUE, not merely that the key is present.
+    # `{"ids": "[REDACTED:str]"}` and `{"ids": "abc123"}` are both
+    # dict-shaped and both truthy, so an assertion on the key alone
+    # would pass whichever way the allow-list went.
+    assert event["arguments"] == {"ids": requested_id}
 
 
 async def test_the_audit_event_records_an_error_as_an_error(
