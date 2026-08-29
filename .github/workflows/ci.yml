@@ -382,50 +382,80 @@ jobs:
             echo "::error::expected at least 3 credentialed tests collected, got '${n:-none}'"
             exit 1; }
 
-      # U5's controls. The mutation harness gates on EVERY row firing; the
-      # amputation harness gates on every row having APPLIED ITS ANCHOR, because
-      # its survivors are output rather than failure.
-      - name: U5 jobs controls, all fired
+      # ---------------------------------------------------------------------
+      # THE HARNESS BLOCK. Every step below calls scripts/ci-harness-gate.sh
+      # rather than carrying its own `run:` logic, and the reasoning for that -
+      # including why the vocabulary each step greps for is DERIVED from the
+      # harness's own source instead of listed here - is in that file's header.
+      # It is one artefact, so it can be run locally, reviewed as code, and
+      # exercised by a control; a hand-copied twin of a gate is a second list
+      # that drifts while still passing.
+      #
+      # The exit-code contract these steps rely on also lives there:
+      #   0 = the harness ran and every declared assertion behaved
+      #   1 = a FINDING - an unexpected survivor, or a row that measured nothing
+      #   3 = could not run: the baseline is red, or a declared test id is gone
+      # Those three are kept apart on purpose. A message that misdescribes what
+      # happened sends the next reader to the wrong place.
+      #
+      # An amputation harness exits 0 BY DESIGN, because survivors are its
+      # OUTPUT and not its verdict, so no step here gates on the exit code
+      # alone. `--min-rows` is what notices a row that stopped running at all.
+      # ---------------------------------------------------------------------
+
+      # THE STATIC CHECK COMES FIRST, because it is the cheap one. It reads every
+      # anchor out of every harness and greps the target file, in milliseconds,
+      # without running anything. B49b reflowed 1608 lines and broke U3's M8;
+      # this is what would have caught it on the sweep commit rather than leaving
+      # main red until a harness run tripped over it. It found one genuinely
+      # stale anchor the day it was written.
+      #
+      # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
+      # shape stops matching, every anchor that still parses resolves perfectly
+      # and the checker reports OK on a fraction of its coverage. Measured:
+      # deleting one shape drops 154 to 139 with an exit code of 0. Lowering
+      # this number is a visible diff that has to be defended.
+      - name: Harness anchors still resolve
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 154
+
+      - name: Harness anchor checker controls, all fired
         run: |
           set -uo pipefail
-          out=$(bash scripts/check-u5-jobs-controls.sh 2>&1); rc=$?
+          out=$(bash scripts/check-harness-anchors-controls.sh 2>&1); rc=$?
           echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U5 mutation control did not fire"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
-          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-          [ "$fired" = "$total" ] || {
-            echo "::error::only $fired of $total U5 controls fired"; exit 1; }
+          [ "$rc" -eq 0 ] || { echo "::error::an anchor-checker control did not fire"; exit 1; }
+
+      # The gate every step below calls, exercised against stub harnesses that
+      # replay recorded output. Twenty-three rows, every arm including the ones
+      # a healthy repository never produces: a moved anchor with exit 0, a hung
+      # row, a harness with no anchor vocabulary at all.
+      - name: Harness gate controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(bash scripts/ci-harness-gate-controls.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::a harness-gate control did not fire"; exit 1; }
+
+      # U5's controls. The mutation harness gates on every row firing; the
+      # amputation harness gates on every row having APPLIED ITS ANCHOR.
+      - name: U5 jobs controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-u5-jobs-controls.sh --controls-fired
 
       - name: U5 jobs amputation, every anchor applied
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u5-jobs-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U5 amputation row did not apply"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE 'ROWS: [0-9]+   ANCHORS APPLIED: [0-9]+' | tail -1)
-          [ -n "$line" ] || { echo "::error::no 'ROWS/ANCHORS APPLIED' line"; exit 1; }
-          rows=$(printf '%s\n' "$line" | grep -oE 'ROWS: [0-9]+' | grep -oE '[0-9]+')
-          applied=$(printf '%s\n' "$line" | grep -oE 'APPLIED: [0-9]+' | grep -oE '[0-9]+')
-          [ "$rows" = "$applied" ] || {
-            echo "::error::only $applied of $rows U5 amputation anchors applied"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u5-jobs-amputation.sh --anchors-applied
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a
       # search that matched nothing, so each is mutation-tested: the harness breaks
       # one thing at a time in a COPY of the tree and requires the named test to go
       # red. Same "all fired, never a literal count" rule as the design controls.
+      #
+      # NOTE, measured while wiring these gates: this is the one harness whose
+      # anchors scripts/check-harness-anchors.py cannot read, because it mutates
+      # with `sed -i` expressions rather than literal anchors. The checker NAMES
+      # it on every run rather than reporting a clean zero over it.
       - name: U0 test controls, all fired
-        run: |
-          set -uo pipefail
-          out=$(scripts/check-u0-test-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U0 test control did not fire"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
-          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
-          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u0-test-controls.sh --controls-fired
 
       # ----- U15, the two commit-time gates (DESIGN.md:1627-1637, C8-I1) -----
       # The pre-commit hooks are the primary control and they run on a
@@ -443,42 +473,28 @@ jobs:
             echo "::error::a tracked file fails the committed-file-type gate"; exit 1; }
 
       - name: U15 gate controls, all fired
-        run: |
-          set -uo pipefail
-          out=$(scripts/check-u15-gate-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U15 gate control did not fire"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
-          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
-          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u15-gate-controls.sh --controls-fired
 
-      # THE TWO HARNESSES THAT RAN NOWHERE. U3 found these (D3, task #31): neither
+      # THE TWO HARNESSES THAT RAN NOWHERE. U3 found these (D3): neither
       # scripts/check-u15-gate-amputation.sh nor scripts/check-u11-advisory-controls.sh
       # appeared in this workflow OR in CONTRIBUTING.md - `grep -c` returned 0 in all
       # four combinations. Both PASS today; the finding is that nothing would notice
       # if they stopped. That is the FOURTH instance of this shape here, after the
       # obligations map, the file-type gate's `--all` mode, and the plan-measurements
       # harness. A control that is not wired is not a control.
+      #
+      # AND THE U15 AMPUTATION HARNESS COULD NOT REPORT A MOVED ANCHOR AT ALL
+      # (task #29). It amputates with `re.sub`, which returns the string
+      # unchanged and raises nothing when it matches nothing - so a row would
+      # run against an INTACT tree and publish a survivor list of false
+      # findings, and no step could gate on it because it printed no phrase for
+      # a step to gate on. Both of its rows now assert that the amputation
+      # landed, D asserting its three tables separately.
       - name: U15 gate amputation, every row applied
-        run: |
-          set -uo pipefail
-          out=$(scripts/check-u15-gate-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::the U15 amputation harness exited $rc"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u15-gate-amputation.sh --amputation
 
       - name: U11 advisory controls, all fired
-        run: |
-          set -uo pipefail
-          out=$(scripts/check-u11-advisory-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U11 advisory control did not fire"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
-          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
-          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u11-advisory-controls.sh --controls-fired
 
       # ---- U1's block. Neither U1 harness had a CI step at all, so every row
       # in them - including the ones that existed before this commit - ran only
@@ -486,58 +502,10 @@ jobs:
       # names, and adding rows to an unrun harness would have been building it
       # a third time.
       - name: U1 boot mutation controls, all fired
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u1-boot-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U1 mutation survived"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-          [ -n "$line" ] || { echo "::error::no U1 'N/M controls fired.' line"; exit 1; }
-          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-          [ "$total" -gt 0 ] || { echo "::error::the U1 harness holds zero controls"; exit 1; }
-          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total U1 controls fired"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u1-boot-controls.sh --controls-fired
 
-      # THE U1 AMPUTATION HARNESS NOW HAS THREE EXIT CODES, not one.
-      #
-      # It used to exit 0 whatever it found, because "survivors are the OUTPUT"
-      # - and the consequence was that a row which stopped amputating anything
-      # printed a LONGER survivor list and still exited 0. This step could only
-      # gate on anchors, so it inherited that blindness.
-      #
-      # Each row now declares the assertions that exist to notice it, and:
-      #   0 = every declared assertion died under its own amputation
-      #   1 = an UNEXPECTED SURVIVOR (a false instrument) or a row that timed
-      #       out and therefore measured nothing - a FINDING, not an outage
-      #   3 = could not run: the intact baseline is red, or a declared test id
-      #       no longer exists (a rename, which silently voids its row)
-      #
-      # Collapsing those into one "could not run" message is the same defect
-      # one layer up: a message that misdescribes what happened sends the next
-      # reader to the wrong place. The anchor and row-count checks below are
-      # kept - they cover a moved anchor, which is a different failure from a
-      # surviving assertion and is not caught by the exit code.
       - name: U1 boot amputation harness ran every row
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u1-boot-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          if [ "$rc" -eq 1 ]; then
-            echo "::error::a U1 amputation was survived by an assertion that exists to notice it, or a row could not be measured; search the log for UNEXPECTED SURVIVOR and TIMED OUT"
-            exit 1
-          fi
-          if [ "$rc" -eq 3 ]; then
-            echo "::error::the U1 amputation harness could not run: the intact baseline is red, or a declared MUST_DIE test id no longer exists"
-            exit 1
-          fi
-          [ "$rc" -eq 0 ] || { echo "::error::the U1 amputation harness exited $rc"; exit 1; }
-          if printf '%s\n' "$out" | grep -qE 'COULD NOT APPLY|anchor is not unique'; then
-            echo "::error::a U1 amputation anchor moved; that row tested nothing"; exit 1
-          fi
-          if printf '%s\n' "$out" | grep -q 'TIMED OUT'; then
-            echo "::error::a U1 amputation hung; that row proved nothing"; exit 1
-          fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## [A-N]\. ')
-          [ "$rows" -ge 14 ] || { echo "::error::only $rows amputation rows ran, expected 14"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u1-boot-amputation.sh --amputation --min-rows 14 --row-re '^########## [A-N]\. '
 
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
       # else touched. Both harnesses run here, because a control that runs only
@@ -545,106 +513,27 @@ jobs:
       # (IMPLEMENTATION-PLAN.md:1388's OBLIGATIONS row, and the `--all`
       # file-type mode that had no CI step one artifact later).
       - name: U3 audit mutation controls, all killed
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u3-audit-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U3 mutation survived"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE 'RESULT: [0-9]+ killed, [0-9]+ not killed' | tail -1)
-          [ -n "$line" ] || { echo "::error::no U3 'RESULT:' line"; exit 1; }
-          killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
-          [ "$killed" -gt 0 ] || { echo "::error::zero U3 mutations killed - the harness ran nothing"; exit 1; }
-          # A MOVED ANCHOR PASSED THIS STEP SILENTLY. The harness prints
-          # "COULD NOT APPLY", exits 0 anyway, and reports "N killed, 1 not
-          # killed" - and the three checks above read the exit code and the
-          # KILLED half only. Measured: U3's M12 anchor moved when M-5
-          # was fixed and the step stayed green. The amputation steps already
-          # gate on both; these did not.
-          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
-            echo "::error::a U3 mutation anchor moved; that row tested nothing"; exit 1
-          fi
-          not_killed=$(printf '%s' "$line" | grep -oE '[0-9]+ not killed' | grep -oE '[0-9]+')
-          [ "${not_killed:-1}" -eq 0 ] || { echo "::error::$not_killed U3 mutations survived"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u3-audit-controls.sh --result-killed
 
-      # Amputation exits 0 by design: SURVIVORS ARE ITS OUTPUT, not its verdict.
-      # So this step cannot gate on the exit code alone. It gates on the harness
-      # having actually RUN every row - any row that could not apply its anchor
-      # means a refactor moved the subject and the row silently tested nothing.
       - name: U3 audit amputation harness ran every row
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u3-audit-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::the U3 amputation harness could not run"; exit 1; }
-          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
-            echo "::error::a U3 amputation anchor moved; that row tested nothing"; exit 1
-          fi
-          if printf '%s\n' "$out" | grep -q 'DID NOT LAND'; then
-            echo "::error::a U3 amputation did not land; that row tested nothing"; exit 1
-          fi
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+ ')
-          [ "$rows" -ge 10 ] || { echo "::error::only $rows amputation rows ran, expected 10"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # The guard that floors the suite size is itself a thing that can silently
       # stop working, and it would fail in exactly the way it exists to catch:
-      # quietly, with everything green. Its harness reports "N/M killed" and this
-      # step requires N == M, the same rule as every other harness here.
+      # quietly, with everything green. `--require` is what checks it put back
+      # the script it mutated.
       - name: Suite-floor guard amputation, every row killed
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-suite-floor-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::the suite-floor harness exited $rc"; exit 1; }
-          if printf '%s\n' "$out" | grep -qE 'DID NOT LAND|ANCHOR MISSING|ANCHOR NOT UNIQUE'; then
-            echo "::error::a suite-floor amputation anchor moved; that row tested nothing"; exit 1
-          fi
-          printf '%s\n' "$out" | grep -q 'post-run re-check of the real script: exit=0' || {
-            echo "::error::the harness did not restore the script it mutated"; exit 1; }
+        run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --require 'post-run re-check of the real script: exit=0'"
 
       - name: U4 client mutation controls, all killed
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u4-client-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::a U4 mutation survived"; exit 1; }
-          line=$(printf '%s\n' "$out" | grep -oE 'RESULT: [0-9]+ killed, [0-9]+ not killed' | tail -1)
-          [ -n "$line" ] || { echo "::error::no U4 'RESULT:' line"; exit 1; }
-          killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
-          [ "$killed" -gt 0 ] || { echo "::error::zero U4 mutations killed - the harness ran nothing"; exit 1; }
-          # A MOVED ANCHOR PASSED THIS STEP SILENTLY. The harness prints
-          # "COULD NOT APPLY", exits 0 anyway, and reports "N killed, 1 not
-          # killed" - and the three checks above read the exit code and the
-          # KILLED half only. Measured: U4's M12 anchor moved when M-5
-          # was fixed and the step stayed green. The amputation steps already
-          # gate on both; these did not.
-          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
-            echo "::error::a U4 mutation anchor moved; that row tested nothing"; exit 1
-          fi
-          not_killed=$(printf '%s' "$line" | grep -oE '[0-9]+ not killed' | grep -oE '[0-9]+')
-          [ "${not_killed:-1}" -eq 0 ] || { echo "::error::$not_killed U4 mutations survived"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u4-client-controls.sh --result-killed
 
-      # Amputation exits 0 by design: SURVIVORS ARE ITS OUTPUT, not its verdict.
-      # So this step cannot gate on the exit code alone. It gates on the harness
-      # having actually RUN every row - any row that could not apply its anchor
-      # means a refactor moved the subject and the row silently tested nothing.
+      # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the old
+      # pattern required a space straight after the digits, so it would have
+      # counted 12 while 17 ran - a gate reporting the number of rows it can SEE,
+      # which is how a row goes missing without a red run.
       - name: U4 client amputation harness ran every row
-        run: |
-          set -uo pipefail
-          out=$(bash scripts/check-u4-client-amputation.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::the U4 amputation harness could not run"; exit 1; }
-          if printf '%s\n' "$out" | grep -q 'COULD NOT APPLY'; then
-            echo "::error::a U4 amputation anchor moved; that row tested nothing"; exit 1
-          fi
-          if printf '%s\n' "$out" | grep -q 'DID NOT LAND'; then
-            echo "::error::a U4 amputation did not land; that row tested nothing"; exit 1
-          fi
-          # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the
-          # old pattern required a space straight after the digits, so it would
-          # have counted 12 while 17 ran - a gate reporting the number of rows
-          # it can SEE, which is how a row goes missing without a red run.
-          rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+[a-z]* ')
-          [ "$rows" -ge 17 ] || { echo "::error::only $rows amputation rows ran, expected 17"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-u4-client-amputation.sh --amputation --min-rows 17 --row-re '^########## A[0-9]+[a-z]* '
 
       - name: Secret scan hook runs clean
         # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,

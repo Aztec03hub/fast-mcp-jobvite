@@ -77,9 +77,24 @@ python3 - "$WORK/C/$GATE_REL" <<'PY'
 import re, sys, pathlib
 p = pathlib.Path(sys.argv[1])
 s = p.read_text()
-s = re.sub(r"\ndef classify\(.*?\n    return None\n", "\n", s, flags=re.S)
-p.write_text(s)
+# EVERY re.sub HERE IS ASSERTED. This harness had NO way to report that a row
+# failed to apply: `re.sub` that matches nothing returns the string unchanged
+# and raises nothing, so the row ran, printed a survivor list, and had amputated
+# an INTACT tree. Every survivor it named would then be a false finding, and no
+# CI step could gate on it because it printed no phrase for a step to gate on.
+# Measured by task #29: this was the only harness here with no anchor-failure
+# vocabulary at all.
+out = re.sub(r"\ndef classify\(.*?\n    return None\n", "\n", s, flags=re.S)
+if out == s:
+    print("  C: AMPUTATION DID NOT LAND - the classify() anchor moved. Fix the harness.")
+    sys.exit(1)
+p.write_text(out)
 PY
+# `|| exit 1`, because the message alone is not the gate. Without it the row
+# would print DID NOT LAND and then run `report` anyway, publishing a survivor
+# list measured against an intact tree - the failure sitting one line below its
+# own diagnosis.
+[ $? -eq 0 ] || exit 1
 report "C. the module imports but classify() has been removed" "$WORK/C"
 
 # --- D. the rule tables are present but EMPTY -------------------------------
@@ -90,11 +105,39 @@ python3 - "$WORK/D/$GATE_REL" <<'PY'
 import sys, pathlib, re
 p = pathlib.Path(sys.argv[1])
 s = p.read_text()
-s = re.sub(r"ALLOWED_EXTENSIONS = frozenset\(\n.*?\n\)", "ALLOWED_EXTENSIONS = frozenset()", s, flags=re.S)
-s = re.sub(r"DENIED_EXTENSIONS = \{\n.*?\n\}", "DENIED_EXTENSIONS = {}", s, flags=re.S)
-s = re.sub(r"MAGIC = \(\n.*?\n\)", "MAGIC = ()", s, flags=re.S)
-p.write_text(s)
+# Three tables, asserted SEPARATELY. Asserting only that the file changed would
+# pass with two of the three still populated, and the row would report that an
+# empty rule table is caught while two thirds of the rules were intact - a
+# partial amputation reading as a whole one.
+#
+# WRITTEN OUT RATHER THAN LOOPED, on purpose. The looped version was shorter and
+# scripts/check-harness-anchors.py could not read a single one of these three
+# patterns out of it - the anchors became tuple elements instead of arguments to
+# `re.sub`, and the static checker's coverage dropped from 154 to 151 while
+# still reporting OK on everything it could still see. Its floor is what caught
+# that. An anchor that a reader cannot find is an anchor nothing defends, so
+# these stay verbose and legible to both readers.
+def died(label):
+    print(f"  D: AMPUTATION DID NOT LAND - the {label} anchor moved. Fix the harness.")
+    sys.exit(1)
+
+out = re.sub(r"ALLOWED_EXTENSIONS = frozenset\(\n.*?\n\)",
+             "ALLOWED_EXTENSIONS = frozenset()", s, flags=re.S)
+if out == s:
+    died("ALLOWED_EXTENSIONS")
+s = out
+
+out = re.sub(r"DENIED_EXTENSIONS = \{\n.*?\n\}", "DENIED_EXTENSIONS = {}", s, flags=re.S)
+if out == s:
+    died("DENIED_EXTENSIONS")
+s = out
+
+out = re.sub(r"MAGIC = \(\n.*?\n\)", "MAGIC = ()", s, flags=re.S)
+if out == s:
+    died("MAGIC")
+p.write_text(out)
 PY
+[ $? -eq 0 ] || exit 1
 report "D. the gate runs but every rule table is EMPTY" "$WORK/D"
 
 # --- E. git is unavailable --------------------------------------------------

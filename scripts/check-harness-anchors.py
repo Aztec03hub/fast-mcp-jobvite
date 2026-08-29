@@ -429,15 +429,20 @@ def main() -> int:
                          "it is a visible diff that has to be defended.")
     args = ap.parse_args()
 
-    # A harness that edits THIS checker is this checker's own control harness,
-    # not a mutation harness of the product: it anchors into a throwaway copy of
-    # the tree, so its targets are runtime paths that resolve to nothing and its
-    # rows arrive as findings about files that do not exist. Excluded by what it
-    # names rather than by a filename kept in a list here, so a renamed or a
-    # second control harness is excluded automatically. Found by that control
-    # harness itself, on its first run, as a positive control that failed.
+    # THIS CHECKER'S OWN CONTROL HARNESS IS NOT A HARNESS OF THE PRODUCT. It
+    # anchors into a throwaway copy of the tree, so its targets are runtime
+    # paths that resolve to nothing and its rows arrive as findings about files
+    # that do not exist. Found by that control harness on its first run, as a
+    # positive control that was passing for the wrong reason.
+    #
+    # Matched on the FILENAME, derived from this file's own stem. The first
+    # attempt excluded any script whose TEXT mentioned this checker, and a
+    # comment added to check-u15-gate-amputation.sh - a real harness with four
+    # live anchors - then excluded it silently, dropping the count from 154 to
+    # 150. A predicate over prose is a predicate any prose can trip.
+    stem = Path(__file__).stem
     harnesses = [h for h in sorted(SCRIPTS.glob("check-*.sh"))
-                 if Path(__file__).name not in h.read_text()]
+                 if not h.name.startswith(stem)]
     if not harnesses:
         print(f"ERROR: no harnesses found under {SCRIPTS} - is the path right?")
         return 2
