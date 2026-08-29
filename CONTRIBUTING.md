@@ -146,14 +146,33 @@ python3 docs/reviews/check-clause-citations.py  # needs the standards repo; exit
 
 **`check-clause-citations.py` resolves the CLAUSE column** - the half of every obligation row that says why the obligation is real. `check-obligations.py` verifies the artifact and says nothing about the clause. It cannot be a CI gate: it reads the `evolv-coder-standards` sibling checkout, which CI does not have. It proves each citation RESOLVES and explicitly does NOT prove the cited line says what the row claims - read the text it prints.
 
-This puts the interpreter at **PID 1** in a container with no `--init` and sends a real SIGTERM via
-`docker stop -t 15`, on both transports, closing the second of `DESIGN.md`'s two inherited limits on
-the shutdown mitigation. **It is deliberately not in `ci.yml`**: CI has no Docker daemon, and a
-required check that goes red for reasons nobody caused trains everyone to ignore it.
+**`check-u1-pid1-shutdown.sh` puts the interpreter at PID 1** in a container with no `--init` and
+sends a real SIGTERM via `docker stop -t 15`, on both transports, closing the second of
+`DESIGN.md`'s two inherited limits on the shutdown mitigation. (This paragraph opened with "This
+puts the interpreter at PID 1" until a second script was added to the block above it, at which point
+"this" silently began pointing at the wrong one. A pronoun is a reference that nothing checks.)
+**It is deliberately not in `ci.yml`**: CI has no Docker daemon, and a required check that goes red
+for reasons nobody caused trains everyone to ignore it.
+
+**"On both transports" is a claim this sentence briefly did not earn, and the fix was to the
+harness rather than to the sentence.** R3-M2: the PID-1 assertion used to sit in an `http`-only
+branch, because it grepped uvicorn's `Started server process [1]` - a log line `stdio` never emits.
+The `stdio` arm asserted only that the lifespan closed inside the grace period, and a process that
+is **not** PID 1 satisfies both of those, so this paragraph described coverage the measurement did
+not have. Measured, not argued: the pre-fix script with `--init` added puts the interpreter at pid 7
+and the `stdio` arm still passes. The entry script now records its own pid in the marker
+(`opened pid=<n>`, from `tests/boot_process.py`'s `MARKER_ENTRY`) and **both** arms check it, so the
+sentence above is now true of what the script does. An arm that finds no pid in the marker at all
+fails with its own distinct message rather than degrading to the weaker check.
 
 It exits **2** when Docker is missing, never 0 - a skip that reports success is a green that tested
 nothing. Read the header before trusting a pass; it states exactly what the measurement does and
-does not cover.
+does not cover, including that the container runs this repository's virtualenv under
+`python:3.12-slim` rather than an image built from a Dockerfile this project does not have.
+
+**A sentence here that claims coverage a harness does not have fails in the same way the harness
+would.** It occupies the place a reader consults to decide whether a limit is closed, and answers
+yes. If you change what one of these measurements covers, this paragraph is part of the change.
 
 **`check-design-citations.py` is NOT a gate, and that is deliberate.** Run it around any edit to
 `docs/DESIGN.md`:

@@ -497,15 +497,39 @@ jobs:
           [ "$total" -gt 0 ] || { echo "::error::the U1 harness holds zero controls"; exit 1; }
           [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total U1 controls fired"; exit 1; }
 
-      # Amputation exits 0 by design: survivors are its OUTPUT. This gates on
-      # every row having applied its anchor, which is what a moved anchor
-      # silently destroys.
+      # THE U1 AMPUTATION HARNESS NOW HAS THREE EXIT CODES, not one.
+      #
+      # It used to exit 0 whatever it found, because "survivors are the OUTPUT"
+      # - and the consequence was that a row which stopped amputating anything
+      # printed a LONGER survivor list and still exited 0. This step could only
+      # gate on anchors, so it inherited that blindness.
+      #
+      # Each row now declares the assertions that exist to notice it, and:
+      #   0 = every declared assertion died under its own amputation
+      #   1 = an UNEXPECTED SURVIVOR (a false instrument) or a row that timed
+      #       out and therefore measured nothing - a FINDING, not an outage
+      #   3 = could not run: the intact baseline is red, or a declared test id
+      #       no longer exists (a rename, which silently voids its row)
+      #
+      # Collapsing those into one "could not run" message is the same defect
+      # one layer up: a message that misdescribes what happened sends the next
+      # reader to the wrong place. The anchor and row-count checks below are
+      # kept - they cover a moved anchor, which is a different failure from a
+      # surviving assertion and is not caught by the exit code.
       - name: U1 boot amputation harness ran every row
         run: |
           set -uo pipefail
           out=$(bash scripts/check-u1-boot-amputation.sh 2>&1); rc=$?
           echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::the U1 amputation harness could not run"; exit 1; }
+          if [ "$rc" -eq 1 ]; then
+            echo "::error::a U1 amputation was survived by an assertion that exists to notice it, or a row could not be measured; search the log for UNEXPECTED SURVIVOR and TIMED OUT"
+            exit 1
+          fi
+          if [ "$rc" -eq 3 ]; then
+            echo "::error::the U1 amputation harness could not run: the intact baseline is red, or a declared MUST_DIE test id no longer exists"
+            exit 1
+          fi
+          [ "$rc" -eq 0 ] || { echo "::error::the U1 amputation harness exited $rc"; exit 1; }
           if printf '%s\n' "$out" | grep -qE 'COULD NOT APPLY|anchor is not unique'; then
             echo "::error::a U1 amputation anchor moved; that row tested nothing"; exit 1
           fi

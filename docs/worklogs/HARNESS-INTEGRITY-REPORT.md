@@ -1,6 +1,8 @@
 # HARNESS-INTEGRITY - task #20
 
-Agent: `harness-integrity`. Branch: `fix/harness-integrity`. Base SHA: `667db50`.
+Agent: `harness-integrity`. Branch: `fix/harness-integrity`. Base SHA: `667db50`, **rebased onto
+`main` at `0291bac`** - see "The rebase, and what it caught" near the end; the numbers in Item 1's
+two survivor tables are from `667db50` and `1e04ae3`, which is where the question was asked.
 Worktrees: `/tmp/harness-work` (667db50, my branch), `/tmp/harness-base` (`1e04ae3`, the commit
 before `c7809f6`), `/tmp/harness-pid1` (667db50, controls only, never committed from).
 Nothing was checked out in the shared checkout.
@@ -308,19 +310,21 @@ transports", which was too strong at 667db50 and is now true. No edit needed.
 
 ## Verification
 
-Run in `/tmp/harness-pid1` (667db50 + this branch's `tests/boot_process.py` and both scripts), each
-gate on its own line, judged by exit code:
+Run in `/tmp/harness-work` on the rebased branch, each gate on its own line, judged by exit code:
 
 ```
-uv run --frozen pytest -q          355 passed, 2 deselected in 34.99s   PYTEST_EXIT=0
+uv run --frozen pytest -q          362 passed, 2 deselected in 24.24s   PYTEST_EXIT=0
 uv run --frozen ruff check .       All checks passed!                   RUFF_EXIT=0
-uv run --frozen ruff format --check .  50 files already formatted       FMT_EXIT=0
+uv run --frozen ruff format --check .  51 files already formatted       FMT_EXIT=0
 uv run --frozen mypy .             Success: no issues found in 38 source files   MYPY_EXIT=0
 bash -n scripts/check-u1-pid1-shutdown.sh                               SYNTAX OK
 bash -n scripts/check-u1-boot-amputation.sh                             SYNTAX OK
 ```
 
-**355 passed, 2 deselected, 0 skipped.** `shellcheck` is **not installed on this host**, so the shell
+**362 passed, 2 deselected, 0 skipped**, run on the RESTORED tree after the final amputation run
+finished - an earlier gate pass overlapped a running harness, which mutates `src/` in place, so its
+result was not trustworthy and was re-run rather than reported. `shellcheck` is **not installed on
+this host**, so the shell
 changes are syntax-checked by `bash -n` and by running them, not linted.
 
 `docs/reviews/check-obligations.py`, verbatim:
@@ -333,49 +337,159 @@ OBLIGATIONS_EXIT=0
 
 **PREAMBLE.md's suite baseline line is stale.** It says "322 passed, 2 deselected, 0 skipped
 (measured at `0d34c66`)". The measured figure at 667db50 is **355**, which is what `4322fd2`
-("ratchet the suite floor 348 -> 355") set the floor to. Reporting it as the preamble instructs.
+("ratchet the suite floor 348 -> 355") set the floor to, and **362** after the rebase onto
+`0291bac`. Reporting it as the preamble instructs; the line has now been stale across at least three
+ratchets, which suggests it wants to be derived rather than retyped - the same argument the preamble
+itself makes about retyped constants.
 
-**Amputation harness, full 13-row run on this branch, `HARNESS_EXIT=0`:**
+**Amputation harness, full 14-row run on the REBASED branch, `HARNESS_EXIT=0`:**
 
 ```
-########## BASELINE - the intact tree
-============================= 83 passed in 13.36s ==============================
+########## BASELINE - the intact tree              87 passed in 15.26s
   all declared MUST_DIE ids pass on the intact tree.
-########## A. config.py does not exist at all
-  every declared assertion died (2 of 2)          | everything else: NOTHING passed
-########## B. config.py exists but is ZERO BYTES
-  every declared assertion died (2 of 2)          | everything else: NOTHING passed
-########## C. validate_settings() refuses nothing        30 failed, 53 passed
-  every declared assertion died (3 of 3)
-########## D. _check_transport is never called           13 failed, 70 passed
-  every declared assertion died (3 of 3)
-########## E. TOOL_REQUIREMENTS is an EMPTY table        14 failed, 69 passed
-  every declared assertion died (2 of 2)
-########## F. KNOWN_TOOLS is EMPTY                       40 failed, 43 passed
-  every declared assertion died (2 of 2)
-########## G. _term and the handler installation GONE     6 failed, 77 passed
-  every declared assertion died (2 of 2)
-########## H. the finally block GONE                      3 failed, 80 passed
-  every declared assertion died (2 of 2)
-########## I. build_server returns a BARE FastMCP        11 failed, 72 passed
-  every declared assertion died (3 of 3)
-########## J. configure_logging() is never called         7 failed, 76 passed
-  every declared assertion died (3 of 3)
-########## K. configure_logging() configures NOTHING      7 failed, 76 passed
-  every declared assertion died (3 of 3)
-########## L. the sink's redactor redacts nothing         1 failed, 82 passed
-  every declared assertion died (1 of 1)
-########## M. stdlib never bridged into loguru            2 failed, 81 passed
-  every declared assertion died (2 of 2)
+########## A. config.py does not exist               every declared assertion died (2 of 2)
+########## B. config.py is ZERO BYTES                every declared assertion died (2 of 2)
+########## C. validate_settings() refuses nothing    30 failed, 57 passed   (3 of 3)
+########## D. _check_transport never called          13 failed, 74 passed   (3 of 3)
+########## E. TOOL_REQUIREMENTS is EMPTY             54 failed, 33 passed   (2 of 2)
+########## F. KNOWN_TOOLS is EMPTY                   41 failed, 46 passed   (2 of 2)
+########## G. _term + handler GONE                    6 failed, 81 passed   (2 of 2)
+########## H. the finally block GONE                  3 failed, 84 passed   (2 of 2)
+########## I. build_server returns a BARE FastMCP    11 failed, 76 passed   (3 of 3)
+########## J. configure_logging() never called       10 failed, 77 passed   (3 of 3)
+########## K. configure_logging() configures NOTHING 10 failed, 77 passed   (3 of 3)
+########## L. the record filter redacts nothing       1 failed, 86 passed   (1 of 1)
+########## N. the sink writes it unredacted           1 failed, 86 passed   (1 of 1)
+########## M. stdlib never bridged into loguru        4 failed, 83 passed   (2 of 2)
 ########## END
 Every declared assertion died under its own amputation.
 The 'everything else that passed' lists are context, not findings.
 HARNESS_EXIT=0
 ```
 
-**The failed/passed counts are identical, row for row, to the pre-change run** in the table at the
-top of Item 1. The rework changed what the harness *says and returns*, not what it amputates. No row
-timed out; the 300s cap was never reached (slowest row: I, 158.99s).
+No row timed out; the 300s cap was never approached (slowest row: I, 162.16s). The pre-rebase run
+of the same rework at `667db50` was also `HARNESS_EXIT=0` across its 13 rows, with failed/passed
+counts identical row for row to the ORIGINAL harness at that SHA - the rework changed what the
+harness says and returns, not what it amputates.
+
+---
+
+## The rebase, and what it caught
+
+`main` moved 15 commits while I worked, and four of those touch files I changed. I rebased rather
+than hand over a conflict, because the file the conflict lands in is the one this task reworked.
+
+**One content conflict**, in `scripts/check-u1-boot-amputation.sh`: `main` had renamed row L to "the
+record FILTER redacts nothing" and added a **row N** for the rendered half. Resolved by keeping
+`main`'s rows verbatim and wiring both to `MUST_DIE` arrays.
+
+**Then the new harness immediately failed on its own author.** Three of my declarations were wrong
+after the rebase, and each was caught rather than shipped:
+
+1. `MUST_F` named `tests/test_boot.py::test_the_default_loopback_bind_starts`, which `45a60b8`
+   (R3-N1) renamed to `..._starts_a_real_process`. Caught by the **baseline id check**, `EXIT=3`.
+   This is the check earning its place on its first real encounter: a rename is exactly how a
+   declared expectation goes silently vacuous.
+2. `MUST_L` also named `test_a_third_party_log_line_is_redacted_at_the_sink`. Caught as an
+   `UNEXPECTED SURVIVOR`. **Measured** (`/tmp/probe-LN.sh`): row L kills exactly one arm,
+   `test_a_sink_this_project_did_not_install_sees_a_redacted_record`, and the third-party arm
+   survives because row N's sink still redacts what it renders - so the stream that arm reads is
+   clean either way. Not vacuous; declared under neither row now, with the reason in a comment.
+3. `MUST_N` also named `test_the_process_publishes_no_credential_when_the_transport_fails`. Caught
+   the same way. Row N kills exactly `test_an_exception_carrying_a_credential_is_redacted_at_the_sink`.
+   The transport arm survives because its credentials travel in **headers**, which `redact_headers`
+   scrubs at the producer before the record exists (M-5/L-1) - the sink is not the layer protecting
+   it. Declaring otherwise would assert an expectation the code does not owe.
+
+I am recording these as findings against myself rather than quietly correcting them, because the
+tempting repair for all three - delete the declaration until the run is green - is the defect this
+task exists to remove. Each was resolved by measuring which arm actually dies.
+
+`docs/reviews/check-obligations.py` after the rebase, verbatim:
+
+```
+Mappings: 29  |  anchors verified against their subject: 22  |  recorded as absent: 7
+Every mapped anchor still contains its subject. OK.
+```
+
+Post-rebase suite: **362 passed, 2 deselected, 0 skipped**. (`main`'s own `45a60b8` reports 362 too.)
+
+---
+
+## Follow-up: the documentation layer, and a CI step my own change made stale
+
+Asked afterwards to own the `CONTRIBUTING.md` half of R3-M2. This landed on top of `main` at
+`9bc4b34`, which had by then merged the work above.
+
+**`CONTRIBUTING.md` - the sentence now describes the fixed harness.** Its "Measurements a human
+runs" paragraph said the script sends SIGTERM to PID 1 "on both transports", which was the same
+overstatement as the header, in the place a reader consults to decide whether the `DESIGN.md` limit
+is closed. Because the fix makes the `stdio` arm genuinely establish PID 1, the sentence is now
+**true** rather than removed - so what it needed was the evidence, not a hedge: what the claim used
+to rest on (a uvicorn log line `stdio` never emits), the measurement that disproves the old version
+(`--init` gives pid 7 and the pre-fix `stdio` arm still passes), and what carries it now (the pid in
+the marker, checked on both arms). The `exit 2` sentence is untouched, and the paragraph now says
+outright that a sentence claiming coverage a harness lacks fails the same way the harness would.
+
+**A dangling pronoun that a merge created, fixed while I was there.** That paragraph opened "This
+puts the interpreter at **PID 1**". Since `795c438`, a second script (`check-clause-citations.py`)
+and its own paragraph sit between the code block and this one - so "This" had silently come to point
+at the wrong script. Rewritten to name `check-u1-pid1-shutdown.sh`. It is the failure shape of this
+whole task in one word: a reference that resolves to something, so nothing reports it as broken.
+
+**`.github/workflows/ci.yml` - my exit-code change made an error message wrong.** I had missed that
+the U1 amputation harness **is** a CI step (it is not in the human-run list). Its step read
+`[ "$rc" -eq 0 ] || echo "::error::the U1 amputation harness could not run"`, above a comment saying
+"Amputation exits 0 by design: survivors are its OUTPUT". After my change there are three codes -
+`1` is a **finding**, `3` is genuinely "could not run" - and collapsing them into one message sends
+the next reader to the wrong place, which is this task's own defect one layer up. Split into three
+branches with distinct messages, and the stale comment replaced with the new contract. The anchor
+and row-count checks are kept: a moved anchor is a different failure from a surviving assertion and
+is still not visible in the exit code.
+
+The step's row count is `grep -cE '^########## [A-N]\. ' ... -ge 14`, which already expected 14 and
+still gets 14 (rows A-N; my `########## END` line has no trailing `. ` and does not match).
+
+**Exercised, not read.** `/tmp/ci-step-sim.sh` replays the step's logic against recorded harness
+output:
+
+```
+--- clean run, rc=0            STEP PASSED: rows=14                                    exit=0
+--- rc=1, replayed against the REAL log that carried two UNEXPECTED SURVIVORs
+    ::error::a U1 amputation was survived by an assertion that exists to notice it...  exit=1
+--- rc=3
+    ::error::the U1 amputation harness could not run: the intact baseline is red, or
+             a declared MUST_DIE test id no longer exists                              exit=1
+```
+
+The `rc=1` arm is run against the genuine pre-correction log, not a synthetic one.
+
+**I deliberately did NOT commit that replay script, and the reason cuts against this project's own
+"commit the probe, not the write-up" rule.** It is a hand-copied twin of the `run:` block. Committed,
+it becomes a second list: `ci.yml` changes, the copy does not, and the copy keeps passing - which is
+this task's defect wearing a different hat. `check-u1-pid1-shutdown.sh` avoids exactly this by
+importing `MARKER_ENTRY` from the suite rather than restating it, and there is no equivalent import
+for a workflow step. **The durable fix is to extract the step body into a script `ci.yml` calls**, so
+the thing CI runs and the thing a human runs are one artefact - filed as its own task rather than
+smuggled into this change, since it touches how every other step in that file is written. Until then
+the replay lives in the report, and I would rather say that plainly than commit a copy that can
+silently disagree with the file it claims to check.
+
+**Re-verified on the rebased tree** (restored after the harness finished, never during a run):
+
+```
+bash scripts/check-u1-pid1-shutdown.sh   stdio pid=1 .114s / http pid=1 .330s   PID1_EXIT=0
+bash scripts/check-u1-boot-amputation.sh every declared assertion died, 14 rows  HARNESS_EXIT=0
+ci-step-sim against that exact run       STEP PASSED: rows=14                    SIM_EXIT=0
+uv run --frozen pytest -q                362 passed, 2 deselected, 0 skipped     PYTEST_EXIT=0
+uv run --frozen ruff check .             All checks passed!                      RUFF_EXIT=0
+uv run --frozen ruff format --check .    51 files already formatted              FMT_EXIT=0
+uv run --frozen mypy .                   Success: no issues found in 38 source files  MYPY_EXIT=0
+python3 -c "yaml.safe_load(ci.yml)"      YAML OK, jobs: 5
+check-obligations.py                     Every mapped anchor still contains its subject. OK.
+```
+
+I did **not** add a harness row to `ci.yml`, so there is nothing new to serialise there.
 
 ---
 
@@ -395,10 +509,20 @@ timed out; the 300s cap was never reached (slowest row: I, 158.99s).
 - **Whether any OTHER test in the suite is vacuous.** I measured the one the brief named, plus the 12
   ids the `MUST_DIE` tables now declare. The other 70 collected tests were not amputation-tested
   individually.
+- **The `ci.yml` step's three-way exit branch has never run in GitHub Actions.** I exercised its
+  logic locally against real harness output, including a genuine `rc=1` log, but the step itself has
+  only ever run in the shell, not on a runner. Its first real run is its first evidence - the same
+  caveat `ci.yml`'s own header applies to the actions it cannot run locally.
+- **`actionlint` did not run on my `ci.yml` change.** Nothing in this repo lints workflows (task
+  #22), and it is not installed here. The YAML parses and every `run:` block parses as bash; neither
+  of those is what `actionlint` checks.
 - **The `http` arm's uvicorn assertion is now gone.** I removed it per R3-M2's suggested fix. It was
   a second, independent witness to PID 1 on that arm, and the marker check replaces two witnesses
   with one. I judge the trade correct (the marker is ours, the log string is not) but it is a real
   loss and the decision was mine.
 
-Worktrees `/tmp/harness-base` and `/tmp/harness-pid1` removed; `/tmp/harness-work` removed after the
-final run. Nothing was pushed and nothing was merged.
+Worktrees `/tmp/harness-base` and `/tmp/harness-pid1` removed. **`/tmp/harness-work` is left in
+place**: it holds the rebased `fix/harness-integrity` and a synced `.venv`, so the merge and any
+re-run land there without a fresh `uv sync`. Remove it with
+`git worktree remove --force /tmp/harness-work` once the branch is merged - the branch itself lives
+in the repository, not in the worktree. Nothing was pushed and nothing was merged.

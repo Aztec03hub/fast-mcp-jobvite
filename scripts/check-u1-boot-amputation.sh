@@ -188,8 +188,13 @@ MUST_K=("${MUST_J[@]}")
 # reaches belongs here: a sink this project did not install is invisible to
 # the sink-level redaction by construction.
 #
-# The doubly-protected arms are not dropped; they move to row LN below, which
-# removes BOTH layers and is where they must die.
+# MEASURED, not reasoned: each of rows L and N kills exactly ONE arm, and not
+# the same arm. `test_a_third_party_log_line_is_redacted_at_the_sink` survives
+# row L not vacuously but because row N's sink still redacts what it renders,
+# so the stream that arm reads is clean either way.
+#
+# The doubly-protected arm is not dropped; it moves to row LN below, which
+# removes BOTH layers and is where it must die.
 MUST_L=(
   "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
 )
@@ -199,26 +204,25 @@ MUST_L=(
 # a real process's stream and look for a credential in it.
 # Same correction as row L, from the other side. The transport-failure arm
 # reads the process stream, which BOTH layers protect, so it survives a
-# sink-only amputation and belongs to row LN.
+# sink-only amputation.
 MUST_N=(
   "tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink"
 )
 
 # Row LN: BOTH redaction layers removed at once.
 #
-# Without this row the correction above would WEAKEN the harness - the two
-# doubly-protected arms would be asserted by nothing, and an arm no row can
-# kill is an arm that might be vacuous. This is where they must die, and if
-# they survive HERE the tests really are broken.
-# ONE arm again, and the reason is a THIRD layer nobody had named.
+# Without it the corrections above would WEAKEN the harness - a doubly-protected
+# arm would be asserted by no row at all, and an arm no row can kill is an arm
+# that might be vacuous. This is where it must die.
 #
-# `test_the_process_publishes_no_credential_when_the_transport_fails` was here
-# and SURVIVED even with both logging layers gone. It is not vacuous: the
-# credential never reaches a log record at all, because jobvite_client.py
-# redacts at the CALL SITE - `redact_headers(headers)` - before handing
-# anything to loguru. So no amputation in THIS file can kill it, and the row
-# that could belongs to the client harness, whose subject is that module.
-# Tracked rather than forced green here; see the task board.
+# ONE arm, and the omission is a THIRD layer nobody had named.
+# `test_the_process_publishes_no_credential_when_the_transport_fails` was
+# declared here and SURVIVED even with both logging layers gone. It is not
+# vacuous: its credentials travel in HEADERS, which `redact_headers` scrubs at
+# the PRODUCER (M-5/L-1) before a record is ever built. The logging layers are
+# not what protects that arm, so requiring it to notice an amputation here would
+# declare an expectation the code does not owe. The row that COULD kill it
+# belongs to the client harness, whose subject is that module - see the board.
 MUST_LN=(
   "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
 )
