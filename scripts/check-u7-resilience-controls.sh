@@ -508,10 +508,19 @@ echo "$FIRED/$TOTAL controls fired."
 # THE ROW FLOOR. `TOTAL -gt 0` catches only TOTAL deletion; `FIRED -eq
 # TOTAL` is satisfied by 0 == 0. Neither sees PARTIAL deletion, which is
 # the realistic shape: a refactor that drops rows, or an anchor that
-# stops matching so a row silently stops being counted. DERIVED: this
-# harness printed "26/26 controls fired." at 2b31e82. Lowering this
+# stops matching so a row silently stops being counted. Lowering this
 # number is a visible diff that has to be defended.
-ROW_FLOOR=26
+#
+# DERIVED: this harness printed "26/26 controls fired." at 2b31e82, and
+# that number went five rows stale WITHOUT FAILING ANYTHING. It was
+# derived on `chore/row-floors`, which branched from 20e71ed; M28-M32
+# were added by 1e55129 on `feat/scan-bound`; neither commit is an
+# ancestor of the other, so both branches were right in isolation and
+# the merge left a floor five rows below its harness. A floor derived on
+# a branch is a measurement of that branch. Re-derived at 31 by task
+# #91's control: removing six rows printed "25/26 ROWS", and
+# `grep -cE '^mutate "'` says 31 independently.
+ROW_FLOOR=31
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "A harness with fewer rows than its floor is green for the wrong reason."
