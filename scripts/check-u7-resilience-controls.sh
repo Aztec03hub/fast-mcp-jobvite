@@ -449,6 +449,60 @@ mutate "M22 the breaker is skipped and the retry becomes outermost" \
   '            return await self._through_breaker(' \
   '            return await self._attempt_with_retry('
 
+# ===========================================================================
+# THE SCAN'S BOUNDS (R5-H2, ADR-0024 Accepted). `scan()` had none at all.
+# ===========================================================================
+
+# The zero-progress break stops comparing and always sees progress, so a
+# server that ignores `start` pages forever again. This is R5-H2 exactly.
+mutate "M28 the zero-progress break can never fire" \
+  "$CLIENT" \
+  "$SUITE::test_a_server_that_ignores_start_is_bounded_after_one_wasted_page" \
+  '            if len(seen) + unidentified == progress_before:' \
+  '            if False:'
+
+# Progress is measured AFTER the page is consumed instead of before, so
+# the comparison is against itself and is always equal - the break then
+# fires on EVERY page, including healthy ones, and every scan stops after
+# one page reporting incomplete. The opposite failure from M23, and the
+# one a suite with only the "it stops" case would miss.
+mutate "M29 progress is sampled after the page, so the break fires always" \
+  "$CLIENT" \
+  "$SUITE::test_neither_bound_fires_on_healthy_paging" \
+  '            progress_before = len(seen) + unidentified
+
+            for item in page:' \
+  '            for item in page:'
+
+# The break stops setting `incomplete`, so a caller receives a truncated
+# result that claims to be whole - the silent under-read DESIGN.md:469-477
+# exists to prevent, arriving by a new road.
+mutate "M30 a stalled scan reports itself as complete" \
+  "$CLIENT" \
+  "$SUITE::test_a_server_that_ignores_start_is_bounded_after_one_wasted_page" \
+  '            or stalled
+            or ceiling_hit' \
+  '            or False
+            or ceiling_hit'
+
+# The ceiling counts PAGES instead of records, which is ADR-0024's own
+# text and what its ruling corrected. At 50 records per page it admits
+# ten times the records it admits at 500, so the bound stops being sane
+# at both page sizes - the exact property the ADR requires of it.
+mutate "M31 the ceiling counts pages instead of records" \
+  "$CLIENT" \
+  "$SUITE::test_the_record_ceiling_holds_at_both_50_and_500_per_page" \
+  '            if len(items) >= MAX_SCAN_RECORDS:' \
+  '            if pages >= MAX_SCAN_RECORDS:'
+
+# The ceiling never fires, so a server that honours `start` and never
+# runs out consumes memory until the process dies.
+mutate "M32 the record ceiling can never fire" \
+  "$CLIENT" \
+  "$SUITE::test_a_server_that_never_runs_out_is_bounded_by_the_record_ceiling" \
+  '            if len(items) >= MAX_SCAN_RECORDS:' \
+  '            if len(items) >= MAX_SCAN_RECORDS * 10_000:'
+
 echo "$FIRED/$TOTAL controls fired."
 [ "$TOTAL" -gt 0 ] && [ "$FIRED" -eq "$TOTAL" ] && exit 0
 exit 1
