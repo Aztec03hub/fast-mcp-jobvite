@@ -26,7 +26,7 @@ cd "$REPO_ROOT" || exit 3
 CONFIG="src/fast_mcp_jobvite/config.py"
 MAIN="src/fast_mcp_jobvite/__main__.py"
 SERVER="src/fast_mcp_jobvite/server.py"
-SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py"
+SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py tests/test_logging_process.py"
 
 WORK="$(mktemp -d)"
 trap 'cp "$WORK/config.py" "$CONFIG"; cp "$WORK/__main__.py" "$MAIN"; \
@@ -176,4 +176,58 @@ p.write_text(s)
 PY
 report "I. build_server returns a BARE FastMCP"
 
+
+# --- J. the log sink is never configured at all ---------------------------
+# H-1's shipped tree, amputated rather than mutated: `configure_logging` is
+# still defined, still importable and still documented - it is simply never
+# called, which is exactly the shape the defect had. Everything that claims
+# "the audit event carries its mandated fields" must die here.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "\nconfigure_logging()\n"
+assert s.count(anchor) == 1, "J anchor is not unique"
+p.write_text(s.replace(anchor, "\n"))
+PY
+report "J. configure_logging() is never called"
+
+# --- K. it is called and configures NOTHING -------------------------------
+# The clean-empty trap on a function rather than a module: the call site is
+# present, the name resolves, the body does nothing. Loguru's autoinit
+# handler survives, so the stream is NOT silent - it carries the field-less
+# line the review measured. An assertion that only proves the stream is
+# non-empty passes here, and that is the survivor worth naming.
+python3 - "$MAIN" <<'PY'
+import pathlib, re, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "    _loguru.remove()"
+assert s.count(anchor) == 1, "K anchor is not unique"
+start = s.index(anchor)
+end = s.index("\n\n\nconfigure_logging()", start)
+p.write_text(s[:start] + "    return" + s[end:])
+PY
+report "K. configure_logging() runs and configures NOTHING"
+
+# --- L. the sink redacts nothing ------------------------------------------
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = '    message = record.get("message")'
+assert s.count(anchor) == 1, "L anchor is not unique"
+p.write_text(s.replace(anchor, "    return True\n" + anchor))
+PY
+report "L. the sink's redactor returns without redacting"
+
+# --- M. stdlib logging is never bridged into loguru -----------------------
+# Two logging systems again, both live, writing two shapes onto one fd.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "    logging.basicConfig("
+assert s.count(anchor) == 1, "J anchor is not unique"
+start = s.index(anchor)
+end = s.index("    )\n", start) + len("    )\n")
+p.write_text(s[:start] + "    return\n" + s[end:])
+PY
+report "M. stdlib logging is never bridged into loguru"
 echo "########## END. Survivors above are the finding, not a failure."

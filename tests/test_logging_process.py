@@ -303,3 +303,64 @@ def test_a_failing_sink_after_a_write_returns_a_warning_not_an_error(
     warning = recorded["warnings"][0]
     assert "Do not retry" in warning
     assert "create_candidate" in warning
+
+
+#: A stdlib log record carrying the credential-bearing feed URL, emitted from
+#: a process configured the shipped way. `httpx2` emits this exact shape at
+#: INFO for every request, and DESIGN.md:312-316 classifies the `jobFeed` URL
+#: as sensitive because it structurally carries `api`, `sc` and `companyId`.
+LEAK_ENTRY = """
+import logging
+
+import fast_mcp_jobvite.__main__  # noqa: F401 - configures the one log sink
+
+logging.getLogger("some.third.party").info(
+    "HTTP Request: GET https://api.jobvite.com/v1/jobFeed"
+    "?api=LEAKKEY-not-a-real-credential&sc=LEAKSECRET-not-a-real-credential"
+    '&companyId=LEAKCOMPANY "HTTP/1.1 200 OK"'
+)
+"""
+
+
+def test_a_third_party_log_line_is_redacted_at_the_sink(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The leak routing stdlib records into loguru made visible.
+
+    `httpx2` logs the request URL at INFO through stdlib `logging`, and
+    `basicConfig(level=INFO)` was already writing it to stderr in the clear.
+    `tests/test_jobvite_client.py`'s log-redaction case could not see it: that
+    case installs its own loguru sink, and the leak travelled through the
+    other library entirely.
+
+    **The producer here is deliberately not `httpx2`.** Naming the library we
+    happened to find would be an allow-list over producers, and the one that
+    matters is the one nobody has thought of yet. Redaction is at the sink, so
+    any producer is covered, and this arm asserts that by using a logger name
+    no dependency owns.
+    """
+    result = _run_script(tmp_path, LEAK_ENTRY)
+    assert result.returncode == 0, result.stderr
+
+    records = _serialised_records(result.stderr)
+    # POSITIVE half: the line really was emitted. Against a process that
+    # logged nothing, every absence below would pass on silence.
+    emitted = [
+        record
+        for record in records
+        if "jobFeed" in record.get("record", {}).get("message", "")
+    ]
+    assert emitted, f"the third-party line was never logged: {result.stderr!r}"
+
+    # ABSENCE half, computed as a bool first so a red run prints no credential.
+    whole = result.stderr
+    leaked = [
+        needle
+        for needle in (
+            "LEAKSECRET-not-a-real-credential",
+            "LEAKKEY-not-a-real-credential",
+            "LEAKCOMPANY",
+        )
+        if needle in whole
+    ]
+    assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"

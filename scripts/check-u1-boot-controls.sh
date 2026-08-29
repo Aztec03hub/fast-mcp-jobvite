@@ -29,7 +29,7 @@ cd "$REPO_ROOT" || exit 3
 CONFIG="src/fast_mcp_jobvite/config.py"
 MAIN="src/fast_mcp_jobvite/__main__.py"
 SERVER="src/fast_mcp_jobvite/server.py"
-SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py"
+SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py tests/test_logging_process.py"
 
 BACKUP="$(mktemp -d)"
 trap 'cp "$BACKUP/config.py" "$CONFIG"; cp "$BACKUP/__main__.py" "$MAIN"; \
@@ -239,8 +239,12 @@ assert s.count("        os._exit(status)") == 1, "M14 anchor is not unique"
 s = s.replace("        os._exit(status)", "        os._exit(0)  # MUTANT-M14")
 p.write_text(s)
 PY
+# NAMED AT THE BEHAVIOURAL ARM, not the structural one. The structural test
+# greps this file's source for "os._exit(status)" and would go red here too -
+# but it would go red for the wrong reason, and a defect ABOUT exit codes
+# discharged by a substring search is what ADR-0018's own unverified item was.
 control "M14 a crash reports exit 0" "$MAIN" "MUTANT-M14" \
-  "tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises"
+  "tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process"
 
 # --- M13: the lifespan composition is dropped -----------------------------
 python3 - "$SERVER" <<'PY'
@@ -252,6 +256,72 @@ p.write_text(s)
 PY
 control "M13 extra lifespan dropped" "$SERVER" "MUTANT-M13" \
   "tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse"
+
+# --- M15: loguru is never configured (H-1, the shipped defect) ------------
+# The exact tree the review measured: audit.py writes through loguru, nothing
+# configures it, and every mandated field goes to the autoinit handler whose
+# format carries no {extra}.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "\nconfigure_logging()\n"
+assert s.count(anchor) == 1, "M15 anchor is not unique"
+p.write_text(s.replace(anchor, "\npass  # MUTANT-M15\n"))
+PY
+control "M15 loguru never configured" "$MAIN" "MUTANT-M15" \
+  "tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields"
+
+# --- M16: the sink stops serialising -------------------------------------
+# serialize=False falls back to loguru's default format, which carries no
+# {extra}. The record is still emitted, so a "the audit stream is non-empty"
+# test survives; only an assertion on the FIELDS notices.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        serialize=True,"
+assert s.count(anchor) == 1, "M16 anchor is not unique"
+p.write_text(s.replace(anchor, "        serialize=False,  # MUTANT-M16"))
+PY
+control "M16 the sink stops serialising" "$MAIN" "MUTANT-M16" \
+  "tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields"
+
+# --- M17: catch=True, loguru's default (H-2) ------------------------------
+# A sink failure is swallowed, .info() returns normally and emit()'s except
+# never runs, so the BEFORE_SIDE_EFFECT branch cannot fire in production.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        catch=False,"
+assert s.count(anchor) == 1, "M17 anchor is not unique"
+p.write_text(s.replace(anchor, "        catch=True,  # MUTANT-M17"))
+PY
+control "M17 catch=True swallows sink failures" "$MAIN" "MUTANT-M17" \
+  "tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect"
+
+# --- M18: the sink stops redacting ---------------------------------------
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        filter=_redact_message,"
+assert s.count(anchor) == 1, "M18 anchor is not unique"
+p.write_text(s.replace(anchor, "        # MUTANT-M18"))
+PY
+control "M18 the sink stops redacting" "$MAIN" "MUTANT-M18" \
+  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
+
+# --- M19: stdlib records no longer reach the one sink ---------------------
+# The two-logging-systems defect reinstated: loguru is configured, stdlib keeps
+# a handler of its own, and the stream carries two record shapes again.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        handlers=[_InterceptHandler()],"
+assert s.count(anchor) == 1, "M19 anchor is not unique"
+p.write_text(s.replace(anchor, "        stream=sys.stderr,  # MUTANT-M19"))
+PY
+control "M19 stdlib records bypass the one sink" "$MAIN" "MUTANT-M19" \
+  "tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink"
+
 
 echo
 echo "$FIRED/$TOTAL controls fired."
