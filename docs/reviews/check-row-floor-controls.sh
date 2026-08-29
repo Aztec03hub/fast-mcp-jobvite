@@ -249,18 +249,32 @@ git -C "$REPO" diff --quiet -- "$S" \
   || { echo "::error::RESTORE FAILED - $S still differs from HEAD"; exit 9; }
 
 echo "--- the floor's own line ---"
-grep -E "(^|[^0-9])${EXPECT}/${FLOOR} ROWS|holds ${EXPECT} rows, below its floor of ${FLOOR}" \
+# THE SAME THREE SHAPES floor_line() accepts, and it must stay that way:
+# when this display knew two shapes and the assertion knew three, the control
+# printed "CONTROL FIRED" above a BLANK evidence block - a verdict with
+# nothing under it. Evidence and assertion read the same population or the
+# verdict is unsupported.
+grep -E "(^|[^0-9])${EXPECT}/${FLOOR} ROWS|holds ${EXPECT} rows, below its floor of ${FLOOR}|ONLY ${EXPECT} ROWS RAN against a floor of ${FLOOR}" \
   "$B.out" || true
 echo "exit with $DELETE row(s) deleted: $rc (must be $WANT_RC)"
 
-# THE FIFTH TALLY SHAPE. Four were found among the first nine; the u5, u6
-# and u8 AMPUTATION harnesses print a fifth - "holds N rows, below its
-# floor of M" - with no `N/M ROWS` anywhere in it. A control asserting only
-# the `N/M ROWS` form calls those three broken while they are working
-# perfectly, which is the same class of error as assuming one exit code.
+# THREE PROSE SHAPES, AND THIS LIST HAS NOW MISSED ONE THREE TIMES.
+# Enumerated over all 23 harnesses in the table, by the echo directly under
+# each floor comparison: 19 print `N/M ROWS - THE HARNESS LOST ROWS.` (in
+# four different prefixes), 3 print `holds N rows, below its floor of M`,
+# and `check-critical-coverage-amputation.sh` alone prints `ONLY N ROWS RAN
+# against a floor of M`. Each miss made this control report a HEALTHY
+# harness as broken.
+#
+# **THIS IS A HAND-KEPT LIST BESIDE ITS CONTAINER and it should not exist.**
+# The durable fix is for every harness to print ONE canonical machine line
+# alongside its human sentence, and for this control to grep only that.
+# Task #107. Until then the three literals below are the whole population,
+# enumerated rather than guessed - and a fourth shape will break this again.
 floor_line() {
   grep -qE "(^|[^0-9])${EXPECT}/${FLOOR} ROWS" "$1" ||
-    grep -qF "holds ${EXPECT} rows, below its floor of ${FLOOR}" "$1"
+    grep -qF "holds ${EXPECT} rows, below its floor of ${FLOOR}" "$1" ||
+    grep -qF "ONLY ${EXPECT} ROWS RAN against a floor of ${FLOOR}" "$1"
 }
 
 ok=0
@@ -279,4 +293,7 @@ floor_line "$B.out" || {
 }
 rm -f "$B.out"
 [ "$ok" -eq 0 ] || exit 1
-echo "CONTROL FIRED: $TARGET loses $DELETE row(s), prints $EXPECT/$FLOOR ROWS, exits $rc."
+# NOT "prints $EXPECT/$FLOOR ROWS" - that sentence is FALSE for the four
+# harnesses whose floor line carries no `N/M ROWS` at all. The real line was
+# already printed above under "--- the floor's own line ---".
+echo "CONTROL FIRED: $TARGET loses $DELETE row(s) and its floor said so, exiting $rc."
