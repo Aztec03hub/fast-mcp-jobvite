@@ -443,7 +443,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 596
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 621
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -553,7 +553,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 313
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 340
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -656,6 +656,28 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u9-http-amputation.sh \
             --amputation --min-rows 14 --row-re '^########## A[0-9]+ '
+
+      # ----- U12, get_job_feed - the one route whose URL is a secret -----
+      # WIRED IN THE MERGE COMMIT. C5-I1 is a High and its arms are the reason
+      # these steps exist: U12's absence assertion is paired with a PRESENCE
+      # assertion on the same captured stream, including on httpx2's stdlib
+      # line - the third producer and the only one that handles the whole URL.
+      # An absence alone cannot tell "redacted" from "httpx2 logged nothing".
+      #
+      # Row M16 (the redactor's parameter set emptied) is the row this harness
+      # exists for and it kills the C5-I1 arm. M17 (the set NARROWED to {"sc"})
+      # SURVIVED on the first run, because the only producer that could leak
+      # the api key was reaching the test by accident of test ORDERING - the
+      # fixture now configures logging itself, and M17 then died.
+      - name: U12 job feed controls, all fired
+        run: |
+          bash scripts/ci-harness-gate.sh check-u12-jobfeed-controls.sh \
+            --controls-fired --min-rows 17 --row-re '^########## M[0-9]+ '
+
+      - name: U12 job feed amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-u12-jobfeed-amputation.sh \
+            --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a
