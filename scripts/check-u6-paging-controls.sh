@@ -256,14 +256,37 @@ mutate "M10 the completeness check never fires" \
         if unique == total:
             return False'
 
-# The count compared is the wrong one: duplicates are counted, so an
-# over-read hides an under-read and a scan missing a record can look
-# complete.
-mutate "M11 completeness counts every record returned, not unique ones" \
+# The count compared is the wrong one: the duplicates the seen set
+# dropped are counted anyway, so the clamping hypothesis - which serves
+# one duplicate per page after the first (DESIGN.md:460-462) - inflates
+# `unique` past `total` and a WHOLE scan reports itself incomplete.
+#
+# R5-M4: THIS ROW'S TITLE AND BODY BOTH USED TO BE WRONG, in opposite
+# directions. It read "completeness counts every record returned, not
+# unique ones" over a body forcing `unique = total`.
+#
+#   * The TITLE named a mutation that cannot be detected. `scan()`
+#     appends to `items` exactly once per new id and once per
+#     unidentified record, so on the path where completeness runs
+#     `len(items) == len(seen) + unidentified` IDENTICALLY. Measured:
+#     `unique=len(items)` gives 448 passed, 6 deselected, exit 0. A
+#     survivor that is not a defect - the row's stated subject is not a
+#     behaviour this code has.
+#   * The BODY was M10 in different clothes. Forcing `unique = total`
+#     makes `if unique == total: return False` always taken, which is
+#     exactly what M10 does. Measured: it killed M10's OWN named test,
+#     `test_completeness_fires_on_an_exhaustive_scan_with_a_gap`, as
+#     well as the one named here. So 16 rows held 15 behaviours and
+#     "16/16 controls fired" overstated its own breadth.
+#
+# The mutation below is the one the title was reaching for, it is
+# distinct from every other row, and it is the row that would have seen
+# R5-H3's `unique` inflation - which the old body could not.
+mutate "M11 the completeness count includes duplicates the seen set dropped" \
   "$CLIENT" \
-  "$SUITE::test_de_duplication_cannot_recover_a_never_returned_record" \
+  "$SUITE::test_a_scan_is_whole_under_both_surviving_hypotheses[1]" \
   '            unique=len(seen) + unidentified,' \
-  '            unique=total if isinstance(total, int) else len(seen),'
+  '            unique=len(seen) + unidentified + duplicates,'
 
 # ===========================================================================
 # THE RESULT CAP - THE TRANSPORT HALF AND THE min()
