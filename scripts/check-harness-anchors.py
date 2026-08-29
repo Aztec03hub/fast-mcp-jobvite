@@ -420,9 +420,24 @@ def main() -> int:
     ap.add_argument("--self-check", action="store_true",
                     help="print the per-harness tally of call sites seen vs anchors parsed")
     ap.add_argument("--quiet", action="store_true", help="print only failures and the verdict")
+    ap.add_argument("--floor", type=int, default=0, metavar="N",
+                    help="fail if fewer than N anchors were resolved. Every anchor this "
+                         "checker reads is one it can no longer read silently: if a parser "
+                         "shape stops matching, the count drops and every row it covered "
+                         "goes unchecked WITH THE RUN STILL GREEN. The floor lives in "
+                         "ci.yml, the same one place the suite floor lives, and lowering "
+                         "it is a visible diff that has to be defended.")
     args = ap.parse_args()
 
-    harnesses = sorted(SCRIPTS.glob("check-*.sh"))
+    # A harness that edits THIS checker is this checker's own control harness,
+    # not a mutation harness of the product: it anchors into a throwaway copy of
+    # the tree, so its targets are runtime paths that resolve to nothing and its
+    # rows arrive as findings about files that do not exist. Excluded by what it
+    # names rather than by a filename kept in a list here, so a renamed or a
+    # second control harness is excluded automatically. Found by that control
+    # harness itself, on its first run, as a positive control that failed.
+    harnesses = [h for h in sorted(SCRIPTS.glob("check-*.sh"))
+                 if Path(__file__).name not in h.read_text()]
     if not harnesses:
         print(f"ERROR: no harnesses found under {SCRIPTS} - is the path right?")
         return 2
@@ -493,7 +508,13 @@ def main() -> int:
     if stale:
         print(f"FAIL: {len(stale)} of {total} anchors do not resolve uniquely.")
         return 1
-    print(f"OK: all {total} anchors resolve to exactly one hit in their target file.")
+    if total < args.floor:
+        print(f"FAIL: only {total} anchors were resolved, below the floor of {args.floor}. "
+              "A parser shape has stopped matching, so the rows it covered are now "
+              "unchecked - and every one of them would still report OK.")
+        return 1
+    print(f"OK: all {total} anchors resolve to exactly one hit in their target file"
+          + (f" (floor {args.floor})." if args.floor else "."))
     return 0
 
 
