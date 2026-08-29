@@ -39,6 +39,7 @@ without showing any of their content.
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from collections.abc import Mapping, Sequence
 from typing import Final
@@ -56,6 +57,19 @@ type JsonValue = (
 #: preserving mask: a mask that preserves length leaks the length, and a
 #: credential's length is a real hint.
 REDACTED: Final = "[REDACTED]"
+
+#: A URL carrying credentials in its USERINFO - `scheme://user:password@host`.
+#:
+#: Round 2 found this surviving: `redact_text` only inspected tokens containing
+#: both `?` and `=`, so a proxy URL - which has neither - passed through whole
+#: and reached the caller's problem `detail`. Measured before the fix:
+#: `https://user:hunter2@proxy.internal:8080/path` came back unchanged.
+#:
+#: `://` before the `@` is what separates this from an email address, which must
+#: not be touched: `someone@example.com` has no scheme and no colon-password.
+_USERINFO: Final = re.compile(
+    r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*://)(?P<user>[^/@\s:]+):(?P<pw>[^/@\s]*)@"
+)
 
 #: Query parameters on the `jobFeed` URL that carry a credential
 #: (DESIGN.md:312-319). Compared case-insensitively, because a URL a human
@@ -164,13 +178,27 @@ def redact_text(text: str) -> str:
     Args:
         text: Arbitrary text that may contain a URL.
 
+    It also redacts **userinfo** - `scheme://user:password@host` - which the
+    query-parameter arm cannot reach, because such a URL carries neither `?` nor
+    `=`. An httpx proxy misconfiguration puts exactly that into an exception
+    message. The username is kept: the password is the secret and the user is
+    the diagnosis, the same split this project applies to a failing assertion.
+
     Returns:
-        The text with every embedded URL's secret parameters redacted.
+        The text with every embedded URL's secret parameters and userinfo
+        password redacted.
     """
     out: list[str] = []
     for token in _split_keeping_whitespace(text):
         out.append(redact_url(token) if "?" in token and "=" in token else token)
-    return "".join(out)
+    # Userinfo is a SECOND credential shape in the same text, and it is not
+    # reached by the query-parameter arm above: a proxy URL has no `?` and no
+    # `=`, so it never entered `redact_url` at all. Applied to the joined text
+    # rather than per token so a URL split across the whitespace splitter is
+    # still caught.
+    return _USERINFO.sub(
+        lambda m: f"{m.group('scheme')}{m.group('user')}:{REDACTED}@", "".join(out)
+    )
 
 
 def redact_arguments(arguments: JsonValue) -> JsonValue:

@@ -16,6 +16,8 @@ asserts on the bool, so the failure output is `assert not True`.
 
 from __future__ import annotations
 
+import pytest
+
 from fast_mcp_jobvite.utils.redaction import (
     NON_SENSITIVE_ARGUMENT_KEYS,
     REDACTED,
@@ -249,3 +251,63 @@ def test_redact_arguments_does_not_mutate_its_input() -> None:
     original = {"firstName": "Ada"}
     redact_arguments(original)
     assert original == {"firstName": "Ada"}
+
+
+# Userinfo credentials, which the query-parameter arm cannot reach.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "https://user:hunter2@proxy.internal:8080/path",
+        "proxy error: http://svc:hunter2@10.0.0.1:3128 refused",
+        "ProxyError connecting via socks5://me:hunter2@127.0.0.1:1080",
+    ],
+)
+def test_redact_text_redacts_a_userinfo_password(message: str) -> None:
+    """`scheme://user:password@host` is a credential the `?`/`=` arm never saw.
+
+    **This was a surviving mutation.** `redact_text` only passed a token to
+    `redact_url` when it contained BOTH `?` and `=`, and a proxy URL has
+    neither - so it went through whole. An httpx proxy misconfiguration puts
+    exactly that string into an exception message, and that message reaches the
+    caller's problem `detail`.
+
+    Measured before the fix: `https://user:hunter2@proxy.internal:8080/path`
+    came back byte-identical.
+    """
+    out = redact_text(message)
+    assert "hunter2" not in out, f"the userinfo password survived: {out}"
+    assert REDACTED in out, f"nothing was redacted at all: {out}"
+
+
+def test_redact_text_keeps_the_username_which_is_the_diagnosis() -> None:
+    """The password is the secret; the user is what makes the error readable.
+
+    The same split this project applies to a failing assertion, where the
+    variable NAME is printed and its value is not.
+    """
+    out = redact_text("https://svcaccount:hunter2@proxy.internal/x")
+    assert "svcaccount" in out, f"the username was destroyed with the password: {out}"
+    assert "hunter2" not in out
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "mail someone@example.com about it",
+        "contact first.last@jobvite.com",
+        "no url here at all",
+        "a bare host:port like proxy.internal:8080",
+    ],
+)
+def test_redact_text_leaves_a_non_credential_at_sign_alone(message: str) -> None:
+    """The false-positive arm, and it is why the pattern requires a scheme.
+
+    An email address has an `@` and no `://`, so a looser pattern would redact
+    correspondence and ordinary prose. Without this arm the fix above could be
+    "redact everything containing an at-sign", which passes every assertion in
+    the test above while destroying the messages it is meant to keep readable.
+    """
+    assert redact_text(message) == message
