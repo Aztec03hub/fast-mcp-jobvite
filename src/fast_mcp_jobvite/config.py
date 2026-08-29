@@ -285,9 +285,22 @@ class Settings(BaseSettings):
             The environment variable names that are unset, in the order
             DESIGN.md:938-943's row lists them.
         """
+        # R3-L1. This was `TOOL_REQUIREMENTS.get(tool, ())`, which
+        # resolved an unlisted tool to the empty tuple: no missing
+        # variables, so no refusal, so the tool booted requiring NO
+        # credential at all. A rule that names its members sitting on a
+        # branch that fails open on empty - the two shapes that have
+        # produced the most findings here.
+        #
+        # Subscripting instead makes the omission a KeyError at boot,
+        # which is the module's stated direction: "fail closed, loudly"
+        # (config.py:9-10). A tool present in KNOWN_TOOLS and absent
+        # from TOOL_REQUIREMENTS is a programming error, not a user's
+        # input, so it should not be smoothed into a valid
+        # configuration.
         return [
             env_name(field)
-            for field in TOOL_REQUIREMENTS.get(tool, ())
+            for field in TOOL_REQUIREMENTS[tool]
             if getattr(self, field) is None
         ]
 

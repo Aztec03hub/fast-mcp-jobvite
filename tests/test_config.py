@@ -22,6 +22,7 @@ from fast_mcp_jobvite.config import (
     READ_TOOLS,
     SEARCH_CANDIDATES,
     SEARCH_JOBS,
+    TOOL_REQUIREMENTS,
     ConfigurationError,
     Settings,
     is_loopback,
@@ -578,6 +579,26 @@ def test_settings_declares_exactly_the_template_variables() -> None:
 def test_server_json_declares_every_variable() -> None:
     """DESIGN.md:955-957: `server.json` declares EVERY variable."""
     assert _server_json_names() == _env_example_names()
+
+
+def test_every_known_tool_declares_its_required_variables() -> None:
+    """R3-L1: an unlisted tool would boot requiring no credential.
+
+    `missing_for` used `TOOL_REQUIREMENTS.get(tool, ())`, so a tool in
+    `KNOWN_TOOLS` and absent from `TOOL_REQUIREMENTS` reported nothing
+    missing, drew no refusal, and started with no credential at all.
+
+    The neighbouring `test_the_tool_names_are_the_five_of_the_design`
+    LOOKS like it covers this and does not: it checks `KNOWN_TOOLS`
+    against the design prose and its own cardinality, and says nothing
+    about `TOOL_REQUIREMENTS`. The two sets were equal when this was
+    written, so the defect was latent - and U5 adding `search_jobs` is
+    exactly the change that would have made it live.
+    """
+    assert set(TOOL_REQUIREMENTS) == set(KNOWN_TOOLS), (
+        "every tool must declare its required variables; a tool missing "
+        "from TOOL_REQUIREMENTS boots with no credential requirement"
+    )
 
 
 def test_the_tool_names_are_the_five_of_the_design() -> None:
