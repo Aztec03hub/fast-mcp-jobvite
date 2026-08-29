@@ -175,3 +175,45 @@ def test_the_readme_contains_no_placeholder_prose(phrase: str) -> None:
     assert phrase.lower() not in README.read_text().lower(), (
         f"README contains placeholder prose: {phrase!r}"
     )
+
+
+async def test_the_readme_tool_count_matches_the_server() -> None:
+    """The README quotes `Tools: N`. N must be true.
+
+    It said `Tools: 0` and stayed correct only because nothing had
+    landed. When `search_jobs` landed the line became false, and every
+    other check in this module still passed: the sections were present,
+    the links resolved, nothing read as a placeholder. A number copied
+    out of a command's output is a second enumeration of something the
+    code already knows, and the copy is the half that rots.
+
+    Counted through a real MCP client, the same way `test_server.py`
+    counts, so it cannot drift with the CLI's output format.
+    """
+    import os
+    from unittest import mock
+
+    from fastmcp import Client
+
+    from fast_mcp_jobvite.server import create_server
+
+    stated = re.search(r"^\s*Tools:\s*(\d+)\s*$", README.read_text(), re.M)
+    assert stated, "the README no longer quotes a `Tools: N` line"
+
+    placeholders = {
+        "JOBVITE_API_KEY": "placeholder",
+        "JOBVITE_API_SECRET": "placeholder",
+        "JOBVITE_FEED_KEY": "placeholder",
+        "JOBVITE_FEED_SECRET": "placeholder",
+        "JOBVITE_COMPANY_ID": "placeholder",
+        "JOBVITE_TOOLS": "search_jobs",
+    }
+    with mock.patch.dict(os.environ, placeholders, clear=False):
+        server = create_server()
+        async with Client(server) as client:
+            actual = len(await client.list_tools())
+
+    assert int(stated.group(1)) == actual, (
+        f"README says Tools: {stated.group(1)}, the server exposes {actual}. "
+        "Re-run the inspect command in the README and paste its real output."
+    )

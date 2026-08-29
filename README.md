@@ -7,10 +7,10 @@ allow-listed.
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](./pyproject.toml)
 
-> **The server boots, authenticates, audits, redacts and shuts down cleanly. It exposes NO TOOL
-> yet.** `fastmcp inspect` reports `Tools: 0`, and the Usage section below shows exactly that rather
-> than an example that does not run. `search_jobs` is the next unit of work. This paragraph is a
-> statement of current behaviour, not a placeholder - when the first tool lands, it changes.
+> **The server exposes its first tool: `search_jobs`.** It boots, authenticates, audits, redacts,
+> shuts down cleanly, and answers a real MCP `tools/call`. `fastmcp inspect` reports `Tools: 1`.
+> The remaining tools - `get_job_feed`, `search_candidates`, `get_candidate` and the single gated
+> write - are later units, and this paragraph changes again when each lands.
 
 ## Quickstart
 
@@ -101,13 +101,14 @@ Server
   Name:         fast-mcp-jobvite
   Version:      0.1.0
 Components
-  Tools:        0
+  Tools:        1
   Prompts:      0
   Resources:    0
 ```
 
-**`Tools: 0` is not a documentation gap.** No tool is implemented yet. When one is, this block
-changes and so does the count.
+**That count is the honest one, and it was `Tools: 0` until `search_jobs` landed.** It is quoted
+from a real run rather than written by hand, which is why it was correct when it said zero and is
+correct now that it says one.
 
 **Run the server over stdio**, which is how an MCP client launches it:
 
