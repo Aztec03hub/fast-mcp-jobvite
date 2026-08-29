@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.server.lifespan import Lifespan, lifespan
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 
 from fast_mcp_jobvite.__main__ import EXIT_CONFIGURATION_REFUSED, main
 from fast_mcp_jobvite.config import READ_TOOLS, Settings, load_settings
@@ -313,8 +313,29 @@ def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
     )
 
 
-def _input_models() -> list[tuple[str, type]]:
-    """Every `*Input` model under `tools/`, discovered not listed."""
+def _input_models() -> list[tuple[str, type[BaseModel]]]:
+    """Every `*Input` model under `tools/`.
+
+    **SCOPED DELIBERATELY, and the scope is narrower than "the inbound
+    surface" - do not widen it without reading this.** ADR-0032's claim
+    is about what `DereferenceRefsMiddleware` rewrites, which is the
+    TOOL schema path. `ApprovalAnswer` lives outside `tools/` and its
+    schema reaches the host through `requested_schema=`, not through a
+    published tool schema, so it is correctly absent here even though it
+    IS an inbound model.
+
+    **The `endswith("Input")` filter is still a name filter, which is
+    the shape this project refuses elsewhere** - the sweep in
+    `test_arguments_sweep.py` excludes output models by their
+    `output_schema=` USE, precisely so that a naming convention is not
+    load-bearing. It is tolerable here only
+    because the property under test is about a published tool's schema
+    and every such model is reachable from a `@server.tool` signature.
+
+    Task #90: once the sweep's own enumeration covers this population,
+    import it from there and delete this. Two independent discoveries of
+    one set is the two-lists defect at file scale.
+    """
     import importlib
     import pkgutil
 
