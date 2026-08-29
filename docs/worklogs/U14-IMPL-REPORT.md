@@ -381,12 +381,22 @@ removal).
    the corpus from an env var falling back to the sibling, so an agent in an isolated worktree can
    point it at the real path - and keep the exit-2-on-absent behaviour exactly as it is.
 
-5. **Whether any *other* unit's parametrised sweep is currently empty.** U14's own string-field sweep
-   was silently finding 5 of 9 fields (`Optional[Annotated[str, ...]]` is not `str`), and only a
-   hand-written population assertion caught it. **I did not audit the other test modules for the same
-   shape.** Every `@pytest.mark.parametrize` over a computed list in this repository is a candidate,
-   and pytest passes an empty parametrisation without a word. Worth a task; I have not filed one
-   because I have not measured how many there are.
+5. **SETTLED, and it was cheap enough that parking it would have been rigour-theatre.** U14's own
+   string-field sweep was silently finding 5 of 9 fields (`Optional[Annotated[str, ...]]` is not
+   `str`), and only a hand-written population assertion caught it - so the obvious question is
+   whether any other unit's parametrised sweep is currently empty. Measured by parsing every
+   `tests/*.py` on this branch and reporting every `@pytest.mark.parametrize` whose argvalues are
+   not a literal list or tuple: **17 sites, 11 of them U14's own.** The other six:
+
+   | Site | Argvalues | Verdict |
+   |---|---|---|
+   | `test_approval_write.py` 225, 414, 431, 536, 604 | `BOTH_ERAS` | a two-element tuple literal - cannot go empty |
+   | `test_error_contract.py:73` | `REGISTRY_CASES` | derived, and `test_no_type_uri_is_minted_locally` asserts `len(defined) == 7` first |
+   | `test_workflow_contexts.py:117` | `workflows()` | derived, and `:96` already asserts `found, "no workflow files under {WORKFLOWS}; every test here is vacuous"` |
+
+   **No unguarded derived parametrisation exists outside U14's module**, and both derived ones
+   already carry a population assertion for exactly this reason. No task filed, because there is
+   nothing to file.
 
 6. **Coverage beyond `utils/`.** `DESIGN.md:1362-1364` requires 95% on `utils/`. Measured:
    `src/fast_mcp_jobvite/utils/constraints.py` is **100% statement and 100% branch** (43 statements,
