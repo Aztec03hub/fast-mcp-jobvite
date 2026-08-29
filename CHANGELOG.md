@@ -356,10 +356,13 @@ server cannot tell a person from a handler - see the README's disclosures.
 - **A harness baseline could hang forever and CI would just sit there.** Five harnesses bound their
   ROW runs at 900s - with a comment saying why, *"a row that hangs anyway must report rather than
   stall the gate"* - and ran the BASELINE pytest above them with no bound at all. The protection had
-  been applied to the rows and not to the sibling run thirty lines up. Measured consequence: two
-  consecutive CI runs sat on one step for over thirty minutes each, printing nothing, where a hang
-  is indistinguishable from a slow harness from outside - and under the old cancel-on-push it left
-  no record either. All five baselines are now bounded, and a hang gets its OWN message and its OWN
+  been applied to the rows and not to the sibling run thirty lines up. **The motivating measurement
+  was corrected before this shipped:** the step that prompted it was not hung, it is genuinely slow -
+  `U9 HTTP hardening amputation` ran 17:53:09 to 18:17:28, **24m19s, and passed**, against 27-77
+  seconds for every step around it. That is the actual argument for a bound rather than against one:
+  where one step legitimately runs for 24 minutes, a real hang is indistinguishable from normal
+  slowness for as long as anyone is willing to wait, and an unbounded baseline would simply never
+  end. All five baselines are now bounded, and a hang gets its OWN message and its OWN
   exit code (4, against 3 for a red suite), because "never finished" and "finished red" need
   different diagnoses. Proved on all three arms: hang -> 4, red -> 3, green -> 0. (2026-08-29 01:14 PM CDT)
 
