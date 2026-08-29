@@ -71,13 +71,19 @@ def test_sigterm_runs_lifespan_teardown(tmp_path: pathlib.Path, transport: str) 
     proc, marker, output = spawn_marker_server(
         tmp_path, _env_for(transport), stdio=transport == "stdio"
     )
-    assert "opened" in marker.read_text()
-    assert "closed" not in marker.read_text()
+    try:
+        assert "opened" in marker.read_text()
+        assert "closed" not in marker.read_text()
 
-    # DESIGN.md:1037-1038: resolve the INTERPRETER via
-    # /proc/<pid>/cmdline rather than trusting that the pid we hold is
-    # the process we signalled.
-    assert interpreter_of(proc.pid) == sys.executable
+        # DESIGN.md:1037-1038: resolve the INTERPRETER via
+        # /proc/<pid>/cmdline rather than trusting that the pid we hold
+        # is the process we signalled.
+        assert interpreter_of(proc.pid) == sys.executable
+    except BaseException:
+        # Any of the three above leaves a live server behind (#100).
+        proc.kill()
+        proc.wait()
+        raise
 
     proc.send_signal(signal.SIGTERM)
     try:
@@ -355,7 +361,14 @@ def test_a_clean_stop_still_reports_zero(tmp_path: pathlib.Path) -> None:
         **V2,
     )
     proc, _marker, output = spawn_marker_server(tmp_path, env, stdio=False)
-    assert wait_for_port("127.0.0.1", port)
-    proc.send_signal(signal.SIGTERM)
-    returncode = proc.wait(timeout=GRACE_SECONDS)
+    try:
+        assert wait_for_port("127.0.0.1", port)
+        proc.send_signal(signal.SIGTERM)
+        returncode = proc.wait(timeout=GRACE_SECONDS)
+    finally:
+        # This arm orphaned a live server twice in one day (#100). The
+        # `wait_for_port` assert and the `wait` timeout both leave the
+        # child running, and it then holds the port for hours.
+        proc.kill()
+        proc.wait()
     assert returncode == 0, f"a clean stop reported {returncode}: {output.read_text()}"
