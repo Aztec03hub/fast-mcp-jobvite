@@ -20,20 +20,20 @@ import subprocess
 import sys
 import time
 
-# : The entry script the shutdown case runs. It composes an observable :
-# resource onto the server's own lifespan through the `extra_lifespan` :
-# parameter `server.py` exposes, and calls the **shipped** `main()` - so
-# : the handler, the `except KeyboardInterrupt` and the
-# `finally: os._exit(0)` : under test are the real ones and not a copy
-# written in a test.
-# :
-# : The `opened` line carries `pid=<n>`. R3-M2: the PID-1 harness could
-# : only establish PID 1 on the `http` arm, because it keyed off a
-# : uvicorn log string (`Started server process [1]`) that `stdio` never
-# : emits - so the stdio row read as proven while being unproven.
-# : Recording the PID here makes the assertion transport-independent and
-# : removes the dependency on a third-party log format. Downstream
-# : readers match the substring `opened`, which is unaffected.
+#: The entry script the shutdown case runs. It composes an observable
+#: resource onto the server's own lifespan through the `extra_lifespan`
+#: parameter `server.py` exposes, and calls the **shipped** `main()` - so
+#: the handler, the `except KeyboardInterrupt` and the
+#: `finally: os._exit(0)` under test are the real ones and not a copy
+#: written in a test.
+#:
+#: The `opened` line carries `pid=<n>`. R3-M2: the PID-1 harness could
+#: only establish PID 1 on the `http` arm, because it keyed off a
+#: uvicorn log string (`Started server process [1]`) that `stdio` never
+#: emits - so the stdio row read as proven while being unproven.
+#: Recording the PID here makes the assertion transport-independent and
+#: removes the dependency on a third-party log format. Downstream
+#: readers match the substring `opened`, which is unaffected.
 MARKER_ENTRY = """
 import os
 import pathlib
