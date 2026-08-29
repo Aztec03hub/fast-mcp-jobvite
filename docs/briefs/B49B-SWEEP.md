@@ -17,7 +17,8 @@ it in your report.
 
 ## Where the violations actually are, and a correction that matters
 
-**MEASURED at the 72-char threshold `pyproject.toml:185` names as "the 72-char half is B49b":**
+**MEASURED at the 72-char threshold, whose authority is `backend/python.md:36`** - *"For comments
+and docstrings: **72 characters**"*, `priority: required`:
 
 ```
 1654 errors:  tests/ 907    src/ 638    scripts/ 109    docs/ ZERO
@@ -28,6 +29,13 @@ brief said the sweep "touches nearly every documentation file in the tree" and d
 repointing `DESIGN.md:N` citations. **That was wrong and is deleted.** Markdown is not linted by
 ruff, `docs/` contributes zero violations, and `DESIGN.md` is not in scope at all - so there is
 nothing there to exempt and no citations to repoint.
+
+**A second claim of mine in this brief was also wrong, and the agent caught it.** I wrote that
+`pyproject.toml:185` "names" the 72-char threshold. That line sets `line-length = 88` - the CODE half,
+`python.md:35` - and merely mentioned 72 in a comment pointing at this task. **Before the sweep
+commit, no key in `pyproject.toml` set 72 at all**, which is exactly why the clause was unenforced
+and why the count grew unchecked. `W505` is INERT without `max-doc-length`, even with `"W"` selected.
+The key that enables it now lives at `pyproject.toml:227`.
 
 **The real consequence of that error was a collision.** The sweep lands in exactly the files a
 concurrent agent was editing, and both were dispatched believing their trees were disjoint. **Check
@@ -78,7 +86,10 @@ Beyond the standard set, the ones a mass docstring edit is most likely to break:
 - **Every mutation and amputation harness in `scripts/`**, because their anchors are source text.
   Run all of them, by exit code, and treat a `DID NOT LAND` or `ANCHOR MISSING` line as red even
   though the harness may still exit 0 on it.
-- `check-obligations.py`, since obligation anchors cite `file:line` in these same files.
+- `check-obligations.py`. **No longer for the reason this brief first gave** - anchors carried
+  `file:line` when it was written and no longer do (task #6), precisely because a reflow like
+  this one kept moving them. It still matters because an anchor's SUBJECT is source text, and a
+  reflow can break a subject across two lines.
 
 ## In the report
 
