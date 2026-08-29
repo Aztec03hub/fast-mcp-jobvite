@@ -528,7 +528,10 @@ def _sed_commands(script: str, where: str) -> list[str]:
     """
 
     def read_field(text: str, i: int, delim: str) -> tuple[str, int]:
-        """Consume up to the next UNESCAPED delim; return (field, index after it)."""
+        """Consume to the next UNESCAPED delim.
+
+        Returns (field, index just past the delimiter).
+        """
         out: list[str] = []
         while i < len(text):
             c = text[i]
@@ -639,7 +642,9 @@ def _bre_to_python(pat: str, where: str) -> str:
     return "".join(out)
 
 
-def _shape_d(name: str, src: str, variables: dict[str, str]) -> tuple[list[Anchor], int]:
+def _shape_d(
+    name: str, src: str, variables: dict[str, str]
+) -> tuple[list[Anchor], int]:
     """Read anchors out of `sed -i` command strings."""
     anchors: list[Anchor] = []
     seen = 0
@@ -650,7 +655,9 @@ def _shape_d(name: str, src: str, variables: dict[str, str]) -> tuple[list[Ancho
         try:
             argv = shlex.split(cmd)
         except ValueError as exc:
-            raise ParseError(f"{where}: cannot tokenise the sed command: {exc}") from exc
+            raise ParseError(
+                f"{where}: cannot tokenise the sed command: {exc}"
+            ) from exc
         if not argv or argv[0] != "sed":
             continue
         seen += 1
