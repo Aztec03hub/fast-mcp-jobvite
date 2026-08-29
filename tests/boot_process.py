@@ -13,8 +13,10 @@ what §8 #10 requires and what a supervisor observes.
 
 from __future__ import annotations
 
+import ctypes
 import os
 import pathlib
+import signal
 import socket
 import subprocess
 import sys
@@ -127,6 +129,33 @@ def write_marker_entry(tmp_path: pathlib.Path) -> pathlib.Path:
     return entry
 
 
+#: `prctl(2)`'s `PR_SET_PDEATHSIG`. Linux-only, which this module
+#: already is - `interpreter_of` reads `/proc/<pid>/cmdline`.
+_PR_SET_PDEATHSIG = 1
+
+
+def _die_with_parent() -> None:
+    """Ask the kernel to SIGKILL this child when its parent dies.
+
+    **A `try: ... finally: proc.kill()` cannot do this.** No Python
+    cleanup runs when the harness itself is SIGKILLed, and that is the
+    case that actually happened: the SAME test orphaned a server twice
+    in one day, found alive 2h02m and 1h03m later, still holding a port
+    and still running out of a worktree that had been deleted. The
+    kernel is the only party that can reap a child whose parent was
+    never given a chance to.
+
+    Runs between `fork` and `exec` in the child.
+    """
+    libc = ctypes.CDLL("libc.so.6", use_errno=True)
+    libc.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL)
+    # The race prctl cannot close by itself: if the parent died in the
+    # window between `fork` and this call, the signal has already been
+    # delivered to nobody. Re-parenting is the observable, so check it.
+    if os.getppid() == 1:
+        os._exit(1)
+
+
 def spawn_marker_server(
     tmp_path: pathlib.Path,
     env: dict[str, str],
@@ -156,6 +185,7 @@ def spawn_marker_server(
             stdin=subprocess.PIPE if stdio else subprocess.DEVNULL,
             stdout=sink,
             stderr=subprocess.STDOUT,
+            preexec_fn=_die_with_parent,  # noqa: PLW1509
         )
     deadline = time.time() + GRACE_SECONDS
     while time.time() < deadline:

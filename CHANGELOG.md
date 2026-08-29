@@ -332,6 +332,18 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **A test's server outlived the harness that spawned it, twice in one day.** `spawn_marker_server`
+  starts a real server in a real process; when a run was killed rather than allowed to finish, that
+  server was still alive 2h02m later, holding its port and executing out of a worktree that had
+  already been deleted. The identical orphan appeared again the same day from the same test. No
+  `try: ... finally: proc.kill()` can close this, because `SIGKILL` runs no Python - so the child now
+  asks the kernel for `PR_SET_PDEATHSIG`, and re-checks `getppid()` to cover the fork-window race
+  where the signal would have been delivered to nobody. Two callers that had no cleanup path at all
+  gained one as well: an ordinary assertion failure in either left a live server behind for the rest
+  of the run. Proved by amputating the `prctl` call, which turns the new arm red while its positive
+  control - a parent left deliberately alive, whose child must NOT vanish - stays green.
+  (2026-08-29 11:26 AM CDT)
+
 - **`JOBVITE_PAGINATION_START_BASE` reached no code at all.** The variable shipped, was documented
   as an operator override, and was read by nothing: the tool built its client without passing it
   through, so setting it changed no request on the wire. It is the same omission as the result-cap
