@@ -15,7 +15,9 @@
 set -uo pipefail
 cd /tmp/bash-work 2>/dev/null || cd "$(git rev-parse --show-toplevel)" || exit 9
 
-MAP=docs/OBLIGATIONS.md
+# No MAP variable here: one was declared and read by nothing. The artifact
+# this probe edits is read out of the ROW below, which is the whole point of
+# the paragraph under it.
 BACKUP=$(mktemp)
 
 # THE SUBJECT AND THE ARTIFACT ARE READ FROM THE ROW, NEVER HARD-CODED HERE.
