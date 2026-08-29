@@ -181,17 +181,46 @@ MUST_J=(
   "tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read"
 )
 MUST_K=("${MUST_J[@]}")
+# ONE arm, not two. Redaction is DEFENCE IN DEPTH - a record filter and a
+# rendering sink, deliberately independent - so a test that either layer
+# protects CANNOT die when only one is amputated, and demanding that it does
+# makes the row red against correct code. Only the arm that no other layer
+# reaches belongs here: a sink this project did not install is invisible to
+# the sink-level redaction by construction.
+#
+# The doubly-protected arms are not dropped; they move to row LN below, which
+# removes BOTH layers and is where they must die.
 MUST_L=(
   "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
-  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
 )
 # Row N arrived with the sink-level redaction split (main). Its subject is the
 # RENDERED half - the serialised `text` and `exception` fields the record
 # filter cannot reach - so the arms that must notice it are the ones that read
 # a real process's stream and look for a credential in it.
+# Same correction as row L, from the other side. The transport-failure arm
+# reads the process stream, which BOTH layers protect, so it survives a
+# sink-only amputation and belongs to row LN.
 MUST_N=(
   "tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink"
-  "tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails"
+)
+
+# Row LN: BOTH redaction layers removed at once.
+#
+# Without this row the correction above would WEAKEN the harness - the two
+# doubly-protected arms would be asserted by nothing, and an arm no row can
+# kill is an arm that might be vacuous. This is where they must die, and if
+# they survive HERE the tests really are broken.
+# ONE arm again, and the reason is a THIRD layer nobody had named.
+#
+# `test_the_process_publishes_no_credential_when_the_transport_fails` was here
+# and SURVIVED even with both logging layers gone. It is not vacuous: the
+# credential never reaches a log record at all, because jobvite_client.py
+# redacts at the CALL SITE - `redact_headers(headers)` - before handing
+# anything to loguru. So no amputation in THIS file can kill it, and the row
+# that could belongs to the client harness, whose subject is that module.
+# Tracked rather than forced green here; see the task board.
+MUST_LN=(
+  "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
 )
 MUST_M=(
   "tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink"
@@ -393,6 +422,24 @@ assert s.count(anchor) == 1, "N anchor is not unique"
 p.write_text(s.replace(anchor, "        sys.stderr,"))
 PY
 report "N. the sink writes the serialised record without redacting it" "${MUST_N[@]}"
+
+# --- LN. BOTH redaction layers removed --------------------------------------
+# The rows above each remove ONE layer, and the arms that read the process
+# stream survive that by design - the other layer still covers them. Removing
+# both is the only amputation those arms can see, and it is what proves they
+# are not vacuous.
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+filter_anchor = '    message = record.get("message")'
+sink_anchor = "        _redacting_sink(sys.stderr),"
+assert s.count(filter_anchor) == 1, "LN filter anchor is not unique"
+assert s.count(sink_anchor) == 1, "LN sink anchor is not unique"
+s = s.replace(filter_anchor, "    return True\n" + filter_anchor)
+s = s.replace(sink_anchor, "        sys.stderr,")
+p.write_text(s)
+PY
+report "LN. BOTH the record filter and the sink redaction are gone" "${MUST_LN[@]}"
 
 # --- M. stdlib logging is never bridged into loguru -----------------------
 # Two logging systems again, both live, writing two shapes onto one fd.
