@@ -189,6 +189,34 @@ jobs:
             exit 1
           fi
 
+      # STANDARDS CITATIONS RESOLVE. A third citation population, and it had
+      # no instrument until now: check-design-citation-shape.py reads only
+      # DESIGN.md:N, and check-clause-citations.py reads only OBLIGATIONS.md's
+      # CLAUSE column. The inline `<standard>.md:N` citations in src/, tests/
+      # and scripts/ were unchecked, and 13 of 88 were wrong - a higher rate
+      # than either DESIGN.md population.
+      #
+      # WIRED NOW THAT IT IS GREEN, which is this project's standing sequence.
+      # Two of its findings were a class the others cannot produce: a BARE
+      # basename that resolves in two directories - `error-handling.md` exists
+      # under backend/ AND frontend/ - which is not a wrong citation but an
+      # unresolvable one, and both targets are real so nothing looks wrong on
+      # arrival. The checker REFUSES an ambiguous basename rather than taking
+      # the first match.
+      #
+      # It exits 2, never 0, when the standards checkout is absent: a checker
+      # that reports all-clear because it could not find its subject has
+      # checked nothing.
+      - name: Standards citations resolve
+        run: |
+          set -uo pipefail
+          out=$(python3 docs/reviews/check-standards-citations.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::a standards citation cannot be its subject, or the corpus is missing"
+            exit 1
+          fi
+
       - name: Section cross-references resolve
         run: |
           set -uo pipefail

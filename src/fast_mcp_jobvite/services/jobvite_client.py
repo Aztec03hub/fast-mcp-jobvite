@@ -161,8 +161,8 @@ def _unavailable_detail(exc: Exception) -> str:
     Dispatch is on the exception CLASS and the return values are
     constants, so nothing a third-party library wrote into the
     exception's text can reach the value this returns. That is the
-    property `error-handling.md:383` and `:493` ask for, and it is a
-    property of the function rather than of a redactor applied
+    property `backend/error-handling.md:383` and `:493` ask for, and it
+    is a property of the function rather than of a redactor applied
     afterwards.
 
     Args:
@@ -595,7 +595,7 @@ class ScanResult:
 DEFAULT_OUTBOUND_BUDGET_SECONDS: Final = 60.0
 
 #: The per-phase timeouts (DESIGN.md:346, and
-#: `backend/resilience.md:66-70`).
+#: `backend/resilience.md:67-70`).
 #: **Explicit and per-phase: no SDK default and no single scalar.**
 #: httpx2's own default is a 5-second scalar, which is a resilience
 #: decision made by a library rather than by us.
@@ -633,7 +633,7 @@ RATE_LIMITED_STATUS: Final = 429
 #: The floor for a server-side failure. `ERROR_STATUS_THRESHOLD` (400)
 #: is the invariant's floor and a DIFFERENT quantity: everything at or
 #: above 400 is an error, and only what is at or above 500 is OURS to
-#: retry. `backend/resilience.md:91-94`: "4xx validation, auth, and
+#: retry. `backend/resilience.md:92-94`: "4xx validation, auth, and
 #: permission errors are not retryable and must surface immediately".
 SERVER_ERROR_STATUS_FLOOR: Final = 500
 
@@ -1058,8 +1058,9 @@ _JITTERED_BACKOFF: Final = wait_exponential_jitter(
 def _should_retry(state: RetryCallState) -> bool:
     """`tenacity`'s predicate: re-issue this attempt, or surface it?
 
-    **Never a blanket `except Exception`** (`backend/resilience.md:91`).
-    Three things retry and nothing else does:
+    **Never a blanket `except Exception`**
+    (`backend/resilience.md:92-94`). Three things retry and nothing
+    else does:
 
     * `_RetryableUpstream` - a 429 or a 5xx, already classified by
       `_attempt` where the response was still in scope;
@@ -1777,8 +1778,8 @@ class JobviteClient:
         ) as exc:
             # THE LOG IS WHERE THE EXCEPTION TEXT GOES, and the consumer
             # gets an enumerated reason instead
-            # (`error-handling.md:383`, `:493`, and the block above
-            # `_unavailable_detail`). "Log errors with sufficient
+            # (`backend/error-handling.md:383`, `:493`, and the block
+            # above `_unavailable_detail`). "Log errors with sufficient
             # context server-side" is the same standard's :494.
             #
             # `httpx` puts the request URL into the text of the
@@ -1833,7 +1834,7 @@ class JobviteClient:
             # the response, not on the exception.
             #
             # **A 4xx falls straight through**, unwrapped, which is what
-            # makes `backend/resilience.md:91-94` ("4xx validation, auth
+            # makes `backend/resilience.md:92-94` ("4xx validation, auth
             # and permission errors are not retryable and must surface
             # immediately") a property of the code rather than of a
             # configured exception list.

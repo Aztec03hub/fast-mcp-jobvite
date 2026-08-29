@@ -450,7 +450,7 @@ async def test_a_timeout_is_retried_and_a_transport_error_is_retried() -> None:
 
 
 async def test_a_4xx_is_not_retried_and_surfaces_immediately() -> None:
-    """`backend/resilience.md:91-94`, as ONE request on the wire.
+    """`backend/resilience.md:92-94`, as ONE request on the wire.
 
     A configuration read would pass against a predicate that lists 4xx
     and a call site that ignores the predicate.

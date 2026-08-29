@@ -11,7 +11,7 @@
 # and its survivors are output rather than failure.
 #
 # THE ROWS THAT MATTER MOST HERE ARE M1 AND M13, and they are the two
-# halves of one boundary. `backend/resilience.md:91-94` says 4xx must
+# halves of one boundary. `backend/resilience.md:92-94` says 4xx must
 # not be retried and DESIGN.md:354-355 says 4xx must not trip the
 # breaker; M1 makes a 4xx retryable and M13 makes it trip the breaker.
 # A suite that only checked "a 5xx is retried and trips the breaker"
@@ -159,7 +159,7 @@ PY
 # RETRY SELECTION - the predicate, and the boundary it must not widen
 # ===========================================================================
 
-# `backend/resilience.md:91-94`: 4xx "must surface immediately". Widening
+# `backend/resilience.md:92-94`: 4xx "must surface immediately". Widening
 # the floor to 400 makes every caller error a retry, which quadruples the
 # load a bad candidate id puts on Jobvite and delays the error the caller
 # actually needs.
