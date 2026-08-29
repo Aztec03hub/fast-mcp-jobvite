@@ -1288,8 +1288,26 @@ async def test_a_non_409_upstream_failure_is_not_dressed_up_as_a_conflict() -> N
 # ======================================================================
 
 
-async def test_an_approved_write_that_times_out_is_attempted_exactly_once() -> None:
-    """A retried write would email a SECOND live human."""
+async def test_an_approved_write_that_times_out_is_attempted_exactly_once(
+    audit_records: list[dict[str, Any]],
+) -> None:
+    """A retried write emails a SECOND human - and the row it leaves.
+
+    **The second claim is the more serious of the two this case makes.**
+    This is `create_candidate`, the WRITE, on the one path where the
+    write may or may not have landed: `AFTER_WRITE`'s policy never
+    raises and never fails the call, so the audit row is the ONLY
+    surviving evidence anyone has afterwards that the attempt did not
+    succeed. Deleting `event.result_status = "error"` records a failed
+    or ambiguous create as a success and left the whole suite green
+    (task #97's container probe,
+    `docs/reviews/probe-audit-row-container.sh`).
+
+    Coverage cannot see it. `tools/candidates.py` reads 100.00% line
+    AND 100.00% branch; this arm is EXECUTED by this case and by the
+    409 and 500 cases above, all three of which assert the
+    caller-visible half and none of which read the row.
+    """
     attempts: list[httpx2.Request] = []
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -1318,6 +1336,28 @@ async def test_an_approved_write_that_times_out_is_attempted_exactly_once() -> N
     assert len(attempts) == 1, (
         f"the write was attempted {len(attempts)} times; a retried write "
         f"creates a second record and may email a second live human"
+    )
+
+    # THE WRITE EMITS TWICE, and which row carries the verdict is the
+    # whole of the claim. `BEFORE_SIDE_EFFECT` is written before the
+    # POST is attempted (NO AUDIT, NO WRITE) and is CORRECTLY
+    # `success` - nothing had failed yet. Only the `AFTER_WRITE` row
+    # can record the outcome, so an assertion aimed at `events[0]`
+    # would read the pre-write row, pass on the amputated code and
+    # test nothing.
+    events = audit_events(audit_records)
+    assert len(events) == 2, (
+        f"expected the BEFORE_SIDE_EFFECT and AFTER_WRITE rows, got {events}"
+    )
+    assert events[0]["result_status"] == "success", (
+        "the pre-write row is written before the POST is attempted and "
+        "records no outcome; if it reads 'error' the verdict has moved and "
+        "the row below is no longer the one that carries it"
+    )
+    assert events[-1]["result_status"] == "error", (
+        "the audit row recorded a write that may or may not have landed as "
+        "anything other than an error, so the only surviving evidence of the "
+        "failure is wrong"
     )
 
 
