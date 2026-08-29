@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
-"""Every controls harness must declare a ROW FLOOR.
+"""Every harness must have a ROW FLOOR at one layer or the other.
 
     python3 docs/reviews/check-row-floors.py
 
-**The defect this exists for, measured.** `FIRED -ne TOTAL` is satisfied
-by `0 == 0`, so a harness whose rows were all deleted reports fully
-green. R4-M4 recorded that and the floor was added to the harnesses
-someone was looking at.
+**The defect this exists for, measured on `check-u9-http-controls.sh`.**
+`FIRED -ne TOTAL` is satisfied by `0 == 0`. With thirteen of its
+fourteen rows deleted that harness printed *"1/1 controls fired"* and
+exited **0**; with a floor it prints *"1/14 ROWS"* and exits **1**.
 
-R7-H2 then found `check-u9-http-controls.sh` still had none, and framed
+R4-M4 recorded the defect. R7-H2 found U9 still had no floor and framed
 it as three of four siblings fixed and one missed. **That framing is
-itself the defect.** R7 enumerated the four units in its own brief.
-Enumerating the CONTAINER - every `scripts/check-*-controls.sh` - finds
-NINE of fourteen without a floor, not one of four.
+the same defect one level up:** R7 enumerated the four units named in
+its own brief. A review scoped to its own assignment is itself a
+hand-kept list.
 
-That is the shape this project has now measured seven times: a hand-kept
-list beside its container is blind to the member nobody added. A review
-scoped to four units is such a list, and so is any future fix that walks
-the harnesses somebody remembers.
+**THIS CHECKER GOT THE SAME THING WRONG TWICE, WHICH IS WHY IT SAYS SO
+HERE.** Its first version globbed only `check-*-controls.sh`, so the
+thirteen `-amputation.sh` harnesses were never in its container either.
+And it judged `check-harness-anchors-controls.sh` unwired because that
+one is invoked directly rather than through `ci-harness-gate.sh` - the
+detector knew one spelling and reported a confident false negative.
+Both are exactly the failure it exists to catch, found within an hour
+of writing it, in the artefact whose whole point was to catch them.
 
-**So this checker does not carry a list of harnesses.** It globs the
-directory and requires each one it finds to declare `ROW_FLOOR=<n>`. The
-tenth harness written next month is covered on the day it lands, by
-existing, which is the only property that survives nobody remembering.
+**THE FLOOR LIVES AT EITHER OF TWO LAYERS, and checking one is how you
+get a wrong answer.** A harness may declare `ROW_FLOOR=<n>` internally,
+or `ci.yml` may pass `--min-rows <n>` to `ci-harness-gate.sh`. Nine
+harnesses have an external floor and no internal one. A checker that
+looked only inside the scripts would call all nine defective; one that
+looked only at `ci.yml` would miss the internally-floored. Only the
+JOIN answers the question.
 
-**What it deliberately does NOT check: whether the floor is RIGHT.** A
-floor is only honest if it was DERIVED from a run of that harness rather
-than typed, and no static reader can tell those apart - branch-local
-floors have been wrong on this project four times. This answers the
-narrower question completely and says so, which is the difference
-between a gate and a green that means something else.
+**What it deliberately does NOT check: whether a floor is RIGHT.** A
+floor is honest only if DERIVED from a run of that harness, and no
+static reader can tell a derived number from a typed one - branch-local
+floors have been wrong here four times. This answers the narrower
+question completely and says which one it answered.
 """
 
 from __future__ import annotations
@@ -39,61 +45,104 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-HARNESSES = "scripts/check-*-controls.sh"
+CI = ROOT / ".github/workflows/ci.yml"
 
-#: `ROW_FLOOR=25`, and it must be a literal integer. A floor computed at
-#: run time from the rows the harness just counted is not a floor: it
-#: equals TOTAL by construction and passes with every row deleted.
+#: Both families. The first version of this file listed only the first
+#: pattern, which is the whole lesson in the docstring above.
+FAMILIES = ("scripts/check-*-controls.sh", "scripts/check-*-amputation.sh")
+
+#: `ROW_FLOOR=25`, a literal integer. `ROW_FLOOR=$TOTAL` is not a floor:
+#: it equals TOTAL by construction and passes with every row deleted.
 FLOOR = re.compile(r"^\s*ROW_FLOOR=(\d+)\s*$", re.M)
 
-#: The floor has to be READ as well as declared. A harness that sets
-#: ROW_FLOOR and never compares it is the inoperative-code shape, and it
-#: would satisfy a checker that only looked for the assignment.
-USES = re.compile(r'\$\{?ROW_FLOOR\}?')
+#: The floor must be READ, not only assigned. A harness that sets
+#: ROW_FLOOR and never compares it is inoperative code that would
+#: satisfy a checker looking only for the assignment.
+USES = re.compile(r"\$\{?ROW_FLOOR\}?")
+
+
+def ci_floors() -> tuple[dict[str, int | None], set[str]]:
+    """`--min-rows` per harness, and every harness `ci.yml` mentions.
+
+    Two return values because they answer different questions and
+    conflating them is how the first version of this file decided a
+    directly-invoked harness was unwired. **Mentioned-at-all** is a
+    plain substring search, so it is blind to no spelling; the
+    `--min-rows` map only covers the `ci-harness-gate.sh` form, which
+    is the only form that takes that flag.
+    """
+    text = CI.read_text(encoding="utf-8")
+    floors: dict[str, int | None] = {}
+    # `\Z` is load-bearing and was missing. Without it the LAST gate
+    # invocation in the file matches nothing - there is no following
+    # blank line or `- name:` at EOF - so its `--min-rows` is invisible
+    # and the harness is reported as having no floor. Control C2 caught
+    # this; reading the code did not.
+    pattern = (
+        r"ci-harness-gate\.sh\s+(\S+)((?:.|\n)*?)"
+        r"(?=\n\s*\n|\n\s*- name:|\Z)"
+    )
+    for match in re.finditer(pattern, text):
+        rows = re.search(r"--min-rows\s+(\d+)", match.group(2))
+        floors[match.group(1)] = int(rows.group(1)) if rows else None
+
+    mentioned = set()
+    for family in FAMILIES:
+        for path in ROOT.glob(family):
+            if path.name in text:
+                mentioned.add(path.name)
+    return floors, mentioned
 
 
 def main() -> int:
-    found = sorted(ROOT.glob(HARNESSES))
+    found = sorted({p for f in FAMILIES for p in ROOT.glob(f)})
     if not found:
-        print(f"MATCHED ZERO HARNESSES at {HARNESSES!r}.")
-        print("A search at a path that does not exist returns a clean")
-        print("empty, which is indistinguishable from real absence.")
+        print("MATCHED ZERO HARNESSES. A search at a path that does not")
+        print("exist returns a clean empty, indistinguishable from real")
+        print("absence - so this is exit 2, never a green.")
+        return 2
+    if not CI.is_file():
+        print(f"{CI} does not exist. Half the join is missing.")
         return 2
 
-    missing: list[str] = []
-    inert: list[str] = []
-    ok: list[tuple[str, int]] = []
+    floors, mentioned = ci_floors()
+    print(f"{'HARNESS':<46}{'INTERNAL':<10}{'CI':<8}{'--min-rows':<11}")
+    unwired: list[str] = []
+    ungated: list[str] = []
 
     for path in found:
         name = path.name
         text = path.read_text(encoding="utf-8", errors="replace")
         match = FLOOR.search(text)
-        if match is None:
-            missing.append(name)
-            continue
-        # Uses BEYOND the assignment line itself.
-        if len(USES.findall(text)) < 1:
-            inert.append(name)
-            continue
-        ok.append((name, int(match.group(1))))
+        internal = int(match.group(1)) if match and USES.search(text) else None
+        external = floors.get(name)
+        wired = name in mentioned
 
-    print(f"Controls harnesses found: {len(found)}\n")
-    for name, floor in ok:
-        print(f"  ok       {name:<44} ROW_FLOOR={floor}")
-    for name in inert:
-        print(f"  INERT    {name:<44} declared but never compared")
-    for name in missing:
-        print(f"  MISSING  {name:<44} no ROW_FLOOR")
-
-    bad = len(missing) + len(inert)
-    print(f"\n{len(ok)}/{len(found)} declare and read a row floor.")
-    if bad:
         print(
-            f"\n{bad} harness(es) can report fully green with every row\n"
+            f"{name:<46}{str(internal or '-'):<10}"
+            f"{('yes' if wired else 'NO'):<8}"
+            f"{str(external if external is not None else '-'):<11}"
+        )
+        if not wired:
+            unwired.append(name)
+        elif internal is None and external is None:
+            ungated.append(name)
+
+    print(f"\nHarnesses: {len(found)}")
+    print(f"  not referenced by ci.yml at all : {len(unwired)}")
+    print(f"  wired but no floor at either layer: {len(ungated)}")
+    for name in unwired:
+        print(f"    UNWIRED  {name}")
+    for name in ungated:
+        print(f"    NO FLOOR {name}")
+
+    if unwired or ungated:
+        print(
+            "\nAn unwired harness runs nowhere: it is a green that was never\n"
+            "asked. A floorless one reports fully green with all but one row\n"
             "deleted, because `FIRED -ne TOTAL` is satisfied by 0 == 0.\n"
-            "A floor must be DERIVED from a run of that harness. Do not\n"
-            "type one in to clear this check: a wrong floor passes here\n"
-            "and buys nothing."
+            "DERIVE any floor you add from a run of that harness. Typing one\n"
+            "in clears this check and buys nothing."
         )
         return 1
     return 0
