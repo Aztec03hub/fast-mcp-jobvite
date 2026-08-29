@@ -145,10 +145,17 @@ taken before row 1.
 `ci.yml` at `8202d13` carries `check-suite-floor.sh 502` (line 418) and
 `check-harness-anchors.py --self-check --floor 239` (line 528).
 
-| Floor | Was | **Now** |
+| Floor | At my base `8202d13` | **On this branch** |
 |---|---|---|
 | suite | 502 | **530** |
 | harness anchors | 239 | **267** |
+
+**THESE ARE BRANCH-LOCAL AND `main` HAS MOVED UNDER ME.** U8 merged while this ran and task #56
+records floors 560/278 for it; U12 was dispatched at `686820c`. My numbers are what
+`feat/u9-http` measures against `8202d13`, which is the only tree I have run. **Re-derive both from
+`ci.yml` after the merge** rather than adding my deltas to U8's - that arithmetic is exactly the
+retyped constant `PREAMBLE.md` exists to stop. This branch adds **28** passing cases and **28**
+harness anchors, and those two deltas are the part that survives a rebase.
 
 ### The two ci.yml steps this unit needs, for you to add
 
