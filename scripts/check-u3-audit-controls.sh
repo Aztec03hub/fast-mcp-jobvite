@@ -159,8 +159,8 @@ run_mutation "M7  a post-write audit failure returns no warning" "$AUDIT" \
   'test_arm3'
 
 run_mutation "M8  a read surfaces a warning it must not surface" "$AUDIT" \
-  '    # AuditPhase.READ: log to stderr and continue. A read is recoverable and
-    # losing the tool is worse than losing one audit line.
+  '    # AuditPhase.READ: log to stderr and continue. A read is recoverable
+    # and losing the tool is worse than losing one audit line.
     return []' \
   '    return ["audit write failed"]' \
   'test_arm2_on_a_read_it_logs_to_stderr_and_continues'
