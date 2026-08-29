@@ -240,9 +240,13 @@ amputate "A9c the enumerated detail says nothing a caller can act on" "$CLIENT" 
 # A9d - L-1 UNWIRED AGAIN. `redact_headers` loses its one caller and the v2
 # credential headers reach the log line in the clear.
 # ---------------------------------------------------------------------------
+# REPOINTED BY U7. `headers` is a `Mapping` parameter on `_attempt` now, so
+# the call site reads `redact_headers(dict(headers))`. The SUBJECT is
+# unchanged - `redact_headers` losing its one caller - and only the spelling
+# moved.
 amputate "A9d the v2 credential headers reach the log unredacted" "$CLIENT" \
-  '                headers=redact_headers(headers),' \
-  '                headers=headers,'
+  '                headers=redact_headers(dict(headers)),' \
+  '                headers=dict(headers),'
 
 # ---------------------------------------------------------------------------
 # A9e - the exception text reaches the LOG unredacted. The consumer is still
@@ -264,7 +268,7 @@ amputate "A9f the transport failure is never logged (relocated controls go vacuo
                 "jobvite transport failure",
                 method=method,
                 route=redact_url(f"{V1_BASE_URL if jobfeed else V2_BASE_URL}{path}"),
-                headers=redact_headers(headers),
+                headers=redact_headers(dict(headers)),
                 error=redact_text(f"{type(exc).__name__}: {exc}"),
             )' \
   '            pass'

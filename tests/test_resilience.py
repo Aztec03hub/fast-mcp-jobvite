@@ -37,7 +37,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx2
@@ -111,45 +111,6 @@ def client(handler: Handler, **kwargs: Any) -> jc.JobviteClient:  # noqa: ANN401
         transport=httpx2.MockTransport(handler),  # type: ignore[arg-type]
         **kwargs,
     )
-
-
-@pytest.fixture(autouse=True)
-def _closed_breaker() -> Iterator[None]:
-    """Start and end every case with a closed breaker.
-
-    The breaker is deliberately MODULE state (see `_JOBVITE_BREAKER`),
-    which makes case order load-bearing unless it is reset: one case
-    tripping it would fail the next for a reason that has nothing to do
-    with the next case, and the failure would look like a resilience
-    bug rather than like test pollution. Reset on the way OUT as well as
-    in, so a case that trips it cannot leak into the rest of the suite -
-    `tests/test_pagination.py` and `tests/test_jobvite_client.py` drive
-    the same module.
-
-    Yields:
-        Nothing; this is a setup/teardown fixture.
-    """
-    jc.reset_breaker_for_test()
-    yield
-    jc.reset_breaker_for_test()
-
-
-@pytest.fixture(autouse=True)
-def _no_backoff_sleeps(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make the jittered backoff zero, so the suite does not sleep.
-
-    **This patches the WAIT, not the retry decision.** Every case here
-    still runs the real `AsyncRetrying`, the real predicate and the real
-    attempt count - what is removed is only wall-clock delay, which no
-    assertion in this file depends on.
-    `test_the_backoff_is_exponential_with_jitter` is the case that
-    covers the thing this fixture hides, and it reads the unpatched
-    object rather than driving a call.
-
-    Args:
-        monkeypatch: pytest's patcher.
-    """
-    monkeypatch.setattr(jc, "_JITTERED_BACKOFF", lambda _state: 0.0)
 
 
 def _capture() -> tuple[int, list[dict[str, Any]]]:
@@ -373,6 +334,71 @@ async def test_an_exhausted_budget_does_not_trip_the_breaker() -> None:
         await c.aclose()
     assert jc._JOBVITE_BREAKER.failure_count == 0  # noqa: SLF001
     assert jc._JOBVITE_BREAKER.state == "closed"  # noqa: SLF001
+
+
+async def test_a_whole_scan_shares_one_budget_rather_than_one_per_page() -> None:
+    """The amputation harness found this missing (row A2).
+
+    DESIGN.md:373-375 bounds "all attempts for ONE TOOL INVOCATION". A
+    scan of a 1,240-record resource makes 25 requests, so a budget
+    opened per REQUEST would bound each page and bound the invocation at
+    `pages x seconds` - unbounded in exactly the direction this exists
+    to bound. **Deleting the scope from `scan` left the whole suite
+    green**, because every other budget case drives a single request.
+
+    The assertion is on the DEADLINE VALUE seen at the transport, not on
+    elapsed time: a mock transport answers in microseconds, so a timing
+    assertion here would be measuring the clock's resolution. One
+    deadline for every page is the property; N distinct deadlines is the
+    defect.
+    """
+    deadlines: list[float | None] = []
+    pages = [
+        b'{"requisitions": [{"eId": "a"}], "total": 3}',
+        b'{"requisitions": [{"eId": "b"}], "total": 3}',
+        b'{"requisitions": [], "total": 3}',
+    ]
+
+    def handler(_request: httpx2.Request) -> httpx2.Response:
+        deadlines.append(jc.outbound_deadline_var.get())
+        return httpx2.Response(200, content=pages[min(len(deadlines) - 1, 2)])
+
+    c = client(handler, max_results=1)
+    try:
+        await c.scan(JOBS_PATH, items_key="requisitions")
+    finally:
+        await c.aclose()
+
+    assert len(deadlines) >= 2, "the scan did not page - this measured nothing"
+    assert all(d is not None for d in deadlines)
+    assert len(set(deadlines)) == 1, (
+        f"the scan opened {len(set(deadlines))} budgets across "
+        f"{len(deadlines)} pages; it must open exactly one"
+    )
+
+
+def test_the_retry_stop_caps_both_attempts_and_elapsed_time() -> None:
+    """`backend/resilience.md:88-90`: "cap BOTH ... AND ...".
+
+    **This case is STRUCTURAL, and that is a limitation worth stating
+    rather than hiding.** Amputation row A5 deletes `stop_after_delay`
+    and no behavioural case goes red, because `_attempt`'s pre-attempt
+    budget check already refuses to issue a request once the deadline
+    has passed - so the two caps are not separable by driving calls.
+    The delay cap is defence in depth: it stops the loop before a final
+    pointless backoff sleep, which no assertion here can observe without
+    making the suite sleep.
+
+    So the composed `stop` is read directly. A `stop_any` of the two is
+    what the clause asks for, and a single condition is not.
+    """
+    import inspect  # noqa: PLC0415 - one case needs it
+
+    source = inspect.getsource(jc.JobviteClient._attempt_with_retry)  # noqa: SLF001
+    assert "stop_after_attempt(self._retry_max_attempts)" in source
+    assert "stop_after_delay(" in source
+    # OR-ed, not AND-ed: either cap alone must be able to stop the loop.
+    assert "stop_after_attempt(self._retry_max_attempts) | stop_after_delay(" in source
 
 
 # ======================================================================
@@ -642,6 +668,34 @@ async def test_repeated_5xx_trips_the_breaker() -> None:
             await c2.aclose()
         assert seen2 == [], "the open breaker still issued a request"
         assert caught.value.detail == jc.UNAVAILABLE_BREAKER_DETAIL
+    finally:
+        await c.aclose()
+
+
+async def test_repeated_transport_failures_trip_the_breaker() -> None:
+    """The OTHER outage arm, and the mutation harness found it missing.
+
+    `_is_outage` has two branches that return `True`: one for a 5xx or
+    429 read off `JobviteUpstreamError.upstream_status`, and one for
+    every `JobviteUnavailableError` - which is every transport failure
+    httpx2 raises. `test_repeated_5xx_trips_the_breaker` exercises only
+    the first, so harness row **M14, which deletes the second, SURVIVED
+    against it**: an implementation where a dead upstream never opens
+    the circuit passed the case whose name says the breaker trips.
+
+    The two branches fail in genuinely different places. A 5xx means
+    Jobvite answered; a `ConnectError` means it did not, and it is the
+    shape a real outage takes. This case is the second arm, and it
+    exists because the deletion survived rather than because anyone
+    predicted it.
+    """
+    handler, _ = counting([httpx2.ConnectError("connection refused")])
+    c = client(handler, retry_max_attempts=1)
+    try:
+        for _ in range(jc.DEFAULT_BREAKER_FAILURE_THRESHOLD):
+            with pytest.raises(JobviteUnavailableError):
+                await c.request("GET", JOBS_PATH)
+        assert jc._JOBVITE_BREAKER.state == "open"  # noqa: SLF001
     finally:
         await c.aclose()
 

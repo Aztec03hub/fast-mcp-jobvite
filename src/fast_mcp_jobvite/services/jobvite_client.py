@@ -669,7 +669,7 @@ UNAVAILABLE_RATE_LIMITED_DETAIL: Final = (
 )
 
 #: THE BUDGET'S CARRIER, and it is a `ContextVar` for the same reason
-#: `request_id_var` is (DESIGN.md:607-612): `asyncio` runs invocations
+#: `request_id_var` is (DESIGN.md:608-612): `asyncio` runs invocations
 #: concurrently on one thread, and a module global would let two
 #: invocations share one deadline - the first to start would bound the
 #: second, and the corruption would be silent because every call still
