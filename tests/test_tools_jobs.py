@@ -220,7 +220,17 @@ async def test_case16_read_arm_request_id_on_the_wire_meta(
         result = await client.call_tool(SEARCH_JOBS, {"params": {}})
 
     assert result.meta is not None, "no _meta reached the wire at all"
-    wire_id = result.meta[REQUEST_ID_META_KEY]
+
+    # THE KEY IS SPELLED OUT, not read from the constant the source
+    # uses. Found by mutation: renaming `REQUEST_ID_META_KEY` moved
+    # this assertion with it, so the test passed against a server
+    # publishing the id under a key no caller could guess - and
+    # DESIGN.md:646-650 makes the documented key the whole point,
+    # because "an id a caller cannot reach discharges nothing".
+    # An assertion that reads the constant under test cannot see it
+    # change.
+    assert REQUEST_ID_META_KEY == "com.evolvconsulting.fast-mcp-jobvite/requestId"
+    wire_id = result.meta["com.evolvconsulting.fast-mcp-jobvite/requestId"]
     assert wire_id == audit_event(audit_records)["request_id"]
 
     content = result.structured_content
