@@ -18,7 +18,7 @@ LIMIT = 72
 
 
 def protect(text: str, budget: int) -> str:
-    """Make short `code spans` unbreakable, so wrapping never splits one."""
+    """Make short `code spans` unbreakable, so a wrap cannot split."""
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
@@ -31,7 +31,7 @@ ROWS = json.loads(
 
 
 def summary_rows(source: str) -> dict[str, int]:
-    """qualname -> line number of the docstring that documents it."""
+    """Qualname -> line number of the docstring that documents it."""
     out: dict[str, int] = {}
 
     def opener(node: ast.AST) -> int | None:
@@ -65,9 +65,15 @@ def summary_rows(source: str) -> dict[str, int]:
     return out
 
 
-by_file: dict[str, list[tuple[int, str, str]]] = collections.defaultdict(list)
-for row in ROWS:
-    by_file[row["path"]].append((row["qualname"], row["summary"], row.get("body", "")))
+# The declared element type said `tuple[int, str, str]` and the appended
+# value is three STRINGS. mypy had never read this file, so the wrong
+# declaration sat here unchallenged; the module-level `row` was also
+# reused for an int and a dict.
+by_file: dict[str, list[tuple[str, str, str]]] = collections.defaultdict(list)
+for entry in ROWS:
+    by_file[entry["path"]].append(
+        (entry["qualname"], entry["summary"], entry.get("body", ""))
+    )
 
 applied = 0
 for name, edits in by_file.items():
@@ -75,7 +81,7 @@ for name, edits in by_file.items():
     source = path.read_text()
     lines = source.splitlines()
     anchors = summary_rows(source)
-    resolved = []
+    resolved: list[tuple[int, str, str, str]] = []
     for qual, summary, body in edits:
         assert qual in anchors, f"{name}: {qual} has no docstring any more"
         resolved.append((anchors[qual], qual, summary, body))

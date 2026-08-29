@@ -250,7 +250,7 @@ src = ["src", "tests"]
 # review process, predate this manifest, and CI runs them by exit code rather than
 # by style. Reformatting them under a lint config written after them would rewrite
 # a gate nobody asked to change.
-extend-exclude = ["docs"]
+extend-exclude = []
 
 [tool.ruff.lint]
 select = [
@@ -295,13 +295,23 @@ convention = "google"       # python.md:97 (B50 docstring half)
 ]
 # The gate script is a CLI: printing IS its interface, and its refusal message is
 # the control being tested. T20 would forbid the thing the tests assert on.
-"scripts/*" = ["T201", "D103"]
+"{scripts,docs/reviews}/**" = ["T201", "D103"]
+# `docs/reviews/**` is nineteen wired CI gates and their probes. It is the
+# `tests/*` population living at another path, and it gets that population's
+# exemptions for the same stated reasons: asserts and subprocess ARE the
+# mechanism in a harness, and an unannotated probe helper is fine. Everything
+# else applies - W505, E501, B, D, N, DTZ and the rest are enforced here, and
+# the 1464 findings that were invisible while `extend-exclude = ["docs"]` stood
+# have been swept rather than exempted.
+"docs/reviews/**" = [
+  "S101", "S603", "S607",  # asserts and subprocess are the point in a harness
+  "ANN",                   # an unannotated probe helper is fine, as in tests/*
+]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests"]
-exclude = ["^docs/"]
+files = ["src", "tests", "docs/reviews"]
 
 # defusedxml ships no type information (no py.typed, no bundled stubs), so under
 # `strict = true` its three imports in services/jobvite_client.py are hard errors.
@@ -336,3 +346,4 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["circuitbreaker.*"]
 ignore_missing_imports = true
+

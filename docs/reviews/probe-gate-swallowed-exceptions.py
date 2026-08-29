@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Probe: the two S110 swallows in wired gates now catch only what they name.
+# mypy: allow-untyped-defs, allow-untyped-calls
+# ^ This file is a PROBE: its helpers build throwaway clients and
+#   responders whose only caller is the arms below. mypy READS it -
+#   that is the point of putting docs/reviews in `files` - and every
+#   other strict check applies; only the two annotation knobs the ruff
+#   per-file-ignores entry already relaxes for ANN are relaxed here, so
+#   the two tools say the same thing about the same population.
+"""The two S110 swallows in wired gates catch only what they name.
 
 Ruff S110 (`try`/`except`/`pass`) fired twice inside code CI runs:
 
@@ -9,20 +16,23 @@ Ruff S110 (`try`/`except`/`pass`) fired twice inside code CI runs:
   probe-r6-breaker-reset.py:88      `except Exception: pass` inside
       `drive_to`, which drives N outage failures on purpose.
 
-Neither was a live defect - both had a correct fallback behind them. Both
-were WIDER than the failure they named, which is how a gate stops gating:
-a TypeError from a refactor of the guarded lines is not "git is absent"
-and not "the upstream returned 500", but the old catch could not tell the
-difference and reported a clean run either way.
+Neither was a live defect - both had a correct fallback behind them.
+Both were WIDER than the failure they named, which is how a gate
+stops gating: a TypeError from a refactor of the guarded lines is
+not "git is absent" and not "the upstream returned 500", but the old
+catch could not tell the difference and reported a clean run either
+way.
 
-Each site gets three rows: the named failure still falls back (so the
-narrowing did not break the gate), an UNNAMED failure now escapes (so the
-narrowing did something), and the happy path is untouched.
+Each site gets three rows: the named failure still falls back (so
+the narrowing did not break the gate), an UNNAMED failure now
+escapes (so the narrowing did something), and the happy path is
+untouched.
 
-Run under the project environment - `probe-r6-breaker-reset.py` imports
-httpx2:
+Run under the project environment - `probe-r6-breaker-reset.py`
+imports httpx2:
 
-    uv run --frozen python docs/reviews/probe-gate-swallowed-exceptions.py
+    uv run --frozen python \
+        docs/reviews/probe-gate-swallowed-exceptions.py
 
 Exit 0 = every row behaved. Exit 1 = at least one did not.
 """
@@ -33,6 +43,7 @@ import importlib.util
 import pathlib
 import subprocess
 import sys
+from types import ModuleType
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
@@ -53,16 +64,17 @@ def row(name: str, ok: bool, detail: str) -> None:
         FAILURES.append(name.split(".")[0])
 
 
-def load(stem: str):
-    """Import one docs/reviews script by path, under its own module name.
+def load(stem: str) -> ModuleType:
+    """Import one docs/reviews script by path, under its own name.
 
-    These scripts have no `if __name__ == "__main__"` guard - they run at
-    import and end on `raise SystemExit(...)`. The first draft of this
-    probe let that SystemExit propagate: the r6 probe ran, exited 0, and
-    took this process with it BEFORE rows E-G had run. Every row printed
-    up to that point had passed, so it read as a clean exit 0 while three
-    rows had not executed at all - a skip wearing a green. Swallow the
-    SystemExit; the module namespace is fully populated by then.
+    These scripts have no `if __name__ == "__main__"` guard - they
+    run at import and end on `raise SystemExit(...)`. The first
+    draft of this probe let that SystemExit propagate: the r6 probe
+    ran, exited 0, and took this process with it BEFORE rows E-G had
+    run. Every row printed up to that point had passed, so it read
+    as a clean exit 0 while three rows had not executed at all - a
+    skip wearing a green. Swallow the SystemExit; the module
+    namespace is fully populated by then.
     """
     spec = importlib.util.spec_from_file_location(f"_probe_{stem}", HERE / f"{stem}.py")
     assert spec is not None and spec.loader is not None
@@ -75,14 +87,14 @@ def load(stem: str):
     return mod
 
 
-# ---------------------------------------------------------------- site 1
+# ---- site 1 ----------------------------------------------------
 # check-standards-citations.py:_corpus(). It resolves the standards
 # corpus; `candidates[0]` is the fallback and absence is still exit 2.
 csc = load("check-standards-citations")
 real_run = subprocess.run
 
 
-def _raises(exc: BaseException):
+def _raises(exc):
     def _run(*_a, **_kw):
         raise exc
     return _run
@@ -134,9 +146,9 @@ row(
     f"_corpus()={got} gate_rc={proc.returncode}",
 )
 
-# ---------------------------------------------------------------- site 2
-# probe-r6-breaker-reset.py:drive_to(). The raise IS the expected result
-# of each call, so the swallow is correct - for the outage errors only.
+# ---- site 2 ----------------------------------------------------
+# probe-r6-breaker-reset.py:drive_to(). The raise IS the expected
+# result of each call, so swallowing is right - for outages only.
 try:
     r6 = load("probe-r6-breaker-reset")
 except ModuleNotFoundError as exc:

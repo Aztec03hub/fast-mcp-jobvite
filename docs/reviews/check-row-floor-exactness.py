@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""A row floor must EQUAL its harness's live row count, not merely bound it.
+"""A row floor must EQUAL its harness's row count, not bound it.
 
     python3 docs/reviews/check-row-floor-exactness.py
 
-**THE DEFECT, and it was found in this repository rather than imagined.**
-`check-u7-resilience-controls.sh` carried 31 rows against `ROW_FLOOR=26`.
-Five rows could have been deleted with CI silent. Neither branch was
-wrong: the 26 was honestly derived on `chore/row-floors`, the five extra
-rows arrived on `feat/scan-bound`, and `git merge-base --is-ancestor`
-says neither commit is an ancestor of the other. **The MERGE produced
-the slack floor, and no instrument in the repository compared a floor to
-a live count.**
+**THE DEFECT, and it was found in this repository rather than
+imagined.** `check-u7-resilience-controls.sh` carried 31 rows against
+`ROW_FLOOR=26`. Five rows could have been deleted with CI silent.
+Neither branch was wrong: the 26 was honestly derived on
+`chore/row-floors`, the five extra rows arrived on `feat/scan-bound`,
+and `git merge-base --is-ancestor` says neither commit is an ancestor of
+the other. **The MERGE produced the slack floor, and no instrument in
+the repository compared a floor to a live count.**
 
 A floor that is too HIGH fails loudly on the next run. A floor that is
 too LOW says nothing, forever, which is why this direction needs a

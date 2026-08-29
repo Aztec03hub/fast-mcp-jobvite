@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# mypy: allow-untyped-defs, allow-untyped-calls
+# ^ This file is a PROBE: its helpers build throwaway clients and
+#   responders whose only caller is the arms below. mypy READS it -
+#   that is the point of putting docs/reviews in `files` - and every
+#   other strict check applies; only the two annotation knobs the ruff
+#   per-file-ignores entry already relaxes for ANN are relaxed here, so
+#   the two tools say the same thing about the same population.
 """Measure what an EMBEDDER's log handler receives on the jobFeed route.
 
     python3 docs/reviews/probe-u12-f2-embedder-leak.py
@@ -67,7 +74,8 @@ COMPANY_ID = "PROBECOMPANYVALUE"
 N_CLIENTS = 25
 
 
-def _redaction():
+def _redaction(  # noqa: ANN201 - the return is the module's own filter type
+):
     """Import the redaction module late, after the abort check."""
     from fast_mcp_jobvite.utils import redaction
 
@@ -94,7 +102,7 @@ def _clear_our_filters() -> None:
 
 
 async def _drive(*, install: bool) -> None:
-    """Issue one jobFeed request with no logging configuration of ours."""
+    """One jobFeed request with no logging configuration of ours."""
     import httpx2
     from pydantic import SecretStr
 
@@ -231,10 +239,15 @@ def main() -> int:
         failures.append(f"ARM 1: {v1}")
 
     print()
-    leaked1c, lines1c = leak_arm("ARM 1c control (install_log_redaction=False)", install=False)
+    leaked1c, lines1c = leak_arm(
+        "ARM 1c control (install_log_redaction=False)", install=False
+    )
     v1c = _leak_verdict(leaked1c, lines1c, expect_leak=True)
     print(f"        credential values in the clear: {leaked1c or 'none'}")
-    print(f"ARM 1c control: {v1c or f'LEAKED {leaked1c} - the arm can read a leak (PASS)'}")
+    print(
+        f"ARM 1c control: "
+        f"{v1c or f'LEAKED {leaked1c} - the arm can read a leak (PASS)'}"
+    )
     if v1c:
         failures.append(f"ARM 1c control: {v1c}")
 
@@ -243,7 +256,10 @@ def main() -> int:
     counted = counter_control_arm()
     # Same predicate for the printed verdict and the gate below.
     v2 = None if installed == 1 else f"{N_CLIENTS} clients left {installed} filters"
-    v2c = None if counted == N_CLIENTS else f"appending {N_CLIENTS} filters read back {counted}"
+    v2c = (
+        None if counted == N_CLIENTS
+        else f"appending {N_CLIENTS} filters read back {counted}"
+    )
     print(f"ARM 2  {N_CLIENTS} clients -> {installed} filter(s) on "
           f"{_redaction().HTTPX_LOGGER_NAME}: {v2 or 'exactly 1 (ok)'}")
     print(f"ARM 2c control: hand-appended {N_CLIENTS} -> read {counted}: "

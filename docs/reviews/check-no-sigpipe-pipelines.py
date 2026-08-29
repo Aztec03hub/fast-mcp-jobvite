@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`printf ... | grep -q` under `pipefail` returns 141 on a large output.
+"""`printf ... | grep -q` under `pipefail` returns 141 when big.
 
     python3 docs/reviews/check-no-sigpipe-pipelines.py
 
@@ -8,9 +8,8 @@ it matches. If the writer is still writing it takes SIGPIPE, and
 `set -o pipefail` promotes that 141 to the pipeline's status - so a
 string that IS present reports as ABSENT:
 
-    large output, needle PRESENT -> 141      <- the bug
-    small output, needle PRESENT -> 0        <- why it hides
-    large output, needle ABSENT  -> 1
+    large output, needle PRESENT -> 141 <- the bug small output, needle
+    PRESENT -> 0 <- why it hides large output, needle ABSENT -> 1
 
 It only fires once the output outruns the pipe buffer, so it arrives as
 a function of suite growth. `check-u0-test-controls.sh` judged a row
@@ -29,9 +28,9 @@ anchors to the start of the OUTPUT. Measured against an output whose
 second line is the match: pipe 141, `=~` 1, here-string 0. Six of the
 eleven `ci.yml` sites anchor with `^`.
 
-**AND THIS CHECKER FILTERS COMMENTS, WHICH IS NOT AN OPTIMISATION.**
-Two agents independently grepped for this pattern to confirm it was gone
-and both matched the COMMENT EXPLAINING THE FIX - the repaired code sits
+**AND THIS CHECKER FILTERS COMMENTS, WHICH IS NOT AN OPTIMISATION.** Two
+agents independently grepped for this pattern to confirm it was gone and
+both matched the COMMENT EXPLAINING THE FIX - the repaired code sits
 directly under a note quoting the broken form in order to forbid it. A
 checker that greps for a defect will always find that defect's
 documentation, and the better a codebase is at explaining its fixes the

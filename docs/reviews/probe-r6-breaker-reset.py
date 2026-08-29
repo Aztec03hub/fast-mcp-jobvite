@@ -1,17 +1,24 @@
+# mypy: allow-untyped-defs, allow-untyped-calls
+# ^ This file is a PROBE: its helpers build throwaway clients and
+#   responders whose only caller is the arms below. mypy READS it -
+#   that is the point of putting docs/reviews in `files` - and every
+#   other strict check applies; only the two annotation knobs the ruff
+#   per-file-ignores entry already relaxes for ANN are relaxed here, so
+#   the two tools say the same thing about the same population.
 """R6 probe: does a NON-outage exception RESET the Jobvite breaker?
 
 Two arms plus a positive control.
 
-ARM 1  drive the breaker to threshold-1 with real outages, then issue ONE
-       4xx.  Read failure_count.  "does not count" predicts it stays at
-       threshold-1.  "resets" predicts 0.
-ARM 2  same, but the non-outage is an EXHAUSTED OUTBOUND BUDGET, which is
+ARM 1 drive the breaker to threshold-1 with real outages, then issue ONE
+       4xx. Read failure_count. "does not count" predicts it stays at
+       threshold-1. "resets" predicts 0.
+ARM 2 same, but the non-outage is an EXHAUSTED OUTBOUND BUDGET, which is
        the case tests/test_resilience.py:316 says does not count.
 ARM 1c positive control: the same shape with an OUTAGE in the last slot
        must leave failure_count at threshold, proving the harness can
        observe a count at all.
 
-ARM 3  HALF-OPEN, which R6 recorded as unestablished: "a neutral
+ARM 3 HALF-OPEN, which R6 recorded as unestablished: "a neutral
        exception in half-open must leave the breaker half-open rather
        than closing it, and I have not established what `circuitbreaker`
        does there under the proposed shape". Drive the breaker OPEN,
@@ -49,10 +56,10 @@ T = jc.DEFAULT_BREAKER_FAILURE_THRESHOLD
 
 
 class _Secret:
-    def __init__(self, value):
+    def __init__(self, value: str) -> None:
         self._value = value
 
-    def get_secret_value(self):
+    def get_secret_value(self) -> str:
         return self._value
 
 
@@ -75,13 +82,13 @@ def responder(seq):
         box["i"] += 1
         if isinstance(item, Exception):
             raise item
-        return item
+        return item  # type: ignore[no-any-return]
 
     return handler
 
 
-async def drive_to(c, n):
-    """n consecutive outage-class failures.
+async def drive_to(c: jc.JobviteClient, n: int) -> None:
+    """N consecutive outage-class failures.
 
     The raise IS the expected outcome of every call here, so swallowing
     it is the point - but only for the two errors an outage produces.
@@ -100,7 +107,7 @@ async def drive_to(c, n):
 async def arm(name, last, *, budget=False):
     jc.reset_breaker_for_test()
     outage = httpx2.Response(500, content=b'{"status":{"code":500}}')
-    seq: list = [outage] * (T - 1) + [last]
+    seq: list[object] = [outage] * (T - 1) + [last]
     c = client(responder(seq))
     try:
         await drive_to(c, T - 1)

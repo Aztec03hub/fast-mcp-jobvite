@@ -1,15 +1,23 @@
-"""R6 probe: what escapes `request()` when a NON-retryable method meets a 5xx?
+# mypy: allow-untyped-defs, allow-untyped-calls
+# ^ This file is a PROBE: its helpers build throwaway clients and
+#   responders whose only caller is the arms below. mypy READS it -
+#   that is the point of putting docs/reviews in `files` - and every
+#   other strict check applies; only the two annotation knobs the ruff
+#   per-file-ignores entry already relaxes for ANN are relaxed here, so
+#   the two tools say the same thing about the same population.
+"""R6: what escapes `request()` when a non-retryable method 5xxs?
 
-`_attempt` wraps any retryable status in `_RetryableUpstream` regardless of
-the HTTP method.  On the retrying branch `_attempt_with_retry` converts it
-back.  On the NON-retrying branch (line 1445-1456) there is no converter.
+`_attempt` wraps any retryable status in `_RetryableUpstream` regardless
+of the HTTP method. On the retrying branch `_attempt_with_retry`
+converts it back. On the NON-retrying branch (line 1445-1456) there is
+no converter.
 
-ARM 1  POST + 503  -> what type leaves `request()`, and what problem does
+ARM 1 POST + 503 -> what type leaves `request()`, and what problem does
        `problem_from_exception` build for it?
-ARM 1c GET  + 503  -> the same drive on the retrying branch, which must
-       produce the documented public type, proving the harness observes a
-       real difference rather than a broken fixture.
-ARM 2  does the POST failure count toward the breaker?
+ARM 1c GET + 503 -> the same drive on the retrying branch, which must
+       produce the documented public type, proving the harness observes
+       a real difference rather than a broken fixture.
+ARM 2 does the POST failure count toward the breaker?
 """
 
 from __future__ import annotations
@@ -28,10 +36,10 @@ RID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 
 class _Secret:
-    def __init__(self, value):
+    def __init__(self, value: str) -> None:
         self._value = value
 
-    def get_secret_value(self):
+    def get_secret_value(self) -> str:
         return self._value
 
 
@@ -58,6 +66,7 @@ async def arm(name, method):
             await c.request(method, "/candidate", json_body={"a": 1})
             raise AssertionError("no exception")
         except BaseException as exc:  # noqa: BLE001
+            shown: tuple[str, ...]
             cls = type(exc).__name__
             module = type(exc).__module__
             try:

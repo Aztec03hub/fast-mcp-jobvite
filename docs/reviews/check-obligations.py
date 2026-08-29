@@ -1,42 +1,53 @@
 #!/usr/bin/env python3
-"""Verify every mapping in docs/OBLIGATIONS.md still resolves TO ITS SUBJECT.
+"""Every mapping in docs/OBLIGATIONS.md still resolves TO ITS SUBJECT.
 
-CONF-6 finding F-9, and the only fix in that report aimed at the mechanism rather than at a row.
+CONF-6 finding F-9, and the only fix in that report aimed at the
+mechanism rather than at a row.
 
-THE PROBLEM THIS SOLVES. CONF-6 classified 28 tracked-open obligations and found twelve met - and
-of those twelve, exactly ONE (B58) had its B-number recorded anywhere near the artifact that
-satisfies it. The other nine met-in-substance rows are met BY ACCIDENT: correct today because
-somebody independently followed the standard, with nothing in the tree that would notice a
-regression. Delete `"DTZ",` from pyproject.toml and B51 silently reverts, and no check anywhere
-mentions B51.
+THE PROBLEM THIS SOLVES. CONF-6 classified 28 tracked-open obligations
+and found twelve met - and of those twelve, exactly ONE (B58) had its
+B-number recorded anywhere near the artifact that satisfies it. The
+other nine met-in-substance rows are met BY ACCIDENT: correct today
+because somebody independently followed the standard, with nothing in
+the tree that would notice a regression. Delete `"DTZ",` from
+pyproject.toml and B51 silently reverts, and no check anywhere mentions
+B51.
 
-An obligation propagated in this project if and only if a document somebody actually EXECUTED
-AGAINST happened to name it. `docs/OBLIGATIONS.md` plus this script is that document, made
-executable, so the mapping is maintained by a failing build rather than by whoever remembers.
+An obligation propagated in this project if and only if a document
+somebody actually EXECUTED AGAINST happened to name it.
+`docs/OBLIGATIONS.md` plus this script is that document, made
+executable, so the mapping is maintained by a failing build rather than
+by whoever remembers.
 
 WHAT IT CHECKS, and why each one is not the obvious weaker version:
 
-  1. The cited file EXISTS. A grep at a path that does not exist returns the same clean empty as a
-     real absence, and this repository has produced that mistake more than once.
+  1. The cited file EXISTS. A grep at a path that does not exist returns
+     the same clean empty as a real absence, and this repository has
+     produced that mistake more than once.
   2. The cited LINE exists in it.
-  3. The cited line CONTAINS THE SUBJECT. This is the whole point. Checking that a line number
-     resolves, or that the line is non-blank, passes against any edit that shifts the file - which
-     is precisely how a citation rots. `docs/reviews/CITATION-RANGE-AUDIT.md` records the same
-     failure in this corpus: a contracted citation range still resolves, still quotes accurately,
-     and is still wrong.
-  4. If the subject is NOT on the cited line but IS elsewhere in the file, the failure names the
-     line it moved to. A drifted anchor should cost one edit, not one investigation.
-  5. The subject is long enough to be a subject. A one- or two-character subject matches everything
-     and turns row 3 into a formality.
-  6. B-numbers are unique, classes are from the vocabulary, and every row whose class claims an
-     artifact actually cites one.
+  3. The cited line CONTAINS THE SUBJECT. This is the whole point.
+     Checking that a line number resolves, or that the line is
+     non-blank, passes against any edit that shifts the file - which is
+     precisely how a citation rots.
+     `docs/reviews/CITATION-RANGE-AUDIT.md` records the same failure in
+     this corpus: a contracted citation range still resolves, still
+     quotes accurately, and is still wrong.
+  4. If the subject is NOT on the cited line but IS elsewhere in the
+     file, the failure names the line it moved to. A drifted anchor
+     should cost one edit, not one investigation.
+  5. The subject is long enough to be a subject. A one- or two-character
+     subject matches everything and turns row 3 into a formality.
+  6. B-numbers are unique, classes are from the vocabulary, and every
+     row whose class claims an artifact actually cites one.
 
 SELECTOR CONTROL: parsing zero rows is a FAILURE, never a pass.
 
-WHAT IT DELIBERATELY DOES NOT DO. It does not judge whether an obligation is MET - that is a human
-reading a clause against an artifact, and CONF-6 is that reading. It checks that the reading's
-evidence still points at what the reading said it pointed at. A green here means "the map has not
-rotted", never "the repository is conformant".
+WHAT IT DELIBERATELY DOES NOT DO. It does not judge whether an
+obligation is MET - that is a human reading a clause against an
+artifact, and CONF-6 is that reading. It checks that the reading's
+evidence still points at what the reading said it pointed at. A green
+here means "the map has not rotted", never "the repository is
+conformant".
 
 Usage:
     python3 docs/reviews/check-obligations.py [path/to/OBLIGATIONS.md]
@@ -56,7 +67,8 @@ import tempfile
 
 DEFAULT_MAP = "docs/OBLIGATIONS.md"
 
-# A subject shorter than this matches too much to be evidence of anything.
+# A subject shorter than this matches too much to be evidence of
+# anything.
 MIN_SUBJECT = 6
 
 # Classes that must carry an artifact, and classes that must not.
@@ -65,28 +77,33 @@ NO_ARTIFACT = {"ABSENT"}
 CLASSES = NEEDS_ARTIFACT | NO_ARTIFACT
 
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
-# `B\d+[a-z]?`, not `B\d+`: B49b is a real obligation id in this project and
-# the bare form SILENTLY SKIPS its row, which is the one failure this file
-# exists to prevent - a row that looks tracked and is never verified.
+# `B\d+[a-z]?`, not `B\d+`: B49b is a real obligation id in this project
+# and the bare form SILENTLY SKIPS its row, which is the one failure
+# this file exists to prevent - a row that looks tracked and is never
+# verified.
 #
-# `BASH-\d+` is a SECOND namespace, and it is separate on purpose. The `B`
-# numbers are CONF-6's corpus; `devops/bash.md` is not in that corpus at all
-# (`grep -i bash docs/reviews/CONF-6-PROPAGATION-AUDIT.md` returns nothing),
-# which is precisely why it reached this repository with zero coverage.
-# Numbering its clauses `B107`, `B108` would assert they were part of a census
-# that never enumerated them - a fabricated identifier is worse than an ugly
-# one. A new prefix says "verified here, not inherited from CONF-6".
+# `BASH-\d+` is a SECOND namespace, and it is separate on purpose. The
+# `B` numbers are CONF-6's corpus; `devops/bash.md` is not in that
+# corpus at all (`grep -i bash docs/reviews/CONF-6-PROPAGATION-AUDIT.md`
+# returns nothing), which is precisely why it reached this repository
+# with zero coverage. Numbering its clauses `B107`, `B108` would assert
+# they were part of a census that never enumerated them - a fabricated
+# identifier is worse than an ugly one. A new prefix says "verified
+# here, not inherited from CONF-6".
 ROW = re.compile(r"\|\s*(B\d+[a-z]?|BASH-\d+)\s*\|")
-#: `path` or `path:line`. **The line number is OPTIONAL and deprecated.**
+#: `path` or `path:line`. **The line number is OPTIONAL and
+#: deprecated.**
 #:
-#: A line number in an anchor pins nothing the SUBJECT does not already pin,
-#: and it is the only part that drifts. Four separate repoint operations were
-#: needed in one day - a ci.yml insertion moved two anchors, a docstring reflow
-#: moved a third, and deleting two stale comment lines moved eight - and every
-#: one was mechanical, carried no information, and risked retyping a number.
+#: A line number in an anchor pins nothing the SUBJECT does not already
+#: pin, and it is the only part that drifts. Four separate repoint
+#: operations were needed in one day - a ci.yml insertion moved two
+#: anchors, a docstring reflow moved a third, and deleting two stale
+#: comment lines moved eight - and every one was mechanical, carried no
+#: information, and risked retyping a number.
 #:
-#: A line-free anchor cannot drift. The subject must then be UNIQUE in the
-#: file, which is a stronger property than "appears at line N" and is checked.
+#: A line-free anchor cannot drift. The subject must then be UNIQUE in
+#: the file, which is a stronger property than "appears at line N" and
+#: is checked.
 ANCHOR = re.compile(r"^(?P<path>[^:]+)(?::(?P<line>\d+))?$")
 
 
@@ -95,7 +112,7 @@ def cells(line: str) -> list[str]:
 
 
 def unmark(cell: str) -> str:
-    """Strip the markdown a table cell wears, leaving the literal text."""
+    """Strip a table cell's markdown, leaving the literal text."""
     return re.sub(r"^[`*]+|[`*]+$", "", cell.strip()).strip()
 
 
@@ -110,7 +127,8 @@ def parse(text: str) -> tuple[list[dict[str, str]], list[str]]:
         row = cells(line)
         if len(row) != 6:
             problems.append(
-                f"OBLIGATIONS.md:{lineno}: {match.group(1)} has {len(row)} cells, expected 6 "
+                f"OBLIGATIONS.md:{lineno}: {match.group(1)} has {len(row)} "
+                f"cells, expected 6 "
                 "(B | Class | Artifact | Subject | Standard clause | Note)."
             )
             continue
@@ -139,19 +157,25 @@ def parse(text: str) -> tuple[list[dict[str, str]], list[str]]:
 
 
 def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
-    """Return a failure message, or None if the row's evidence still holds."""
-    bnum, klass, artifact, subject = row["b"], row["class"], row["artifact"], row["subject"]
+    """A failure message, or None if the row's evidence holds."""
+    bnum, klass, artifact, subject = (
+        row["b"], row["class"], row["artifact"], row["subject"],
+    )
 
     if klass in NO_ARTIFACT:
         if artifact not in ("-", ""):
             return (
-                f"{bnum}: class {klass} cites an artifact ({artifact}). An absence has no "
+                f"{bnum}: class {klass} cites an artifact ({artifact}). "
+                f"An absence has no "
                 "artifact; if one exists the class is wrong."
             )
         return None
 
     if artifact in ("-", ""):
-        return f"{bnum}: class {klass} must cite an artifact at path:line, and cites none."
+        return (
+            f"{bnum}: class {klass} must cite an artifact at path:line, "
+            "and cites none."
+        )
 
     anchor = ANCHOR.match(artifact)
     if not anchor:
@@ -159,21 +183,24 @@ def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
 
     if len(subject) < MIN_SUBJECT:
         return (
-            f"{bnum}: subject {subject!r} is {len(subject)} characters. A subject that short "
-            "matches too much to be evidence; quote enough of the line to be distinctive."
+            f"{bnum}: subject {subject!r} is {len(subject)} characters. "
+            "A subject that short matches too much to be evidence; quote "
+            "enough of the line to be distinctive."
         )
 
     path = root / anchor.group("path")
     if not path.is_file():
         return (
-            f"{bnum}: {path} does not exist. A check at a missing path returns the same clean "
+            f"{bnum}: {path} does not exist. A check at a missing path "
+            "returns the same clean "
             "empty as a passing one, so this is a failure, not a skip."
         )
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
 
     if anchor.group("line") is None:
-        # Line-free anchor: the subject locates itself, and must be unique.
+        # Line-free anchor: the subject locates itself, and must be
+        # unique.
         hits = [i for i, line in enumerate(lines, 1) if subject in line]
         if not hits:
             return (
@@ -205,7 +232,8 @@ def verify(row: dict[str, str], root: pathlib.Path) -> str | None:
             f"{anchor.group('path')}:{elsewhere[0]}. Repoint the anchor."
         )
     return (
-        f"{bnum}: {subject!r} is nowhere in {anchor.group('path')}. Either the obligation "
+        f"{bnum}: {subject!r} is nowhere in {anchor.group('path')}. "
+        "Either the obligation "
         f"regressed or the artifact moved; {row['clause']} is the clause to re-read."
     )
 
@@ -220,8 +248,8 @@ def check(map_path: pathlib.Path, root: pathlib.Path | None = None) -> int:
 
     if not rows:
         failures.append(
-            "FAIL: parsed zero mappings (selector control). A green from a checker that read "
-            "nothing is the wrong zero this whole file exists to prevent."
+            "FAIL: parsed zero mappings (selector control). A green from a checker "
+            "that read nothing is the wrong zero this whole file exists to prevent."
         )
 
     checked = 0
@@ -233,7 +261,8 @@ def check(map_path: pathlib.Path, root: pathlib.Path | None = None) -> int:
             checked += 1
 
     absent = sum(1 for r in rows if r["class"] in NO_ARTIFACT)
-    print(f"Mappings: {len(rows)}  |  anchors verified against their subject: {checked}  |  "
+    print(f"Mappings: {len(rows)}  |  anchors verified against their "
+          f"subject: {checked}  |  "
           f"recorded as absent: {absent}")
 
     if failures:
@@ -247,13 +276,16 @@ def check(map_path: pathlib.Path, root: pathlib.Path | None = None) -> int:
     return 0
 
 
-# ---------------------------------------------------------------------------
-# Controls. The important ones mutate the TARGET rather than the map: the claim this script makes
-# is that deleting `"DTZ",` from pyproject.toml breaks something that names B51, and only a control
+# ----------------------------------------------------------------------
+# Controls. The important ones mutate the TARGET rather than the map:
+# the claim this script makes is that deleting `"DTZ",` from
+# pyproject.toml breaks something that names B51, and only a control
 # that actually deletes it can establish that.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
-def _first_mapped(rows: list[dict[str, str]], want_class: str = "MET") -> dict[str, str]:
+def _first_mapped(
+    rows: list[dict[str, str]], want_class: str = "MET",
+) -> dict[str, str]:
     for row in rows:
         if row["class"] == want_class:
             return row
@@ -266,8 +298,8 @@ def _c_duplicate_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
     **This control REPLACED `_c_break_line`.** That one pointed a good
     anchor at line 1 and expected a failure, which is unfirable once
     anchors carry no line - it went green and said so, which is how the
-    replacement got written. Ambiguity is the property a line-free anchor
-    actually rests on, so it is what gets a control.
+    replacement got written. Ambiguity is the property a line-free
+    anchor actually rests on, so it is what gets a control.
     """
     row = _first_mapped(rows)
     path = tree / row["artifact"].rsplit(":", 1)[0]
@@ -287,7 +319,7 @@ def _c_delete_target(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
 
 
 def _c_regress_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
-    """Remove the subject from the artifact - the regression this map exists to catch."""
+    """Remove the subject - the regression this map exists to catch."""
     row = _first_mapped(rows)
     path = tree / row["artifact"].rsplit(":", 1)[0]
     text = path.read_text(encoding="utf-8")
@@ -324,12 +356,13 @@ def _c_trivial_subject(tree: pathlib.Path, rows: list[dict[str, str]]) -> str:
 
 
 def _c_regress_b51_dtz(tree: pathlib.Path, _rows: list[dict[str, str]]) -> str:
-    """Delete the DTZ rule from pyproject.toml.
+    r"""Delete the DTZ rule from pyproject.toml.
 
-    Named rather than generic, because it is the specific claim this file makes about itself:
-    "delete `\"DTZ\",` from pyproject.toml and B51 silently reverts, and no check anywhere mentions
-    B51." A control that only ever breaks the FIRST mapped row proves the machinery works; it does
-    not prove that sentence. This one does.
+    Named rather than generic, because it is the specific claim this
+    file makes about itself: "delete `\"DTZ\",` from pyproject.toml and
+    B51 silently reverts, and no check anywhere mentions B51." A control
+    that only ever breaks the FIRST mapped row proves the machinery
+    works; it does not prove that sentence. This one does.
     """
     path = tree / "pyproject.toml"
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -365,7 +398,8 @@ def _c_empty_map(tree: pathlib.Path, _rows: list[dict[str, str]]) -> str:
     path = tree / DEFAULT_MAP
     text = path.read_text(encoding="utf-8")
     path.write_text(
-        "\n".join(line for line in text.splitlines() if not ROW.match(line)), encoding="utf-8"
+        "\n".join(line for line in text.splitlines() if not ROW.match(line)),
+        encoding="utf-8",
     )
     return "every mapping removed (selector control)"
 
@@ -387,7 +421,10 @@ CONTROLS = [
 def run_controls(map_path: pathlib.Path) -> int:
     root = map_path.parent.parent
     if check(map_path, root) != 0:
-        print("\nABORT: the real map is already red, so no control below proves anything.")
+        print(
+            "\nABORT: the real map is already red, so no control below "
+            "proves anything.",
+        )
         return 1
     print("\n--- controls ---")
 
@@ -397,12 +434,19 @@ def run_controls(map_path: pathlib.Path) -> int:
     for control in CONTROLS:
         with tempfile.TemporaryDirectory() as tmp:
             tree = pathlib.Path(tmp) / "tree"
-            # copy the tracked working tree, minus .git, which is large and irrelevant here
-            shutil.copytree(root, tree, ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"))
+            # copy the tracked working tree, minus .git, which is large
+            # and irrelevant here
+            shutil.copytree(
+                root, tree,
+                ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"),
+            )
             try:
                 label = control(tree, rows)
             except (AssertionError, StopIteration, FileNotFoundError) as exc:
-                print(f"  DID NOT FIRE  {control.__name__}: could not apply the mutation ({exc})")
+                print(
+                    f"  DID NOT FIRE  {control.__name__}: could not apply "
+                    f"the mutation ({exc})"
+                )
                 bad += 1
                 continue
             result = subprocess.run(
@@ -427,7 +471,8 @@ def run_controls(map_path: pathlib.Path) -> int:
         with tempfile.TemporaryDirectory() as tmp:
             tree = pathlib.Path(tmp) / "tree"
             shutil.copytree(
-                root, tree, ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__")
+                root, tree,
+                ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"),
             )
             try:
                 label = control(tree, rows)
@@ -449,7 +494,9 @@ def run_controls(map_path: pathlib.Path) -> int:
 
     if bad:
         return 1
-    print(f"post-run re-check of the real {map_path.name}: exit={check(map_path, root)}")
+    print(
+        f"post-run re-check of the real {map_path.name}: exit={check(map_path, root)}",
+    )
     return 0
 
 

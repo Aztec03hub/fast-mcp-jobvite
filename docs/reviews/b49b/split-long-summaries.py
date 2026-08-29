@@ -12,14 +12,13 @@ import ast
 import pathlib
 import re
 import subprocess
-import sys
 
 LIMIT = 72
 SENT = re.compile(r"(?<=[.!?])\s+(?=[A-Z`*_\"'§(])")
 
 
 def protect(text: str, budget: int) -> str:
-    """Make short `code spans` unbreakable, so wrapping never splits one."""
+    """Make short `code spans` unbreakable, so a wrap cannot split."""
     def swap(match: re.Match[str]) -> str:
         span = match.group(0)
         return span.replace(" ", "\x00") if len(span) <= budget else span
@@ -112,8 +111,9 @@ def process(path: pathlib.Path) -> tuple[int, list[int]]:
         if one_line:
             lines[row - 1 : row] = new
         else:
-            # Insert head + blank + carried tail, then a blank before the
-            # original body only if the next line is not already blank.
+            # Insert head + blank + carried tail, then a blank before
+            # the original body only if the next line is not already
+            # blank.
             follow = lines[row : row + 1]
             block = list(new)
             if follow and follow[0].strip():

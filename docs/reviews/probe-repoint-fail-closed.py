@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Probe: the REPOINT-EXEMPT check in repoint-design-citations.py fails CLOSED.
+"""The REPOINT-EXEMPT check in repoint-design-citations.py fails CLOSED.
 
-The defect this pins. `parse()` reads the cited line to see whether it
-carries the `REPOINT-EXEMPT` marker. That read can fail - the file may be
-unreadable, the report may name a line the file does not have, the bytes
-may not decode. The original code caught OSError, IndexError and
-UnicodeDecodeError and did nothing, so control fell through to the
-repoint: "I could not tell whether this line is exempt" resolved to "it
-is not exempt, rewrite it". That is a fail-open on error in the tool that
-rewrites 867 citations.
+The defect this pins. `parse()` reads the cited line to see whether
+it carries the `REPOINT-EXEMPT` marker. That read can fail - the
+file may be unreadable, the report may name a line the file does not
+have, the bytes may not decode. The original code caught OSError,
+IndexError and UnicodeDecodeError and did nothing, so control fell
+through to the repoint: "I could not tell whether this line is
+exempt" resolved to "it is not exempt, rewrite it". That is a
+fail-open on error in the tool that rewrites 867 citations.
 
 Every row is falsifiable. Rows A-D drive `parse()` directly with a
-synthetic report so each failure mode is reached deliberately. Row E is
-the end-to-end arm the brief asks for: a real cited file is made
-unreadable with chmod and the real tool is run, and it must refuse rather
-than repoint. Rows C and D are the negative controls - if the refusal
-were blanket, they would fail, and a gate that refuses everything is not
-a gate.
+synthetic report so each failure mode is reached deliberately. Row E
+is the end-to-end arm the brief asks for: a real cited file is made
+unreadable with chmod and the real tool is run, and it must refuse
+rather than repoint. Rows C and D are the negative controls - if the
+refusal were blanket they would fail, and a gate that refuses
+everything is not a gate.
 
 Exit 0 = every row behaved. Exit 1 = at least one row did not.
 No dependencies. Nothing is written: the tool runs in DRY RUN.
@@ -54,6 +54,8 @@ def row(name: str, ok: bool, detail: str) -> None:
 
 def moved(rel: str, lineno: int) -> str:
     """One MOVED line in exactly the shape the checker emits."""
+    # REPOINT-EXEMPT: these are example citations the probe WRITES,
+    # not citations of anything. Repointing them corrupts the probe.
     return f"  MOVED: {rel}:{lineno}: DESIGN.md:100 -> DESIGN.md:200"
 
 
@@ -82,7 +84,7 @@ row(
 #    and the tool has been broken rather than fixed.
 with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
     plain = pathlib.Path(td) / "plain.txt"
-    plain.write_text("a citation lives here: DESIGN.md:100\n")
+    plain.write_text("a citation lives here: DESIGN.md:100\n")  # REPOINT-EXEMPT
     rel_plain = str(plain.relative_to(REPO_ROOT))
     moves, unreadable = repoint.parse(moved(rel_plain, 1))
     row(
@@ -91,11 +93,11 @@ with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
         f"moves={moves!r} unreadable={unreadable!r}",
     )
 
-    # D. NEGATIVE CONTROL. The exemption itself must still work, and must
-    #    be distinguishable from the refusal: excluded from moves AND
-    #    absent from the unreadable list.
+    # D. NEGATIVE CONTROL. The exemption itself must still work, and
+    #    must be distinguishable from the refusal: excluded from
+    #    moves AND absent from the unreadable list.
     marked = pathlib.Path(td) / "marked.txt"
-    marked.write_text("DESIGN.md:100  # REPOINT" + "-EXEMPT\n")
+    marked.write_text("DESIGN.md:100  # REPOINT" + "-EXEMPT\n")  # REPOINT-EXEMPT
     rel_marked = str(marked.relative_to(REPO_ROOT))
     moves, unreadable = repoint.parse(moved(rel_marked, 1))
     row(

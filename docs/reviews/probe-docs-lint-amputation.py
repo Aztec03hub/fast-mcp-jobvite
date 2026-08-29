@@ -4,8 +4,9 @@
 A probe that passes proves nothing on its own - it has to be shown
 failing when the thing it watches is removed. Each row below DELETES one
 fix from the tree, re-runs the probe that is supposed to catch it, and
-records which rows died. Deleting the behaviour is deliberate: changing a
-value has repeatedly left assertions that pass for the wrong reason.
+records which rows died. Deleting the behaviour is deliberate:
+changing a value has repeatedly left assertions that pass for the
+wrong reason.
 
     A1  the fail-closed REPOINT-EXEMPT read      -> kills rows A, B
     A2  the upstream checker's stderr health check -> kills row E
@@ -13,11 +14,12 @@ value has repeatedly left assertions that pass for the wrong reason.
     A4  the narrowed catch in `drive_to()`       -> kills row F
     A5  NEGATIVE CONTROL: a comment-only edit    -> must kill NOTHING
 
-Every mutation asserts its anchor is unique BEFORE it writes, asserts the
-file actually changed after (a `str.replace` that matches nothing no-ops
-in silence), and restores from an in-memory copy in a `finally`. The last
-row re-runs both probes against the restored tree, because a harness that
-leaves its own mutation behind reads as somebody else's merge.
+Every mutation asserts its anchor is unique BEFORE it writes,
+asserts the file actually changed after (a `str.replace` that
+matches nothing no-ops in silence), and restores from an in-memory
+copy in a `finally`. The last row re-runs both probes against the
+restored tree, because a harness that leaves its own mutation behind
+reads as somebody else's merge.
 
     uv run --frozen python docs/reviews/probe-docs-lint-amputation.py
 
@@ -68,7 +70,7 @@ def amputate(
     probe: pathlib.Path,
     expect: set[str],
 ) -> None:
-    """Delete one behaviour, run its probe, assert the expected rows died."""
+    """Delete one behaviour and check the right rows die."""
     before = ORIGINAL[path]
     count = before.count(old)
     assert count == 1, f"{name}: anchor appears {count} times, not once"
@@ -104,7 +106,8 @@ amputate(
         if "REPOINT-EXEMPT" in cited_line:
             continue""",
     """        try:
-            if "REPOINT-EXEMPT" in cited_in.read_text().splitlines()[int(m["lineno"]) - 1]:
+            cited = cited_in.read_text().splitlines()[int(m["lineno"]) - 1]
+            if "REPOINT-EXEMPT" in cited:
                 continue
         except (OSError, IndexError, UnicodeDecodeError):
             pass""",

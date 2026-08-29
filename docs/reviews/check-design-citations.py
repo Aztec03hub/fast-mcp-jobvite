@@ -1,52 +1,62 @@
 #!/usr/bin/env python3
-"""Every `DESIGN.md:N` citation in the tree points at a line that exists, and
-after an edit, says which ones moved.
+"""Every `DESIGN.md:N` citation points at a line that exists.
 
-**Why this exists, and why now.** Three citations to `DESIGN.md` have been found
-pointing at the wrong lines, none of them by a gate. The line numbers below are
-the ones in the object frozen at `135c3ac`, where the defects were found. A
-record of where a defect WAS does not move, so each carries the marker:
+After an edit it also says which ones moved.
 
-  - `DESIGN.md:603` cited a section that does not exist. ADR-0019. REPOINT-EXEMPT
-  - `DESIGN.md:918-923` was contracted by one line. REPOINT-EXEMPT. It dropped
-    the `http` transport row §7.2 leans on - found by U1, in a brief I wrote.
-  - Three separate citations of the three runtime pins pointed nine lines above
-    them, at the prose paragraph about the resolve - found by U4.
+**Why this exists, and why now.** Three citations to `DESIGN.md` have
+been found pointing at the wrong lines, none of them by a gate. The line
+numbers below are the ones in the object frozen at `135c3ac`, where the
+defects were found. A record of where a defect WAS does not move, so
+each carries the marker:
 
-`check-cross-references.py` cannot see any of these: it validates `§n.m` SECTION
-pointers, and these are `file:line` RANGES. **Nothing checks a line range at all.**
+  - `DESIGN.md:603` cited a section that does not exist. ADR-0019.
+    REPOINT-EXEMPT
+  - `DESIGN.md:918-923` was contracted by one line. REPOINT-EXEMPT. It
+    dropped the `http` transport row §7.2 leans on - found by U1, in a
+    brief I wrote.
+  - Three separate citations of the three runtime pins pointed nine
+    lines above them, at the prose paragraph about the resolve - found
+    by U4.
 
-A contracted range is the sharper failure. A dangling one announces itself; a
-contracted one still resolves, still quotes accurately, and lands the reader on
-text that reads exactly like it could be the subject.
+`check-cross-references.py` cannot see any of these: it validates `§n.m`
+SECTION pointers, and these are `file:line` RANGES. **Nothing checks a
+line range at all.**
+
+A contracted range is the sharper failure. A dangling one announces
+itself; a contracted one still resolves, still quotes accurately, and
+lands the reader on text that reads exactly like it could be the
+subject.
 
 WHAT THIS CAN AND CANNOT DO, stated plainly because the gap matters:
 
-  It CAN check that a cited line exists, and it CAN say which citations a given
-  edit to DESIGN.md moved, and where to.
+  It CAN check that a cited line exists, and it CAN say which citations
+  a given edit to DESIGN.md moved, and where to.
 
-  It CANNOT check that a range CONTAINS ITS SUBJECT. That needs a subject
-  recorded beside the citation, which is what `docs/OBLIGATIONS.md` does for its
-  28 rows and what task #30 proposes generalising. **A green here means "the
-  citation resolves", never "the citation is right"** - which is exactly the
-  distinction that let all three defects above survive.
+  It CANNOT check that a range CONTAINS ITS SUBJECT. That needs a
+  subject recorded beside the citation, which is what
+  `docs/OBLIGATIONS.md` does for its 28 rows and what task #30 proposes
+  generalising. **A green here means "the citation resolves", never "the
+  citation is right"** - which is exactly the distinction that let all
+  three defects above survive.
 
-THE `--since` MODE IS THE POINT. `docs/DESIGN.md` is frozen at `c15b138`, where
-the eight-ADR batch re-froze it. REPOINT-EXEMPT for the addresses above. That edit shifts an
-unknown number of the citations in this tree, and there are 841 of them
-(counted by this script, not by the grep I first reached for, which said 836). Run:
+THE `--since` MODE IS THE POINT. `docs/DESIGN.md` is frozen at
+`c15b138`, where the eight-ADR batch re-froze it. REPOINT-EXEMPT for the
+addresses above. That edit shifts an unknown number of the citations in
+this tree, and there are 841 of them (counted by this script, not by the
+grep I first reached for, which said 836). Run:
 
     python3 docs/reviews/check-design-citations.py --since c15b138
 
-before and after, and it maps old line numbers to new ones through a real diff,
-then reports every citation whose target moved. Without it, applying those ADRs
-means either re-checking them by hand or shipping them unverified. MEASURED: a
-five-line insertion at line 300 moves 723 of the 841.
+before and after, and it maps old line numbers to new ones through a
+real diff, then reports every citation whose target moved. Without it,
+applying those ADRs means either re-checking them by hand or shipping
+them unverified. MEASURED: a five-line insertion at line 300 moves 723
+of the 841.
 
 Usage:
-    python3 docs/reviews/check-design-citations.py           # bounds + inventory
-    python3 docs/reviews/check-design-citations.py --since <sha>
-    python3 docs/reviews/check-design-citations.py --controls
+    python3 docs/reviews/check-design-citations.py # bounds + inventory
+    python3 docs/reviews/check-design-citations.py --since <sha> python3
+    docs/reviews/check-design-citations.py --controls
 
 Exit 0 when every citation resolves, 1 otherwise. No dependencies.
 """
@@ -62,10 +72,10 @@ import sys
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DESIGN = REPO_ROOT / "docs" / "DESIGN.md"
 
-# Examples, REPOINT-EXEMPT: `DESIGN.md:603`, `DESIGN.md:918-924` - these are what
-# the pattern MATCHES, not citations of anything, so they must not move.
-# The filename is required so this does not
-# match a bare number, and `docs/DESIGN.md:` forms are caught by the same pattern.
+# Examples, REPOINT-EXEMPT: `DESIGN.md:603`, `DESIGN.md:918-924` - these
+# are what the pattern MATCHES, not citations of anything, so they must
+# not move. The filename is required so this does not match a bare
+# number, and `docs/DESIGN.md:` forms are caught by the same pattern.
 _CITATION = re.compile(r"DESIGN\.md:(\d+)(?:-(\d+))?")
 
 _SEARCH_SUFFIXES = {".py", ".toml", ".md", ".yml", ".yaml", ".sh"}
@@ -73,7 +83,10 @@ _SKIP_PARTS = {".git", ".venv", "venv", "__pycache__", ".ruff_cache", ".pytest_c
 
 
 def _tracked_files() -> list[pathlib.Path]:
-    """Every tracked file worth scanning. `git ls-files` is the authority."""
+    """Every tracked file worth scanning.
+
+    `git ls-files` is the authority.
+    """
     out = subprocess.run(
         ["git", "ls-files", "-z"],
         capture_output=True, text=True, cwd=REPO_ROOT, check=True,
@@ -108,10 +121,10 @@ def citations() -> list[tuple[pathlib.Path, int, int, int]]:
 
 
 def line_map(old_text: str, new_text: str) -> dict[int, int | None]:
-    """Map every 1-based line of `old_text` to its line in `new_text`, or None.
+    """Map each 1-based line of `old_text` into `new_text`, or None.
 
-    None means the line was deleted or changed, so a citation pointing at it can
-    no longer be resolved automatically and needs a human.
+    None means the line was deleted or changed, so a citation pointing
+    at it can no longer be resolved automatically and needs a human.
     """
     old = old_text.splitlines()
     new = new_text.splitlines()

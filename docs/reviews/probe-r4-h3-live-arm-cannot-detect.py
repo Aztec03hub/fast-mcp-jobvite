@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""R4-H3, reproduced offline: the live arm cannot detect a wrong envelope key.
+"""R4-H3 offline: the live arm cannot see a wrong envelope key.
 
 **Why a probe and not a test.** The credentialed arm is marker-excluded
 and has never run - nobody holds a Jobvite key. So "its assertions
@@ -97,7 +97,9 @@ def require(condition: bool, message: str) -> None:
 async def main() -> int:
     print("########## the payload this probe serves")
     print(f"  keys it actually carries: {sorted(json.loads(WRONG_ENVELOPE))}")
-    print(f"  keys the tool looks for:  ['{JOBS_ENVELOPE_KEY}', '{TOTAL_ENVELOPE_KEY}']")
+    print(
+        f"  keys the tool looks for:  ['{JOBS_ENVELOPE_KEY}', '{TOTAL_ENVELOPE_KEY}']",
+    )
     print()
 
     server = build_server(settings(), client_factory=make_client)

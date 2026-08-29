@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve inline `<standard>.md:N` citations against the standards corpus.
+"""Resolve `<standard>.md:N` citations against the corpus.
 
     python3 docs/reviews/check-standards-citations.py
 
@@ -47,10 +47,11 @@ def _corpus() -> pathlib.Path:
 
     **A plain sibling-of-ROOT lookup made this checker unrunnable in a
     `/tmp` worktree, which `docs/briefs/PREAMBLE.md` MANDATES that every
-    agent works in.** It resolved `/tmp/evolv-coder-standards/standards`,
-    found nothing, and exited 2 - correctly, by its own rule, for a
-    reason that had nothing to do with the citations. U14 hit it and
-    symlinked the corpus by hand to get its gates run.
+    agent works in.** It resolved
+    `/tmp/evolv-coder-standards/standards`, found nothing, and exited 2
+    - correctly, by its own rule, for a reason that had nothing to do
+    with the citations. U14 hit it and symlinked the corpus by hand to
+    get its gates run.
 
     So: an explicit `EVOLV_STANDARDS` override, then the sibling of this
     checkout, then **the sibling of the MAIN worktree**, which git can
@@ -77,14 +78,15 @@ def _corpus() -> pathlib.Path:
         main_root = (ROOT / common).resolve().parent
         candidates.append(main_root.parent / "evolv-coder-standards" / "standards")
     except (OSError, CalledProcessError):
-        # git absent (OSError) or not a repository (CalledProcessError) is
-        # just one fewer candidate to look in, and `candidates[0]` still
-        # stands. This used to be a bare `except Exception: pass`, which
-        # is wider than the failure it names: a TypeError or AttributeError
-        # introduced by editing the three lines above would have been
-        # swallowed too, silently narrowing where a WIRED gate looks while
-        # it went on reporting a clean run. What it concludes on finding
-        # nothing does not move - absence is still exit 2.
+        # git absent (OSError) or not a repository (CalledProcessError)
+        # is just one fewer candidate to look in, and `candidates[0]`
+        # still stands. This used to be a bare `except Exception: pass`,
+        # which is wider than the failure it names: a TypeError or
+        # AttributeError introduced by editing the three lines above
+        # would have been swallowed too, silently narrowing where a
+        # WIRED gate looks while it went on reporting a clean run. What
+        # it concludes on finding nothing does not move - absence is
+        # still exit 2.
         pass
 
     for candidate in candidates:
@@ -100,8 +102,8 @@ STRUCTURAL = ("```", "|---", "---", "|--", ":--")
 #: `<dir>/<file>.md:N` or `<file>.md:N`, with an optional range end.
 CITE = re.compile(r"\b(?:([a-z][a-z-]*)/)?([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?")
 
-#: Documents that are OURS, not the corpus. A citation to one of these is
-#: a different population with its own checker, or none.
+#: Documents that are OURS, not the corpus. A citation to one of these
+#: is a different population with its own checker, or none.
 OURS = {
     "design.md", "readme.md", "contributing.md", "changelog.md",
     "jobvite-api.md", "jobvite-contract.md", "fastmcp.md", "standards.md",
@@ -110,7 +112,7 @@ OURS = {
 
 
 def resolve(directory: str | None, basename: str) -> pathlib.Path | None:
-    """The corpus file a citation names, or `None` if it is ambiguous."""
+    """The corpus file a citation names, or None if ambiguous."""
     if directory:
         candidate = CORPUS / directory / basename
         return candidate if candidate.is_file() else None
@@ -131,7 +133,8 @@ def main() -> int:
         for path in sorted((ROOT / sub).rglob("*")):
             if not path.is_file() or path.suffix not in {".py", ".sh"}:
                 continue
-            for num, text in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            body_lines = path.read_text(errors="replace").splitlines()
+            for num, text in enumerate(body_lines, 1):
                 for directory, basename, start, end in CITE.findall(text):
                     if basename.lower() in OURS:
                         continue
