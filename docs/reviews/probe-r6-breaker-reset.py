@@ -81,11 +81,19 @@ def responder(seq):
 
 
 async def drive_to(c, n):
-    """n consecutive outage-class failures."""
+    """n consecutive outage-class failures.
+
+    The raise IS the expected outcome of every call here, so swallowing
+    it is the point - but only for the two errors an outage produces.
+    This used to be a bare `except Exception: pass`, which would have
+    absorbed a TypeError from a changed `request` signature and reported
+    a drive that never happened. ARM 1c would eventually have caught
+    that; the narrow catch catches it here, at the row that lied.
+    """
     for _ in range(n):
         try:
             await c.request("GET", JOBS_PATH)
-        except Exception:  # noqa: BLE001
+        except (JobviteUnavailableError, JobviteUpstreamError):
             pass
 
 

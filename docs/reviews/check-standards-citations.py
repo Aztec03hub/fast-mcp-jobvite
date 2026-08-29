@@ -62,7 +62,7 @@ def _corpus() -> pathlib.Path:
     where it LOOKS, never what it concludes when it finds nothing.
     """
     from os import environ
-    from subprocess import run
+    from subprocess import CalledProcessError, run
 
     override = environ.get("EVOLV_STANDARDS")
     if override:
@@ -76,7 +76,15 @@ def _corpus() -> pathlib.Path:
         ).stdout.strip()
         main_root = (ROOT / common).resolve().parent
         candidates.append(main_root.parent / "evolv-coder-standards" / "standards")
-    except Exception:  # noqa: BLE001 - git absent is just one fewer candidate
+    except (OSError, CalledProcessError):
+        # git absent (OSError) or not a repository (CalledProcessError) is
+        # just one fewer candidate to look in, and `candidates[0]` still
+        # stands. This used to be a bare `except Exception: pass`, which
+        # is wider than the failure it names: a TypeError or AttributeError
+        # introduced by editing the three lines above would have been
+        # swallowed too, silently narrowing where a WIRED gate looks while
+        # it went on reporting a clean run. What it concludes on finding
+        # nothing does not move - absence is still exit 2.
         pass
 
     for candidate in candidates:
