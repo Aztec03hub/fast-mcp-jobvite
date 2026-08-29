@@ -397,8 +397,18 @@ def test_the_retry_stop_caps_both_attempts_and_elapsed_time() -> None:
     source = inspect.getsource(jc.JobviteClient._attempt_with_retry)  # noqa: SLF001
     assert "stop_after_attempt(self._retry_max_attempts)" in source
     assert "stop_after_delay(" in source
-    # OR-ed, not AND-ed: either cap alone must be able to stop the loop.
-    assert "stop_after_attempt(self._retry_max_attempts) | stop_after_delay(" in source
+    # OR-ed, not AND-ed: any cap alone must be able to stop the loop.
+    # Read as a set of `|`-joined arms rather than as one line, because
+    # R6-M1 added a THIRD and the composition no longer fits on one.
+    arms = [
+        line.strip().lstrip("| ").rstrip(",")
+        for line in source.splitlines()
+        if line.strip().startswith("|") or "stop_after_attempt" in line
+    ]
+    assert any(a.startswith("stop_after_attempt(") for a in arms)
+    assert any(a.startswith("stop_after_delay(") for a in arms)
+    # THE THIRD ARM (R6-M1): a `Retry-After` we cannot afford.
+    assert "_retry_after_exceeds_budget" in arms
 
 
 # ======================================================================
@@ -589,13 +599,14 @@ async def test_retry_after_is_honoured_over_the_local_backoff() -> None:
     what remains of the outbound budget - an upstream asking for 900
     seconds must not be able to make us wait past a bound we promised.
 
-    **The bound is a STOP, not a shorter sleep** (R6-M1). `min(900,
-    remaining)` is `remaining`, so clamping slept the budget to zero and
-    bought an attempt `_attempt` refuses before the transport sees it.
-    A wait that would consume the budget now returns `0.0` and lets
-    `stop_after_delay` end the call. The clamp itself is still live and
-    is exercised by the third arm, where the jittered schedule is
-    shorter than what remains.
+    **The case where the bound BITES is now a STOP, not a sleep**
+    (R6-M1): `min(900, remaining)` is `remaining`, so clamping slept the
+    budget to zero and bought an attempt `_attempt` refuses before the
+    transport sees it. That case is `_retry_after_exceeds_budget`, a
+    third `stop` arm, and it is covered by
+    `test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping`.
+    The clamp asserted HERE is the one that still runs: a wait the
+    budget can afford, bounded so it cannot drift past the deadline.
     """
     handler, _ = counting(
         [
@@ -619,15 +630,15 @@ async def test_retry_after_is_honoured_over_the_local_backoff() -> None:
     try:
         # No budget open: the header is honoured verbatim.
         assert c._wait_for_retry(_State()) == 900.0  # type: ignore[arg-type]  # noqa: SLF001
-        # Budget open and the header asks for MORE than is left: stop.
+        # Budget open: clamped to what is left of it.
         with jc.outbound_budget_scope(5.0):
-            assert c._wait_for_retry(_State()) == 0.0  # type: ignore[arg-type]  # noqa: SLF001
-        # Budget open and the header FITS: honoured verbatim, so the
-        # arm above is a decision about the budget rather than a
-        # function that returns 0.0 whenever a scope is open.
-        with jc.outbound_budget_scope(5000.0):
             clamped = c._wait_for_retry(_State())  # type: ignore[arg-type]  # noqa: SLF001
-        assert clamped == 900.0
+        assert 0.0 < clamped <= 5.0
+        # THE CONTROL - a budget the header FITS inside leaves it
+        # verbatim, so the clamp above is a decision about the budget
+        # and not a function that always returns the remaining time.
+        with jc.outbound_budget_scope(5000.0):
+            assert c._wait_for_retry(_State()) == 900.0  # type: ignore[arg-type]  # noqa: SLF001
     finally:
         await c.aclose()
 
@@ -961,7 +972,7 @@ async def test_a_write_that_meets_a_429_surfaces_503_like_a_read_does() -> None:
     assert problem["type"] == "/problems/service-unavailable"
 
 
-async def test_a_wait_that_would_consume_the_budget_is_not_slept_out() -> None:
+async def test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping() -> None:
     """R6-M1. The clamp bought an attempt `_attempt` refuses.
 
     `min(retry_after, remaining)` **is** `remaining` whenever the
@@ -972,34 +983,63 @@ async def test_a_wait_that_would_consume_the_budget_is_not_slept_out() -> None:
     `docs/reviews/probe-r6-wait-burns-budget.py`; it holds at any
     budget.
 
-    **Asserted on the returned number, not on elapsed wall time**, the
-    way `test_a_whole_scan_shares_one_budget_rather_than_one_per_page`
-    does - a mock transport answers in microseconds and an elapsed-time
-    assertion would be measuring the clock rather than the decision.
+    **A STOP, not a zero wait**, and that distinction is the second
+    thing measured here. Returning `0.0` from `_wait_for_retry` does
+    NOT let `stop_after_delay` fire - that arm reads ELAPSED time, so a
+    zero wait advances nothing and the loop burns the whole attempt cap
+    back to back against an upstream that just asked for fifteen
+    minutes, which is the opposite of what honouring the header means.
+
+    **The assertion is the ROW COUNT**, the same quantity §8 #21 is
+    asserted with and the only one that can tell "stopped" from
+    "retried instantly": a mock transport answers in microseconds, so
+    elapsed time cannot.
     """
-    handler, _ = counting([httpx2.Response(200, content=b"{}")])
-    c = client(handler)
-
-    class _State:
-        attempt_number = 1
-
-        class outcome:  # noqa: N801 - mirrors tenacity's attribute name
-            @staticmethod
-            def exception() -> Exception:
-                return jc._RetryableUpstream(  # noqa: SLF001
-                    JobviteUpstreamError(429, "slow down"), retry_after=900.0
-                )
-
+    handler, seen = counting(
+        [
+            httpx2.Response(
+                429, content=b'{"status":{"code":429}}', headers={"Retry-After": "900"}
+            )
+        ]
+    )
+    c = client(handler, retry_max_attempts=4)
     try:
-        # The wait EXCEEDS what is left: stop, do not sleep it out.
-        with jc.outbound_budget_scope(5.0):
-            assert c._wait_for_retry(_State()) == 0.0  # type: ignore[arg-type]  # noqa: SLF001
-        # THE CONTROL - the same call with a budget the wait fits inside
-        # returns the header's own number, so the arm above is a
-        # decision about the budget and not a function that always
-        # returns 0.0.
-        with jc.outbound_budget_scope(5000.0):
-            assert c._wait_for_retry(_State()) == 900.0  # type: ignore[arg-type]  # noqa: SLF001
+        with jc.outbound_budget_scope(5.0), pytest.raises(JobviteUnavailableError) as e:
+            await c.request("GET", JOBS_PATH)
+        assert seen == ["GET"], f"the loop re-issued {len(seen)} times"
+        # The caller is told to come back later, with the upstream's own
+        # number rather than one we invented.
+        error = e.value
+        assert isinstance(error, jc.JobviteRetryLaterError)
+        assert error.retry_after == 900.0
+        problem = problem_from_exception(error, RID_A, retry_after=error.retry_after)
+        assert problem["status"] == 503
+        assert problem["retry_after"] == 900.0
+
+        # THE CONTROL - the identical drive with a budget the header
+        # FITS inside retries to the attempt cap, so the arm above is a
+        # decision about the budget and not a loop that never retries.
+        # `Retry-After: 0` is floored to the initial backoff, so four
+        # attempts cost about 0.6s rather than 3,600 seconds.
+        handler2, seen2 = counting(
+            [
+                httpx2.Response(
+                    429,
+                    content=b'{"status":{"code":429}}',
+                    headers={"Retry-After": "0"},
+                )
+            ]
+        )
+        c2 = client(handler2, retry_max_attempts=4)
+        try:
+            with (
+                jc.outbound_budget_scope(60.0),
+                pytest.raises(JobviteUnavailableError),
+            ):
+                await c2.request("GET", JOBS_PATH)
+        finally:
+            await c2.aclose()
+        assert len(seen2) == 4
     finally:
         await c.aclose()
 

@@ -70,6 +70,7 @@ from defusedxml.common import DefusedXmlException
 from defusedxml.ElementTree import fromstring as defused_fromstring
 from loguru import logger
 from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, stop_after_delay
+from tenacity.stop import stop_base
 from tenacity.wait import wait_exponential_jitter
 
 from ..errors import JobviteUnavailableError, JobviteUpstreamError
@@ -881,6 +882,58 @@ def _retry_after_seconds(headers: Mapping[str, str]) -> float | None:
     return max(value, DEFAULT_RETRY_INITIAL_BACKOFF) if value >= 0 else None
 
 
+class _RetryAfterExceedsBudget(stop_base):
+    """A `tenacity` stop: the upstream asks for longer than we have.
+
+    **THE CLAMP ALONE BOUGHT AN ATTEMPT `_attempt` REFUSES** (R6-M1).
+    `min(900, remaining)` **is** `remaining`, so honouring a
+    `Retry-After` larger than the budget slept the budget to zero and
+    the attempt it paid for was then rejected by `_attempt`'s own
+    `remaining <= 0` check before the transport saw it. Measured at
+    1.00s of a 1.0s budget by
+    `docs/reviews/probe-r6-wait-burns-budget.py`, and it holds at any
+    budget because the clamp always yields exactly `remaining`.
+
+    **A stop, not a shorter sleep, and this too was measured.** The
+    first fix returned `0.0` from `_wait_for_retry` on the reasoning
+    that `stop_after_delay` would then fire on the next loop. It does
+    not: `stop_after_delay` fires on ELAPSED time, so a zero wait
+    advances the clock by nothing and the loop instead burns the whole
+    attempt cap back to back - hammering an upstream that had just
+    asked us to wait fifteen minutes, which is the opposite of
+    `backend/resilience.md:95-97`. Stopping here ends the call after the
+    attempt that carried the header, with no further request, and the
+    conversion in `_attempt_with_retry` surfaces the 429's own
+    `Retry-After` to the caller.
+
+    **A `stop_base` subclass rather than a bare function** because
+    `stop_base.__or__` is what composes the three arms, and `|` on a
+    plain callable is not that operator.
+    """
+
+    def __call__(self, retry_state: RetryCallState) -> bool:
+        """Whether to stop before taking a wait we cannot afford.
+
+        Args:
+            retry_state: `tenacity`'s state for the failed attempt.
+
+        Returns:
+            `True` when the last attempt carried a `Retry-After` we
+            cannot afford. `False` when there is no header, or no
+            budget scope - the other two stop arms still apply.
+        """
+        outcome = retry_state.outcome
+        exc = outcome.exception() if outcome is not None else None
+        if not isinstance(exc, _RetryableUpstream) or exc.retry_after is None:
+            return False
+        remaining = outbound_budget_remaining()
+        return remaining is not None and exc.retry_after >= remaining
+
+
+#: The singleton of the arm above. One instance: it holds no state.
+_retry_after_exceeds_budget: Final = _RetryAfterExceedsBudget()
+
+
 def _is_outage(_exc_type: type[BaseException], exc: BaseException) -> bool:
     """The breaker's predicate. **4xx MUST NOT trip it** (§8 #23).
 
@@ -1541,8 +1594,13 @@ class JobviteClient:
         # given what is left of the invocation's budget rather than a
         # constant of its own - otherwise a retry loop on the last page
         # of a scan could outlive the budget every other layer respects.
-        stop = stop_after_attempt(self._retry_max_attempts) | stop_after_delay(
-            max(remaining or 0.0, 0.0)
+        stop = (
+            stop_after_attempt(self._retry_max_attempts)
+            | stop_after_delay(max(remaining or 0.0, 0.0))
+            # THE THIRD ARM (R6-M1). The other two fire on a count and
+            # on elapsed time; neither can see a wait we have not taken
+            # yet, and a `Retry-After` we cannot afford is exactly that.
+            | _retry_after_exceeds_budget
         )
         retrying = AsyncRetrying(
             retry=_should_retry,
@@ -1614,22 +1672,6 @@ class JobviteClient:
         else:
             wait = _JITTERED_BACKOFF(state)
         if remaining is not None:
-            if wait >= remaining:
-                # THE CLAMP ALONE BUYS AN ATTEMPT `_attempt` REFUSES.
-                # `min(900, remaining)` IS `remaining`, so honouring a
-                # `Retry-After` larger than the budget slept the budget
-                # to zero and the attempt it bought was then rejected by
-                # `_attempt`'s own `remaining <= 0` check before the
-                # transport saw it. Measured at 1.00s of a 1.0s budget
-                # by `docs/reviews/probe-r6-wait-burns-budget.py`; the
-                # same holds at any budget, because the clamp always
-                # yields exactly `remaining`.
-                #
-                # `0.0` rather than a shorter sleep: there is no wait
-                # this side of the deadline that leaves time for an
-                # attempt, so let `stop_after_delay` fire on the next
-                # loop and let the budget's own 503 be the answer.
-                return 0.0
             wait = min(wait, max(remaining, 0.0))
         return wait
 

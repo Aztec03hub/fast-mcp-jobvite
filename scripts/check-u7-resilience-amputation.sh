@@ -196,10 +196,16 @@ amputate "A4  the per-attempt timeout clamp is deleted" \
 
 amputate "A5  stop_after_delay is deleted, leaving only the attempt cap" \
   "$CLIENT" \
-  '        stop = stop_after_attempt(self._retry_max_attempts) | stop_after_delay(
-            max(remaining or 0.0, 0.0)
-        )' \
-  '        stop = stop_after_attempt(self._retry_max_attempts)'
+  '            | stop_after_delay(max(remaining or 0.0, 0.0))' \
+  '            | stop_after_attempt(self._retry_max_attempts)'
+
+# R6-M1's third arm. Deleting it puts the behaviour back to the clamp
+# alone, which sleeps the whole budget away and buys an attempt
+# `_attempt` refuses before the transport sees it.
+amputate "A19 the Retry-After-exceeds-budget stop arm is deleted" \
+  "$CLIENT" \
+  '            | _retry_after_exceeds_budget' \
+  '            | stop_after_attempt(self._retry_max_attempts)'
 
 # ===========================================================================
 # THE BREAKER - DESIGN.md:64-68 names it as NEVER EXECUTED. These rows

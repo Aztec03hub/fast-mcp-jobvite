@@ -223,11 +223,11 @@ mutate "M25 a Retry-After of 0 is trusted and disables jitter" \
 # R6-M1. The stop condition becomes the old clamp again, so a
 # `Retry-After` larger than the budget sleeps the budget to zero and
 # buys an attempt `_attempt` refuses before the transport sees it.
-mutate "M24 a wait that would consume the budget is slept out anyway" \
+mutate "M24 a Retry-After we cannot afford is slept out anyway" \
   "$CLIENT" \
-  "$SUITE::test_a_wait_that_would_consume_the_budget_is_not_slept_out" \
-  '            if wait >= remaining:' \
-  '            if False:'
+  "$SUITE::test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping" \
+  '    return remaining is not None and exc.retry_after >= remaining' \
+  '    return False'
 
 # ===========================================================================
 # §8 #21 - `create_candidate` excluded BY CONSTRUCTION. The measurement
