@@ -94,34 +94,37 @@ ERROR_STATUS_THRESHOLD: Final = 400
 #: substitute for `redact_text`, which is applied as well.
 MAX_BODY_EXCERPT_CHARS: Final = 500
 
-# ---------------------------------------------------------------------------
-# The `detail` a transport failure reaches the API consumer with. ENUMERATED,
-# never formatted from the exception.
+# ----------------------------------------------------------------------
+# The `detail` a transport failure reaches the API consumer with.
+# ENUMERATED, never formatted from the exception.
 #
-# `backend/error-handling.md` is `priority: required` and says at :383 "Never
-# leak raw exception messages from third-party libraries to API consumers" and
-# at :493 "never pass `str(exc)` from third-party libraries". This module used
-# to build `JobviteUnavailableError`'s detail as
-# `redact_text(f"{type(exc).__name__}: {exc}")`, and that detail reaches the
-# caller unchanged through `problem_from_exception` -> `build_problem`.
+# `backend/error-handling.md` is `priority: required` and says at :383
+# "Never leak raw exception messages from third-party libraries to API
+# consumers" and at :493 "never pass `str(exc)` from third-party
+# libraries". This module used to build `JobviteUnavailableError`'s
+# detail as `redact_text(f"{type(exc).__name__}: {exc}")`, and that
+# detail reaches the caller unchanged through `problem_from_exception`
+# -> `build_problem`.
 #
-# **`redact_text` does not discharge the clause.** It bounds the credential
-# classes it knows about - `api`, `sc`, `companyId`, userinfo passwords. An
-# httpx2 exception string also carries `_ssl.c` line numbers, local socket
-# paths and resolver detail, none of which are credential-shaped and all of
-# which are third-party internals arriving at a consumer.
+# **`redact_text` does not discharge the clause.** It bounds the
+# credential classes it knows about - `api`, `sc`, `companyId`, userinfo
+# passwords. An httpx2 exception string also carries `_ssl.c` line
+# numbers, local socket paths and resolver detail, none of which are
+# credential-shaped and all of which are third-party internals arriving
+# at a consumer.
 #
-# **What the design actually requires is preserved**: DESIGN.md:356-360 says an
-# open breaker and an outage share `/problems/service-unavailable` 503 and
-# "what distinguishes them is `detail`, which says whether Jobvite failed or
-# whether we have stopped calling it". Three stable strings say exactly that,
-# and a caller can still branch on them. The breaker's own counterpart string
-# is U7's to add when the breaker exists; writing it here would be a constant
-# with no producer.
+# **What the design actually requires is preserved**: DESIGN.md:356-360
+# says an open breaker and an outage share
+# `/problems/service-unavailable` 503 and "what distinguishes them is
+# `detail`, which says whether Jobvite failed or whether we have stopped
+# calling it". Three stable strings say exactly that, and a caller can
+# still branch on them. The breaker's own counterpart string is U7's to
+# add when the breaker exists; writing it here would be a constant with
+# no producer.
 #
-# The exception text itself is not lost - it goes to the log line below, which
-# is its correct destination.
-# ---------------------------------------------------------------------------
+# The exception text itself is not lost - it goes to the log line below,
+# which is its correct destination.
+# ----------------------------------------------------------------------
 UNAVAILABLE_TIMEOUT_DETAIL: Final = (
     "Jobvite did not respond before the configured timeout elapsed. "
     "This is an upstream failure, not an open circuit breaker."
@@ -137,13 +140,14 @@ UNAVAILABLE_REQUEST_DETAIL: Final = (
 
 
 def _unavailable_detail(exc: Exception) -> str:
-    """Map one transport exception onto its enumerated, consumer-safe `detail`.
+    """Map a transport exception onto its enumerated `detail`.
 
-    Dispatch is on the exception CLASS and the return values are constants, so
-    nothing a third-party library wrote into the exception's text can reach the
-    value this returns. That is the property `error-handling.md:383` and `:493`
-    ask for, and it is a property of the function rather than of a redactor
-    applied afterwards.
+    Dispatch is on the exception CLASS and the return values are
+    constants, so nothing a third-party library wrote into the
+    exception's text can reach the value this returns. That is the
+    property `error-handling.md:383` and `:493` ask for, and it is a
+    property of the function rather than of a redactor applied
+    afterwards.
 
     Args:
         exc: The transport exception caught around the request.
@@ -154,13 +158,13 @@ def _unavailable_detail(exc: Exception) -> str:
     if isinstance(exc, httpx2.TimeoutException):
         return UNAVAILABLE_TIMEOUT_DETAIL
     if isinstance(exc, httpx2.TransportError):
-        # Every network-layer failure httpx2 raises: connect, read, write,
-        # pool, protocol and proxy errors all subclass this.
+        # Every network-layer failure httpx2 raises: connect, read,
+        # write, pool, protocol and proxy errors all subclass this.
         return UNAVAILABLE_TRANSPORT_DETAIL
     # `InvalidURL`, `CookieConflict` and `StreamError` sit outside the
-    # `HTTPError` hierarchy entirely - see the `except` clause below. Jobvite
-    # was never called on this path, so saying "could not be reached" would be
-    # a false statement about the upstream service.
+    # `HTTPError` hierarchy entirely - see the `except` clause below.
+    # Jobvite was never called on this path, so saying "could not be
+    # reached" would be a false statement about the upstream service.
     return UNAVAILABLE_REQUEST_DETAIL
 
 
@@ -588,27 +592,32 @@ class JobviteClient:
             httpx2.CookieConflict,
             httpx2.StreamError,
         ) as exc:
-            # THE LOG IS WHERE THE EXCEPTION TEXT GOES, and the consumer gets an
-            # enumerated reason instead (`error-handling.md:383`, `:493`, and
-            # the block above `_unavailable_detail`). "Log errors with
-            # sufficient context server-side" is the same standard's :494.
+            # THE LOG IS WHERE THE EXCEPTION TEXT GOES, and the consumer
+            # gets an enumerated reason instead
+            # (`error-handling.md:383`, `:493`, and the block above
+            # `_unavailable_detail`). "Log errors with sufficient
+            # context server-side" is the same standard's :494.
             #
-            # `httpx` puts the request URL into the text of the exceptions it
-            # raises, so on the jobFeed route `str(exc)` carries `sc=`.
-            # `redact_text` is the arm of utils/redaction.py that exists for
-            # exactly this (DESIGN.md:314-315); without it a timeout on the feed
-            # publishes the credential into whatever formats the exception.
+            # `httpx` puts the request URL into the text of the
+            # exceptions it raises, so on the jobFeed route `str(exc)`
+            # carries `sc=`. `redact_text` is the arm of
+            # utils/redaction.py that exists for exactly this
+            # (DESIGN.md:314-315); without it a timeout on the feed
+            # publishes the credential into whatever formats the
+            # exception.
             #
-            # `redact_headers` is applied because on the v2 branch `headers` IS
-            # `v2_headers()` - the resolved `x-jvi-api` and `x-jvi-sc` values,
-            # in the clear, in a local variable (DESIGN.md:311). This is the
-            # call site that function was written for; before this line it had
-            # none, and a header dict was one `logger.debug(headers=headers)`
-            # away from the log stream with nothing to stop it.
+            # `redact_headers` is applied because on the v2 branch
+            # `headers` IS `v2_headers()` - the resolved `x-jvi-api` and
+            # `x-jvi-sc` values, in the clear, in a local variable
+            # (DESIGN.md:311). This is the call site that function was
+            # written for; before this line it had none, and a header
+            # dict was one `logger.debug(headers=headers)` away from the
+            # log stream with nothing to stop it.
             #
-            # The exception is passed as REDACTED TEXT, not as an exception
-            # object: `logger.exception` would put it in `record["exception"]`,
-            # which the sink's filter does not reach - see `__main__.py`.
+            # The exception is passed as REDACTED TEXT, not as an
+            # exception object: `logger.exception` would put it in
+            # `record["exception"]`, which the sink's filter does not
+            # reach - see `__main__.py`.
             logger.warning(
                 "jobvite transport failure",
                 method=method,

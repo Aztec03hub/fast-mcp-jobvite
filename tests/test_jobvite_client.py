@@ -549,10 +549,11 @@ async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
 
 
 def _capture_extras() -> tuple[int, list[dict[str, Any]]]:
-    """Add a sink that keeps each record's `extra` mapping, and return both.
+    """Add a sink keeping each record's `extra`, and return both.
 
-    A COPY of `extra` rather than the record: loguru reuses the record object,
-    and a list of references would read back whatever the last record held.
+    A COPY of `extra` rather than the record: loguru reuses the record
+    object, and a list of references would read back whatever the last
+    record held.
     """
     captured: list[dict[str, Any]] = []
     sink_id = logger.add(
@@ -563,26 +564,28 @@ def _capture_extras() -> tuple[int, list[dict[str, Any]]]:
 
 
 async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
-    """The exception text goes to the LOG, and never to the API consumer.
+    """The exception text goes to the LOG, never to the consumer.
 
-    `httpx` puts the request URL into its exception text (DESIGN.md:314-315),
-    so a timeout on the feed carries `sc=` in `str(exc)`.
+    `httpx` puts the request URL into its exception text
+    (DESIGN.md:314-315), so a timeout on the feed carries `sc=` in
+    `str(exc)`.
 
-    **The positive control moved, and this is the whole point of the case.**
-    It used to be `assert "jobvite.com" in detail` - proving the redaction
-    assertion was not vacuous by requiring that something real had reached
-    `detail`. `backend/error-handling.md` is `priority: required` and forbids
-    that at :383 ("Never leak raw exception messages from third-party libraries
-    to API consumers") and :493 ("never pass `str(exc)` from third-party
-    libraries"): `redact_text` bounds the credential classes it knows, and an
-    httpx2 exception also carries `_ssl.c` line numbers, socket paths and
-    resolver detail, none of which are credential-shaped.
+    **The positive control moved, and this is the whole point of the
+    case.** It used to be `assert "jobvite.com" in detail` - proving the
+    redaction assertion was not vacuous by requiring that something real
+    had reached `detail`. `backend/error-handling.md` is `priority:
+    required` and forbids that at :383 ("Never leak raw exception
+    messages from third-party libraries to API consumers") and :493
+    ("never pass `str(exc)` from third-party libraries"): `redact_text`
+    bounds the credential classes it knows, and an httpx2 exception also
+    carries `_ssl.c` line numbers, socket paths and resolver detail,
+    none of which are credential-shaped.
 
-    So the consumer now gets an enumerated reason, and the control is pointed
-    at the log record - which is where the text went. It still proves redaction
-    ran over REAL content rather than over an empty string, because the same
-    string it checks for `jobvite.com` in is the one it checks the credentials
-    are absent from.
+    So the consumer now gets an enumerated reason, and the control is
+    pointed at the log record - which is where the text went. It still
+    proves redaction ran over REAL content rather than over an empty
+    string, because the same string it checks for `jobvite.com` in is
+    the one it checks the credentials are absent from.
     """
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -596,15 +599,17 @@ async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
     finally:
         logger.remove(sink_id)
 
-    # -- THE CONSUMER'S HALF: an enumerated reason and nothing of httpx2's. --
+    # -- THE CONSUMER'S HALF: an enumerated reason and nothing of
+    # httpx2's. --
     detail = caught.value.detail
     assert detail == jc.UNAVAILABLE_TIMEOUT_DETAIL
-    # The negative arm DESIGN.md:356-360 requires: `detail` still distinguishes
-    # an upstream failure from an open breaker, so the fix did not make it
-    # useless in the course of making it safe.
+    # The negative arm DESIGN.md:356-360 requires: `detail` still
+    # distinguishes an upstream failure from an open breaker, so the fix
+    # did not make it useless in the course of making it safe.
     assert "not an open circuit breaker" in detail
     assert detail != jc.UNAVAILABLE_REQUEST_DETAIL
-    # And nothing the library wrote is in it - not the URL, not the class name.
+    # And nothing the library wrote is in it - not the URL, not the
+    # class name.
     assert "jobvite.com" not in detail
     assert "ConnectTimeout" not in detail
     assert "timed out connecting" not in detail
@@ -616,8 +621,9 @@ async def test_a_transport_error_on_the_jobfeed_route_is_redacted() -> None:
     errors = [extra["error"] for extra in captured if "error" in extra]
     assert errors, f"the failure was never logged at all: {captured}"
     logged = "".join(errors)
-    # POSITIVE control, relocated: the log line really does still carry the
-    # URL, so the absences below are about redaction and not an empty string.
+    # POSITIVE control, relocated: the log line really does still carry
+    # the URL, so the absences below are about redaction and not an
+    # empty string.
     assert "jobvite.com" in logged
     assert "ConnectTimeout" in logged
     assert REDACTED in logged
@@ -859,14 +865,15 @@ async def test_an_invalid_url_becomes_a_typed_error_not_an_escape() -> None:
     finally:
         logger.remove(sink_id)
 
-    # The consumer gets the enumerated reason for this class of failure, and it
-    # is the one that says Jobvite was never called - "could not be reached"
-    # would be a false statement about the upstream service.
+    # The consumer gets the enumerated reason for this class of failure,
+    # and it is the one that says Jobvite was never called - "could not
+    # be reached" would be a false statement about the upstream service.
     assert excinfo.value.detail == jc.UNAVAILABLE_REQUEST_DETAIL
 
-    # The class identification moved to the log, because it was the only thing
-    # the old assertion was reading out of `str(exc)` and
-    # `backend/error-handling.md:493` bars that string from the consumer.
+    # The class identification moved to the log, because it was the only
+    # thing the old assertion was reading out of `str(exc)` and
+    # `backend/error-handling.md:493` bars that string from the
+    # consumer.
     errors = [extra["error"] for extra in captured if "error" in extra]
     assert errors, f"the failure was never logged at all: {captured}"
     assert "InvalidURL" in "".join(errors), (
@@ -875,16 +882,17 @@ async def test_an_invalid_url_becomes_a_typed_error_not_an_escape() -> None:
 
 
 async def test_the_v2_credential_headers_are_redacted_in_the_failure_log() -> None:
-    """L-1: `redact_headers`' call site, asserted on the log it now guards.
+    """L-1: `redact_headers`' call site, on the log it now guards.
 
-    On the v2 branch the local `headers` IS `v2_headers()` - the resolved
-    `x-jvi-api` and `x-jvi-sc` in the clear (DESIGN.md:311). The failure log
-    line carries them, so `redact_headers` has a caller for the first time and
-    this is the case that fails if anyone removes it.
+    On the v2 branch the local `headers` IS `v2_headers()` - the
+    resolved `x-jvi-api` and `x-jvi-sc` in the clear (DESIGN.md:311).
+    The failure log line carries them, so `redact_headers` has a caller
+    for the first time and this is the case that fails if anyone removes
+    it.
 
-    The trigger is the NUL-byte `InvalidURL` above rather than a mock raising:
-    it fails before the transport, so the v2 headers are real and nothing had
-    to be faked to make them so.
+    The trigger is the NUL-byte `InvalidURL` above rather than a mock
+    raising: it fails before the transport, so the v2 headers are real
+    and nothing had to be faked to make them so.
     """
     sink_id, captured = _capture_extras()
     try:
@@ -897,15 +905,16 @@ async def test_the_v2_credential_headers_are_redacted_in_the_failure_log() -> No
     logged_headers = [extra["headers"] for extra in captured if "headers" in extra]
     assert logged_headers, f"no headers reached the log at all: {captured}"
     headers = logged_headers[0]
-    # POSITIVE half: the credential headers really were on this request, so
-    # the absence below is about redaction and not about an empty dict.
+    # POSITIVE half: the credential headers really were on this request,
+    # so the absence below is about redaction and not about an empty
+    # dict.
     assert set(SECRET_HEADERS) <= set(headers), (
         f"the v2 credential headers were never on the request: {headers}"
     )
     for name in SECRET_HEADERS:
         assert headers[name] == REDACTED
-    # A non-secret header is untouched, so the redactor is selective rather
-    # than replacing the whole mapping.
+    # A non-secret header is untouched, so the redactor is selective
+    # rather than replacing the whole mapping.
     assert headers["Accept"] == "application/json"
     leaked = [
         needle for needle in (API_KEY, API_SECRET) if needle in json.dumps(headers)

@@ -107,7 +107,17 @@ def build_server(
     Returns:
         The configured `FastMCP` instance.
     """
-    return FastMCP(name=SERVER_NAME)
+    composed = make_base_lifespan(settings)
+    if extra_lifespan is not None:
+        composed = composed | extra_lifespan
+    return FastMCP(
+        name=SERVER_NAME,
+        instructions=INSTRUCTIONS,
+        version=__version__,
+        lifespan=composed,
+        # Never left to the framework default - see the module docstring.
+        mask_error_details=True,
+    )
 
 
 def create_server() -> FastMCP[Any]:

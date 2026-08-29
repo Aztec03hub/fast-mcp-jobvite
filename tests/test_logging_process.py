@@ -389,17 +389,16 @@ def test_a_third_party_log_line_is_redacted_at_the_sink(
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
 
 
-#: A SECOND loguru sink, added by something that is not `configure_logging`.
-#:
-#: `_InterceptHandler` routes every stdlib record in the process into loguru,
-#: so a handler nobody in `src/` installed still receives them - and the suite
-#: itself is such a handler: `tests/test_boot.py` imports `__main__` at module
-#: scope, so by the time `tests/test_jobvite_client.py` adds its own sink the
-#: intercept is live and `httpx2`'s INFO line reaches it.
-#:
-#: The record has to be clean, not just the stream, and that is what
-#: `_redact_message` is for. The outcome goes to a FILE because stderr carries
-#: the shipped sink's own output.
+# : A SECOND loguru sink, added by something that is not
+# `configure_logging`. : : `_InterceptHandler` routes every stdlib
+# record in the process into loguru, : so a handler nobody in `src/`
+# installed still receives them - and the suite : itself is such a
+# handler: `tests/test_boot.py` imports `__main__` at module : scope, so
+# by the time `tests/test_jobvite_client.py` adds its own sink the :
+# intercept is live and `httpx2`'s INFO line reaches it. : : The record
+# has to be clean, not just the stream, and that is what :
+# `_redact_message` is for. The outcome goes to a FILE because stderr
+# carries : the shipped sink's own output.
 FOREIGN_SINK_ENTRY = """
 import json
 import logging
@@ -428,27 +427,29 @@ OUT.write_text(json.dumps({"seen": [str(item) for item in seen]}))
 def test_a_sink_this_project_did_not_install_sees_a_redacted_record(
     tmp_path: pathlib.Path,
 ) -> None:
-    """`_redact_message` guards the RECORD; the serialising sink guards a LINE.
+    """`_redact_message` guards the RECORD; the sink guards a LINE.
 
-    **Neither covers the other, and this arm is the half that was nearly lost.**
-    When the sink-level redaction landed, deleting `_redact_message` left this
-    module's whole suite passing 78/78 - every arm here reads the process's own
-    stream, which the sink cleans. The full suite then went red on
+    **Neither covers the other, and this arm is the half that was nearly
+    lost.** When the sink-level redaction landed, deleting
+    `_redact_message` left this module's whole suite passing 78/78 -
+    every arm here reads the process's own stream, which the sink
+    cleans. The full suite then went red on
     `tests/test_jobvite_client.py::test_the_jobfeed_url_never_reaches_a_log_record_whole`,
-    which reads a sink the test installed itself. The measurement that said the
-    filter was redundant was scoped to the suite that structurally could not
-    see it.
+    which reads a sink the test installed itself. The measurement that
+    said the filter was redundant was scoped to the suite that
+    structurally could not see it.
 
-    So the property is asserted here, deliberately and in one process, rather
-    than left to depend on collection order in another module.
+    So the property is asserted here, deliberately and in one process,
+    rather than left to depend on collection order in another module.
     """
     outcome = tmp_path / "seen.json"
     result = _run_script(tmp_path, FOREIGN_SINK_ENTRY, str(outcome))
     assert result.returncode == 0, result.stderr
 
     seen = json.loads(outcome.read_text())["seen"]
-    # POSITIVE half: the stdlib record really did reach the foreign sink, so
-    # the absence below is about redaction and not about an empty list.
+    # POSITIVE half: the stdlib record really did reach the foreign
+    # sink, so the absence below is about redaction and not about an
+    # empty list.
     assert seen, "no stdlib record reached the second sink at all"
     joined = "".join(seen)
     assert "jobFeed" in joined, f"the line never arrived: {joined!r}"
@@ -466,15 +467,14 @@ def test_a_sink_this_project_did_not_install_sees_a_redacted_record(
     assert not leaked, f"{len(leaked)} of 3 credentials reached the foreign sink"
 
 
-#: An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
-#:
-#: `_InterceptHandler` forwards `record.exc_info` for every stdlib logger in
-#: the process, so `record["exception"]` is populated - and `serialize=True`
-#: renders it, plus the formatted traceback inside `text`. `_redact_message`
-#: reaches `record["message"]` and neither of those.
-#:
-#: MEASURED before the sink-level redaction landed: both credentials came back
-#: in the clear, twice each, on a process configured the shipped way.
+# : An EXCEPTION carrying the feed URL, logged through stdlib `logging`.
+# : : `_InterceptHandler` forwards `record.exc_info` for every stdlib
+# logger in : the process, so `record["exception"]` is populated - and
+# `serialize=True` : renders it, plus the formatted traceback inside
+# `text`. `_redact_message` : reaches `record["message"]` and neither of
+# those. : : MEASURED before the sink-level redaction landed: both
+# credentials came back : in the clear, twice each, on a process
+# configured the shipped way.
 EXCEPTION_LEAK_ENTRY = """
 import logging
 
@@ -494,46 +494,48 @@ except RuntimeError:
 def test_an_exception_carrying_a_credential_is_redacted_at_the_sink(
     tmp_path: pathlib.Path,
 ) -> None:
-    """`serialize` renders more than one field, so redacting one is not enough.
+    """One redacted field is not enough when `serialize` renders many.
 
-    **This is the shape of the leak above, one field across.** The fix for the
-    `httpx2` INFO line redacts `record["message"]`; `serialize=True` also
-    renders `record["exception"]` and a `text` carrying the formatted
-    traceback. An exception's `str()` is where a URL lands - which is the whole
-    premise of `redact_text` (DESIGN.md:314-315).
+    **This is the shape of the leak above, one field across.** The fix
+    for the `httpx2` INFO line redacts `record["message"]`;
+    `serialize=True` also renders `record["exception"]` and a `text`
+    carrying the formatted traceback. An exception's `str()` is where a
+    URL lands - which is the whole premise of `redact_text`
+    (DESIGN.md:314-315).
 
-    **The producers are not enumerable, which is why the fix is at the sink.**
-    `_InterceptHandler` forwards `exc_info` for every stdlib logger in the
-    process: any dependency calling `logger.exception` or
-    `logger.error(..., exc_info=True)` reaches this, and `__main__.main` is
-    itself one on the abnormal-termination path. Naming producers is the
-    allow-list that let the original leak sit unseen, so this arm uses a logger
-    name no dependency owns.
+    **The producers are not enumerable, which is why the fix is at the
+    sink.** `_InterceptHandler` forwards `exc_info` for every stdlib
+    logger in the process: any dependency calling `logger.exception` or
+    `logger.error(..., exc_info=True)` reaches this, and `__main__.main`
+    is itself one on the abnormal-termination path. Naming producers is
+    the allow-list that let the original leak sit unseen, so this arm
+    uses a logger name no dependency owns.
     """
     result = _run_script(tmp_path, EXCEPTION_LEAK_ENTRY)
     assert result.returncode == 0, result.stderr
 
     records = _serialised_records(result.stderr)
-    # POSITIVE half #1: the line was emitted AND the record still parses as
-    # JSON. A redaction that corrupted the line would empty this list, and
-    # every absence below would then pass on a parse failure.
+    # POSITIVE half #1: the line was emitted AND the record still parses
+    # as JSON. A redaction that corrupted the line would empty this
+    # list, and every absence below would then pass on a parse failure.
     assert records, f"no serialised record survived the redaction: {result.stderr!r}"
 
-    # POSITIVE half #2: the exception really did reach `record["exception"]`,
-    # so this arm is about redaction and not about a field that was never
-    # populated - which is what an `logger.error` without `exc_info` gives.
+    # POSITIVE half #2: the exception really did reach
+    # `record["exception"]`, so this arm is about redaction and not
+    # about a field that was never populated - which is what an
+    # `logger.error` without `exc_info` gives.
     with_exception = [
         record for record in records if record.get("record", {}).get("exception")
     ]
     assert with_exception, f"no record carried an exception at all: {records}"
     rendered = json.dumps(with_exception[0])
-    # POSITIVE half #3: real content reached it, so the absences are about
-    # redaction and not about an empty string.
+    # POSITIVE half #3: real content reached it, so the absences are
+    # about redaction and not about an empty string.
     assert "jobvite.com" in rendered
     assert "[REDACTED]" in rendered
 
-    # ABSENCE half, over the WHOLE stream, computed as a bool first so a red
-    # run prints no credential.
+    # ABSENCE half, over the WHOLE stream, computed as a bool first so a
+    # red run prints no credential.
     leaked = [
         needle
         for needle in (
@@ -546,17 +548,16 @@ def test_an_exception_carrying_a_credential_is_redacted_at_the_sink(
     assert not leaked, f"{len(leaked)} of 3 credentials survived to the stream"
 
 
-#: The M-5 path end to end, in a process configured the shipped way.
-#:
-#: `tests/test_jobvite_client.py` asserts the same behaviour against a sink it
-#: installs itself. A sink a test invents is a real loguru stream, just not the
-#: one the server writes to - which is exactly how H-1 stayed invisible - so
-#: the claim that a transport failure publishes nothing is settled HERE, on the
-#: bytes the process wrote, and the client suite covers the shape.
-#:
-#: `detail` is written to a file rather than logged: it is the value that
-#: reaches the API CONSUMER, and putting it on the stream under test would
-#: make the stream assertions unable to tell the two apart.
+# : The M-5 path end to end, in a process configured the shipped way. :
+# : `tests/test_jobvite_client.py` asserts the same behaviour against a
+# sink it : installs itself. A sink a test invents is a real loguru
+# stream, just not the : one the server writes to - which is exactly how
+# H-1 stayed invisible - so : the claim that a transport failure
+# publishes nothing is settled HERE, on the : bytes the process wrote,
+# and the client suite covers the shape. : : `detail` is written to a
+# file rather than logged: it is the value that : reaches the API
+# CONSUMER, and putting it on the stream under test would : make the
+# stream assertions unable to tell the two apart.
 CLIENT_FAILURE_ENTRY = """
 import asyncio
 import json
@@ -606,12 +607,13 @@ asyncio.run(main())
 def test_the_process_publishes_no_credential_when_the_transport_fails(
     tmp_path: pathlib.Path,
 ) -> None:
-    """M-5 and L-1 end to end: what the CONSUMER got, and what the STREAM got.
+    """M-5 and L-1 end to end: what the CONSUMER and STREAM got.
 
     The consumer's `detail` carries no third-party text
     (`backend/error-handling.md:383`, `:493`) and still distinguishes an
-    upstream failure from an open breaker (DESIGN.md:356-360). The stream
-    carries the exception text and the credential headers, redacted.
+    upstream failure from an open breaker (DESIGN.md:356-360). The
+    stream carries the exception text and the credential headers,
+    redacted.
     """
     out = tmp_path / "detail.json"
     result = _run_script(tmp_path, CLIENT_FAILURE_ENTRY, str(out))
@@ -624,8 +626,9 @@ def test_the_process_publishes_no_credential_when_the_transport_fails(
     assert "ConnectTimeout" not in detail
     assert "timed out connecting" not in detail
 
-    # The stream's half. POSITIVE control first: the failure really was logged
-    # and the record still parses, so the absences are not about silence.
+    # The stream's half. POSITIVE control first: the failure really was
+    # logged and the record still parses, so the absences are not about
+    # silence.
     records = _serialised_records(result.stderr)
     failures = [
         record
