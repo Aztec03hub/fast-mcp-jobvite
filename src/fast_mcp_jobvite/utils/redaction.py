@@ -210,6 +210,12 @@ def redact_headers(headers: dict[str, str]) -> dict[str, str]:
     }
 
 
+#: Characters that close a URL in prose rather than belonging to it.
+#: `redact_text` splits on whitespace, so these arrive attached to the
+#: last query value (R2-nit-3).
+_TRAILING_PUNCTUATION: Final[str] = "'\"),.;"
+
+
 def redact_text(text: str) -> str:
     """Redact any credential-bearing URL embedded in free text.
 
@@ -236,7 +242,22 @@ def redact_text(text: str) -> str:
     """
     out: list[str] = []
     for token in _split_keeping_whitespace(text):
-        out.append(redact_url(token) if "?" in token and "=" in token else token)
+        if "?" in token and "=" in token:
+            # R2-nit-3. A URL quoted, parenthesised or ended with a full
+            # stop arrives as ONE whitespace-delimited token with the
+            # closing character stuck to the last query VALUE, so
+            # `redact_url` replaced the delimiter along with the secret
+            # and the message came back with an unbalanced quote. Split
+            # the trailing run off, redact, and put it back.
+            #
+            # A value that genuinely ends in one of these loses that one
+            # character to the outside of the redaction; the whole
+            # secret is still replaced, and one punctuation mark carries
+            # nothing, which is the cheaper of the two errors.
+            core = token.rstrip(_TRAILING_PUNCTUATION)
+            out.append(redact_url(core) + token[len(core) :])
+        else:
+            out.append(token)
     # Userinfo is a SECOND credential shape in the same text, and it is
     # not reached by the query-parameter arm above: a proxy URL has no
     # `?` and no `=`, so it never entered `redact_url` at all. Applied

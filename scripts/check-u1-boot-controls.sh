@@ -344,6 +344,45 @@ PY
 control "M20 the record filter stops redacting" "$MAIN" "MUTANT-M20" \
   "tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record"
 
+# --- M21: the refusal exit status is a generic 1 (R2-M-3) -----------------
+# 78 is EX_CONFIG and every assertion in the suite compared the constant with
+# itself, so this mutation survived the WHOLE suite at 423 passed. The named
+# test compares it with the NUMBER a supervisor reads.
+python3 - "$MAIN" <<'PY21'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "EXIT_CONFIGURATION_REFUSED = 78"
+assert s.count(anchor) == 1, "M21 anchor is not unique"
+p.write_text(s.replace(anchor, "EXIT_CONFIGURATION_REFUSED = 1  # MUTANT-M21"))
+PY21
+control "M21 the refusal status is a generic 1" "$MAIN" "MUTANT-M21" \
+  "tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number"
+
+# --- M22: empty-is-unset stops stripping whitespace (R2-M-4 residual) -----
+# R2's M-4 fix had two halves and only the test landed; this is the half that
+# never did, so the whitespace rule was held by the suite and not by a gate.
+# The anchor moved into `_is_blank` when nit-2 gave the rule a name.
+python3 - "$CONFIG" <<'PY22'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "    return isinstance(value, str) and not value.strip()"
+assert s.count(anchor) == 1, "M22 anchor is not unique"
+p.write_text(s.replace(anchor, "    return isinstance(value, str) and not value  # MUTANT-M22"))
+PY22
+control "M22 whitespace-only is a present credential" "$CONFIG" "MUTANT-M22" \
+  "tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset"
+
+# --- M23: the blank check ignores SecretStr again (R2-nit-2) --------------
+python3 - "$CONFIG" <<'PY23'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1]); s = p.read_text()
+anchor = "        value = value.get_secret_value()"
+assert s.count(anchor) == 1, "M23 anchor is not unique"
+p.write_text(s.replace(anchor, "        value = None  # MUTANT-M23"))
+PY23
+control "M23 a blank SecretStr is a credential" "$CONFIG" "MUTANT-M23" \
+  "tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset"
+
 
 echo
 echo "$FIRED/$TOTAL controls fired."

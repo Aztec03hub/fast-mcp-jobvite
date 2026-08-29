@@ -223,16 +223,28 @@ def resolve_request_id(inbound_request_id: str | None = None) -> str:
     for the value to be "validated as a UUIDv4 before use and replaced
     if invalid".
 
+    **A valid inbound id is echoed BYTE FOR BYTE, case included.** This
+    used to `.lower()` it, and R2's nit-4 recorded that nothing held
+    either behaviour: the only test used an all-digit literal, which is
+    invisible to `.lower()`, so the mutation survived the whole suite.
+    Echoing unchanged is the behaviour chosen: `_UUID4_RE` is already
+    `IGNORECASE` so case was never a validity question, and the point of
+    echoing a correlation id is that an operator can join on it by exact
+    string match across two systems. A canonicalisation the caller did
+    not ask for breaks that join and is not required by anything -
+    `error-contract.md:83-85` imposes no case.
+
     Args:
         inbound_request_id: The caller's `X-Request-ID`, where the HTTP
             transport supplied one. `None` on stdio, which has no
             headers.
 
     Returns:
-        A canonical UUIDv4 string.
+        The caller's id unchanged when it is a valid UUIDv4, otherwise a
+        freshly minted one.
     """
     if inbound_request_id is not None and _UUID4_RE.match(inbound_request_id):
-        return inbound_request_id.lower()
+        return inbound_request_id
     return str(uuid.uuid4())
 
 
@@ -345,10 +357,18 @@ def _on_audit_write_failure(
     detail = redact_text(f"{type(exc).__name__}: {exc}")
     if phase is AuditPhase.BEFORE_SIDE_EFFECT:
         # Fail the call. No audit, no write.
+        #
+        # `from None` is NOT cosmetic (R2-M-1). This raise happens
+        # inside `emit`'s `except`, so without it Python attaches the
+        # sink's own exception as `__context__` - and that exception is
+        # the UNREDACTED one whose text `detail` above has just
+        # redacted. Every formatted traceback would then carry the
+        # credential beside the cleaned message. The raw exception is
+        # not lost: `detail` names its type and its redacted text.
         raise AuditWriteError(
             f"audit write failed before the side effect of {event.tool_name}; "
             f"the call was not performed ({detail})"
-        )
+        ) from None
     # Both surviving branches report to STDERR, never to the audit
     # stream that just failed (DESIGN.md:717-718): routing the report
     # down the channel whose failure it reports is how the record of the

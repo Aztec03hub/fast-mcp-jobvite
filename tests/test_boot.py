@@ -146,6 +146,25 @@ def test_a_missing_credential_exits_naming_the_variable(tmp_path: pathlib.Path) 
     assert "JOBVITE_API_KEY" in result.stdout + result.stderr
 
 
+def test_the_refusal_status_is_the_sysexits_ex_config_number() -> None:
+    """R2-M-3: a supervisor reads the NUMBER, not our constant's name.
+
+    Every other assertion in the repository compares a return code
+    against `EXIT_CONFIGURATION_REFUSED` imported from the module under
+    test, so the constant is only ever compared with itself. Measured:
+    `EXIT_CONFIGURATION_REFUSED = 78` -> `= 1` left the full suite green
+    at 423 passed. 78 is `EX_CONFIG` from `sysexits.h`, and the whole
+    point of it (`__main__.py:62-65`) is that it is DISTINCT from a
+    generic failure - so `!= 1` is asserted as well as `== 78`, because
+    1 is the specific value that erases the distinction.
+
+    Its sibling `EXIT_SOFTWARE` is pinned in
+    `test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises`.
+    """
+    assert EXIT_CONFIGURATION_REFUSED == 78
+    assert EXIT_CONFIGURATION_REFUSED != 1
+
+
 def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> None:
     """DESIGN.md:931-936, as a process arm.
 
@@ -155,6 +174,46 @@ def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> No
     result = run_entry(tmp_path, env)
     assert result.returncode == EXIT_CONFIGURATION_REFUSED
     assert "serch_jobs" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("JOBVITE_MCP_PORT", "99999"),
+        ("JOBVITE_MCP_TRANSPORT", "htp"),
+        ("JOBVITE_MAX_RESULTS", "0"),
+    ],
+)
+def test_a_constrained_field_is_refused_not_raised(
+    tmp_path: pathlib.Path, variable: str, value: str
+) -> None:
+    """R2-M-2: pydantic's own refusals must use the same door.
+
+    `Settings()` was constructed outside any `try`, and `__main__.py`
+    catches only `ConfigurationError`, so the seven constrained fields
+    exited **1 with a traceback** while every hand-written refusal
+    exited 78. A supervisor cannot tell a mistyped port from a crash,
+    which is the exact distinction `__main__.py:62-65` says 78 exists
+    for.
+
+    **`input_value` is asserted absent, and that is not cosmetic.**
+    pydantic's error text echoes the offending value back, and the fix
+    therefore rebuilds each reason from `loc` and `msg` rather than from
+    `str(exc)`. No secret-class field carries a constraint today, so
+    this is a property held before it is needed rather than after.
+    """
+    env = clean_env(JOBVITE_TOOLS="search_jobs", **V2)
+    env[variable] = value
+    result = run_entry(tmp_path, env)
+    combined = result.stdout + result.stderr
+    assert result.returncode == EXIT_CONFIGURATION_REFUSED, (
+        f"exited {result.returncode}; stderr:\n{result.stderr[-2000:]}"
+    )
+    assert variable in combined, "the refusal does not name the variable to fix"
+    assert "Traceback" not in combined
+    assert "input_value" not in combined
+    # Stdout is the JSON-RPC channel, as the arm below says.
+    assert result.stdout == ""
 
 
 def test_a_refusal_writes_nothing_to_stdout(tmp_path: pathlib.Path) -> None:

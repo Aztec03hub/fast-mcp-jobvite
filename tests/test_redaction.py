@@ -140,6 +140,46 @@ def test_redact_text_keeps_the_rest_of_the_message_intact() -> None:
     assert out.endswith("after 10s; retrying attempt 2")
 
 
+@pytest.mark.parametrize("closer", ["'", '"', ")", ",", ".", "),", '".'])
+def test_redact_text_keeps_the_punctuation_that_closed_the_url(closer: str) -> None:
+    """R2-nit-3: the closing delimiter was eaten with the secret.
+
+    `redact_text` splits on whitespace, so a URL quoted or parenthesised
+    in a message arrives as ONE token with the closing character stuck
+    to the last query value. `redact_url` then replaced that whole value
+    - closing character included - and the message came back
+    `...&sc=[REDACTED] then stop.`, an unbalanced quote and a missing
+    comma.
+
+    It never un-redacted anything, which is why it is a nit. It matters
+    for the reason `redaction.py:104-108` gives about preserving
+    parameter order: a redacted line that is not a faithful rendering of
+    the original is one people stop trusting, and a truncated URL in an
+    incident is read as truncation rather than as redaction.
+    """
+    message = f"see {JOB_FEED_URL}{closer} then stop"
+    out = redact_text(message)
+    leaked = _leaks(out, FAKE_API, FAKE_SC, FAKE_COMPANY)
+    assert not leaked, "a credential survived redaction"
+    assert out == f"see {redact_url(JOB_FEED_URL)}{closer} then stop"
+
+
+@pytest.mark.parametrize("tail", [".", ")", ",", "'"])
+def test_punctuation_INSIDE_the_secret_is_still_redacted(tail: str) -> None:
+    """The other side of the fix, and the one it could get wrong.
+
+    Stripping trailing punctuation before redacting must not leave a
+    value that genuinely ENDS in one partly in the clear. The whole
+    secret is gone either way; what survives is a single character that
+    is indistinguishable from the delimiter case above and carries
+    nothing.
+    """
+    secret = f"{FAKE_SC}{tail}"
+    out = redact_text(f"see https://api.jobvite.com/x?sc={secret} then stop")
+    leaked = _leaks(out, FAKE_SC)
+    assert not leaked, "the secret survived because its own tail was stripped off"
+
+
 def test_redact_text_preserves_newlines_so_a_traceback_survives() -> None:
     message = f"line one\n  {JOB_FEED_URL}\nline three"
     out = redact_text(message)

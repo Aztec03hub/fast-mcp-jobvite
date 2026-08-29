@@ -167,6 +167,31 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["src/fast_mcp_jobvite"]
 branch = true
+# R2-M-8. `__main__.py` reads well below every other module here and the
+# number is NOT the whole story: its shutdown handler, its transport
+# selection and its `finally: os._exit` arm run OUT OF PROCESS.
+# `test_boot.py` and `test_shutdown.py` drive them through
+# `subprocess.run`/`Popen`, and no `parallel`, `sigterm`, `concurrency`
+# or `COVERAGE_PROCESS_START` is set below, so the child's execution is
+# not measured at all. The arms exist; the instrument does not see them.
+#
+# **Do NOT add an `omit` row for `__main__.py`.** That makes the number
+# look right by measuring less, on the most safety-critical file in U1 -
+# and it is the obvious "fix" for a reader who sees the figure and not
+# the mechanism, which is why this comment is here instead of one.
+#
+# No figure is quoted on purpose. R2 filed this against 58%; it was 69%
+# by the time anyone checked, and a per-module percentage in a comment
+# is stale the next time a test lands. Run `pytest --cov` and read it.
+#
+# Wiring subprocess measurement is the real fix and is not done here: it
+# needs `parallel = true`, a `COVERAGE_PROCESS_START` in the child
+# environment and a `coverage combine` step in `ci.yml`, which is a CI
+# change and not this branch's to make.
+#
+# `[tool.coverage.report]` below sets `fail_under = 80` and nothing
+# enforces ADR-0010's per-module floors (tool modules 85, the client 90,
+# utilities 95). That is a separate gap and it is still open.
 omit = [
   "*/tests/*",
   "*/__init__.py",
