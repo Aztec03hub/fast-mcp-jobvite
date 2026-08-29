@@ -73,13 +73,13 @@ the map exists to make visible.
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
 | B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md:117` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
 | B74 | ABSENT | - | - | `documentation/agentic-coding-standard.md:171` | No TODO in code and no CI check. Inherits B73's prefix problem and nothing connects them |
-| B75 | CONTRADICTED | `.github/workflows/ci.yml:439` | `# - name: Capability drift diff` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out blocks; U11 enabled the advisory one, so two remain and both are U1's** - the capability-drift diff and the coverage floors. Deliberate and reasoned, still with no ADR. Needs a decision, not a deletion |
+| B75 | CONTRADICTED | `.github/workflows/ci.yml:500` | `# - name: Capability drift diff` | `documentation/agentic-coding-standard.md:173` | **Was three commented-out blocks; U11 enabled the advisory one, so two remain and both are U1's** - the capability-drift diff and the coverage floors. Deliberate and reasoned, still with no ADR. Needs a decision, not a deletion |
 | B76 | ABSENT | - | - | `documentation/agentic-coding-standard.md:66` | The protected-path rule is stated nowhere outside the audit corpus |
 | B77 | SUPERSEDED | `docs/DESIGN.md:1484` | `not written yet, deliberately` | `documentation/readme-standard.md:43` | Deferred with a recorded reason; scheduled as U13 |
 | B78 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1308` | `headings matching exactly` | `documentation/readme-standard.md:50` | U13 checks the table against `.env.example` rather than hand-keeping it |
 | B79 | ABSENT | - | - | `documentation/readme-standard.md:64` | The 500-line cap is named nowhere, and U13 loads the README heavily |
 | B81 | SUPERSEDED | `docs/plans/IMPLEMENTATION-PLAN.md:1353` | `A CI status badge` | `documentation/readme-standard.md:70` | Deferred until CI exists, with the deferral distinguished from an excuse |
-| B82 | MET | `.github/workflows/ci.yml:592` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
+| B82 | MET | `.github/workflows/ci.yml:653` | `Relative links resolve` | `documentation/readme-standard.md:69` | Uncommitted when seeded |
 | B84 | ABSENT | - | - | `documentation/changelog-standard.md:91` | No breaking-change discipline anywhere. B5's type-URI stability half depends on it |
 | B89 | SUPERSEDED | `pyproject.toml:6` | `license = "Apache-2.0"` | `documentation/readme-standard.md:57` | Substance settled; only the README section is deferred with B77 |
 | B96 | ABSENT | - | - | `devops/environments.md:636` | No rotation policy or runbook, in a server whose reason to exist is holding third-party API keys |

@@ -336,6 +336,32 @@ jobs:
           [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
           [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
 
+      # THE TWO HARNESSES THAT RAN NOWHERE. U3 found these (D3, task #31): neither
+      # scripts/check-u15-gate-amputation.sh nor scripts/check-u11-advisory-controls.sh
+      # appeared in this workflow OR in CONTRIBUTING.md - `grep -c` returned 0 in all
+      # four combinations. Both PASS today; the finding is that nothing would notice
+      # if they stopped. That is the FOURTH instance of this shape here, after the
+      # obligations map, the file-type gate's `--all` mode, and the plan-measurements
+      # harness. A control that is not wired is not a control.
+      - name: U15 gate amputation, every row applied
+        run: |
+          set -uo pipefail
+          out=$(scripts/check-u15-gate-amputation.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the U15 amputation harness exited $rc"; exit 1; }
+
+      - name: U11 advisory controls, all fired
+        run: |
+          set -uo pipefail
+          out=$(scripts/check-u11-advisory-controls.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::a U11 advisory control did not fire"; exit 1; }
+          line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
+          [ -n "$line" ] || { echo "::error::no 'N/M controls fired.' line"; exit 1; }
+          fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
+          [ "$total" -gt 0 ] || { echo "::error::zero controls held"; exit 1; }
+          [ "$fired" -eq "$total" ] || { echo "::error::$fired of $total fired"; exit 1; }
+
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
       # else touched. Both harnesses run here, because a control that runs only
       # by hand is the defect this repository has already built twice
