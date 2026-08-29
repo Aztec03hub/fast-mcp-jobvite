@@ -231,7 +231,7 @@ mutate "M8  a PII free-text field becomes an unbounded bare str" \
         str,'
 
 # ====================================================================
-# §8 #8 - THE CHARACTER RULE (DESIGN.md:1291-1294, B25)
+# §8 #8 - THE CHARACTER RULE (DESIGN.md:1352-1355, B25)
 # ====================================================================
 
 # M9 - the C1 range is dropped. C0 and DEL still reject, so a rule

@@ -90,7 +90,7 @@ ADOPTED_MIDDLEWARE = frozenset(
 #: whenever `dereference_schemas` is true, and it defaults to true, so
 #: the live stack is FOUR framework middleware and ours - not the three
 #: DESIGN.md §7.7 enumerates and not the three the C2 threat-model
-#: heading (`DESIGN.md:1725`) names as the stack it analysed.
+#: heading (`DESIGN.md:1792`) names as the stack it analysed.
 #:
 #: It is pinned here rather than waved through: this constant is what
 #: makes a framework bump that injects a SECOND such middleware a red
@@ -288,7 +288,7 @@ def test_the_three_adopted_middleware_are_present() -> None:
 
 
 def test_structured_logging_is_constructed_with_include_payloads_false() -> None:
-    """C2-I1 (DESIGN.md:1732): flipped to `True` this sends raw PII.
+    """C2-I1 (DESIGN.md:1800): flipped to `True` this sends raw PII.
 
     The second half of the positive control, and the half an earlier
     draft omitted: it verified `RateLimitingMiddleware` alone, leaving
@@ -410,7 +410,7 @@ def test_every_framework_middleware_is_classified() -> None:
 
 
 def test_the_rate_limiter_has_a_get_client_id() -> None:
-    """DESIGN.md:392-394: `get_client_id` is MANDATORY.
+    """DESIGN.md:411-413: `get_client_id` is MANDATORY.
 
     Left unset, `_get_client_identifier` returns the literal string
     `"global"` (`rate_limiting.py:157`) despite the docstring implying
@@ -428,7 +428,7 @@ def test_the_rate_limiter_has_a_get_client_id() -> None:
 
 
 def test_the_burst_is_the_designs_sizing() -> None:
-    """DESIGN.md:395-403's `desired_calls + 2`.
+    """DESIGN.md:414-422's `desired_calls + 2`.
 
     **The `2` is FastMCP's own client's connect sequence, not a
     protocol constant**, and a heavier client burns more, at which
@@ -445,7 +445,7 @@ def test_rate_limit_client_id_falls_back_where_there_is_no_token() -> None:
     stdio has no token, and therefore no client id.
 
     One bucket is correct there because there is exactly one caller -
-    **which DESIGN.md:413-416 calls reasoning, not measurement.** The
+    **which DESIGN.md:432-435 calls reasoning, not measurement.** The
     limiter has never been exercised on stdio at all.
     """
     assert rate_limit_client_id(None) == ANONYMOUS_CLIENT_ID  # type: ignore[arg-type]
@@ -502,7 +502,7 @@ def test_the_totality_check_refuses_a_tool_with_no_data_class(
 
 
 def test_the_scopes_are_the_three_data_classes() -> None:
-    """DESIGN.md:833-834: candidate PII, public job data, job feed."""
+    """DESIGN.md:886-887: candidate PII, public job data, job feed."""
     assert set(TOOL_SCOPES.values()) == {SCOPE_CANDIDATES, SCOPE_JOBS, SCOPE_FEED}
 
 
@@ -533,7 +533,7 @@ async def test_scopes_are_applied_on_http() -> None:
 
 
 async def test_scopes_are_NOT_applied_on_stdio() -> None:
-    """DESIGN.md:844-848: stdio is unauthenticated BY DESIGN.
+    """DESIGN.md:897-901: stdio is unauthenticated BY DESIGN.
 
     Not an optimisation. `_RequireScopes.__call__` returns `False` for
     an ABSENT token (`authorization.py:76-77`), and stdio has no token
@@ -619,7 +619,7 @@ def test_http_without_tokens_raises_rather_than_building_an_open_server() -> Non
 
 
 def test_the_host_and_port_are_honoured() -> None:
-    """The two variables the design NAMED (DESIGN.md:1565)."""
+    """The two variables the design NAMED (DESIGN.md:1626)."""
     kwargs = http_run_kwargs(http_settings(mcp_host="10.1.2.3", mcp_port=9101))
     assert kwargs["host"] == "10.1.2.3"
     assert kwargs["port"] == 9101
@@ -665,7 +665,7 @@ def test_loopback_leaves_the_guard_lists_alone() -> None:
 
 
 async def test_two_differently_scoped_tokens_see_different_tool_sets() -> None:
-    """DESIGN.md:836-839, and the whole point of §7.2's scope axis."""
+    """DESIGN.md:889-892, and the whole point of §7.2's scope axis."""
     with serve_http(probe_server(http_settings())) as url:
         async with Client(StreamableHttpTransport(url, auth=JOBS_TOKEN)) as client:
             jobs_tools = {tool.name for tool in await client.list_tools()}
@@ -706,7 +706,7 @@ async def test_a_well_formed_token_map_authenticates_and_the_tool_runs() -> None
 
     Four assertions above are refusals - no scope, no token, no
     variable. All four pass against a server that refuses EVERYTHING,
-    which is the guard-that-refuses-everything DESIGN.md:1370-1372
+    which is the guard-that-refuses-everything DESIGN.md:1431-1433
     names. This is the arm that says the door opens.
     """
     with serve_http(probe_server(http_settings())) as url:
@@ -728,7 +728,7 @@ async def test_an_unknown_token_is_refused() -> None:
 async def test_a_valid_inbound_request_id_reaches_the_tool_unchanged() -> None:
     """The transport path REACHES `resolve_request_id` and echoes.
 
-    DESIGN.md:597-599: a valid UUIDv4 is echoed BYTE FOR BYTE, case
+    DESIGN.md:637-639: a valid UUIDv4 is echoed BYTE FOR BYTE, case
     included. The upper-case arm is deliberate - R2's nit-4 records a
     `.lower()` surviving the whole suite because the only test used an
     all-digit literal.
@@ -753,7 +753,7 @@ async def test_a_valid_inbound_request_id_reaches_the_tool_unchanged() -> None:
     ],
 )
 async def test_a_malformed_inbound_request_id_is_replaced(malformed: str) -> None:
-    """C7-T1 (DESIGN.md:1797). REPLACED, not refused.
+    """C7-T1 (DESIGN.md:1865). REPLACED, not refused.
 
     A malformed correlation header is not a reason to fail a tool
     call. What it must never do is reach the audit stream: a value
@@ -779,7 +779,7 @@ async def test_a_malformed_inbound_request_id_is_replaced(malformed: str) -> Non
 
 
 # ======================================================================
-# Rate limiting, per client. DESIGN.md:392-394.
+# Rate limiting, per client. DESIGN.md:411-413.
 # ======================================================================
 
 #: Budget for the two limiter arms. Small and slow-refilling so the
@@ -849,7 +849,7 @@ async def refusals(url: str, token: str, calls: int) -> int:
 async def test_rate_limiting_is_per_client() -> None:
     """One client drains its bucket; the other is UNAFFECTED.
 
-    DESIGN.md:392-394's first constraint. The failure this prevents is
+    DESIGN.md:411-413's first constraint. The failure this prevents is
     one noisy integrator throttling everyone.
     """
     with serve_http(limiter_server(per_client=True)) as url:

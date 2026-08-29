@@ -1,4 +1,4 @@
-"""U6 - paging (DESIGN.md:432-487, `IMPLEMENTATION-PLAN.md` U6).
+"""U6 - paging (DESIGN.md:451-506, `IMPLEMENTATION-PLAN.md` U6).
 
 **Every assertion here is on BEHAVIOUR observed at the transport.** The
 handlers below record the exact `start` and `count` each scan asked for,
@@ -10,15 +10,15 @@ module's own docstring quoted; nothing here reads the source.
 **THE THREE THINGS THIS SUITE EXISTS TO PIN DOWN.**
 
 1. **De-duplication is a defence against OVER-reading only**
-   (DESIGN.md:465-468). `test_de_duplication_cannot_recover_a_record...`
+   (DESIGN.md:484-487). `test_de_duplication_cannot_recover_a_record...`
    is the LIMITATION case: a server that never returns record zero
    still comes back short, and no amount of de-duplicating changes
    that. Without it a later author reads the seen set as the safety
    mechanism and moves the start to 1.
-2. **The completeness check has TWO arms** (DESIGN.md:469-477). It
+2. **The completeness check has TWO arms** (DESIGN.md:488-496). It
    fires on an exhaustive scan with a missing record and it must NOT
    fire on a capped call, because `showing 50 of 1,240` is §7.7's own
-   worked example and DESIGN.md:474 says alarming on the default path
+   worked example and DESIGN.md:493 says alarming on the default path
    trains everyone to ignore the alarm. A single-armed suite passes on
    an implementation that alarms on everything.
 3. **The result cap is ONE behaviour across TWO files.** U5 owns the
@@ -27,7 +27,7 @@ module's own docstring quoted; nothing here reads the source.
    asserts nothing about U5's reporting.
 
 **What is NOT asserted here, because it is not established.** That
-`start` is 1-based is a VENDOR CLAIM (DESIGN.md:451) and not an
+`start` is 1-based is a VENDOR CLAIM (DESIGN.md:470) and not an
 observation. The one observation is `JOBVITE-API.md:399` - `start=0` is
 accepted and returns records, in one genuine `200` - which falsifies
 "1-based and strict" and separates "0-based" from "1-based with
@@ -86,7 +86,7 @@ class Recorder:
         Args:
             records: The whole result set, index 0 first.
             base: The server's own base, and the two values are the two
-                hypotheses DESIGN.md:460-462 says the evidence cannot
+                hypotheses DESIGN.md:479-481 says the evidence cannot
                 separate. `0` serves `records[start:]`. `1` is
                 1-based-WITH-CLAMPING - it serves
                 `records[max(start, 1) - 1:]`, so `start=0` is answered
@@ -193,7 +193,7 @@ def _capture_extras() -> tuple[int, list[dict[str, Any]]]:
 
 
 async def test_every_scan_starts_at_zero_on_the_wire() -> None:
-    """DESIGN.md:455. Read off the transport, not off the source.
+    """DESIGN.md:474. Read off the transport, not off the source.
 
     Asserted on the FIRST ask of the scan. A later ask is an advance
     and says nothing about the base.
@@ -205,7 +205,7 @@ async def test_every_scan_starts_at_zero_on_the_wire() -> None:
 
 
 async def test_start_zero_holds_on_the_jobfeed_route_too() -> None:
-    """The base is per RESOURCE (DESIGN.md:478-480), the start is not.
+    """The base is per RESOURCE (DESIGN.md:497-499), the start is not.
 
     `/v1/jobFeed` is the one route the vendor documents as 1-based, so
     it is the route most likely to acquire a `start=1` in a later edit.
@@ -219,7 +219,7 @@ async def test_start_zero_holds_on_the_jobfeed_route_too() -> None:
 async def test_a_zero_based_server_returns_record_zero() -> None:
     """Starting at 0 is what makes record zero reachable at all.
 
-    The paired direction of DESIGN.md:463-464: *starting at 1 is the
+    The paired direction of DESIGN.md:482-483: *starting at 1 is the
     only choice that can silently lose a record*.
     """
     server = Recorder(records=records(5), base=0)
@@ -252,7 +252,7 @@ async def test_the_structural_assertion_start_zero_is_accepted() -> None:
 
 
 async def test_an_overlapping_page_drops_duplicates() -> None:
-    """DESIGN.md:465-466, the behaviour half.
+    """DESIGN.md:484-485, the behaviour half.
 
     A 1-based server that clamps `start=0` to `1` re-serves the
     boundary record on every advance. The seen set drops it, so the
@@ -267,7 +267,7 @@ async def test_an_overlapping_page_drops_duplicates() -> None:
 
 
 async def test_de_duplication_cannot_recover_a_never_returned_record() -> None:
-    """DESIGN.md:465-468, **THE LIMITATION, WHICH IS THE POINT**.
+    """DESIGN.md:484-487, **THE LIMITATION, WHICH IS THE POINT**.
 
     *De-duplication defends against over-reading only. It cannot
     recover a record that was never returned, which is exactly why the
@@ -300,7 +300,7 @@ async def test_records_without_an_id_are_kept_not_collapsed() -> None:
 
     Every id-less record shares one `None` key, so a seen set that
     swallowed them would drop all but the first - de-duplication
-    deleting real records, which is the failure DESIGN.md:465-468 is
+    deleting real records, which is the failure DESIGN.md:484-487 is
     warning about arriving from the other side.
     """
     page = [{"title": "no id here"}, {"title": "nor here"}]
@@ -317,7 +317,7 @@ async def test_records_without_an_id_are_kept_not_collapsed() -> None:
 
 
 async def test_the_scan_terminates_on_a_short_page() -> None:
-    """DESIGN.md:486. `len(items) < count` is the only stop rule."""
+    """DESIGN.md:505. `len(items) < count` is the only stop rule."""
     server = Recorder(records=records(7))
     async with client(server, max_results=3) as c:
         result = await c.scan(JOBS_PATH, items_key=ITEMS_KEY)
@@ -327,7 +327,7 @@ async def test_the_scan_terminates_on_a_short_page() -> None:
 
 
 async def test_a_total_that_understates_does_not_end_the_loop_early() -> None:
-    """DESIGN.md:487. `total` is reported and never a loop condition.
+    """DESIGN.md:506. `total` is reported and never a loop condition.
 
     The server reports `total=1` while holding seven records. A loop
     that believed `total` would stop after one and report six missing
@@ -386,7 +386,7 @@ async def test_a_full_page_of_duplicates_is_not_a_short_page() -> None:
 
 
 async def test_completeness_fires_on_an_exhaustive_scan_with_a_gap() -> None:
-    """ARM ONE (DESIGN.md:469-473).
+    """ARM ONE (DESIGN.md:488-492).
 
     The caller asked for everything, the scan terminated on a short
     page, and it holds fewer unique records than `total` reports. That
@@ -413,7 +413,7 @@ async def test_completeness_fires_on_an_exhaustive_scan_with_a_gap() -> None:
 async def test_completeness_does_not_fire_on_a_capped_call() -> None:
     """ARM TWO, AND IT IS THE REQUIRED HALF PEOPLE LEAVE OUT.
 
-    DESIGN.md:473-477: a capped call is a mismatch **by design** -
+    DESIGN.md:492-496: a capped call is a mismatch **by design** -
     §7.7's own worked example is `showing 50 of 1,240` - and wiring the
     check to every call *"would fire the alarm on the default path and
     train everyone to ignore it"*.
@@ -489,7 +489,7 @@ async def test_completeness_is_silent_when_no_total_was_reported() -> None:
 
 
 def test_the_transport_caps_are_the_designs_figures() -> None:
-    """DESIGN.md:434. 500 on v2, 1000 on `/v1/jobFeed`.
+    """DESIGN.md:453. 500 on v2, 1000 on `/v1/jobFeed`.
 
     **A claim about this client, not about Jobvite.** Whether either is
     a real server limit is unobserved.
@@ -500,7 +500,7 @@ def test_the_transport_caps_are_the_designs_figures() -> None:
 
 
 def test_the_result_cap_is_the_min_of_the_two_halves() -> None:
-    """DESIGN.md:434-436, the `min()` this unit owns.
+    """DESIGN.md:453-455, the `min()` this unit owns.
 
     U5 applies `JOBVITE_MAX_RESULTS` in-tool and owns
     `showing N of total`; this composes the configured half with the
@@ -536,7 +536,7 @@ async def test_the_wire_page_size_is_the_min_of_the_two_caps() -> None:
 
 
 async def test_the_jobfeed_route_uses_its_own_transport_cap() -> None:
-    """1000 on `/v1/jobFeed`, per resource (DESIGN.md:434).
+    """1000 on `/v1/jobFeed`, per resource (DESIGN.md:453).
 
     Asserted with a configured cap ABOVE both transport caps, so the
     only thing that can produce 1000 rather than 500 is the route.
@@ -555,7 +555,7 @@ async def test_a_capped_call_stops_asking_once_it_is_full() -> None:
     nothing observable, because the final truncation still returned 50
     records. Only the number of requests distinguishes a scan that
     stopped from one that paged the whole resource and threw the rest
-    away - which against a self-throttled client (DESIGN.md:425-427) is
+    away - which against a self-throttled client (DESIGN.md:444-446) is
     six requests a minute spent to discard 250 records.
     """
     server = Recorder(records=records(300), total=300)
@@ -581,7 +581,7 @@ async def test_a_clamped_page_still_returns_no_more_than_the_limit() -> None:
 
     **This is the one shape where the in-loop break cannot hold the
     limit on its own**, and it is the ordinary clamping shape this unit
-    exists for (DESIGN.md:460-462). A page that is FULL on the wire but
+    exists for (DESIGN.md:479-481). A page that is FULL on the wire but
     yields fewer than `effective_limit` NEW records does not trip the
     break, so the scan asks for one more page and overshoots. Both
     existing capped cases -
@@ -620,7 +620,7 @@ async def test_a_clamped_page_still_returns_no_more_than_the_limit() -> None:
 
 
 def test_the_scan_start_defaults_to_zero_for_every_resource() -> None:
-    """DESIGN.md:455. No resource ships a declared base of 1.
+    """DESIGN.md:474. No resource ships a declared base of 1.
 
     The vendor's 1-based claim is not written into a default, because a
     declared 1 never requests record zero and loses it on a 0-based
@@ -633,7 +633,7 @@ def test_the_scan_start_defaults_to_zero_for_every_resource() -> None:
 
 
 async def test_an_override_is_per_resource_and_not_global() -> None:
-    """DESIGN.md:478-480 - the base is per-resource, not global.
+    """DESIGN.md:497-499 - the base is per-resource, not global.
 
     A global override is the failure this asserts against: overriding
     `/jobFeed`, the one route with an [OFFICIAL] base, must not move
@@ -653,7 +653,7 @@ async def test_an_override_is_per_resource_and_not_global() -> None:
 async def test_a_scan_is_whole_under_both_surviving_hypotheses(base: int) -> None:
     """The base-agnostic claim, asserted against BOTH live hypotheses.
 
-    DESIGN.md:460-462 says the evidence cannot separate "0-based" from
+    DESIGN.md:479-481 says the evidence cannot separate "0-based" from
     "1-based with clamping", and that `start=0` is safe under both.
     This case is that sentence: the same scan, against both servers,
     returns every record exactly once.
@@ -675,14 +675,14 @@ async def test_an_over_read_is_not_logged_as_an_under_read() -> None:
     """R5-M2: the two directions are different findings.
 
     `unique != total` fires on both, and the check's own docstring
-    says **fewer** - which is what DESIGN.md:469-477 describes and
+    says **fewer** - which is what DESIGN.md:488-496 describes and
     all it contemplates.
 
     THE OVER-COUNT IS REACHABLE, which is why this case exists rather
     than a comment. A wrong `id_key` sends every record down the
     `unidentified` branch, kept and never de-duplicated, so `unique`
     exceeds `total`. Reported as "jobvite scan incomplete", that is an
-    OVER-read announced as an under-read - and DESIGN.md:474 is
+    OVER-read announced as an under-read - and DESIGN.md:493 is
     explicit about what a check that cries wolf costs.
 
     Asserts the MESSAGE, not just `incomplete`: both directions set

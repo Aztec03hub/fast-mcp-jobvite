@@ -152,7 +152,7 @@ PY
 # value a threat row is written about.
 # ===========================================================================
 
-# C2-I1, DESIGN.md:1732. Flipped to True the framework log receives raw
+# C2-I1, DESIGN.md:1800. Flipped to True the framework log receives raw
 # candidate PII. Flipping rather than deleting, because the framework's
 # own default is False and a deleted keyword changes nothing.
 mutate "M1  include_payloads is flipped to True" \
@@ -175,7 +175,7 @@ mutate "M2  ResponseCachingMiddleware is re-added to the stack" \
         ResponseCachingMiddleware(),
         RequestIdMiddleware(),'
 
-# DESIGN.md:392-394: the default keys every caller to the literal
+# DESIGN.md:411-413: the default keys every caller to the literal
 # "global", so one noisy integrator throttles everyone.
 mutate "M3  get_client_id is dropped and the limiter keys everyone to global" \
   "$HARDENING" \
@@ -196,7 +196,7 @@ mutate "M4  rate_limit_client_id returns one constant for every caller" \
     return token.client_id' \
   '    return ANONYMOUS_CLIENT_ID'
 
-# DESIGN.md:395-403. `desired_calls + 2`, where the 2 is FastMCP's own
+# DESIGN.md:414-422. `desired_calls + 2`, where the 2 is FastMCP's own
 # client's connect sequence.
 mutate "M5  the burst loses the connect-sequence allowance" \
   "$HARDENING" \
@@ -216,7 +216,7 @@ mutate "M6  search_jobs is scoped to candidate PII instead of job data" \
   '    SEARCH_JOBS: SCOPE_JOBS,' \
   '    SEARCH_JOBS: SCOPE_CANDIDATES,'
 
-# DESIGN.md:844-848. Applied on stdio, `_RequireScopes` denies an absent
+# DESIGN.md:897-901. Applied on stdio, `_RequireScopes` denies an absent
 # token and every tool disappears from a transport the design declares
 # fully authorised.
 mutate "M7  the scopes are applied on stdio too" \

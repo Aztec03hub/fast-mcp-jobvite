@@ -232,7 +232,7 @@ amputate "A3  the success path emits no audit event" "$TOOLS" \
 
 # ---------------------------------------------------------------------------
 # A4 - THE CREDENTIAL CLASS IS COLLAPSED. The feed authenticates with
-# the v2 pair, which is DESIGN.md:320-321's whole three-class structure
+# the v2 pair, which is DESIGN.md:332-333's whole three-class structure
 # deleted while every call still succeeds against a mock.
 # ---------------------------------------------------------------------------
 amputate "A4  the separate feed credential class does not exist" "$TOOLS" \
@@ -302,7 +302,7 @@ amputate "A8  the feed job mapping admits nothing optional" "$TOOLS" \
 
 # ---------------------------------------------------------------------------
 # A9 - THE ENABLE GATE DOES NOT EXIST. The tool registers whatever
-# `JOBVITE_TOOLS` says, which is DESIGN.md:917-934's deploy-time control
+# `JOBVITE_TOOLS` says, which is DESIGN.md:970-987's deploy-time control
 # deleted.
 # ---------------------------------------------------------------------------
 amputate "A9  registration has no enable gate" "$TOOLS" \

@@ -112,7 +112,7 @@ PY
 
 # ---------------------------------------------------------------------------
 # A1 - THE INVARIANT IS GONE ENTIRELY. Every response is a success as long as
-# its body decodes. This is the shape of the bug DESIGN.md:328-333 exists to
+# its body decodes. This is the shape of the bug DESIGN.md:340-345 exists to
 # prevent, and every test claiming to assert the error rule must die here.
 # ---------------------------------------------------------------------------
 amputate "A1  evaluate_response applies NEITHER arm - every decodable body succeeds" \
@@ -224,7 +224,7 @@ amputate "A9b a transport error's text reaches the consumer unredacted" "$CLIENT
 
 # ---------------------------------------------------------------------------
 # A9c - THE NEGATIVE ARM. The enumerated detail collapses to one string. It
-# leaks nothing, so M-5 stays fixed, and what dies is DESIGN.md:356-360's
+# leaks nothing, so M-5 stays fixed, and what dies is DESIGN.md:368-372's
 # requirement that `detail` distinguish an upstream outage from an open
 # breaker. A fix that makes `detail` useless passes M-5 and breaks the design;
 # this row is what catches it.

@@ -1,4 +1,4 @@
-"""The per-invocation correlation ContextVar (DESIGN.md:601-612).
+"""The per-invocation correlation ContextVar (DESIGN.md:641-652).
 
 **The name `request_id_var` is not a choice.**
 `ai/tool-calling.md:173-175` mandates the canonical triple verbatim -
@@ -7,7 +7,7 @@ HTTP header `X-Request-ID`, log field `request_id`, ContextVar
 resembling it. Renaming this variable breaks compliance, not only
 imports.
 
-**Why a ContextVar and not a module global** (DESIGN.md:608-612):
+**Why a ContextVar and not a module global** (DESIGN.md:648-652):
 `asyncio` runs invocations concurrently on one thread, and a module
 global would interleave. Two candidates fetched in parallel would each
 log the other's id about half the time, and the corruption is silent -
@@ -15,7 +15,7 @@ every line still carries a well-formed UUID. That is the failure this
 mechanism exists to prevent, which is why the tests assert under
 concurrency rather than on a single call.
 
-**Why it exists at all** (DESIGN.md:601-604, B40): the retry and
+**Why it exists at all** (DESIGN.md:641-644, B40): the retry and
 circuit-breaker hooks are called *by the resilience library*, not by our
 call site, so there is no parameter to thread the id through at the
 point the log line is written.
@@ -34,7 +34,7 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id_var", default=No
 def request_id_scope(request_id: str) -> Iterator[str]:
     """Bind `request_id_var` for one invocation, then reset it.
 
-    DESIGN.md:604-606 requires that `audit.py` set the var in the same
+    DESIGN.md:644-646 requires that `audit.py` set the var in the same
     statement that mints the id and reset it **in a `finally`**, so an
     id cannot leak into the next invocation on a reused worker task. The
     `finally` lives here, in shipped code, rather than being restated at

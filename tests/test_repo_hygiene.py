@@ -29,7 +29,7 @@ import re
 
 from .conftest import ENV_EXAMPLE, GITIGNORE, REPO_ROOT
 
-# DESIGN.md:1555-1560 counts five credential variables; §7.2 adds
+# DESIGN.md:1616-1621 counts five credential variables; §7.2 adds
 # JOBVITE_HTTP_TOKENS, the bearer-token map, as the sixth secret-class
 # name. Six, enumerated here and cross-checked against the file below so
 # the list cannot silently go stale.
@@ -119,7 +119,7 @@ def test_the_deliberate_non_secret_defaults_are_intact() -> None:
 
 
 def test_no_value_in_env_example_looks_like_a_real_credential() -> None:
-    """DESIGN.md:1272 - no REAL value.
+    """DESIGN.md:1333 - no REAL value.
 
     A placeholder that looks like a credential is the thing a reader
     copies by accident and a scanner mistakes for a finding.

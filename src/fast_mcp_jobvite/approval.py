@@ -1,4 +1,4 @@
-"""The dual-era approval guard for the one write (DESIGN.md:1049-1130).
+"""The dual-era approval guard for the one write (DESIGN.md:1102-1183).
 
 **WHAT THIS MODULE ESTABLISHES, STATED EXACTLY.** It establishes that
 *the server requires an approval response from the host and refuses to
@@ -8,11 +8,11 @@ auto-respond to an elicitation with no person present - Claude Code
 documents a hook that does exactly this - and the MCP specification
 places human-in-the-loop on the host, not on the server. That is
 **C4-S1**, a **High residual** which is **not mitigable server-side**
-(DESIGN.md:1754, ADR-0009). The honest claim is the one in the first
+(DESIGN.md:1822, ADR-0009). The honest claim is the one in the first
 sentence and there is no stronger one available.
 
 **TWO MECHANISMS, EXACTLY COMPLEMENTARY, AND A SINGLE-MECHANISM GUARD IS
-BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1080-1086, executed at
+BROKEN ON ONE ERA WHICHEVER IT PICKS** (DESIGN.md:1133-1139, executed at
 `FASTMCP-SPIKE-4.md:2118-2143`):
 
 | Era | MRTR | `ctx.elicit()` |
@@ -55,7 +55,7 @@ convenience of the fake and not an observation about the framework.
 
 **AN UNIDENTIFIABLE ERA REFUSES.** The discriminator is correct for the
 two eras that have been measured; a third case exists - the version
-absent, or an era nobody has seen - and DESIGN.md:1126-1130 rules that
+absent, or an era nobody has seen - and DESIGN.md:1179-1183 rules that
 it must not degrade quietly. There is no weaker fallback to reach for
 now that the confirmation token is cut (§7.6), so the rule is explicit:
 **refuse, and log the observed value**, so an operator learns approval
@@ -63,7 +63,7 @@ could not be established from a log line rather than from a candidate's
 inbox.
 
 **THE GUARD CHECKS THE ACTION AND THE VALUE, AND THE CONJUNCTION IS NOT
-OPTIONAL** (DESIGN.md:1075-1078). An *accepted* elicitation carrying
+OPTIONAL** (DESIGN.md:1128-1131). An *accepted* elicitation carrying
 `approve: false` is still an acceptance, so
 `action == "accept" and content.get("approve") is True` is the whole
 test and either half alone admits a refusal as an approval.
@@ -72,7 +72,7 @@ test and either half alone admits a refusal as an approval.
 A tool cannot swallow the era guard - returning an `InputRequiredResult`
 merely constructs an object, and the era check fires in FastMCP's
 result-serialization layer *after* the tool has returned, outside any
-scope a `try/except` in the tool controls (DESIGN.md:1098-1106). That
+scope a `try/except` in the tool controls (DESIGN.md:1151-1159). That
 protects the **first leg only**. A tool that reaches its second leg and
 mis-validates the answer is on its own, which is what the conjunction
 above exists for.
@@ -97,7 +97,7 @@ from fast_mcp_jobvite.utils.constraints import InboundModel
 #: The sessionless era, and the tuple FastMCP's own guard compares
 #: against (`FASTMCP-SPIKE-4.md:2085`). MRTR is available here and
 #: `ctx.elicit()` raises.
-#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list
@@ -107,10 +107,10 @@ COVERAGE_ROLE: Final = "approval"
 MODERN_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2026-07-28",)
 
 #: The handshake era. `ctx.elicit()` is available here and MRTR raises
-#: on **every** arm including approve (DESIGN.md:1085-1086).
+#: on **every** arm including approve (DESIGN.md:1138-1139).
 #:
 #: **THIS TUPLE IS DELIBERATELY NOT "everything that is not modern".**
-#: DESIGN.md:1126-1130 requires an unrecognised version to REFUSE rather
+#: DESIGN.md:1179-1183 requires an unrecognised version to REFUSE rather
 #: than fall through to whichever branch happens to be last, and an
 #: `else` would silently hand a future era to `ctx.elicit()` on the
 #: strength of never having been measured.
@@ -190,7 +190,7 @@ class ApprovalMechanism(enum.StrEnum):
     """Which approval path produced the response (ADR-0021).
 
     **The set is CLOSED**, for the reason `error-contract.md`'s registry
-    is closed (DESIGN.md:510-511): a value emitted into an audit record
+    is closed (DESIGN.md:541-542): a value emitted into an audit record
     is a contract, and an open string invites a fourth spelling of the
     first three. ADR-0021 defines exactly these three and §8's
     audit-event case asserts the emitted value is one of them.
@@ -341,7 +341,7 @@ def _approved_by_conjunction(response: object) -> bool:
 
     Both halves, always. An accepted elicitation carrying
     `approve: false` is still an acceptance, and an action check alone
-    would admit it (DESIGN.md:1075-1078).
+    would admit it (DESIGN.md:1128-1131).
 
     `is True` rather than a truth test: a JSON `"true"`, a `1` or a
     non-empty dict are all truthy and none of them is the boolean the
@@ -372,7 +372,7 @@ def build_approval_message(
 
     **IT MUST NAME THE EMAIL AND NOT ONLY THE RECORD**, and this is the
     one place the strongest gate can be satisfied honestly and still
-    produce the outcome it exists to prevent (DESIGN.md:1061-1071). An
+    produce the outcome it exists to prevent (DESIGN.md:1114-1124). An
     approver shown *"create candidate Jane Doe"* approves a database row
     and thereby authorises **an email to Jane Doe that nobody
     mentioned**. `ai/agent-guardrails.md:70-73` lists *"outbound message
@@ -486,7 +486,7 @@ async def resolve_approval(
         # action, and `.approve is True` is the value half. A
         # `isinstance` check alone would admit an acceptance carrying
         # `approve: false`, which is the arm people drop
-        # (DESIGN.md:1075-1078).
+        # (DESIGN.md:1128-1131).
         approved = (
             isinstance(result, AcceptedElicitation)
             and isinstance(result.data, ApprovalAnswer)
@@ -499,7 +499,7 @@ async def resolve_approval(
             protocol_version=version,
         )
 
-    # THE THIRD CASE. DESIGN.md:1126-1130: the version is absent, or is
+    # THE THIRD CASE. DESIGN.md:1179-1183: the version is absent, or is
     # an era nobody has measured. Refuse, and LOG THE OBSERVED VALUE, so
     # an operator learns that approval could not be established from a
     # log line rather than from a candidate's inbox.

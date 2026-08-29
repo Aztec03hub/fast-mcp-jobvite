@@ -317,6 +317,18 @@ parameters. Its URL is classified sensitive - never logged whole, never in an ex
 `sc=` redacted before any log line. Enforced in one place, `utils/redaction.py`, with a test that
 fails if a secret can reach a log record.
 
+**The guarantee is carried by `JobviteClient`, not by the server entry point (ADR-0026).** Redacting
+at our own sink covers every producer in a process whose handlers we own and nothing in a process
+whose handlers belong to someone else, so an embedder that constructs `JobviteClient` directly has
+no sink of ours at all. The object that holds the credential therefore installs the filter on the
+`httpx2` logger from its constructor, defaulting to installing, with an **opt-out constructor
+keyword and never a `Settings` field**. Two constraints are load-bearing. **The install is
+idempotent**: a client is constructed once per invocation, so a filter appended per construction
+would stack one per tool call forever, which is a leak inside the code path added to prevent one.
+**The logger name is derived from the imported module rather than retyped**: the package is vendored
+as `httpx2`, and a filter installed on `httpx` attaches to a logger this library never writes to,
+where it would refuse nothing and every test of it would pass.
+
 **This gives three credential/data classes, which is also the token-scoping axis (§7.2):**
 candidate PII, public job data, and the job feed's separate `companyId` credential.
 
@@ -361,6 +373,13 @@ Ordered timeout, then retry, then circuit breaker.
 - **Jobvite's `429`, if it exists, is retried and then mapped to 503**, honouring `Retry-After`
   when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
   path is written defensively and is unexercised.
+- **A `Retry-After` the upstream volunteered is passed on, on whatever problem shape results**
+  (ADR-0030). `retry_after` is an optional RFC 9457 extension member, not a registry row and not a
+  new type URI, so §5.1's seven mandated members are unchanged and this is not an eighth. Its
+  absence means *we were not told*, never *do not retry*, and callers must tolerate it being absent,
+  which is the common case (§4.4: no rate-limit header is returned). Only a value the upstream
+  actually sent is passed on this way; the open breaker's hint above is computed from our own
+  remaining window and is ours to compute precisely because it describes our own state.
 
 **`backend/resilience.md:74-76` has no referent on this transport, and saying so is the honest form of
 compliance with it.** The clause reads *"Timeouts MUST be **shorter than the inbound request's own
@@ -486,6 +505,18 @@ fooled by an unstable sort.
 Paging terminates on a short page (`len(items) < count`), never on `total`. `total` is reported
 and never trusted as a loop condition.
 
+**That rule names the condition paging must not use and names none it must, which leaves an
+exhaustive scan correct and unbounded at the same time: a server that ignores `start` and answers a
+full page every time is paged forever. Two bounds close it and neither substitutes for the other
+(ADR-0024).** A **zero-progress break** - a full page that adds nothing to the seen set and nothing
+to the unidentified count - terminates the loop and marks the scan incomplete; it cannot fire on
+healthy paging, because a full page that adds no records means the server is not advancing. A
+**record ceiling** not derived from `total` bounds a server that advances but never shortens,
+likewise marking the scan incomplete. **The ceiling counts RECORDS and not pages**, because the page
+cap above is 500 on v2 and 1000 on `/v1/jobFeed` and a page ceiling is a different number of records
+at each; the bound has to be sane at every page size this section permits. Neither bound reads
+`total`, so the rule above is intact.
+
 ---
 
 ## 5. Errors, logging, and correlation
@@ -518,7 +549,16 @@ own. Both were wrong:
 | Candidate or job id not found | `/problems/resource-not-found` | 404 |
 | Duplicate candidate on create | `/problems/conflict` | 409 |
 | Caller's token lacks the scope | `/problems/forbidden` | 403 |
+| An approval was required and none was returned | `/problems/forbidden` | 403 |
 | Anything unmapped, including an unhandled exception in a tool body | `/problems/internal-error`, *"Internal Server Error"* | 500 |
+
+**`/problems/forbidden` names two conditions and mints no second slug for the pair** (ADR-0031). A
+scope denial and a refused approval are both "this write was not authorised"; `detail` says which,
+and the precedent is the one §4.3 already sets for the two 503 shapes, where an open breaker and an
+outage share a type and are distinguished in `detail`. Minting `/problems/approval-refused` would be
+a published `type` URI, which the bullet above makes a promise this project owes forever, and the
+alternative the "anything unmapped" row would otherwise select is `/problems/internal-error` -
+telling a caller this server is broken when a refusal is the control working as designed.
 
 **`about:blank` keeps its actual scope** and no other: an unmapped **HTTP status received from
 Jobvite**, where we genuinely have no type for what the upstream returned
@@ -683,9 +723,22 @@ record what we can prove - that an approval response was received and what it sa
 **ADR-0009** records that identity is unsatisfiable **for the approver specifically, and not for
 the caller.**
 
+**`approval_state` is drawn from a closed set of four** (ADR-0033): `approved` - a response arrived
+and authorised the write; `refused` - a response arrived and did not, so a human said no; `pending` -
+the request went out and no answer has come, so no write has happened and may never; `unavailable` -
+no handler existed to ask, so nobody was asked. **`pending` and `unavailable` are the pair most
+likely to be collapsed and must not be**: one is an abandoned conversation, the other a conversation
+that never started, and collapsing them makes an abandoned approval indistinguishable from an
+unconfigured host in the only record either leaves. The set is closed for the same reason
+`approval_mechanism`'s is - a value emitted into an audit record is a contract - and a fifth value
+is an ADR.
+
 **The audit event also records which approval path produced the response**, in a field named
-`approval_mechanism`, drawn from a closed set: `elicitation`, `sampling`, `no_handler` - the three
-paths §7.5 establishes. The set is closed for the reason `error-contract.md`'s registry is closed:
+`approval_mechanism`, drawn from a closed set: `elicitation`, `mrtr`, `no_handler` - the three
+paths §7.5 establishes. **The sessionless member is named `mrtr` and not `sampling`** (ADR-0028):
+that path is Multi Round-Trip Requests - `InputRequiredResult` plus `ctx.input_responses` - and is
+not sampling in the MCP sense at all, so the vocabulary named a mechanism this server has no path
+to. The set is closed for the reason `error-contract.md`'s registry is closed:
 a value emitted into an audit record is a contract, and an open string invites a fourth spelling of
 the first three. The value names a protocol path and carries no PII. **This is *how* the answer
 arrived, not *who* gave it** - ADR-0009's boundary is untouched (ADR-0021).
@@ -1167,8 +1220,16 @@ event (§5.3), which was the token's only durable benefit, without a second tool
 Adopted, each constructed with explicit arguments: `Timing`, `StructuredLogging` with
 `include_payloads=False`, and `RateLimiting` with `get_client_id`.
 
-**These two plus §5.3's `audit.py` make three log producers per invocation, against a clause that
-says one**, and the deviation is now on the record rather than left as an arithmetic difference
+**A fourth is adopted rather than disabled: `DereferenceRefs`** (ADR-0032). It is not constructed
+here - `FastMCP.__init__` appends it whenever `dereference_schemas` is true, which is its default -
+so it arrived framework-injected and ran unassessed by this section. Turning it off would buy
+nothing measurable and would trade a real forward-compatibility property for cosmetic agreement with
+a document that was simply incomplete: **fix the document, which was wrong, not the stack, which is
+fine.** It rewrites published tool schemas by inlining `$ref`, and never request or response
+payloads.
+
+**`StructuredLogging` and `Timing`, plus §5.3's `audit.py`, make three log producers per invocation,
+against a clause that says one**, and the deviation is now on the record rather than left as an arithmetic difference
 between two sections. `request-middleware.md:145` reads *"4. **One log per request**: The
 middleware emits exactly one structured log entry per request."* We keep three, because
 `include_payloads=False` emits *no* arguments while B17 mandates **redacted** ones, so `audit.py`
@@ -1277,7 +1338,7 @@ Required cases, each failing if its defence is removed:
   result status, latency, `request_id`, the resolved client id on the HTTP transport and an
   explicit attribution-unavailable marker on stdio, and on the write `approval_state` together with
   the mechanism that produced it - `approval_mechanism`, present and one of `elicitation`,
-  `sampling`, `no_handler` (§5.3). **This case is positive on purpose.** The PII case below
+  `mrtr`, `no_handler` (§5.3). **This case is positive on purpose.** The PII case below
   asserts an absence, and an absence passes trivially against a server that emits no audit event at
   all; the two are paired so that neither can be satisfied by silence;
 - **candidate PII never reaching a log or audit record** - a distinct case from the secret test
@@ -1560,7 +1621,7 @@ it**, so the obligation is discharged by specification rather than by fabricatio
   forbids. Removing the hand-kept list is the fix; restating it correctly would only reset the
   clock.
 
-  **Five variables had no name, and all five have one now** - `JOBVITE_MAX_RESULTS` and
+  **The variables that had no name have one now** - `JOBVITE_MAX_RESULTS` and
   `JOBVITE_OUTBOUND_RATE_LIMIT` below, and `JOBVITE_MCP_HOST`, `JOBVITE_MCP_PORT` and
   `JOBVITE_HTTP_TOKENS` in §7.1 and §7.2. Leaving any of them unnamed made `.env.example` incomplete
   by construction and blocked the units that read them (B15). **The first two were found by a
@@ -1579,9 +1640,15 @@ it**, so the obligation is discharged by specification rather than by fabricatio
     therefore a conservative guess and not a vendor figure**, chosen to keep an interactive session
     usable while sitting far under any plausible limit, and it is recorded as a guess so nobody
     later cites it as documented. Checklist row 9 is what replaces it with an observation.
+  - **`JOBVITE_OUTBOUND_BUDGET_SECONDS`**, seconds - §4.3's total outbound budget, the deadline the
+    transport does not supply (ADR-0027). §4.3 requires that budget to be **configured**, and naming
+    it here is what makes that requirement true; until it was named, a section of this document
+    demanded a variable no other section admitted existed. Like the throttle above, its default is a
+    choice made with nothing observed about Jobvite's latency to support it, and it is recorded as
+    such rather than as a measured figure.
 
-  Both are now in `.env.example`, which closes B15's blocking half. What remains open is whether
-  either default is *right*, which no amount of specification settles and only a live tenant can.
+  These are now in `.env.example`, which closes B15's blocking half. What remains open is whether
+  their defaults are *right*, which no amount of specification settles and only a live tenant can.
 - **An `mcp-name:` string, added before the first PyPI upload and not after.** PyPI ownership
   verification for the MCP registry reads it out of the README, which becomes the package
   description, so retrofitting it costs a version bump. Cheap now, annoying later, and free if we
@@ -1722,12 +1789,13 @@ column and the check is a script.
 | C1-D1 | Connection or request flooding on the HTTP transport | M | M | Medium | `RateLimitingMiddleware` with a mandatory `get_client_id`, sized per session (§4.4) Mitigated. | not required (Medium) |
 | C1-E1 | A token provisioned with the wrong scope set reaches candidate PII it should not | L | H | Medium | `require_scopes` on the three data classes (§7.2). Consider validating configured scope sets at startup Mitigated. | not required (Medium) |
 
-**C2. Middleware stack** (§7.7: `Timing`, `StructuredLogging`, `RateLimiting`)
+**C2. Middleware stack** (§7.7: `Timing`, `StructuredLogging`, `RateLimiting`, `DereferenceRefs`)
 
 | ID | Threat | L | I | Risk | Mitigation | Test |
 |---|---|---|---|---|---|---|
 | C2-S1 | No credible threat. No adopted middleware establishes identity | - | - | - | Identity is established at C1 | no credible threat |
 | C2-T1 | No credible threat. No adopted middleware mutates request or response payloads | - | - | - | Payload shaping happens in the tools and in `models/`, which is C3 and C6 | no credible threat |
+| C2-T2 | `DereferenceRefsMiddleware` rewrites published tool schemas, inlining `$ref` before they reach a caller (ADR-0032) | L | L | Low | It rewrites **schemas** and never request or response payloads, so it cannot carry caller data anywhere; it runs downstream of `RequestIdMiddleware`, so anything it emits is correlated; it has no configuration we set and no credential. Adopted rather than disabled (§7.7). Mitigated | §8: `test_no_input_model_produces_a_ref_for_the_middleware_to_inline` - the tripwire is on the model side, and fires when a model starts nesting |
 | C2-R1 | `StructuredLoggingMiddleware` runs with `include_payloads=False` and so emits no arguments, leaving invocations unreconstructable | H | M | **High** | `audit.py` emits redacted arguments itself rather than assuming middleware provides them (§5.3). Mitigated | §8: the audit event is emitted and carries its mandated fields |
 | C2-I1 | `include_payloads` flipped to `True`, sending raw candidate PII to the framework log | L | H | Medium | Constructed with explicit arguments; the value is stated in §7.7 and its rationale in §5.3. Mitigated by review, not by a control | not required (Medium) |
 | C2-D1 | A configuration reload calls `limiters.clear()`, resetting every client's quota; repeated reloads are a trivial bypass (§4.4) | L | M | Low | Accepted. Requires operator access. Carried to Residual Risks | residual |

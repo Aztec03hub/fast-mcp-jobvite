@@ -1,6 +1,6 @@
-"""The `FastMCP` instance and lifespan composition (DESIGN.md:960-961).
+"""The `FastMCP` instance and lifespan composition (DESIGN.md:1013-1014).
 
-DESIGN.md:960-961 states "startup in order, teardown in strict reverse,
+DESIGN.md:1013-1014 states "startup in order, teardown in strict reverse,
 verified". That property had no test, and its two halves fail
 differently: an out-of-order startup is usually visible, an out-of-order
 teardown is usually not.
@@ -93,7 +93,7 @@ def test_mask_error_details_is_set_explicitly() -> None:
 
 
 async def test_composed_lifespans_start_in_order_and_tear_down_in_reverse() -> None:
-    """DESIGN.md:960-961, which had no test before this one.
+    """DESIGN.md:1013-1014, which had no test before this one.
 
     Two composed lifespans, not one: with a single extra the sequence is
     up-then-down whatever the operator does, so a one-lifespan arm
@@ -182,7 +182,7 @@ def test_main_returns_the_refusal_status_without_serving(
 
 
 async def test_the_server_registers_exactly_the_enabled_tools() -> None:
-    """U1 owns the enable GATE, not the tools (DESIGN.md:919-936).
+    """U1 owns the enable GATE, not the tools (DESIGN.md:972-989).
 
     **Rewritten by U5, which is the unit that made the old assertion
     false.** It read `assert await client.list_tools() == []` under the
@@ -244,7 +244,7 @@ async def test_the_live_middleware_stack_is_five_and_the_fifth_is_injected() -> 
 
     `FastMCP.__init__` appends `DereferenceRefsMiddleware()` whenever
     `dereference_schemas` is true, which is its default. The threat
-    model at `DESIGN.md:1725` names the stack it analysed as
+    model at `DESIGN.md:1792` names the stack it analysed as
     `Timing, StructuredLogging, RateLimiting` - so C2 was written
     against a stack that is not the one that runs.
 

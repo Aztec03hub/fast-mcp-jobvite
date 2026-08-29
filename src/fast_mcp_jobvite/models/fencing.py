@@ -21,8 +21,8 @@ candidate free text, which is the attacker-authored class.
 The source of that decision is
 `docs/plans/IMPLEMENTATION-PLAN.md`, under **"Why the
 fencing-decision registry lands here and not in U8"**. It was cited
-here as `DESIGN.md:828-833`, which was the right LINES in the wrong
-FILE: `DESIGN.md:828-833` at the frozen `c15b138` is the
+here as `DESIGN.md:881-886`, which was the right LINES in the wrong
+FILE: `DESIGN.md:881-886` at the frozen `c15b138` is the
 `JOBVITE_HTTP_TOKENS` paragraph, a different subject entirely. The
 plan is not frozen and those lines have already moved once, so it is
 cited by heading rather than by number.
@@ -46,7 +46,7 @@ from typing import Annotated, Any, Final, get_args, get_origin
 
 from pydantic import BaseModel
 
-#: Separator between path segments, matching DESIGN.md:747-749's own
+#: Separator between path segments, matching DESIGN.md:800-802's own
 #: example key `candidates[].application.job.title`.
 PATH_SEPARATOR: Final = "."
 
@@ -58,14 +58,14 @@ class FencingDecision(enum.StrEnum):
     """What U8 must do with an admitted field.
 
     A closed set, for the reason `error-contract.md`'s registry is
-    closed (DESIGN.md:688-690): a value that governs a security
+    closed (DESIGN.md:741-743): a value that governs a security
     control is a contract, and an open string invites a second
     spelling of the first answer.
     """
 
     #: Attacker-authored free text. U8 fences it, and strips
     #: delimiter tokens occurring inside the content so the content
-    #: cannot close its own fence (DESIGN.md:744-745).
+    #: cannot close its own fence (DESIGN.md:797-798).
     FENCE = "fence"
 
     #: Not free text: an identifier, an enumerated state, a URL, an

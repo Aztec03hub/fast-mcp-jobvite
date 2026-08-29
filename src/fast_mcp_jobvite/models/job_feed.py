@@ -23,7 +23,7 @@ Mapping the feed onto `Job` would mean either dropping five fields or
 inventing values for three, and both are silent.
 
 **Public job data, and the separate credential class does not change
-that** (DESIGN.md:137, DESIGN.md:320-321). What makes this route
+that** (DESIGN.md:137, DESIGN.md:332-333). What makes this route
 special is the CREDENTIAL - it travels in the query string, so the URL
 is sensitive - not the payload, which is the career-site feed and is
 public by construction. So every field takes the same "not free text"
@@ -138,7 +138,7 @@ class FeedJob(BaseModel):
             _NOT_FREE_TEXT,
             "briefdescription",
             "recruiter-authored summary; inside the operator org, so not the "
-            "attacker-authored class of DESIGN.md:738-744",
+            "attacker-authored class of DESIGN.md:791-797",
         ),
     ] = None
     description: Annotated[
@@ -147,7 +147,7 @@ class FeedJob(BaseModel):
             _NOT_FREE_TEXT,
             "description",
             "recruiter-authored posting body; inside the operator org, so not the "
-            "attacker-authored class of DESIGN.md:738-744",
+            "attacker-authored class of DESIGN.md:791-797",
         ),
     ] = None
     hiring_manager: Annotated[
@@ -169,7 +169,7 @@ class JobFeedResult(BaseModel):
     one domain object. `request_id` is **not** a field here for the
     reason `JobSearchResult` records: `_meta` is the protocol's own
     channel and an undeclared top-level key is rejected outright
-    (DESIGN.md:629-637).
+    (DESIGN.md:669-677).
     """
 
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -184,7 +184,7 @@ class JobFeedResult(BaseModel):
     ] = Field(default_factory=list)
 
     #: Jobvite's own reported total, from the envelope. **Reported,
-    #: never trusted as a loop condition** (DESIGN.md:487-489).
+    #: never trusted as a loop condition** (DESIGN.md:506-520).
     total: Annotated[int, Fenced(_NOT_FREE_TEXT, "total", "integer from the envelope")]
 
     @computed_field  # type: ignore[prop-decorator]
@@ -218,6 +218,6 @@ class JobFeedResult(BaseModel):
 
         Derived from `showing` and `total` in one place, so the string
         a caller reads and the numbers beside it cannot drift
-        (DESIGN.md:469-477).
+        (DESIGN.md:488-496).
         """
         return f"showing {self.showing:,} of {self.total:,}"

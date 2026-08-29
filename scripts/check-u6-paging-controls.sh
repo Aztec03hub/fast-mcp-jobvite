@@ -11,11 +11,11 @@
 # and its survivors are output rather than failure.
 #
 # THE ROWS THAT MATTER MOST HERE ARE M6 AND M7. They are the two arms of
-# the completeness check (DESIGN.md:469-477), and they fail in opposite
+# the completeness check (DESIGN.md:488-496), and they fail in opposite
 # directions: M6 makes the check fire on EVERY call, M7 makes it fire on
 # NONE. A suite with only one completeness case kills one of them and
 # lets the other through, and the one it lets through is usually M6 -
-# an implementation that alarms on the default path, which DESIGN.md:474
+# an implementation that alarms on the default path, which DESIGN.md:493
 # says "would train everyone to ignore it".
 #
 # LANDING AND RESTORE ARE CHECKED WITH `cmp`, NOT WITH `git diff`.
@@ -143,7 +143,7 @@ PY
 # start=0 - THE WHOLE MECHANISM, AND IT IS ONE CHARACTER
 # ===========================================================================
 
-# DESIGN.md:463-464: "Starting at 1 is the only choice that can silently
+# DESIGN.md:482-483: "Starting at 1 is the only choice that can silently
 # lose a record, because on a 0-based server record zero is never
 # requested." This is that one character.
 mutate "M1  the scan starts at 1 instead of 0" \
@@ -152,7 +152,7 @@ mutate "M1  the scan starts at 1 instead of 0" \
   'SCAN_START: Final = 0' \
   'SCAN_START: Final = 1'
 
-# The override stops being per resource (DESIGN.md:478-480). Overriding
+# The override stops being per resource (DESIGN.md:497-499). Overriding
 # the ONE route with an [OFFICIAL] base drags every [INFERRED] v2
 # resource with it, which is exactly the base-guess this section refuses
 # to make.
@@ -175,7 +175,7 @@ mutate "M3  the advance skips one record per page" \
 # ===========================================================================
 
 # The seen set never rejects anything, so a clamped page's boundary
-# record is returned twice (DESIGN.md:465-466).
+# record is returned twice (DESIGN.md:484-485).
 mutate "M4  the seen set never rejects a duplicate" \
   "$CLIENT" \
   "$SUITE::test_an_overlapping_page_drops_duplicates" \
@@ -198,14 +198,14 @@ mutate "M5  records without an id are de-duplicated onto one key" \
 # The short-page test reads the DE-DUPLICATED count instead of the raw
 # page. A full page that is entirely duplicate then looks short, and the
 # scan stops early on exactly the clamping hypothesis the seen set
-# exists to absorb (DESIGN.md:486).
+# exists to absorb (DESIGN.md:505).
 mutate "M6  the short-page test reads the kept records, not the raw page" \
   "$CLIENT" \
   "$SUITE::test_a_full_page_of_duplicates_is_not_a_short_page" \
   '            if len(page) < count:' \
   '            if len(items) < count:'
 
-# `total` becomes a loop condition, which DESIGN.md:487 forbids in
+# `total` becomes a loop condition, which DESIGN.md:506 forbids in
 # exactly those words. A server that understates `total` truncates the
 # scan and nothing reports it.
 mutate "M7  total is used as a loop condition" \
@@ -237,7 +237,7 @@ mutate "M8  total is counted from the page, not read from the envelope" \
 
 # ARM TWO BROKEN: the check no longer asks whether the caller wanted
 # everything, so a capped call reporting `showing 50 of 1,240` is logged
-# as an anomaly. DESIGN.md:474: this "would fire the alarm on the
+# as an anomaly. DESIGN.md:493: this "would fire the alarm on the
 # default path and train everyone to ignore it".
 mutate "M9  the completeness check fires on a capped call too" \
   "$CLIENT" \
@@ -258,7 +258,7 @@ mutate "M10 the completeness check never fires" \
 
 # The count compared is the wrong one: the duplicates the seen set
 # dropped are counted anyway, so the clamping hypothesis - which serves
-# one duplicate per page after the first (DESIGN.md:460-462) - inflates
+# one duplicate per page after the first (DESIGN.md:479-481) - inflates
 # `unique` past `total` and a WHOLE scan reports itself incomplete.
 #
 # R5-M4: THIS ROW'S TITLE AND BODY BOTH USED TO BE WRONG, in opposite
@@ -294,7 +294,7 @@ mutate "M11 the completeness count includes duplicates the seen set dropped" \
 
 # The `min()` is gone and the transport cap wins always. The configured
 # `JOBVITE_MAX_RESULTS` stops bounding anything that leaves the
-# transport (DESIGN.md:434-436).
+# transport (DESIGN.md:453-455).
 mutate "M12 the result cap drops the configured half of the min()" \
   "$CLIENT" \
   "$SUITE::test_the_result_cap_is_the_min_of_the_two_halves" \
@@ -319,7 +319,7 @@ mutate "M14 the jobFeed page cap is the v2 one" \
   'JOBFEED_PAGE_CAP: Final = 1000' \
   'JOBFEED_PAGE_CAP: Final = 500'
 
-# The v2 transport cap moves. DESIGN.md:434 is the only source for 500
+# The v2 transport cap moves. DESIGN.md:453 is the only source for 500
 # and it is NOT an observation, which is why the constant is pinned by a
 # case rather than left to whatever a later edit types.
 mutate "M15 the v2 page cap is not the design's figure" \

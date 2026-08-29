@@ -6,7 +6,7 @@ does not reach the caller, and it fails closed: a new Jobvite field is
 dropped until someone admits it deliberately.
 
 **THE EEO FIELDS ARE NOT IN ANY MODEL AND THEREFORE NEVER LEAVE THE
-SERVER** (DESIGN.md:780-783, ADR-0008). Our own fixtures show `gender`,
+SERVER** (DESIGN.md:833-836, ADR-0008). Our own fixtures show `gender`,
 `race` and `veteranStatus` in candidate responses; they are
 special-category personal data, and left alone they would flow straight
 to a model. **The allow-list is the mechanism, and §8 #6 asserts it
@@ -17,7 +17,7 @@ that the model cannot carry them does not. C6-I1, Critical.
 The point generalises: it is not "drop three fields" but "nothing
 reaches the model that was not deliberately admitted".
 
-**This is the attacker-authored data class** (DESIGN.md:738-745), which
+**This is the attacker-authored data class** (DESIGN.md:791-798), which
 is what makes these models different from `models/jobs.py`. There every
 field takes an explicit *not free text* decision because job data is
 recruiter-authored inside the operator's organisation. Here the answer
@@ -31,10 +31,10 @@ application form* and is fenced. `candidates[].application.job.title`
 is a requisition title authored inside the operator org and is not -
 the same decision `models/jobs.py` records for it. **A name-keyed
 allow-list cannot express that and would collide here and nowhere
-else** (DESIGN.md:747-749).
+else** (DESIGN.md:800-802).
 
 **Dates are the NORMALISED spelling, not Jobvite's**
-(§9 hazard 2, DESIGN.md:1381). Jobvite answers in epoch milliseconds
+(§9 hazard 2, DESIGN.md:1442). Jobvite answers in epoch milliseconds
 and takes `yyyy-MM-dd` on the way in; `utils/normalise.py` converts at
 the boundary so one concept has one spelling in the tool surface.
 `models/jobs.py` deliberately did NOT do this and said so - the
@@ -61,7 +61,7 @@ CANDIDATES_ENVELOPE_KEY: Final = "candidates"
 #: `JOBVITE-API.md:398`: the recorded call requested 5 records and the
 #: response reported a `total` in the hundreds of thousands, so this is
 #: the FULL result-set size and never the page size - and never a loop
-#: condition (DESIGN.md:486-487).
+#: condition (DESIGN.md:505-506).
 TOTAL_ENVELOPE_KEY: Final = "total"
 
 #: The special-category fields §6.2 names, in **Jobvite's own casing**,
@@ -78,12 +78,12 @@ _FENCE = FencingDecision.FENCE
 _NOT_FREE_TEXT = FencingDecision.NOT_FREE_TEXT
 
 #: The reason every candidate-typed field carries. Written once because
-#: it is one argument, not eleven: DESIGN.md:740-742 defines the class
+#: it is one argument, not eleven: DESIGN.md:793-795 defines the class
 #: as "input from people outside the operator's organisation, fed
 #: directly to a model".
 _CANDIDATE_TYPED: Final = (
     "free text the candidate typed; outside the operator org, so the "
-    "attacker-authored class of DESIGN.md:738-745"
+    "attacker-authored class of DESIGN.md:791-798"
 )
 
 
@@ -129,7 +129,7 @@ class CandidateJob(BaseModel):
 class CandidateResume(BaseModel):
     """The inline résumé body.
 
-    **DESIGN.md:740 names résumé bodies FIRST** in its definition of
+    **DESIGN.md:793 names résumé bodies FIRST** in its definition of
     the attacker-authored class, so `content` is the archetypal fenced
     field and `candidate_list_injection.json` attacks precisely it.
     """
@@ -142,7 +142,7 @@ class CandidateResume(BaseModel):
     ] = None
     content: Annotated[
         str | None,
-        Fenced(_FENCE, "content", "the résumé body itself; DESIGN.md:740 names it"),
+        Fenced(_FENCE, "content", "the résumé body itself; DESIGN.md:793 names it"),
     ] = None
 
 
@@ -234,7 +234,7 @@ class Candidate(BaseModel):
     city: Annotated[str | None, Fenced(_FENCE, "city", _CANDIDATE_TYPED)] = None
     state: Annotated[str | None, Fenced(_FENCE, "state", _CANDIDATE_TYPED)] = None
     country: Annotated[str | None, Fenced(_FENCE, "country", _CANDIDATE_TYPED)] = None
-    #: THE PATH-KEYED CASE (DESIGN.md:747-749). The candidate's OWN job
+    #: THE PATH-KEYED CASE (DESIGN.md:800-802). The candidate's OWN job
     #: title, typed by them. `candidates[].application.job.title` is a
     #: requisition title and takes the opposite decision.
     title: Annotated[str | None, Fenced(_FENCE, "title", _CANDIDATE_TYPED)] = None
@@ -256,7 +256,7 @@ class CandidateSearchResult(BaseModel):
     """One capped page of candidates, with the cap reported not hidden.
 
     **`request_id` is deliberately NOT a field here**
-    (DESIGN.md:629-637). `additionalProperties: false` is set below and
+    (DESIGN.md:669-677). `additionalProperties: false` is set below and
     the client validates structured content against the cached output
     schema unconditionally, so an undeclared top-level `request_id` is
     rejected. `_meta` is the protocol's own channel.
@@ -275,7 +275,7 @@ class CandidateSearchResult(BaseModel):
     ] = Field(default_factory=list)
 
     #: Jobvite's own reported total, from the envelope. **Reported,
-    #: never trusted as a loop condition** (DESIGN.md:486-489).
+    #: never trusted as a loop condition** (DESIGN.md:505-520).
     total: Annotated[
         int, Fenced(_NOT_FREE_TEXT, "total", "integer from the envelope")
     ] = 0
@@ -311,7 +311,7 @@ class CandidateSearchResult(BaseModel):
     ]:
         """The caller-facing `showing N of total` line.
 
-        DESIGN.md:474-476 uses `showing 50 of 1,240` as its own worked
+        DESIGN.md:493-495 uses `showing 50 of 1,240` as its own worked
         example, and a capped result **reports** rather than truncating
         silently.
 

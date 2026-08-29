@@ -13,7 +13,7 @@ factor out on sight", so the module is specified rather than left to
 whoever noticed.
 
 **What a violation looks like to a caller: nothing shaped like a
-problem object.** DESIGN.md:548-568 is explicit that every check here
+problem object.** DESIGN.md:588-608 is explicit that every check here
 lives in the input models, therefore runs **before the tool body**,
 and is raised by the framework - so by SS5.1's own reasoning (a
 problem object is safe precisely because it is *returned* rather than
@@ -134,7 +134,7 @@ _NO_FORBIDDEN = f"\\A[^{_CONTROL_CHARACTERS}{_BIDI_OVERRIDES}]*\\z"
 MAX_TEXT_LENGTH: Final = 256
 
 #: Ceiling for a Jobvite identifier. `eId` is an opaque 8-character
-#: identifier (DESIGN.md:471-473), and the ceiling is deliberately
+#: identifier (DESIGN.md:490-492), and the ceiling is deliberately
 #: looser than 8 because the width is `[INFERRED]` in the research and
 #: a tighter bound would refuse a valid id on our own guess.
 MAX_IDENTIFIER_LENGTH: Final = 64
@@ -226,7 +226,7 @@ PositiveCount = Annotated[int, Field(ge=1)]
 #: SS2.1's nesting ceiling. The argument object itself is depth 1, so a
 #: flat object of scalars is depth 1 and five levels of nesting is the
 #: deepest ACCEPTED payload.
-#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: This module's own claim to a coverage role from DESIGN.md:1423-1425,
 #: read by `docs/reviews/check-coverage-floors.py`. The design names the
 #: roles and not the paths, and the claim lives HERE rather than in a
 #: role-to-module map in the checker, which would be a hand-kept list

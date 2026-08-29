@@ -12,7 +12,7 @@
 # sensitive to something, not that the assertion the design relies on is the one
 # watching. That is the difference between a control and a coincidence.
 #
-# THE ROW THAT MATTERS MOST IS M02. DESIGN.md:332-333's first arm is C5-S1, the
+# THE ROW THAT MATTERS MOST IS M02. DESIGN.md:344-345's first arm is C5-S1, the
 # only Critical on the client: HTTP 200 with {"status":{"code":401}}. If M02
 # does not kill `test_C5_S1_...`, this unit has not been verified at all.
 #
@@ -104,7 +104,7 @@ PY
 }
 
 # ===========================================================================
-# THE INVARIANT (DESIGN.md:332-333). M01-M04 are the reason this file exists.
+# THE INVARIANT (DESIGN.md:344-345). M01-M04 are the reason this file exists.
 # ===========================================================================
 
 # M01 - the boundary itself. `>= 400` becomes `> 400`, so a status.code of
@@ -123,7 +123,7 @@ run_mutation "M02 the envelope arm never fires (C5-S1)" "$CLIENT" \
   'test_C5_S1_an_http_200_carrying_a_401_body_is_NOT_a_success'
 
 # M03 - the HTTP arm stops firing for everything below 600, which is every
-# status that exists. DESIGN.md:332-333 says BOTH arms, every call.
+# status that exists. DESIGN.md:344-345 says BOTH arms, every call.
 run_mutation "M03 the HTTP-status arm never fires" "$CLIENT" \
   '    if http_status >= ERROR_STATUS_THRESHOLD:
         raise JobviteUpstreamError(http_status, _envelope_message(payload))' \
@@ -284,11 +284,11 @@ run_mutation "M15 the cookie jar is carried between requests" "$CLIENT" \
   'test_no_cookie_jar_is_carried_between_requests'
 
 # M16 - the per-phase timeout collapses to a single scalar, which is what
-# DESIGN.md:346 forbids ("No SDK default, no single scalar").
+# DESIGN.md:358 forbids ("No SDK default, no single scalar").
 # REPOINTED BY U7: the four phases are NAMED CONSTANTS now
 # (DEFAULT_CONNECT_TIMEOUT and its three siblings) rather than inline literals,
 # and the construction moved out of the `AsyncClient(...)` call so
-# `_attempt_timeout` can clamp it to the outbound budget. DESIGN.md:346's
+# `_attempt_timeout` can clamp it to the outbound budget. DESIGN.md:358's
 # subject - "no single scalar" - is what this row still mutates.
 run_mutation "M16 the per-phase timeout becomes a single scalar" "$CLIENT" \
   '        self._timeout = timeout or httpx2.Timeout(

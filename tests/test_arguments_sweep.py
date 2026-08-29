@@ -41,7 +41,7 @@ constructed model - and never about a problem-object shape. A test
 asserting a problem shape here would be asserting something this code
 cannot produce.
 
-**THE BLANKET POSITIVE CONTROL (`DESIGN.md:1370-1371`).** "A guard that
+**THE BLANKET POSITIVE CONTROL (`DESIGN.md:1431-1432`).** "A guard that
 refuses everything is not a guard, and its refusals prove nothing."
 All three cases carry one, and #9 carries **four** - one per limit -
 because a limit test with no accepting arm cannot tell a correct limit
@@ -834,7 +834,7 @@ def _valid_payload(model: type[BaseModel]) -> dict[str, Any]:
 def test_case7_POSITIVE_CONTROL_a_well_formed_argument_passes(
     model: type[BaseModel],
 ) -> None:
-    """§8 #7's positive control (`DESIGN.md:1370-1371`).
+    """§8 #7's positive control (`DESIGN.md:1431-1432`).
 
     Without this arm every refusal below is satisfied by a model that
     refuses everything.
@@ -846,7 +846,7 @@ def test_case7_POSITIVE_CONTROL_a_well_formed_argument_passes(
 def test_case7_an_undeclared_argument_key_FAILS_CLOSED(
     model: type[BaseModel],
 ) -> None:
-    """§8 #7 (`DESIGN.md:1289-1290`), B12 and B23.
+    """§8 #7 (`DESIGN.md:1350-1351`), B12 and B23.
 
     **No problem object is asserted, because none can be produced**
     (`DESIGN.md:181-190`). What is asserted is that nothing is
@@ -889,7 +889,7 @@ def test_the_wrong_type_arm_is_not_vacuous_for_want_of_a_field() -> None:
 
 
 # ======================================================================
-# 4. §8 #8 - CONTROL CHARACTERS AND BIDI OVERRIDES (DESIGN.md:1291-1294)
+# 4. §8 #8 - CONTROL CHARACTERS AND BIDI OVERRIDES (DESIGN.md:1352-1355)
 # ======================================================================
 
 #: One representative of each forbidden class. `\x00` is the C0 case
@@ -932,7 +932,7 @@ def test_case8_a_forbidden_character_in_ANY_string_field_FAILS_CLOSED(
 def test_case8_POSITIVE_CONTROL_an_ordinary_name_passes(
     model: type[BaseModel], field: str
 ) -> None:
-    """§8 #8's own positive control, which `DESIGN.md:1292` names.
+    """§8 #8's own positive control, which `DESIGN.md:1353` names.
 
     "with a positive control showing an ordinary name still passes".
     """
@@ -1169,7 +1169,7 @@ def _all_python_modules() -> list[pathlib.Path]:
 
 
 def test_the_no_success_envelope_rule_now_runs_over_the_COMPLETED_corpus() -> None:
-    """§5.1 / `DESIGN.md:497`, re-asserted where it has teeth.
+    """§5.1 / `DESIGN.md:528`, re-asserted where it has teeth.
 
     Two claims, and the second is the one U2 could not make: the rule
     finds nothing, AND the corpus it looked at is the whole tree rather
