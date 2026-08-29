@@ -731,6 +731,13 @@ UNAVAILABLE_BREAKER_DETAIL: Final = (
     "We have stopped calling Jobvite because it has been failing. "
     "This is an open circuit breaker, not an upstream failure in flight."
 )
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "the Jobvite client"
+
 UNAVAILABLE_BUDGET_DETAIL: Final = (
     "The total outbound time budget for this invocation was exhausted "
     "before Jobvite answered. This is a bound we applied, not an open "

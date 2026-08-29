@@ -81,6 +81,13 @@ from fast_mcp_jobvite.utils.constraints import InboundModel
 #: The sessionless era, and the tuple FastMCP's own guard compares
 #: against (`FASTMCP-SPIKE-4.md:2085`). MRTR is available here and
 #: `ctx.elicit()` raises.
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "approval"
+
 MODERN_PROTOCOL_VERSIONS: Final[tuple[str, ...]] = ("2026-07-28",)
 
 #: The handshake era. `ctx.elicit()` is available here and MRTR raises

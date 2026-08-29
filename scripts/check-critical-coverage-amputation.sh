@@ -44,11 +44,11 @@ export PYTHONDONTWRITEBYTECODE=1
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 3
 
-# DERIVED FROM A RUN, not typed in: eleven rows are defined below and
-# eleven ran when this was written. `FIRED -ne TOTAL` is satisfied by
+# DERIVED FROM A RUN, not typed in: fifteen rows are defined below and
+# fifteen ran when this was written. `FIRED -ne TOTAL` is satisfied by
 # `0 == 0`, so a harness with every row deleted reports "0/0" and exits
 # clean without a floor.
-ROW_FLOOR=11
+ROW_FLOOR=15
 
 #: The one row whose survival is a declared finding rather than a
 #: defect. Everything else going vacuous fails this harness.
@@ -56,13 +56,15 @@ EXPECTED_SURVIVOR="A1"
 
 APPROVAL="src/fast_mcp_jobvite/approval.py"
 CANDIDATES="src/fast_mcp_jobvite/tools/candidates.py"
-SUITE="tests/test_approval_write.py tests/test_tools_candidates.py"
+CHECKER="docs/reviews/check-coverage-floors.py"
+SUITE="tests/test_approval_write.py tests/test_tools_candidates.py \
+tests/test_coverage_floors.py"
 OUT=/tmp/critical-coverage-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
 trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
-for f in "$APPROVAL" "$CANDIDATES"; do
+for f in "$APPROVAL" "$CANDIDATES" "$CHECKER"; do
   cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
     { echo "COULD NOT TAKE PRISTINE COPY of $f"; exit 3; }
 done
@@ -323,6 +325,75 @@ amputate "A11 a failed read is audited as a success" "$CANDIDATES" \
                     event.result_status = "error"' \
   '                    record = _one_record(payload)
                 except Exception as exc:  # noqa: BLE001 - every failure is a problem'
+
+# ---------------------------------------------------------------------------
+# ROWS A12 TO A15 AMPUTATE THE CHECKER, NOT THE SERVER.
+#
+# `check-coverage-floors.py` is the artefact that makes ADR-0010's
+# per-module floors enforceable rather than documented, and #94's whole
+# subject is that an obligation nobody reads is not an obligation. A
+# checker whose refusal arms have never been watched fire is the same
+# defect one level up: it reports OK, and OK is what it would report
+# either way. `tests/test_coverage_floors.py` drives each arm; these
+# rows delete the arms and require those cases to notice.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A12 - THE FLOOR COMPARISONS ARE GONE. Every number is read, printed,
+# and compared against nothing. THIS IS THE STATE THE REPOSITORY WAS
+# ALREADY IN before #94: pyproject.toml's comment said the per-module
+# floors were "enforced by the units that create those modules", and
+# they were enforced by nobody, which is how two critical paths sat ten
+# points under their floor with every gate green.
+# ---------------------------------------------------------------------------
+amputate "A12 the per-module floor comparisons are deleted" "$CHECKER" \
+  '        if line < line_floor:
+            failures.append(f"{rel}: {line:.2f}% line, below {line_floor}%")
+        if branch_floor and branch < branch_floor:
+            failures.append(f"{rel}: {branch:.2f}% branch, below {branch_floor}%")' \
+  '        pass'
+
+# ---------------------------------------------------------------------------
+# A13 - THE BRANCH FLOOR ALONE IS GONE. The narrower row, and the one
+# that matters most here: BOTH of #94's misses were on branch and
+# neither was on line, so a checker keeping only the line comparison
+# would have reported a clean pass over the exact defect that opened
+# this task. Line coverage is the half people look at.
+# ---------------------------------------------------------------------------
+amputate "A13 only the branch floor comparison is deleted" "$CHECKER" \
+  '        if branch_floor and branch < branch_floor:' \
+  '        if False and branch_floor and branch < branch_floor:'
+
+# ---------------------------------------------------------------------------
+# A14 - THE ROLE JOIN NO LONGER LOOKS FOR UNCLAIMED ROLES. A floor the
+# design sets and no module claims goes back to being enforced by
+# nothing - silently, with every remaining module at 100% and the
+# checker exiting 0. This is #94's second half restored.
+# ---------------------------------------------------------------------------
+amputate "A14 the join stops noticing a role no module claims" "$CHECKER" \
+  '    unclaimed = expected - declared_role_set' \
+  '    unclaimed = set()'
+
+# ---------------------------------------------------------------------------
+# A15 - THE DESIGN IS NOT PARSED; THE FLOORS ARE TYPED IN. Every number
+# still appears, the table still prints, and the checker still refuses a
+# module under a floor - so nine of the ten control arms stay green. It
+# is a SECOND COPY of ADR-0010's decision, which is the failure mode
+# this repository has watched rot in a brief, two obligation rows, a CI
+# comment and three harness floors. The control that catches it is the
+# synthetic design, whose floors are deliberately not ADR-0010's.
+# ---------------------------------------------------------------------------
+amputate "A15 the floors are typed in rather than read from the design" "$CHECKER" \
+  '    floors, design_role_set = parse_design(design.read_text(encoding="utf-8"))' \
+  '    _, design_role_set = parse_design(design.read_text(encoding="utf-8"))
+    floors = {
+        "overall": 80,
+        "tool modules": 85,
+        "the Jobvite client": 90,
+        "utils/": 95,
+        "critical line": 95,
+        "critical branch": 90,
+    }'
 
 # ---------------------------------------------------------------------------
 # THE GATE.

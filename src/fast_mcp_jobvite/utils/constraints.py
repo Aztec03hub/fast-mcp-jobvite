@@ -206,6 +206,13 @@ PositiveCount = Annotated[int, Field(ge=1)]
 #: SS2.1's nesting ceiling. The argument object itself is depth 1, so a
 #: flat object of scalars is depth 1 and five levels of nesting is the
 #: deepest ACCEPTED payload.
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "argument rejection"
+
 MAX_NESTING_DEPTH: Final = 5
 
 #: SS2.1's list ceiling. 1,000 items is ACCEPTED; 1,001 is not.

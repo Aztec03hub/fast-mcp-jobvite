@@ -80,6 +80,13 @@ VALIDATION_ERROR: Final = ProblemKind(
 RESOURCE_NOT_FOUND: Final = ProblemKind(
     "/problems/resource-not-found", "Resource Not Found", 404
 )
+#: This module's own claim to a coverage role from DESIGN.md:1362-1364,
+#: read by `docs/reviews/check-coverage-floors.py`. The design names the
+#: roles and not the paths, and the claim lives HERE rather than in a
+#: role-to-module map in the checker, which would be a hand-kept list
+#: beside its container. The checker asserts the two sets are EQUAL.
+COVERAGE_ROLE: Final = "the error rule"
+
 CONFLICT: Final = ProblemKind("/problems/conflict", "Conflict", 409)
 FORBIDDEN: Final = ProblemKind("/problems/forbidden", "Forbidden", 403)
 INTERNAL_ERROR: Final = ProblemKind(
