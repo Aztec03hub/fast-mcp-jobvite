@@ -205,8 +205,10 @@ check-suite-floor.sh 398
 | `docs/reviews/check-coupling-controls.py` | `34/34 controls fired.` | 0 |
 
 **398 passed equals the floor of 398, and 0 skipped.** The 5 are *deselected*,
-not skipped - they are excluded by the default marker expression, and
-`check-suite-floor.sh` reads the `passed` figure.
+not skipped: they carry the `credentialed` marker, which `pyproject.toml:127`'s
+`addopts` deselects and which `pyproject.toml:136` documents as deliberately
+deselected rather than `skipif`. `scripts/check-suite-floor.sh:38` reads the
+last `N passed` in the output, so deselection does not inflate it.
 
 `check-obligations.py` was worth running rather than assuming: this branch
 re-wraps comment text, and obligation anchors are subject strings inside it.
