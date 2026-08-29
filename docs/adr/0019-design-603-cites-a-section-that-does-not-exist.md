@@ -1,11 +1,12 @@
 # ADR-0019: `DESIGN.md:603` cites `§5.4`, and there is no §5.4
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed**, because `DESIGN.md` is frozen and this changes its text. It is the smallest change
-> any ADR here has proposed and it is still an ADR, because the alternative is an unrecorded edit to
-> a frozen document - which is the precedent that matters, not the character count.
+> **Accepted and APPLIED**, in the ADR batch. It was the smallest change any ADR here proposed and
+> it was still an ADR, because the alternative is an unrecorded edit to a frozen document - which
+> is the precedent that matters, not the character count. `check-cross-references.py` went green on
+> it and is now wired into `ci.yml`.
 
 ## Context
 

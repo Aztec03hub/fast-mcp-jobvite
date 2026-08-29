@@ -116,8 +116,10 @@ tokens, and the reason it was actually refused would never be printed.
 **`__main__.py`.** Logging configured to **stderr** before the package imports - on stdio the
 JSON-RPC channel is stdout, so one log record there corrupts the protocol.
 `_install_shutdown_handler()` installs an explicit handler and never reads ambient state.
-`os._exit(0)` in the `finally`. Refusals exit **78** (`EX_CONFIG`), which is distinct from 1 so a
-supervisor can tell "misconfigured, retrying will not help" from an ordinary failure.
+`os._exit(status)` in the `finally`, where `status` is `0` on the `KeyboardInterrupt` path and
+`EXIT_SOFTWARE` (**70**, `EX_SOFTWARE`) when anything else escapes `mcp.run` (ADR-0018). Refusals
+exit **78** (`EX_CONFIG`), which is distinct from both so a supervisor can tell "misconfigured,
+retrying will not help" from an ordinary failure and from a crash.
 
 **`server.py`.** `mask_error_details=True` **explicitly**, `|` composition via
 `from fastmcp.server.lifespan import lifespan`, and settings published into the lifespan context
@@ -181,7 +183,7 @@ exit code**. The interpreter is resolved from `/proc/<pid>/cmdline` and compared
 reasoning about it.**
 
 1. **"The composed snippet has never been run end to end on HTTP."** Now run. The handler and the
-   `finally: os._exit(0)` are executed together on HTTP by `test_sigterm_runs_lifespan_teardown[http]`.
+   `finally: os._exit(status)` are executed together on HTTP by `test_sigterm_runs_lifespan_teardown[http]`.
 2. **"PID 1 was never simulated."** Now simulated, in a container, on **both** transports. `unshare
    --pid` is not permitted on this host, so this used Docker with no `--init`, which makes the
    command PID 1, and `docker stop -t 15`, which delivers a real SIGTERM to PID 1 and SIGKILLs after
@@ -209,7 +211,7 @@ Docker daemon into CI for one arm is a required check that goes red for reasons 
 `scripts/check-u1-pid1-shutdown.sh` - **prose about a measurement decays into a claim about one**,
 and I would rather commit the script.
 
-**Only the stdio arm exercises the `os._exit(0)` half**, as `DESIGN.md:1342-1343` says. Mutant M12
+**Only the stdio arm exercises the forced-exit half**, as `DESIGN.md:1342-1343` says. Mutant M12
 removes it and `test_only_stdio_exercises_the_forced_exit` goes red; the HTTP arm stays green
 against the same mutant. A single-transport test would have shipped it.
 
@@ -236,7 +238,8 @@ byte copy taken at the top, never `git checkout --`.
 | M9 | an empty value counts as a present credential | `test_an_empty_value_is_treated_as_unset` |
 | M10 | `mask_error_details=False` | `test_mask_error_details_is_set_explicitly` |
 | M11 | the SIGTERM handler is never installed | `test_sigterm_runs_lifespan_teardown` |
-| M12 | `os._exit(0)` removed from the `finally` | `test_only_stdio_exercises_the_forced_exit` |
+| M12 | the forced exit removed from the `finally` | `test_only_stdio_exercises_the_forced_exit` |
+| M14 | `os._exit(status)` becomes a constant `os._exit(0)` again, the call still unconditional (ADR-0018's defect) | `test_the_shipped_entry_point_is_what_the_case_exercises` |
 | M13 | the extra lifespan is dropped from the composition | `test_composed_lifespans_start_in_order_and_tear_down_in_reverse` |
 
 **M4 survived its first pairing, and the reason is worth carrying.** Paired with the "all reads"
@@ -276,7 +279,7 @@ exactly the seven transport arms, E killed the matrix arms and **kept** the ones
 F killed 32.
 
 **Finding, and it is the one amputation exists for.** Row H is not stable. Amputating the whole
-`finally` block - the flushes and `os._exit(0)` together - left
+`finally` block - the flushes and the forced exit together - left
 `test_only_stdio_exercises_the_forced_exit` **green** in the harness run and **red** when I re-ran
 the same amputated tree against the full suite. Measured deliberately rather than assumed:
 
@@ -319,7 +322,7 @@ run. Two fixes, both landed:
    HANGS rather than failing`. The interlock fixes this case; the cap is what stops the next one
    costing half an hour.
 
-**A grep for `os._exit(0)` in `__main__.py` is a false negative every time**, because the module
+**A grep for the forced exit in `__main__.py` is a false negative every time**, because the module
 docstring names the call in order to explain it. My first repeat-probe aborted on exactly that. The
 harness's landed-check greps the **8-space-indented** form, and the "handler reads no ambient state"
 test parses the AST rather than grepping, for the same reason: this module's prose names the defect
@@ -379,7 +382,8 @@ config, which is U0's key to add.
 
 ## 9. Findings
 
-**F1 (Medium, ADR filed). `os._exit(0)` in the `finally` reports a crash as a clean stop.**
+**F1 (Medium, ADR-0018 ACCEPTED and APPLIED). `os._exit(0)` in the `finally` reported a crash as a
+clean stop.**
 `DESIGN.md:990-1008` puts the forced exit in a `finally`, which runs on *every* exit from the `try`,
 not only the `KeyboardInterrupt` path the prose is about. A port already bound, an unhandled
 exception, an escaping cancellation - all exit **0**. Every supervisor that will ever watch this
@@ -387,7 +391,12 @@ server reads the exit status, and `0` means *finished normally, do not restart, 
 #18 already refuses to assert shutdown by the exit code "since a process that dies uncleanly can
 still exit 0" - the design identified that an exit code can lie, and four hundred lines earlier
 specified the code that makes it lie. **`docs/adr/0018-forced-exit-masks-a-crash-as-a-clean-stop.md`,
-Status Proposed, Type Design change. Not applied: I built what the frozen design specifies.**
+Status Accepted, Type Design change. APPLIED in the ADR batch**: `status` is `0` on the
+`KeyboardInterrupt` path and `EXIT_SOFTWARE` (70) on any other escape, `os._exit` still runs
+unconditionally so the stdio hang stays closed, and mutation **M14** above holds the constant in
+place. **Still not discharged by side effect** - nothing that can crash `mcp.run` exists yet, so no
+case forces a real failure and reads the process's exit status. U9's HTTP hardening is where a
+bound port becomes reachable.
 
 **F2 (Low, citation). `DESIGN.md:938-943` is short by one line** and omits the `http` transport row
 at `:924`. Copied into the brief, the task description and `IMPLEMENTATION-PLAN.md:480`. Details in

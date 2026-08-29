@@ -1,11 +1,12 @@
 # ADR-0017: The unmapped row is `/problems/internal-error`, not `about:blank`
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md`, which is frozen, and it changes shipped behaviour in
-> `errors.py`. It should be reviewed before it is applied — unlike ADR-0012 to 0014, which are held
-> only on sequencing, this one has an argument someone might reject.
+> **Accepted and APPLIED.** This changed `DESIGN.md`, which was frozen, and it changed shipped
+> behaviour in `errors.py`. Unlike ADR-0012 to 0014, which were held only on sequencing, this one
+> carried an argument someone might reject, so it was reviewed rather than sequenced. It was
+> accepted, and U2's mutant M10 inverted exactly as predicted below.
 
 ## Context
 

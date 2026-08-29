@@ -1,12 +1,13 @@
 # ADR-0018: `os._exit(0)` in the `finally` reports a crash as a clean stop
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md:990-1023`, which is frozen, and it changes shipped behaviour
-> in `__main__.py`. U1 built **what the frozen design specifies** and did not apply this. Like
-> ADR-0017, it carries an argument someone might reject, so it should be reviewed rather than held
-> only on sequencing.
+> **Accepted and APPLIED.** This changed the §7.4 shutdown block, which was frozen, and it changed
+> shipped behaviour in `__main__.py`. U1 built **what the frozen design specified** and did not
+> apply it; like ADR-0017 it carried an argument someone might reject, so it was reviewed rather
+> than sequenced. Mutation **M14** in `scripts/check-u1-boot-controls.sh` now holds the constant in
+> place, and M12 - the forced exit removed entirely - is untouched and still fires.
 
 ## Context
 

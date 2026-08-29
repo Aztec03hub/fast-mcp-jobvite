@@ -152,11 +152,18 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
         / "__main__.py"
     ).read_text()
     assert "signal.signal(signal.SIGTERM, _term)" in source
-    assert "os._exit(0)" in source
+    assert "os._exit(status)" in source
     # The forced exit must be in a `finally`, not on the success path only:
     # DESIGN.md:994-1008 places it there so teardown completes first.
     finally_block = source.split("finally:")[-1]
-    assert "os._exit(0)" in finally_block
+    assert "os._exit(status)" in finally_block
+    # ADR-0018: the constant is the defect, not the call. A crash must not
+    # report itself as a clean stop, so the status is the one the run earned
+    # and the abnormal arm sets it. Asserting the ABSENCE of `os._exit(0)`
+    # is what stops this reverting silently.
+    assert "os._exit(0)" not in source
+    assert "status = EXIT_SOFTWARE" in source
+    assert "EXIT_SOFTWARE = 70" in source
 
 
 def test_the_handler_does_not_read_ambient_state() -> None:

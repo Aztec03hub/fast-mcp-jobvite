@@ -84,7 +84,7 @@ Accept: application/json
 
 **`[RECORDED]` There is no rate-limit header of any kind.** No `X-RateLimit-*`, no `RateLimit-*`, no `Retry-After`. There is nothing to parse and nothing to feed a backoff calculation - our throttling must be entirely client-side and configuration-driven. See `JOBVITE-API.md` §14.
 
-`[RECORDED]` The `Set-Cookie: AWSALBAPP-*` values are all the literal string `_remove_`. **Do not implement a cookie jar.** The API is credential-authenticated per request; there is no session to carry.
+`[RECORDED]` The `Set-Cookie: AWSALBAPP-*` values are all the literal string `_remove_`. **Clear the cookie jar after every request.** The API is credential-authenticated per request and there is no session to carry, and the HTTP client's default is to persist and resend what Jobvite sets - measured on the pinned `httpx2` 2.12.0: a bare `AsyncClient` stores both `AWSALBAPP-*` values and sends them back on the next request. Disabling that is an explicit step, not the result of leaving cookie handling alone (ADR-0022). The `[RECORDED]` observation above is untouched; only the instruction derived from it changes.
 
 ---
 

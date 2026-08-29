@@ -1,6 +1,6 @@
 # ADR-0022: "Do not implement a cookie jar" is a DISABLE, not an omission
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Type:** Correction to a contract statement that an implementer can satisfy while shipping the defect it was written to prevent
 

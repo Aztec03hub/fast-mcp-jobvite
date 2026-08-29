@@ -1,12 +1,12 @@
 # ADR-0013: §8's secret-absence case needs a positive pairing, as the audit cases have
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed, not Accepted.** Like ADR-0012, the design edit is held until the implementation plan
-> settles, because the plan repoints its citations against the frozen `DESIGN.md` object. Flip to
-> Accepted in the same commit that applies the edit. **This ADR does not block any unit** — U3 can
-> implement the pairing today as a plan decision; what the ADR settles is whether §8 says so.
+> **Accepted and APPLIED**, with ADR-0012, in the ADR batch. The design edit was held until the
+> implementation plan settled, because the plan repoints its citations against the frozen
+> `DESIGN.md` object. It never blocked a unit: U3 could implement the pairing as a plan decision,
+> and what this ADR settled is that §8 says so.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0012: A shared `utils/constraints.py` for the inbound constraints
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
 > **First ADR to carry `Type:`.** §13 separates the two jobs an ADR does here: recording a
@@ -9,10 +9,11 @@
 > filed while the design was open. This is the first of the second kind, and the field exists so a
 > later reader can tell which one they are looking at without reconstructing the date.
 
-> **Proposed, not Accepted.** The design edit is held until the implementation plan settles. The
-> plan repoints its citations against the frozen `DESIGN.md` object, and landing a design change
-> mid-repoint is what produced six wrong-subject citations once already. Flip to Accepted in the
-> same commit that applies the edit.
+> **Accepted and APPLIED.** The design edit was held until the implementation plan settled,
+> because the plan repoints its citations against the frozen `DESIGN.md` object and landing a
+> design change mid-repoint is what produced six wrong-subject citations once already. It landed
+> in the ADR batch, in the same commit that flipped this status, and every citation the edit moved
+> was repointed from `check-design-citations.py --since 135c3ac`'s own parsed output.
 
 ## Context
 

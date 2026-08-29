@@ -1,11 +1,11 @@
 # ADR-0021: `approval_state`'s "mechanism" is required by two rows and defined nowhere
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed.** This changes `DESIGN.md`, which is frozen. It is not held only on sequencing: it
-> asks the design to define a field it currently requires an implementer to invent, and the
-> vocabulary it settles is U10's to emit, so it should be resolved before U10 rather than after.
+> **Accepted and APPLIED**, in the ADR batch, before U10. It asked the design to define a field it
+> required an implementer to invent, and the vocabulary it settles is U10's to emit, so resolving
+> it before U10 was the point of not holding it on sequencing alone.
 
 ## Context
 

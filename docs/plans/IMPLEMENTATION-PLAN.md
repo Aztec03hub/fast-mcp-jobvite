@@ -795,7 +795,7 @@ with no caller.
   not-found (§9 hazard 7).
 - A URL containing a secret is never constructed for v2; the v1 URL never appears whole in any log
   record (joins U3's #2).
-- No cookie jar (`JOBVITE-CONTRACT.md:2.3` - the `AWSALBAPP-*` values are the literal `_remove_`).
+- The cookie jar is CLEARED after every request, in a `finally` so a call that raised cannot leave one behind either (`JOBVITE-CONTRACT.md:2.3`, ADR-0022 - the `AWSALBAPP-*` values are the literal `_remove_`, and `httpx2` persists and resends them by default, so an omission ships the session Jobvite told us not to carry).
 
 Transport substitution is `httpx2`'s built-in `MockTransport` (`DESIGN.md:1356-1357`, ADR-0007). No
 third-party mocking library is added, at any point in this plan.

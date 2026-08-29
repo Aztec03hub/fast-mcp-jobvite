@@ -1,12 +1,12 @@
 # ADR-0014: C8-I1 says `.env.example` has empty values; seven of fifteen carry one
 
-**Status:** Proposed
+**Status:** Accepted
 **Type:** Design change
 
-> **Proposed, not Accepted**, for the same operational reason as ADR-0012 and ADR-0013: the
-> implementation plan is repointing citations against the frozen `DESIGN.md` object, and landing a
-> design change mid-repoint produced six wrong-subject citations once already. All three flip in one
-> commit.
+> **Accepted and APPLIED**, with ADR-0012 and ADR-0013 and five more, in one commit. The hold was
+> operational: the implementation plan was repointing citations against the frozen `DESIGN.md`
+> object, and landing a design change mid-repoint produced six wrong-subject citations once
+> already.
 
 ## Context
 

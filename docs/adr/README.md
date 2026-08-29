@@ -30,12 +30,17 @@ at its `file:line`, and says what evidence the decision rests on.
 | [0009](0009-approver-identity-unknowable.md) | Approver identity cannot be recorded; caller identity can | Accepted |
 | [0010](0010-coverage-targets-remapped.md) | Coverage targets remapped from the standard's category model | Accepted |
 | [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
-| [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | **Proposed** |
-| [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | **Proposed** |
-| [0014](0014-c8-i1-empty-values-is-wrong.md) | C8-I1 says `.env.example` has empty values; seven of fifteen carry one | **Proposed** |
+| [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | Accepted |
+| [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | Accepted |
+| [0014](0014-c8-i1-empty-values-is-wrong.md) | C8-I1 says `.env.example` has empty values; seven of fifteen carry one | Accepted |
 | [0015](0015-licence-gate-is-a-deny-list.md) | The licence gate is a deny-list; four packages sit on neither list | Accepted |
 | [0016](0016-setup-uv-v5-not-the-standards-v4.md) | `astral-sh/setup-uv@v5`, where the standard pins `@v4` | Accepted |
-| [0017](0017-unmapped-errors-are-internal-error-not-about-blank.md) | The unmapped row is `/problems/internal-error`, not `about:blank` | **Proposed** |
+| [0017](0017-unmapped-errors-are-internal-error-not-about-blank.md) | The unmapped row is `/problems/internal-error`, not `about:blank` | Accepted |
+| [0018](0018-forced-exit-masks-a-crash-as-a-clean-stop.md) | `os._exit(status)`, not `os._exit(0)`, so a crash is not reported as a clean stop | Accepted |
+| [0019](0019-design-603-cites-a-section-that-does-not-exist.md) | `DESIGN.md`'s one `§5.4` becomes `§4.1`; there is no §5.4 | Accepted |
+| [0020](0020-the-30-day-advisory-budget-runs-from-the-recorded-date.md) | The 30-day advisory budget runs from the recorded date, not from now | Accepted |
+| [0021](0021-approval-mechanism-is-required-by-two-rows-and-defined-nowhere.md) | `approval_mechanism` defined in §5.3, closed to three values | Accepted |
+| [0022](0022-no-cookie-jar-is-a-disable-not-an-omission.md) | "Do not implement a cookie jar" is a DISABLE, not an omission | Accepted |
 
 ## Acknowledged non-conformances without an ADR
 
