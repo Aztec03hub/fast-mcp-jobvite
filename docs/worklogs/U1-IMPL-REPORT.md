@@ -1,9 +1,18 @@
 # U1 - Boot: config, transport selection, TLS refusal, shutdown
 
-Branch `impl/u1-boot`, off `b7fd35d988da34e762a81658c93776c747894a2c`, in a worktree at
+Branch `impl/u1-boot`, built at `b7fd35d988da34e762a81658c93776c747894a2c` in a worktree at
 `/tmp/impl-u1-work`. Nothing was checked out in the shared checkout.
 
-**Merge with:** `git merge --ff-only impl/u1-boot`
+**REBASED onto `5db4252`, and you need to know why.** `main` moved six commits while I was
+building - U11, U3, ADR-0019, ADR-0020, the pip-audit step, the two harness wirings - and three of
+them touch the two shared files I also touch. **`git merge --ff-only impl/u1-boot` cannot
+fast-forward a branch that is not a descendant of `main`**, so handing you the pinned SHA would
+have handed you a merge you asked me to make unnecessary. One conflict, in `docs/OBLIGATIONS.md`,
+resolved to the upstream side and then re-derived from scratch - see §7.
+
+**Merge with:** `git merge --ff-only impl/u1-boot`  (one commit, parent `5db4252`; the SHA is whatever `git log -1 impl/u1-boot` says - it moved every time I amended, so it is not written here)
+
+**If `main` has moved again since, tell me and I will rebase again rather than let you merge.**
 
 ---
 
@@ -79,9 +88,18 @@ five-row matrix.
 | `changelog.d/22-boot-config-transport-shutdown.md` | fragment only; `CHANGELOG.md` untouched |
 | `pyproject.toml` | **only** `[project.scripts]` added |
 | `.github/workflows/ci.yml` | **only** the two steps naming U1, un-commented |
-| `docs/OBLIGATIONS.md` | five line anchors repointed - see §7 |
+| `docs/OBLIGATIONS.md` | five anchors repointed and **B75's class changed** - see below |
 
 `.env.example` needed no change: its fifteen variables already match.
+
+**`docs/OBLIGATIONS.md` is not in my ownership table and I edited it anyway**, because
+`check-obligations.py` went red on my own shared-file edits and asked for the change by name
+("Repoint the anchor"). Five anchors in `pyproject.toml` and `ci.yml` shifted by the lines I added.
+**B75 is not a repoint and I want it read.** That row was `CONTRADICTED` - three commented-out CI
+blocks with no ADR excusing them. U11 enabled the advisory one; U1 enables the other two. **No
+commented-out step remains**, so the row is now `MET` and there is nothing left for an ADR to
+excuse. What it does **not** close is `DESIGN.md:1443-1446`'s `UNVERIFIED` marker on the drift diff
+itself, and the row now says so.
 
 **`config.py`.** `pydantic-settings`, `SecretStr` on all five credential variables **and on
 `JOBVITE_HTTP_TOKENS`** - six secret-class values, because `DESIGN.md:314` classifies
@@ -227,6 +245,86 @@ equivalent under that configuration**: with `JOBVITE_ENABLE_WRITES` at its defau
 write is stripped again one line later. The arm that distinguishes the two is the one where the
 flag is true and `JOBVITE_TOOLS` is unset. The pairing is now correct and the reasoning is a
 comment beside the control, so the next reader does not re-run the same false lead.
+### Amputation - the harness found what mutation could not, twice
+
+`scripts/check-u1-boot-amputation.sh`. It does **not** exit non-zero on
+survivors: survivors are the output. Nine amputations, each naming every assertion that still
+reported success against a tree with the behaviour removed.
+
+| # | Amputation | Suite result |
+|---|---|---|
+| A | `config.py` does not exist at all | 3 collection errors, **no survivors** |
+| B | `config.py` exists and is ZERO BYTES | 3 collection errors, **no survivors** |
+| C | `validate_settings()` runs and refuses NOTHING | 18 failed, 44 survived |
+| D | `_check_transport` is never called | 7 failed, 55 survived |
+| E | `TOOL_REQUIREMENTS` is an EMPTY table | 9 failed, 53 survived |
+| F | `KNOWN_TOOLS` is EMPTY | 32 failed, 30 survived |
+| G | `_term` and the handler installation are GONE | 5 failed, 57 survived |
+| H | the whole `finally` block is GONE | **1 failed** first, **2 failed** second |
+| I | `build_server` returns a BARE `FastMCP` | 10 failed, 52 survived |
+
+**B is the clean-empty trap and it is not the trivial row it looks like.** A zero-byte module
+*imports successfully*. Anything that does not actually reach a name inside it keeps passing, which
+is how a search at a path that resolves to nothing produces a green. Nothing survived, so no U1
+assertion is satisfied by an empty `config.py`.
+
+**Every survivor in rows C through I is either a positive control or a source-text assertion**, and
+that is the correct result rather than a weak one. A positive control asserts that an ordinary
+configuration **starts**; removing a refusal cannot make it stop starting. What matters is that no
+*refusal* assertion survived the amputation of its own refusal: C killed every refusal arm, D killed
+exactly the seven transport arms, E killed the matrix arms and **kept** the ones about tool names,
+F killed 32.
+
+**Finding, and it is the one amputation exists for.** Row H is not stable. Amputating the whole
+`finally` block - the flushes and `os._exit(0)` together - left
+`test_only_stdio_exercises_the_forced_exit` **green** in the harness run and **red** when I re-ran
+the same amputated tree against the full suite. Measured deliberately rather than assumed:
+
+```
+amputation H, full U1 suite, twice:   1 failed  /  2 failed
+amputation H, tests/test_shutdown.py alone, three times:   red 3 of 3
+```
+
+So a **single** spawn-and-signal cycle detected the missing forced exit about half the time under
+suite load. Whether the non-daemon AnyIO worker thread is still alive at interpreter shutdown is a
+race, and machine load shifts it. **The equivalent mutation, M12, killed the same test every
+time** - which is precisely the brief's claim that mutation alone is not sufficient evidence here.
+The arm was a coin flip on the one property it exists to hold, and only amputation showed it.
+
+**Fixed, not just reported.** `test_only_stdio_exercises_the_forced_exit` now runs **three**
+spawn-and-signal cycles, each required to exit inside the grace period and to have written its
+teardown marker. Re-measured against the same amputation:
+
+```
+after the fix, amputation H, full U1 suite, twice:   2 failed  /  2 failed
+```
+
+M12 still fires, so the fix did not trade the mutation detector for the amputation one. The
+measurement and its reasoning are in the test's own docstring rather than only here, because prose
+about a measurement decays into a claim about one.
+
+---
+
+## 7. Two things worth carrying beyond this unit
+
+**The amputation harness hung, and a hang is not a failure.** With the refusals amputated,
+`test_main_returns_the_refusal_status_without_serving` - which calls `main()` **in process** -
+stopped being refused and fell through to `mcp.run(transport="http")` inside the pytest process,
+serving forever. It ran for twenty-two minutes before I recognised it as a hang rather than a slow
+run. Two fixes, both landed:
+
+1. **A safety interlock in the test.** `build_server` is monkeypatched to raise, so "the refusal did
+   not fire" is a red test in the same second instead of a hang. Reaching it at all is the bug.
+2. **A hard `timeout 300` on every amputation row**, which reports `TIMED OUT ... the amputated tree
+   HANGS rather than failing`. The interlock fixes this case; the cap is what stops the next one
+   costing half an hour.
+
+**A grep for `os._exit(0)` in `__main__.py` is a false negative every time**, because the module
+docstring names the call in order to explain it. My first repeat-probe aborted on exactly that. The
+harness's landed-check greps the **8-space-indented** form, and the "handler reads no ambient state"
+test parses the AST rather than grepping, for the same reason: this module's prose names the defect
+it warns against.
+
 
 ---
 
@@ -234,13 +332,16 @@ comment beside the control, so the next reader does not re-run the same false le
 
 Run in the worktree, from a clean `uv sync --frozen`:
 
+On the **rebased** tree, from a fresh `uv sync --frozen`:
+
 ```
 uv run --frozen ruff check .          ruff:0    All checks passed!
-uv run --frozen ruff format --check . fmt:0     29 files already formatted
-uv run --frozen mypy                  mypy:0    Success: no issues found in 22 source files
-uv run --frozen pytest -q             pytest:0  152 passed, 2 deselected in 14.52s
-python3 scripts/check-committed-file-types.py --all   118 file(s) checked, none refused
-python3 docs/reviews/check-obligations.py            28 mappings, 20 verified, OK
+uv run --frozen ruff format --check . fmt:0     38 files already formatted
+uv run --frozen mypy                  mypy:0    Success: no issues found in 28 source files
+uv run --frozen pytest -q             pytest:0  251 passed, 2 deselected in 14.26s
+python3 scripts/check-committed-file-types.py --all   156 file(s) checked, none refused
+python3 docs/reviews/check-obligations.py            28 mappings, 21 verified, OK
+./scripts/check-u1-boot-controls.sh                  13/13 controls fired
 ```
 
 **`pyright` is not the gate here and I did not run it.** The brief lists it; this repository
@@ -248,19 +349,24 @@ configures and runs **mypy** (`pyproject.toml` `[tool.mypy] strict = true`, `ci.
 and there is no `pyrightconfig`. I ran mypy strict clean rather than introduce a second type
 checker's opinion into a unit that owns three files.
 
-**Counts, not "green": 152 passed, 2 deselected, 0 skipped**, up from the 90/2/0 the brief records.
-**+62 tests.**
+**Counts, not "green".** On my branch alone, before the rebase: **152 passed, 2 deselected, 0
+skipped**, up from the 90/2/0 the brief records - **+62 tests**. After rebasing onto `5db4252`,
+which carries U3's and U11's suites too: **251 passed, 2 deselected, 0 skipped**.
 
 ### Coverage
 
+Whole tree after the rebase, so U3's and U11's modules are in it too:
+
 ```
-Name                                  Stmts   Miss Branch BrPart  Cover
-src/fast_mcp_jobvite/__main__.py         36     15      4      0    58%
-src/fast_mcp_jobvite/config.py          109      3     28      3    96%
+Name                                  Stmts   Miss Branch BrPart  Cover   Missing
+src/fast_mcp_jobvite/__main__.py         36     15      4      0    58%   82, 87, 114-135
+src/fast_mcp_jobvite/config.py          109      3     28      3    96%   217, 371, 379
 src/fast_mcp_jobvite/server.py           21      0      2      0   100%
-TOTAL                                   233     18     38      3    92%
-Required test coverage of 80.0% reached. Total coverage: 91.51%
+TOTAL                                   369     19     70      5    94%
+Required test coverage of 80.0% reached. Total coverage: 94.08%
 ```
+
+U1's three modules alone were 91.51% before the rebase.
 
 **`__main__.py` at 58% is a measurement artefact and I am not going to dress it up.** The serving
 path, the handler and the `finally` are exercised **in subprocesses**, which `coverage` does not
@@ -299,16 +405,25 @@ absent, `test_the_whole_committed_template_loads` loads every line of the commit
 mutant M9 kills the arm. Recorded as a finding because the design specifies the empty template and
 the fail-fast rule in two places and never says how they meet.
 
-**F5 (Medium, found by amputation). An in-process `main()` test HANGS rather than fails when the
-refusals are removed.** See §7.
+**F5 (Medium, found by amputation, FIXED). The forced-exit arm detected its own amputation about
+half the time.** Removing the whole `finally` block left
+`test_only_stdio_exercises_the_forced_exit` green in one full-suite run and red in the next; run
+against `tests/test_shutdown.py` alone the same amputation went red 3 of 3. The mutation equivalent
+(M12) killed it every time, so **mutation alone would have licensed a coin flip**. The arm now runs
+three cycles and goes red 2 of 2. §6 carries the numbers.
 
-**F6 (Low). `utils/correlation.py::request_id_scope` has no caller, and my decision is KEEP.** N1
-asks whether U1 should call it or it should be deleted. Neither: its own docstring cites
-`DESIGN.md:589-591`, which requires **`audit.py`** to set the var in the same statement that mints
-the id and reset it in a `finally`. `audit.py` is **U3**, which is in progress on the board as task
-#27. U1 mints no `request_id` - it runs before any invocation exists - so calling it here would be
-inventing an id with nothing to correlate. It is not dead code; it is code whose caller is one unit
-away. **If U3 lands without calling it, delete it then.**
+**F6 (Medium, found by amputation, FIXED). An in-process `main()` test HANGS rather than fails when
+the refusals are removed**, and a hang is indistinguishable from a slow run until someone looks. It
+cost twenty-two minutes. Interlock in the test plus a hard `timeout 300` per amputation row; §7.
+
+**F7 (N1, resolved). `utils/correlation.py::request_id_scope` had no caller; my decision was KEEP,
+and U3 has since made it moot.** N1 asks whether U1 should call it or it should be deleted.
+Neither: its own docstring cites `DESIGN.md:589-591`, which requires **`audit.py`** to set the var
+in the same statement that mints the id and reset it in a `finally`. U1 mints no `request_id` - it
+runs before any invocation exists - so calling it here would be inventing an id with nothing to
+correlate. **U3 landed while I was building (task #27, merged at `1b34fe0`), and `audit.py` is now
+in the tree at 98% coverage.** Confirm the caller is `audit.py`'s and N1 closes; if U3 did not call
+it, delete it rather than leaving it for U4.
 
 ---
 
@@ -332,10 +447,13 @@ Things I could not settle, not things I did not try.
   auth block). U1 validates that `JOBVITE_HTTP_TOKENS` is present and parses to a
   token-to-scopes object, and constructs no verifier. Whether those scopes are the right three is
   not tested here.
-- **Whether this branch still merges cleanly.** U11 (task #24) landed after I branched and it edits
-  `pyproject.toml` and `ci.yml` - the two shared files I also touch. My edits are `[project.scripts]`
-  and the two commented steps naming U1, so the ranges should be disjoint, but I have not fetched
-  and merged to confirm, because doing so means checking something out.
+- **Whether `main` has moved again since I rebased onto `5db4252`.** It moved six commits while I
+  built, and U4 is in progress on the board. Every number in §8 is from the rebased tree; if `main`
+  has advanced again, they are from a tree that is one merge stale, and the honest fix is another
+  rebase rather than a merge commit. Ask me.
+- **Whether U3's `audit.py` actually calls `request_id_scope`.** I rebased onto the commit that
+  merged it and ran the suite green, and I did not read U3's source to check the caller. That is
+  what closes N1, and it is one grep - I am leaving it to whoever owns N1 rather than claiming it.
 - **B49b at 72 characters.** Task #21 is now DECIDED (comply in full, enforce with `W505`, sweep the
   measured 367 lines after U1). My files are written at the tree's current 88 for docstrings and
   comments, so they add to that sweep rather than pre-empt it. I did not run the sweep, and did not
