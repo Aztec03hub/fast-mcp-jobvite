@@ -85,6 +85,20 @@ try:
         outcome = {"raised": None, "warnings": emit(event, phase)}
 except BaseException as exc:
     outcome = {"raised": type(exc).__name__, "detail": str(exc)}
+
+# IN-PROCESS POSITIVE CONTROL on the instrument, recorded for every arm.
+# A second emission under BEFORE_SIDE_EFFECT, on the same sink: it raises if
+# and only if the sink really failed AND the failure really reached the
+# policy. Without it the READ arm's "no raise, no warning" is the answer an
+# unconfigured logger gives too, which is how that assertion survived four
+# amputations.
+try:
+    with audit_scope("control_probe", Transport.STDIO, arguments={}) as probe:
+        emit(probe, AuditPhase.BEFORE_SIDE_EFFECT)
+    outcome["sink_really_failed"] = False
+except BaseException:
+    outcome["sink_really_failed"] = True
+
 OUT.write_text(json.dumps(outcome))
 
 # Put stderr back on a device that accepts writes before the interpreter
@@ -231,6 +245,7 @@ def test_a_failing_sink_fails_the_call_before_the_side_effect(
     )
     assert result.returncode == 0, result.stdout
     recorded = json.loads(outcome.read_text())
+    assert recorded["sink_really_failed"] is True
     assert recorded["raised"] == "AuditWriteError"
     assert "the call was not performed" in recorded["detail"]
 
@@ -257,9 +272,12 @@ def test_the_same_script_against_a_writable_sink_does_not_fail(
     recorded = json.loads(outcome.read_text())
     assert recorded["raised"] is None
     assert recorded["warnings"] == []
+    # The same probe that fires on /dev/full stays quiet here, so the arms
+    # above are separated by the SINK and not by anything else.
+    assert recorded["sink_really_failed"] is False
 
     records = _serialised_records(sink.read_text())
-    assert len(records) == 1
+    assert len(records) == 2
     assert records[0]["record"]["extra"]["tool_name"] == "create_candidate"
 
 
@@ -279,6 +297,10 @@ def test_a_failing_sink_on_a_read_does_not_fail_the_read(
     )
     assert result.returncode == 0, result.stdout
     recorded = json.loads(outcome.read_text())
+    # THE CONTROL FIRST. "No raise, no warning" is also what a logger that was
+    # never configured returns, and that is not a hypothetical: this assertion
+    # survived amputations J, K, L and M and U3's A1 before the probe existed.
+    assert recorded["sink_really_failed"] is True
     assert recorded["raised"] is None
     assert recorded["warnings"] == []
 
@@ -298,6 +320,7 @@ def test_a_failing_sink_after_a_write_returns_a_warning_not_an_error(
     )
     assert result.returncode == 0, result.stdout
     recorded = json.loads(outcome.read_text())
+    assert recorded["sink_really_failed"] is True
     assert recorded["raised"] is None
     assert len(recorded["warnings"]) == 1
     warning = recorded["warnings"][0]
