@@ -63,17 +63,25 @@ _REFERENCE = re.compile(r"§\s*(\d+(?:\.\d+)*)")
 _NAMES_A_DOCUMENT = re.compile(r"[A-Za-z0-9_-]+\.md")
 
 # References that resolve in a document this checker does not read, on lines that do
-# not name it. Each needs a REASON, not just a coordinate - an exemption without one
-# is indistinguishable from a defect somebody silenced.
-_EXEMPT: dict[str, set[tuple[int, str]]] = {
-    # "this is the §16.3 lesson the spike records" - FASTMCP-SPIKE-4.md, named two
-    # lines earlier and not on this one.
-    "docs/plans/IMPLEMENTATION-PLAN.md": {(1091, "16.3")},
-    # "§20.2's execution shows MRTR raising on handshake" - FASTMCP-SPIKE-4.md's
-    # §20.2, the executed spike this design's dual-era guard rests on. Verified by
-    # reading :1066-1072, where the surrounding paragraph is entirely about that
-    # spike; the filename is not on the citing line.
-    "docs/DESIGN.md": {(1071, "20.2")},
+# not name it. Each needs a REASON, not just a coordinate.
+#
+# KEYED ON CONTENT, NOT ON A LINE NUMBER, and that is a correction rather than a
+# preference. The first version keyed them on (line, reference); merging draft 9
+# moved one from 1091 to 1150 and the exemption silently stopped applying, turning
+# a known-external reference back into a "defect". A coordinate-keyed exemption
+# rots exactly like the citation it exempts - which is the failure this whole
+# script exists to catch, reproduced inside its own suppression list.
+_EXEMPT: dict[str, list[tuple[str, str]]] = {
+    "docs/plans/IMPLEMENTATION-PLAN.md": [
+        # FASTMCP-SPIKE-4.md's §16.3. The line names "the spike", not the file.
+        ("16.3", "the spike records"),
+    ],
+    "docs/DESIGN.md": [
+        # FASTMCP-SPIKE-4.md's §20.2, the executed spike the dual-era guard rests
+        # on. Verified by reading the surrounding paragraph, which is entirely
+        # about that spike; the filename is not on the citing line.
+        ("20.2", "MRTR raising on handshake"),
+    ],
 }
 
 # document -> the document whose section numbering it ALSO cites, or None.
@@ -108,8 +116,11 @@ def unresolved(
         if _NAMES_A_DOCUMENT.search(line):
             continue
         for ref in _REFERENCE.findall(line):
-            if ref not in known and (lineno, ref) not in _EXEMPT.get(name, set()):
-                missing.append((lineno, ref))
+            if ref in known:
+                continue
+            if any(r == ref and marker in line for r, marker in _EXEMPT.get(name, [])):
+                continue
+            missing.append((lineno, ref))
     return missing
 
 
