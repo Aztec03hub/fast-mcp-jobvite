@@ -235,6 +235,16 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Changed
 
+- **`ci.yml`'s design citations no longer carry line numbers, so a re-freeze cannot stale them.**
+  The re-freeze at `8a9d63c` left 18 of the file's 20 `DESIGN.md:NNN` citations pointing at text
+  that had moved - each still RESOLVED, each now naming a different sentence, and no checker covers
+  `ci.yml`. All 20 are now subject phrases (`DESIGN.md §8's zero-skips clause`), the remedy
+  `OBLIGATIONS.md` already took: an anchor with no line number cannot drift. The two that had NOT
+  gone stale were converted as well rather than left, because fixing only the members that broke is
+  how the next re-freeze finds them. Two citations are deliberately kept with their numbers - they
+  are illustrations OF the bare-text citation form, not pointers to content, and a comment now says
+  so. (2026-08-29 01:03 PM CDT)
+
 - **`main` now keeps its CI runs; every other ref still cancels.** `cancel-in-progress` was true for
   all refs, which is right for a busy branch and wrong for a trunk: on `main` the run IS the record,
   and a cancelled run leaves none. Measured on 2026-08-29, `main` had **54 cancelled runs, 5
