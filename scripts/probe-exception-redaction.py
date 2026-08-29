@@ -43,9 +43,9 @@ import subprocess
 import sys
 import textwrap
 
-# : Shaped like a real jobFeed URL, because that is the string the
-# fourth defect : was actually leaking. The tokens are nonsense; the
-# SHAPE is the fixture.
+#: Shaped like a real jobFeed URL, because that is the string the
+#: fourth defect was actually leaking. The tokens are nonsense; the
+#: SHAPE is the fixture.
 SECRET_URL = (
     # A planted fixture, not a credential. Ruff excludes a
     # trailing `noqa` from the width it measures, so this fits.
