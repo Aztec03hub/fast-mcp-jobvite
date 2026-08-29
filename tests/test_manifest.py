@@ -70,6 +70,14 @@ def test_the_runtime_dependency_set_is_exactly_these_and_nothing_else() -> None:
         # U3's, added under the serialised dependency slot. DESIGN.md:296-297 forbids a
         # custom logging module and names loguru as what covers that need.
         "loguru==0.7.3",
+        # U4's, APPENDED under the same slot - the set stays CLOSED. httpx2 is
+        # ADR-0007's client (fastmcp 4.0.0b4 installs no `httpx` at all) and ships
+        # the MockTransport DESIGN.md:1308-1309 rests the credential-free test
+        # strategy on; defusedxml parses the HR-XML hardened fallback of
+        # DESIGN.md:331-334. Both were already resolved transitively at these exact
+        # versions, so `uv lock` added four lines and moved nothing.
+        "httpx2==2.12.0",
+        "defusedxml==0.7.1",
     }
 
 
