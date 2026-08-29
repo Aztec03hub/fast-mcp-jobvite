@@ -15,12 +15,12 @@
 
 | Figure | Value | Where |
 |---|---|---|
-| in-tool / configured result cap | `JOBVITE_MAX_RESULTS` = **50** | `DESIGN.md:1572-1575` |
+| in-tool / configured result cap | `JOBVITE_MAX_RESULTS` = **50** | §10.1's variable list, the `JOBVITE_MAX_RESULTS` entry ("§7.7's in-tool result cap") |
 | total outbound budget | **60s** | `DESIGN.md:373-375`, implemented by U7 |
-| outbound self-throttle | `JOBVITE_OUTBOUND_RATE_LIMIT` = **6/min** | `DESIGN.md:1576-1581`, §4.4 |
+| outbound self-throttle | `JOBVITE_OUTBOUND_RATE_LIMIT` = **6/min** | §10.1's variable list, the `JOBVITE_OUTBOUND_RATE_LIMIT` entry ("§4.4's self-throttle") |
 | v2 transport page cap | **500** | §4.5, unobserved |
 
-`DESIGN.md:1583-1584` already says the open question is "whether either default is *right*, which no
+§10.1's variable list already says the open question is "whether either default is *right*, which no
 amount of specification settles and only a live tenant can." **This ADR is not that question.** It is
 narrower and answerable now: the three do not compose, whatever the right values turn out to be.
 
