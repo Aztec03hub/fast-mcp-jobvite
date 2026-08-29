@@ -58,8 +58,17 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
     assert "Uvicorn running" not in combined
 
 
-def test_the_default_loopback_bind_starts(tmp_path: pathlib.Path) -> None:
-    """Positive control 1 of 2 (DESIGN.md:1323).
+def test_the_default_loopback_bind_starts_a_real_process(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Positive control for the REAL-PROCESS pair (DESIGN.md:1323).
+
+    Its partner is
+    `test_off_loopback_with_the_assertion_declared_starts`. Named for
+    its level because `test_config.py` holds the in-process validator
+    pair, and the two used to share one name: a reader grepping it found
+    "1 of 2" and "2 of 2" under a single identifier and reasonably read
+    them as one matched pair (R3-N1).
 
     IMPLEMENTATION-PLAN.md:504.
     """

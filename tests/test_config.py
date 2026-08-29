@@ -424,8 +424,15 @@ def test_off_loopback_with_the_assertion_starts(clean_env: pytest.MonkeyPatch) -
     assert load_settings().mcp_host == "0.0.0.0"  # noqa: S104
 
 
-def test_the_default_loopback_bind_starts(clean_env: pytest.MonkeyPatch) -> None:
-    """Positive control 2 of 2 for the refusal."""
+def test_the_default_loopback_bind_passes_validation(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """Positive control for the IN-PROCESS validator pair.
+
+    Its partner is the off-loopback refusal above. `test_boot.py`
+    holds the real-process pair; the two used to share one name
+    (R3-N1).
+    """
     clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
     clean_env.setenv("JOBVITE_HTTP_TOKENS", json.dumps({"tok": ["jobs:read"]}))
     clean_env.setenv("JOBVITE_TOOLS", "search_jobs")

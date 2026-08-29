@@ -314,7 +314,7 @@
   },
   {
     "path": "tests/test_boot.py",
-    "qualname": "test_the_default_loopback_bind_starts",
+    "qualname": "test_the_default_loopback_bind_starts_a_real_process",
     "summary": "Positive control 1 of 2 (DESIGN.md:1323).",
     "body": "IMPLEMENTATION-PLAN.md:504."
   },
