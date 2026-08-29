@@ -23,6 +23,8 @@ import pytest
 from fast_mcp_jobvite.utils.redaction import (
     NON_SENSITIVE_ARGUMENT_KEYS,
     REDACTED,
+    SECRET_HEADERS,
+    SECRET_QUERY_PARAMS,
     redact_arguments,
     redact_headers,
     redact_text,
@@ -363,3 +365,44 @@ def test_a_string_is_not_walked_character_by_character() -> None:
     assert redact_arguments("plain string") == "plain string"
     assert redact_arguments(b"raw") == b"raw"
     assert redact_arguments({"note": "hello"}) == {"note": "[REDACTED:str]"}
+
+
+def test_a_credential_is_not_non_sensitive_on_one_path_and_secret_on_another() -> None:
+    """R2-H5: `companyId` was in BOTH lists, and they disagreed.
+
+    `SECRET_QUERY_PARAMS` redacted it in a URL while
+    `NON_SENSITIVE_ARGUMENT_KEYS` published it in the clear as a tool
+    argument - two lists eighty lines apart in one module, disagreeing
+    about one credential. It survived two review rounds because nothing
+    compared them.
+
+    This asserts the general property rather than the one instance, so a
+    future key admitted to both is caught the same way. Compared
+    case-insensitively: the query set is lower-cased by convention and
+    the argument set is not, which is part of how the two stayed out of
+    each other's sight.
+    """
+    argument_keys = {key.lower() for key in NON_SENSITIVE_ARGUMENT_KEYS}
+    secret_params = {key.lower() for key in SECRET_QUERY_PARAMS}
+    secret_headers = {key.lower() for key in SECRET_HEADERS}
+
+    both = argument_keys & (secret_params | secret_headers)
+    assert not both, (
+        f"these keys are declared BOTH non-sensitive as arguments and secret "
+        f"elsewhere in this module: {sorted(both)}. One of the two is wrong, "
+        "and the value is published in the clear on whichever path admits it."
+    )
+
+
+def test_company_id_is_redacted_as_an_argument() -> None:
+    """The specific case, kept beside the general one deliberately.
+
+    The property test above passes if BOTH lists lose the key. This one
+    fails unless `companyId` is genuinely treated as a credential, so
+    "fixing" the property test by deleting the entry from
+    `SECRET_QUERY_PARAMS` would go red here.
+    """
+    assert redact_arguments({"companyId": "ACME123"}) == {"companyId": "[REDACTED:str]"}
+    assert "ACME123" not in redact_url(
+        "https://api.jobvite.com/v1/jobFeed?api=k&sc=s&companyId=ACME123"
+    )

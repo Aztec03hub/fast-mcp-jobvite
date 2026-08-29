@@ -107,7 +107,20 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         "count",
         "page",
         "eId",
-        "companyId",
+        # `companyId` WAS HERE AND IS A CREDENTIAL. R2-H5.
+        #
+        # This file already classified it as one: SECRET_QUERY_PARAMS
+        # holds `companyid`, so the identical value was REDACTED in a
+        # URL and published IN THE CLEAR as a tool argument - two lists
+        # eighty lines apart in one module, disagreeing. The docstring
+        # above says so outright: DESIGN.md:321, "the job feed's
+        # separate `companyId` credential", and :1692 classifies it
+        # Restricted.
+        #
+        # Removing it costs nothing today: no tool takes `companyId` as
+        # an argument, and JOBVITE_COMPANY_ID is configuration, never a
+        # caller-supplied value. U12's `get_job_feed` reads it from
+        # settings, so it must NOT be re-admitted here when that lands.
         # U5's `search_jobs` argument, admitted DELIBERATELY by the rule
         # above: its value is a Jobvite `eId`, structurally the same
         # identifier as `eId` and `job_id`, which are already here.
