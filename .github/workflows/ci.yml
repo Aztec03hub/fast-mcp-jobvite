@@ -569,6 +569,19 @@ jobs:
       - name: Every harness is wired and has a row floor
         run: python3 docs/reviews/check-row-floors.py
 
+      # WIRED GREEN, backlog zero. #85 fixed sixteen of these in one day and
+      # my first pass found only five - the sweep stopped at the directory I
+      # was editing, leaving eleven in this file, one of which (`grep -qE
+      # '[0-9]+ skipped'`) failed OPEN on exactly the longest output.
+      # The step NAME deliberately does not quote the pattern: this checker
+      # scans this file, and its first version matched its own step name.
+      # Third instance today of a defect-grep finding prose about the defect,
+      # and the fix is to keep the pattern out of the prose - NOT to narrow
+      # the pattern, which stops matching a real instance before it stops
+      # matching a comment.
+      - name: No SIGPIPE-prone pipeline judges a gate
+        run: python3 docs/reviews/check-no-sigpipe-pipelines.py
+
       - name: Harness anchor checker controls, all fired
         run: |
           set -uo pipefail
