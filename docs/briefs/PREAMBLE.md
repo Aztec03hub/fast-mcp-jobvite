@@ -98,6 +98,30 @@ The floor in `ci.yml` is the one place that value lives, it is enforced on every
 run, and lowering it is a visible diff that has to be defended. Anything else is
 a second copy.
 
+## If your report suggests a `ci.yml` step, RUN IT FIRST
+
+`ci.yml` is the orchestrator's, so units hand over the steps they want rather than
+wiring them. **Three consecutive reports handed over steps that did not work**, and
+the orchestrator found each one by running it:
+
+- `ci-harness-gate.sh scripts/check-x.sh` - the gate builds `scripts/$harness`
+  itself, so a path argument becomes `scripts/scripts/...` and exits 2. It takes a
+  bare NAME.
+- `--row-re '^########## A[0-9]+ '` against a harness whose rows are lettered
+  `A.` to `E.` - matches ZERO rows and fails the step for the wrong reason.
+- `--min-rows` without the `--row-re` it requires.
+
+**You can run these.** Nothing about a `ci.yml` step stops you executing the command
+inside it from your worktree, and "I could not verify a workflow step" belongs on
+the unsettled list only if you tried. One agent parked exactly this under "could not
+settle", then dropped the assumption, ran it, and found two errors in its own
+suggestion - and wrote that the unsettled list is for what CANNOT be settled, not
+for what was not attempted.
+
+So: run the command, paste its exit code and row count into the report, and check
+the `--row-re` against the harness's REAL output with `grep -c`. A regex that
+matches nothing looks identical to a harness that ran nothing.
+
 ## How to deliver
 
 Two channels, both required. Your final Agent-tool output does NOT reach me.
