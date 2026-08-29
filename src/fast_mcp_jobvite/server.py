@@ -46,7 +46,7 @@ from fastmcp.server.lifespan import Lifespan, lifespan
 from fast_mcp_jobvite import __version__
 from fast_mcp_jobvite.config import Settings, load_settings
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
-from fast_mcp_jobvite.tools import jobs
+from fast_mcp_jobvite.tools import candidates, jobs
 
 SERVER_NAME = "fast-mcp-jobvite"
 
@@ -135,6 +135,7 @@ def build_server(
         mask_error_details=True,
     )
     jobs.register(server, settings, client_factory=client_factory)
+    candidates.register(server, settings, client_factory=client_factory)
     return server
 
 

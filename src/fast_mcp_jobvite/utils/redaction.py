@@ -47,7 +47,15 @@ from __future__ import annotations
 import re
 import urllib.parse
 from collections.abc import Mapping, Sequence
-from typing import Final
+from typing import Any, Final
+
+from ..models.fencing import (
+    LIST_MARKER,
+    PATH_SEPARATOR,
+    Fenced,
+    FencingDecision,
+)
+from .normalise import blank_to_none
 
 #: The value shape a validated tool argument can take. Recursive,
 #: because `create_candidate`'s payload is nested and a redactor typed
@@ -361,3 +369,252 @@ def _split_keeping_whitespace(text: str) -> list[str]:
     if current:
         tokens.append("".join(current))
     return tokens
+
+
+# ======================================================================
+# THE FENCING HALF (U8). DESIGN.md:293 gives this module two jobs -
+# "log redaction; untrusted-content fencing" - and the second one is
+# below. U3 owns everything above and nothing here restructures it.
+#
+# **Containment is not fencing** (DESIGN.md:197-200 and
+# `models/fencing.py`). Allow-listing decides WHETHER a field leaves;
+# fencing decides HOW an admitted field is presented to a model. A
+# field can be correctly admitted and still carry an injection payload.
+#
+# **The allow-list is PATH-KEYED WITH WILDCARDS, NOT NAME-KEYED**
+# (DESIGN.md:747-749), and the design says why in its own words:
+# "Name-keying collides: `title` and `eId` each appear at multiple
+# depths in our own fixtures, and `customField[]` is open-ended. Keys
+# are paths like `candidates[].application.job.title`."
+#
+# **Fencing is defined for STRINGS ONLY** (DESIGN.md:751-752). An
+# unknown non-string field is DROPPED, not stringified - "stringifying
+# invents a representation and collides with `strict=True` output
+# models".
+# ======================================================================
+
+#: The opening delimiter wrapping attacker-authored content.
+#:
+#: **The tokens are XML-ish and named for their provenance**, which is
+#: what `ai/prompt-injection.md` asks a fence to communicate: the model
+#: is told what the block IS, not merely that a block exists. They are
+#: also what `candidate_list_injection.json` attacks, so the fixture and
+#: the implementation cannot drift apart silently - the red-team case
+#: reads these constants.
+FENCE_OPEN: Final = "<jobvite_candidate_data>"
+
+#: The closing delimiter. Content containing this is what
+#: DESIGN.md:744-745 means by "content cannot close its own fence".
+FENCE_CLOSE: Final = "</jobvite_candidate_data>"
+
+#: Every delimiter token stripped from content before it is wrapped.
+#:
+#: **Matched CASE-INSENSITIVELY**, and that is not decoration. A
+#: stripper keyed on the exact literal passes
+#: `candidate_list_injection.json` - whose payload is lowercase - and
+#: misses `</JOBVITE_CANDIDATE_DATA>`, which an XML-ish reader
+#: downstream may well treat as the same tag. The seed fixture is the
+#: SEED and `IMPLEMENTATION-PLAN.md` §U8 says outright it is not
+#: sufficient on its own.
+_FENCE_TOKENS: Final = re.compile(
+    "|".join(re.escape(token) for token in (FENCE_OPEN, FENCE_CLOSE)),
+    re.IGNORECASE,
+)
+
+#: What a stripped delimiter leaves behind. Not an empty string: a
+#: silent deletion makes the fenced body read as though the attacker
+#: never wrote anything, and a reviewer reading a résumé cannot tell
+#: tampering from the candidate's own prose. The marker says a token
+#: was here and was removed.
+FENCE_STRIPPED: Final = "[stripped]"
+
+#: The wildcard segment. `customField[]` is open-ended
+#: (DESIGN.md:748), so its members cannot be enumerated and a registry
+#: that tried would be a hand-kept list beside a container it cannot
+#: see the whole of.
+PATH_WILDCARD: Final = "*"
+
+
+def fence_text(text: str) -> str:
+    """Wrap attacker-authored content so it cannot close its own fence.
+
+    DESIGN.md:744-745: "Every such field is fenced before it reaches a
+    tool result, and delimiter tokens occurring inside the content are
+    stripped so content cannot close its own fence."
+
+    **Strip first, then wrap.** The other order wraps the payload and
+    then strips the wrapper's own tokens along with the attacker's,
+    producing a fence with no delimiters at all - a refusal that looks
+    like a pass.
+
+    **Fencing does not censor.** An instruction inside the content
+    survives verbatim; what it loses is the ability to escape the
+    frame. Deleting the instruction instead would make the guard
+    unfalsifiable, because a stripper that empties every résumé passes
+    every red-team case and every positive control fails.
+
+    Args:
+        text: Content a candidate typed.
+
+    Returns:
+        The content between one opening and one closing delimiter, with
+        every delimiter token inside it replaced by `FENCE_STRIPPED`.
+    """
+    stripped = _FENCE_TOKENS.sub(FENCE_STRIPPED, text)
+    return f"{FENCE_OPEN}\n{stripped}\n{FENCE_CLOSE}"
+
+
+def _path_matches(path: str, registered: str) -> bool:
+    """Compare two paths segment by segment, honouring wildcards.
+
+    Args:
+        path: The concrete path built during the walk.
+        registered: A registry key, which may hold `*` segments.
+
+    Returns:
+        Whether the concrete path is the registered one.
+    """
+    actual = path.split(PATH_SEPARATOR)
+    expected = registered.split(PATH_SEPARATOR)
+    if len(actual) != len(expected):
+        return False
+    return all(
+        want in (PATH_WILDCARD, have)
+        for have, want in zip(actual, expected, strict=True)
+    )
+
+
+def _lookup(path: str, registry: Mapping[str, Fenced]) -> Fenced | None:
+    """Resolve one path against the registry.
+
+    Exact match first, then wildcard. **Exact wins**, so a concrete
+    entry is never shadowed by a `*` that happens to also match - which
+    is the failure that would make an explicit decision unreachable.
+
+    Args:
+        path: The concrete path.
+        registry: Path -> `Fenced`.
+
+    Returns:
+        The decision, or `None` when the path is unregistered.
+    """
+    if path in registry:
+        return registry[path]
+    for registered, decision in registry.items():
+        if PATH_WILDCARD in registered and _path_matches(path, registered):
+            return decision
+    return None
+
+
+def fence_payload(
+    payload: Mapping[str, Any],
+    registry: Mapping[str, Fenced],
+    prefix: str = "",
+) -> dict[str, Any]:
+    """Walk a raw Jobvite body and apply the path-keyed decisions.
+
+    **Three outcomes per field, and the third is §8 #20:**
+
+    - the path decides `FENCE` and the value is a `str` -> fenced;
+    - the path decides `NOT_FREE_TEXT` -> passed through;
+    - **anything else -> DROPPED.** That covers an unregistered path
+      (the path-keyed allow-list failing closed, DESIGN.md:1788) *and*
+      a `FENCE` decision arriving as a non-string, which cannot be
+      fenced and must not be stringified.
+
+    **Dropped means the key is ABSENT from the result**, not present
+    carrying a rendered value. §8 #20 asserts the drop rather than the
+    type precisely because a stringifying implementation satisfies
+    every type assertion perfectly.
+
+    Args:
+        payload: One decoded Jobvite object.
+        registry: Generated path -> `Fenced`, from `models/fencing.py`.
+        prefix: The path accumulated so far. `""` at the top level.
+
+    Returns:
+        A new mapping. **The input is never mutated** - a fencer that
+        edited its argument in place would fence the payload the audit
+        path is about to read.
+    """
+    out: dict[str, Any] = {}
+    for key, value in payload.items():
+        path = f"{prefix}{PATH_SEPARATOR}{key}" if prefix else key
+        if isinstance(value, Mapping):
+            # A container's own decision says its VALUE is not free
+            # text; its children answer separately, which is what
+            # `models/fencing.py` records for every container field.
+            if _lookup(path, registry) is None:
+                continue
+            out[key] = fence_payload(value, registry, path)
+            continue
+        if isinstance(value, list):
+            if _lookup(path, registry) is None:
+                continue
+            out[key] = _fence_list(value, registry, f"{path}{LIST_MARKER}")
+            continue
+        decision = _lookup(path, registry)
+        if decision is None:
+            # UNREGISTERED. Dropped until someone admits it
+            # deliberately - the direction DESIGN.md:1788 requires and
+            # the one a deny-list gets backwards.
+            continue
+        # §9 HAZARD 4 IS APPLIED HERE, AND THE POSITION IS THE POINT.
+        # Jobvite uses `""` where a null belongs and both mean absent
+        # (DESIGN.md:1384-1385). Unifying AFTER fencing would turn `""`
+        # into a fenced empty string - a present value carrying nothing
+        # - and the absence the unification exists to express would be
+        # gone. So it happens before the decision is applied, in one
+        # place, on the whole payload.
+        value = blank_to_none(value)
+        if value is None:
+            # An absence. Dropped, so the model's own `None` default is
+            # what the caller sees, rather than an explicit null the
+            # allow-list never decided to emit.
+            continue
+        if decision.decision is FencingDecision.FENCE:
+            if not isinstance(value, str):
+                # §8 #20. Fencing is defined for strings only, so this
+                # field cannot be fenced - and stringifying it invents a
+                # representation. Dropped.
+                continue
+            out[key] = fence_text(value)
+            continue
+        out[key] = value
+    return out
+
+
+def _fence_list(
+    items: Sequence[Any], registry: Mapping[str, Fenced], path: str
+) -> list[Any]:
+    """Fence one list, element by element, at the `[]` path.
+
+    **A scalar element is subject to the same three outcomes as a
+    field**, including the drop: a list of unregistered scalars comes
+    back empty rather than passed through, because a container's own
+    decision says nothing about its members (`models/fencing.py`).
+
+    Args:
+        items: The decoded list.
+        registry: Path -> `Fenced`.
+        path: The ELEMENT path, already carrying `LIST_MARKER`.
+
+    Returns:
+        A new list holding only the elements a decision admitted.
+    """
+    decision = _lookup(path, registry)
+    out: list[Any] = []
+    for item in items:
+        if isinstance(item, Mapping):
+            out.append(fence_payload(item, registry, path))
+            continue
+        if decision is None:
+            continue
+        if decision.decision is FencingDecision.FENCE:
+            # Strings only (DESIGN.md:751-752); a non-string element is
+            # dropped rather than stringified, exactly as a field is.
+            if isinstance(item, str):
+                out.append(fence_text(item))
+            continue
+        out.append(item)
+    return out
