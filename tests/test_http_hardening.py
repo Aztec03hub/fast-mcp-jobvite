@@ -25,6 +25,7 @@ C2-I1 exists for - with no assertion at all.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from typing import Any
@@ -98,12 +99,12 @@ ADOPTED_MIDDLEWARE = frozenset(
 #: is frozen and only a numbered ADR may change it.
 FRAMEWORK_INJECTED_MIDDLEWARE = frozenset({"DereferenceRefsMiddleware"})
 
-#: The framework middleware that are in NEITHER hand-kept list, named
-#: so that the two sets can be asserted EQUAL to what `fastmcp`
-#: actually ships (`test_every_framework_middleware_is_classified`).
+#: The framework middleware that are in no other bucket, named so that
+#: the four sets can be asserted EQUAL to what `fastmcp` actually ships
+#: (`test_every_framework_middleware_is_classified`).
 #:
 #: **These are undecided, not rejected.** `EXCLUDED_MIDDLEWARE`'s five
-#: each carry a measured reason in ADR-0004; these seven have never
+#: each carry a measured reason in ADR-0004; these six have never
 #: been assessed. R7 established that `LoggingMiddleware` is both
 #: admissible and harmful - it is the payload-logging sibling of the
 #: middleware C2-I1 pins at `include_payloads=False` - and flagged
@@ -181,11 +182,11 @@ def middleware_names(server: FastMCP[Any]) -> list[str]:
 def discovered_middleware() -> frozenset[str]:
     """Return every concrete `Middleware` subclass `fastmcp` ships.
 
-    **The container**, so that the two hand-kept lists beside it can be
+    **The container**, so that the hand-kept lists beside it can be
     asserted equal to it rather than merely consistent with it. Walks
-    `fastmcp.server.middleware`'s own `__path__` and imports each
-    module, so a module added by a dependency bump is picked up without
-    anyone editing a list.
+    `fastmcp.server.middleware` and imports each module, so a module
+    added by a dependency bump is picked up without anyone editing a
+    list.
 
     `Middleware` itself is excluded - it is the base, not a stack
     member. Subclasses of subclasses are included: `LoggingMiddleware`
@@ -193,6 +194,16 @@ def discovered_middleware() -> frozenset[str]:
     `BaseLoggingMiddleware`, not directly from `Middleware`, and a
     check on direct bases alone would miss the very class R7's M4
     added.
+
+    **`walk_packages`, not `iter_modules`, and the difference is a
+    latent false negative rather than a live one.** The package is flat
+    today - both return the same 11 modules - so this changes no current
+    result. `iter_modules` does not RECURSE: were a subpackage added,
+    it would be listed, importing it would yield only what its
+    `__init__` re-exports, and any middleware defined in its submodules
+    would go silently undiscovered. That is a discovery that knows one
+    spelling of where a class can live, which is the same error this
+    whole assertion exists to catch.
 
     Returns:
         The class names, deduplicated across re-exports.
@@ -205,8 +216,10 @@ def discovered_middleware() -> frozenset[str]:
     from fastmcp.server.middleware import Middleware
 
     names: set[str] = set()
-    for module_info in pkgutil.iter_modules(package.__path__):
-        module = importlib.import_module(f"{package.__name__}.{module_info.name}")
+    for module_info in pkgutil.walk_packages(
+        package.__path__, prefix=f"{package.__name__}."
+    ):
+        module = importlib.import_module(module_info.name)
         for obj in vars(module).values():
             if (
                 inspect.isclass(obj)
@@ -364,6 +377,25 @@ def test_every_framework_middleware_is_classified() -> None:
         "the payload-logging class R7's M4 added is not in the discovered "
         f"set, so this assertion could not have caught it: {discovered}"
     )
+
+    # THE FOUR SETS MUST BE DISJOINT, or the union hides a
+    # double-classification: a name in both EXCLUDED and UNCLASSIFIED
+    # makes the union smaller than the parts, and the equality below
+    # would still pass while a class was governed two contradictory
+    # ways. Equality against a union is not equality against a
+    # PARTITION unless this is asserted.
+    buckets = {
+        "adopted": ADOPTED_MIDDLEWARE,
+        "excluded": EXCLUDED_MIDDLEWARE,
+        "framework-injected": FRAMEWORK_INJECTED_MIDDLEWARE,
+        "unclassified": UNCLASSIFIED_MIDDLEWARE,
+    }
+    overlaps = {
+        f"{one} & {other}": sorted(buckets[one] & buckets[other])
+        for one, other in itertools.combinations(sorted(buckets), 2)
+        if buckets[one] & buckets[other]
+    }
+    assert not overlaps, f"a class is classified two ways: {overlaps}"
 
     governed = (
         ADOPTED_MIDDLEWARE
