@@ -416,6 +416,83 @@ Post-rebase suite: **362 passed, 2 deselected, 0 skipped**. (`main`'s own `45a60
 
 ---
 
+## Follow-up: the documentation layer, and a CI step my own change made stale
+
+Asked afterwards to own the `CONTRIBUTING.md` half of R3-M2. This landed on top of `main` at
+`9bc4b34`, which had by then merged the work above.
+
+**`CONTRIBUTING.md` - the sentence now describes the fixed harness.** Its "Measurements a human
+runs" paragraph said the script sends SIGTERM to PID 1 "on both transports", which was the same
+overstatement as the header, in the place a reader consults to decide whether the `DESIGN.md` limit
+is closed. Because the fix makes the `stdio` arm genuinely establish PID 1, the sentence is now
+**true** rather than removed - so what it needed was the evidence, not a hedge: what the claim used
+to rest on (a uvicorn log line `stdio` never emits), the measurement that disproves the old version
+(`--init` gives pid 7 and the pre-fix `stdio` arm still passes), and what carries it now (the pid in
+the marker, checked on both arms). The `exit 2` sentence is untouched, and the paragraph now says
+outright that a sentence claiming coverage a harness lacks fails the same way the harness would.
+
+**A dangling pronoun that a merge created, fixed while I was there.** That paragraph opened "This
+puts the interpreter at **PID 1**". Since `795c438`, a second script (`check-clause-citations.py`)
+and its own paragraph sit between the code block and this one - so "This" had silently come to point
+at the wrong script. Rewritten to name `check-u1-pid1-shutdown.sh`. It is the failure shape of this
+whole task in one word: a reference that resolves to something, so nothing reports it as broken.
+
+**`.github/workflows/ci.yml` - my exit-code change made an error message wrong.** I had missed that
+the U1 amputation harness **is** a CI step (it is not in the human-run list). Its step read
+`[ "$rc" -eq 0 ] || echo "::error::the U1 amputation harness could not run"`, above a comment saying
+"Amputation exits 0 by design: survivors are its OUTPUT". After my change there are three codes -
+`1` is a **finding**, `3` is genuinely "could not run" - and collapsing them into one message sends
+the next reader to the wrong place, which is this task's own defect one layer up. Split into three
+branches with distinct messages, and the stale comment replaced with the new contract. The anchor
+and row-count checks are kept: a moved anchor is a different failure from a surviving assertion and
+is still not visible in the exit code.
+
+The step's row count is `grep -cE '^########## [A-N]\. ' ... -ge 14`, which already expected 14 and
+still gets 14 (rows A-N; my `########## END` line has no trailing `. ` and does not match).
+
+**Exercised, not read.** `/tmp/ci-step-sim.sh` replays the step's logic against recorded harness
+output:
+
+```
+--- clean run, rc=0            STEP PASSED: rows=14                                    exit=0
+--- rc=1, replayed against the REAL log that carried two UNEXPECTED SURVIVORs
+    ::error::a U1 amputation was survived by an assertion that exists to notice it...  exit=1
+--- rc=3
+    ::error::the U1 amputation harness could not run: the intact baseline is red, or
+             a declared MUST_DIE test id no longer exists                              exit=1
+```
+
+The `rc=1` arm is run against the genuine pre-correction log, not a synthetic one.
+
+**I deliberately did NOT commit that replay script, and the reason cuts against this project's own
+"commit the probe, not the write-up" rule.** It is a hand-copied twin of the `run:` block. Committed,
+it becomes a second list: `ci.yml` changes, the copy does not, and the copy keeps passing - which is
+this task's defect wearing a different hat. `check-u1-pid1-shutdown.sh` avoids exactly this by
+importing `MARKER_ENTRY` from the suite rather than restating it, and there is no equivalent import
+for a workflow step. **The durable fix is to extract the step body into a script `ci.yml` calls**, so
+the thing CI runs and the thing a human runs are one artefact - filed as its own task rather than
+smuggled into this change, since it touches how every other step in that file is written. Until then
+the replay lives in the report, and I would rather say that plainly than commit a copy that can
+silently disagree with the file it claims to check.
+
+**Re-verified on the rebased tree** (restored after the harness finished, never during a run):
+
+```
+bash scripts/check-u1-pid1-shutdown.sh   stdio pid=1 .114s / http pid=1 .330s   PID1_EXIT=0
+bash scripts/check-u1-boot-amputation.sh every declared assertion died, 14 rows  HARNESS_EXIT=0
+ci-step-sim against that exact run       STEP PASSED: rows=14                    SIM_EXIT=0
+uv run --frozen pytest -q                362 passed, 2 deselected, 0 skipped     PYTEST_EXIT=0
+uv run --frozen ruff check .             All checks passed!                      RUFF_EXIT=0
+uv run --frozen ruff format --check .    51 files already formatted              FMT_EXIT=0
+uv run --frozen mypy .                   Success: no issues found in 38 source files  MYPY_EXIT=0
+python3 -c "yaml.safe_load(ci.yml)"      YAML OK, jobs: 5
+check-obligations.py                     Every mapped anchor still contains its subject. OK.
+```
+
+I did **not** add a harness row to `ci.yml`, so there is nothing new to serialise there.
+
+---
+
 ## What I did NOT verify
 
 - **`shellcheck` on either script.** It is not installed on this host. I could not settle it; both
@@ -432,6 +509,13 @@ Post-rebase suite: **362 passed, 2 deselected, 0 skipped**. (`main`'s own `45a60
 - **Whether any OTHER test in the suite is vacuous.** I measured the one the brief named, plus the 12
   ids the `MUST_DIE` tables now declare. The other 70 collected tests were not amputation-tested
   individually.
+- **The `ci.yml` step's three-way exit branch has never run in GitHub Actions.** I exercised its
+  logic locally against real harness output, including a genuine `rc=1` log, but the step itself has
+  only ever run in the shell, not on a runner. Its first real run is its first evidence - the same
+  caveat `ci.yml`'s own header applies to the actions it cannot run locally.
+- **`actionlint` did not run on my `ci.yml` change.** Nothing in this repo lints workflows (task
+  #22), and it is not installed here. The YAML parses and every `run:` block parses as bash; neither
+  of those is what `actionlint` checks.
 - **The `http` arm's uvicorn assertion is now gone.** I removed it per R3-M2's suggested fix. It was
   a second, independent witness to PID 1 on that arm, and the marker check replaces two witnesses
   with one. I judge the trade correct (the marker is ours, the log string is not) but it is a real
