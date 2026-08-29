@@ -9,10 +9,70 @@ Timestamps are America/Chicago.
 
 ## [Unreleased]
 
-No release yet. The project is in design; no runtime code exists. Entries below record the
-decisions and research that the implementation will be built against.
+No release yet. **The server runs.** `fast-mcp-jobvite` boots on stdio and HTTP, exposes
+`search_jobs`, and its Quickstart is executed by CI on every merge. Entries below record both the
+design decisions the implementation was built against and the units built so far.
 
 ### Added
+
+- **`search_jobs`, and with it the first runnable server.** The tool composes every cross-cutting
+  mechanism the earlier units built - configuration fail-fast, the RFC 9457 error contract, the
+  audit path, the result cap and `_meta` - on the public job-data class, which is the least
+  dangerous one in the tool surface. A single page is returned, capped at `JOBVITE_MAX_RESULTS` and
+  reporting `showing N of total` rather than truncating silently. (2026-08-29 04:31 AM CDT)
+- The allow-listed output model for the job list. A field Jobvite returns that is not declared there
+  does not reach the caller, and a new Jobvite field is dropped rather than failing the call. (2026-08-29 04:31 AM CDT)
+- **The fencing-path registry, generated from the output models rather than maintained beside
+  them.** Model attributes are snake_case and fencing paths are Jobvite's camelCase, so two
+  hand-kept lists that must correspond would be a defect waiting for the first schema change. Every
+  field carries an explicit decision and a reason; a field with none raises at generation time
+  rather than defaulting. (2026-08-29 04:31 AM CDT)
+- The shared inbound constraint rule every input model reuses, under ADR-0012: control characters
+  and bidi overrides are refused. A name carrying a NUL or a bidi override is a well-formed short
+  string that every length and regex check admits, which is why the rule is separate from
+  `max_length`. (2026-08-29 04:31 AM CDT)
+- **Jobvite client with a single request entry point**, checking every call against the
+  error-detection rule before returning a body: a response is successful only if the body carries no
+  `status.code` of 400 or above **and** the HTTP status is below 400. Both, every call. This matters
+  because `api.jobvite.com` answers a rejected credential with HTTP 200 and a body saying 401 - a
+  client trusting the HTTP status reports zero results for a credential that was actually
+  refused. (2026-08-29 04:31 AM CDT)
+- Error bodies are decoded without assuming JSON and without relying on `Content-Type`, which the
+  job-feed route does not send: the JSON status envelope, plain text and Tomcat HTML error pages are
+  all recognised as failures rather than degrading to an empty result. XML is parsed with a hardened
+  parser and always treated as an error. (2026-08-29 04:31 AM CDT)
+- Credentials travel as request headers, and no URL containing a secret is ever built. The one route
+  that structurally requires credentials in its query string is treated as sensitive: never written
+  to a log line or an error message in full. (2026-08-29 04:31 AM CDT)
+- **Per-invocation audit event for every tool call**, carrying the tool name, redacted arguments,
+  result status, latency and `request_id`, plus the transport and - on HTTP - the resolved client
+  id. On stdio the event records that caller attribution is unavailable rather than implying an
+  identity that does not exist. W3C trace context is recorded when the caller supplies it and
+  omitted when it does not; it is never synthesised. (2026-08-29 04:31 AM CDT)
+- **Secret redaction at a single enforcement point.** The `jobFeed` URL's `api`, `sc` and
+  `companyId` query parameters are redacted before any log line, including where the URL appears
+  inside an exception message, and tool arguments are redacted by a fail-closed allow-list so a
+  field added later is redacted until it is allowed deliberately. (2026-08-29 04:31 AM CDT)
+- **The server boots**: configuration, transport selection, and a graceful shutdown that runs
+  lifespan teardown on SIGTERM. `fast-mcp-jobvite` is now a console script. (2026-08-29 04:31 AM CDT)
+- Configuration is validated at boot and names every variable it refuses on, scoped to the tools
+  actually enabled, so a deployment running only candidate search is not asked for a job-feed
+  company id. (2026-08-29 04:31 AM CDT)
+- An unrecognised name in `JOBVITE_TOOLS` is a startup failure rather than a silently disabled
+  tool. (2026-08-29 04:31 AM CDT)
+- Binding a non-loopback address without `JOBVITE_TLS_TERMINATED_BY_PROXY=true` refuses to start:
+  this server terminates no TLS of its own, and an off-loopback bind would carry a bearer token and
+  candidate PII in the clear. (2026-08-29 04:31 AM CDT)
+- `JOBVITE_MCP_TRANSPORT=http` without `JOBVITE_HTTP_TOKENS` refuses to start rather than serving an
+  open server. (2026-08-29 04:31 AM CDT)
+- `server.json` declares all fifteen environment variables for registry consumers. (2026-08-29 04:31 AM CDT)
+- **`README.md`**, written against `documentation/readme-standard.md`: all fourteen sections in the
+  prescribed order, a configuration table covering every environment variable the server reads, and
+  copy-paste-runnable examples. Its Quickstart is parsed and executed by CI, so an example that
+  stops working fails the build rather than sitting there. (2026-08-29 04:31 AM CDT)
+- ADR-0018 (Proposed): the forced exit in the shutdown path reports a crash as a clean stop. (2026-08-29 04:31 AM CDT)
+- ADR-0021, recording that the audit event's approval "mechanism" is required by two `DESIGN.md`
+  rows and defined by neither. (2026-08-29 04:31 AM CDT)
 
 - **`docs/DESIGN.md` is frozen at revision 6.** Only a numbered ADR may change it from here.
   The freeze certifies a 0C/0H/0M round, an empty must-mitigate table, and every conditional
@@ -120,6 +180,26 @@ decisions and research that the implementation will be built against.
 
 ### Security
 
+- **A failed call to Jobvite no longer puts the HTTP library's own exception text into the error
+  returned to the caller.** That text carries whatever the library chose to write into it - the
+  request URL, a TLS source file and line number, a local socket path - and it reached the caller
+  unchanged. Callers now get one of three stable reasons instead, which still distinguish an
+  upstream failure from a circuit breaker this server has opened; the full text goes to the log,
+  redacted. (2026-08-29 04:31 AM CDT)
+- **An exception's text and traceback are now redacted on their way to the log stream.** Redaction
+  ran over a record's message, and the serialising sink writes more than the message: an exception
+  logged by any library in the process reached stderr with the job-feed URL - and therefore the
+  `api`, `sc` and `companyId` credentials - in the clear, measured twice in one record. Confirmed
+  before the fix by a probe that plants a credential-shaped URL in a real child process and reads
+  what that process writes. (2026-08-29 04:31 AM CDT)
+- The v2 credential headers are redacted before a failure is logged. The header redactor existed and
+  had no caller until this line needed it. (2026-08-29 04:31 AM CDT)
+- **The Jobvite job-feed URL no longer reaches the log stream in the clear.** The HTTP client library
+  logs each request URL through the standard library's logging, which the server configured at INFO
+  on stderr, and that URL structurally carries the `api`, `sc` and `companyId` credentials. Every
+  record now passes through the project's single redaction point on its way to the sink, whichever
+  library produced it. (2026-08-29 04:31 AM CDT)
+
 - The caller-replay path on `create_candidate` now carries a stated ceiling instead of an unexamined
   acceptance. The standard permits a retried write only behind an idempotency key; nothing
   establishes that Jobvite accepts one, so the ceiling is recorded with the condition that expires
@@ -161,6 +241,16 @@ decisions and research that the implementation will be built against.
   (2026-08-27 02:45 PM CDT)
 
 ### Fixed
+
+- **The audit event's mandated fields now reach the log stream.** `audit.py` writes through `loguru`
+  and nothing configured it, so every record went to `loguru`'s default handler, whose format
+  carries no structured context: `tool_name`, `request_id`, `transport`, `result_status`,
+  `latency_ms` and the redacted arguments were dropped, and the whole event arrived as the word
+  `tool_invocation`. The entry point now installs one serialising sink on stderr. (2026-08-29 04:31 AM CDT)
+- **The audit-write-failure policy can now fire.** `loguru` handlers swallow a sink failure by
+  default and return normally, so the branch that fails a call before its side effect - the one that
+  stops a second live candidate being emailed when the audit record cannot be written - was
+  unreachable in production. The sink no longer swallows. (2026-08-29 04:31 AM CDT)
 
 - Threat-model bookkeeping in the design, three defects of one family. A prose count stated the
   size of a table three times and was wrong all three times, most recently reading "Two" over an
