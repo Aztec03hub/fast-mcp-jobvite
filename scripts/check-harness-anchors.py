@@ -36,6 +36,16 @@ so the anchor positions are DERIVED, never tabulated:
   read off the loop's own `NAME="${...@@...}"` assignments, in source
   order: the one called `OLD`.
 
+  Shape D, the `sed -i` command strings. U0's harness passes its
+  mutation to `eval` as a shell command, so its anchors are sed
+  PATTERNS, not string literals. Every double-quoted argument
+  containing `sed -i` is tokenised, its `s///` and `/addr/d` commands
+  are scanned out, and each pattern is translated from POSIX BRE to a
+  Python regex and matched line-wise against the single file operand.
+  The mutation is found by its CONTENT, not by a parameter name: U0's
+  helper calls its argument `mutate`, and matching on that word would
+  be a hand-kept list of one.
+
 COMPLETENESS, checked rather than assumed. A parser that silently skips
 a call site is exactly the defect this checker exists to catch, one
 level up. So it counts the call sites it *could* see independently of
@@ -55,6 +65,7 @@ from __future__ import annotations
 import argparse
 import ast
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -493,6 +504,191 @@ def _shape_c(
     return anchors, seen
 
 
+# A double-quoted shell argument that invokes `sed -i`. The body honours
+# backslash escapes so an embedded `\"` does not terminate the match.
+SED_ARG_RE = re.compile(r'"(?P<cmd>(?:[^"\\]|\\.)*?\bsed\s+-i\b(?:[^"\\]|\\.)*?)"')
+# Double-quote removal, as the shell performs it: a backslash is literal
+# EXCEPT before one of $ ` " \ and newline.
+DQ_ESCAPE_RE = re.compile(r'\\([$`"\\\n])')
+
+
+def _sed_commands(script: str, where: str) -> list[str]:
+    r"""Scan the patterns out of one sed script.
+
+    Reads `s<delim>PAT<delim>REPL<delim>FLAGS` and `/PAT/d`, separated
+    by `;` or newlines, and returns the PAT of each. Splitting the
+    script on `;` first would be wrong and silently so: U0 carries
+    `s|# transitive prerelease; must be named or resolution fails||`,
+    whose pattern contains the separator. So the script is SCANNED
+    left to right and each command consumes its own delimiters.
+
+    Anything this cannot read is a ParseError, never a skip - an
+    unreadable row that vanishes from the count is the exact defect
+    this checker exists to catch, one level up.
+    """
+
+    def read_field(text: str, i: int, delim: str) -> tuple[str, int]:
+        """Consume up to the next UNESCAPED delim; return (field, index after it)."""
+        out: list[str] = []
+        while i < len(text):
+            c = text[i]
+            if c == "\\" and i + 1 < len(text):
+                if text[i + 1] == delim:
+                    # `\<delim>` inside a field is a literal delimiter.
+                    out.append(delim)
+                else:
+                    out.append(text[i : i + 2])
+                i += 2
+                continue
+            if c == delim:
+                return "".join(out), i + 1
+            out.append(c)
+            i += 1
+        raise ParseError(f"{where}: unterminated sed field (delimiter {delim!r})")
+
+    pats: list[str] = []
+    i, n = 0, len(script)
+    while i < n:
+        while i < n and script[i] in " \t\n;":
+            i += 1
+        if i >= n:
+            break
+        c = script[i]
+        if c == "s":
+            if i + 1 >= n:
+                raise ParseError(f"{where}: `s` with no delimiter")
+            delim = script[i + 1]
+            if delim.isalnum() or delim in " \\\n":
+                raise ParseError(f"{where}: bad `s` delimiter {delim!r}")
+            pat, i = read_field(script, i + 2, delim)
+            _repl, i = read_field(script, i, delim)
+            while i < n and script[i] not in " \t\n;":  # flags: g, i, digits
+                i += 1
+            pats.append(pat)
+        elif c == "/":
+            pat, i = read_field(script, i + 1, "/")
+            while i < n and script[i] in " \t":
+                i += 1
+            if i >= n or script[i] != "d":
+                got = script[i] if i < n else "end of script"
+                raise ParseError(
+                    f"{where}: address /{pat}/ is followed by {got!r}; only "
+                    "`d` is read by this checker"
+                )
+            i += 1
+            pats.append(pat)
+        else:
+            raise ParseError(
+                f"{where}: sed command {c!r} is not one this checker reads "
+                "(`s///` and `/addr/d` only)"
+            )
+    return pats
+
+
+def _bre_to_python(pat: str, where: str) -> str:
+    r"""Translate a POSIX/GNU BRE to the equivalent Python regex.
+
+    This is not cosmetic. In a BRE `(`, `)`, `{`, `}`, `|`, `+` and `?`
+    are ORDINARY characters and `\(` is the group - the exact opposite
+    of Python. Passing a sed pattern to `re` unchanged would turn
+    `"mcp==2.1.1"` into a working regex by luck and the next pattern
+    with a paren in it into a silent mismatch reported as a stale
+    anchor. `^` and `$` are anchors only at the ends, and a leading `*`
+    is literal.
+    """
+    out: list[str] = []
+    i, n = 0, len(pat)
+    while i < n:
+        c = pat[i]
+        if c == "\\":
+            if i + 1 >= n:
+                raise ParseError(f"{where}: pattern ends in a backslash")
+            nxt = pat[i + 1]
+            if nxt in "(){}|+?":  # GNU BRE: escaped form is the METAcharacter
+                out.append(nxt)
+            elif nxt == "/":
+                out.append("/")
+            else:
+                out.append("\\" + nxt)
+            i += 2
+            continue
+        if c == "[":
+            j = i + 1
+            if j < n and pat[j] == "^":
+                j += 1
+            if j < n and pat[j] == "]":
+                j += 1
+            while j < n and pat[j] != "]":
+                j += 1
+            if j >= n:
+                raise ParseError(f"{where}: unterminated bracket expression")
+            out.append(pat[i : j + 1])
+            i = j + 1
+            continue
+        if c in "(){}|+?":  # BRE: ordinary
+            out.append(re.escape(c))
+        elif c == "^" and i != 0:
+            out.append("\\^")
+        elif c == "$" and i != n - 1:
+            out.append("\\$")
+        elif c == "*" and (i == 0 or (i == 1 and pat[0] == "^")):
+            out.append("\\*")
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _shape_d(name: str, src: str, variables: dict[str, str]) -> tuple[list[Anchor], int]:
+    """Read anchors out of `sed -i` command strings."""
+    anchors: list[Anchor] = []
+    seen = 0
+    for m in SED_ARG_RE.finditer(src):
+        line = src.count("\n", 0, m.start()) + 1
+        where = f"{name}:{line}"
+        cmd = DQ_ESCAPE_RE.sub(r"\1", m.group("cmd"))
+        try:
+            argv = shlex.split(cmd)
+        except ValueError as exc:
+            raise ParseError(f"{where}: cannot tokenise the sed command: {exc}") from exc
+        if not argv or argv[0] != "sed":
+            continue
+        seen += 1
+        scripts_: list[str] = []
+        operands: list[str] = []
+        j = 1
+        while j < len(argv):
+            a = argv[j]
+            if a == "-e":
+                if j + 1 >= len(argv):
+                    raise ParseError(f"{where}: `-e` with no expression")
+                scripts_.append(argv[j + 1])
+                j += 2
+                continue
+            if a.startswith("-"):  # -i, -i.bak, -E, -r, -n, bundles
+                j += 1
+                continue
+            operands.append(a)
+            j += 1
+        if not scripts_:
+            if not operands:
+                raise ParseError(f"{where}: sed invocation has no script")
+            scripts_.append(operands.pop(0))
+        if len(operands) != 1:
+            raise ParseError(
+                f"{where}: expected exactly one file operand, got {operands!r}"
+            )
+        target = _expand_path(operands[0], variables)
+        for script in scripts_:
+            for pat in _sed_commands(script, where):
+                if not pat:
+                    continue
+                anchors.append(
+                    Anchor(name, line, "sed-bre", target, _bre_to_python(pat, where))
+                )
+    return anchors, seen
+
+
 def collect(path: Path) -> tuple[list[Anchor], dict[str, int]]:
     src = path.read_text()
     variables = _resolve_vars(src)
@@ -500,9 +696,15 @@ def collect(path: Path) -> tuple[list[Anchor], dict[str, int]]:
     a_anchors, a_seen = _shape_a(path.name, src, sigs, variables)
     b_anchors, b_seen = _shape_b(path.name, src, variables)
     c_anchors, c_seen = _shape_c(path.name, src, variables)
+    d_anchors, d_seen = _shape_d(path.name, src, variables)
     return (
-        a_anchors + b_anchors + c_anchors,
-        {"shell call sites": a_seen, "python edits": b_seen, "spec rows": c_seen},
+        a_anchors + b_anchors + c_anchors + d_anchors,
+        {
+            "shell call sites": a_seen,
+            "python edits": b_seen,
+            "spec rows": c_seen,
+            "sed commands": d_seen,
+        },
     )
 
 
@@ -598,6 +800,13 @@ def main() -> int:
                 # is the loudest possible way to be wrong and the reason
                 # it is stated here rather than defaulted.
                 hits = len(re.findall(a.text, text, re.S))
+            elif a.shape == "sed-bre":
+                # MULTILINE, not DOTALL: sed matches one line at a time,
+                # so `^` and `$` in these patterns mean line start and
+                # line end. Under the default flags `^JOBVITE_API_KEY=`
+                # would be tested against the start of the FILE and
+                # reported stale while the row is perfectly live.
+                hits = len(re.findall(a.text, text, re.M))
             else:
                 hits = text.count(a.text)
             if hits != 1:
