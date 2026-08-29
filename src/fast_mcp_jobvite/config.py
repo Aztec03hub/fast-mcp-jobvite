@@ -16,8 +16,9 @@ closed, loudly, before serving anything.**
    the union: a deployment using only candidate search must not be
    forced to invent a `companyId` it has no use for.
 2. **An unrecognised `JOBVITE_TOOLS` name is a startup failure**
-   (DESIGN.md:1002-1007), not a silent skip. A typo that silently disables
-   a tool is a green start-up having done less than the operator asked.
+   (DESIGN.md:1002-1007), not a silent skip. A typo that silently
+   disables a tool is a green start-up having done less than the
+   operator asked.
 3. **`JOBVITE_HTTP_TOKENS` unset while the transport is `http` is a
    startup failure** (DESIGN.md:899-905), not a server that starts with
    no tokens. The alternative is an open server.
@@ -70,8 +71,8 @@ KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS
 
 #: DESIGN.md:1011-1017's matrix, transcribed row by row. The `http` row
 #: is not here because it is keyed on the transport rather than on a
-#: tool, which is the distinction DESIGN.md:1019-1024 sets that row apart
-#: to make.
+#: tool, which is the distinction DESIGN.md:1019-1024 sets that row
+#: apart to make.
 TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {
     SEARCH_CANDIDATES: ("api_key", "api_secret"),
     GET_CANDIDATE: ("api_key", "api_secret"),
@@ -285,14 +286,14 @@ class Settings(BaseSettings):
         Unset `JOBVITE_TOOLS` means all **read** tools and never the
         write (DESIGN.md:992-994). The write additionally requires
         `JOBVITE_ENABLE_WRITES=true` **and** to be named, and
-        DESIGN.md:996-1000 states the conjunction in both directions - so
-        writes-on with `JOBVITE_TOOLS` unset registers **no write**, and
-        naming the write without the flag registers no write either. In
-        neither case is the result empty: the read tools are registered
-        throughout, and only the write is withheld. (R2-nit-1: this said
-        "registers nothing" twice, which is the wrong claim in the first
-        case and reads as a stronger one than the code makes in the
-        second.)
+        DESIGN.md:996-1000 states the conjunction in both directions -
+        so writes-on with `JOBVITE_TOOLS` unset registers **no write**,
+        and naming the write without the flag registers no write
+        either. In neither case is the result empty: the read tools are
+        registered throughout, and only the write is withheld.
+        (R2-nit-1: this said "registers nothing" twice, which is the
+        wrong claim in the first case and reads as a stronger one than
+        the code makes in the second.)
 
         Unrecognised names are excluded here and refused by
         `validate_settings`; this property never raises, so a caller
