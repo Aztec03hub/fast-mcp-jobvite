@@ -16,6 +16,7 @@ Findings are ranked by severity. Every one carries a suggested fix.
 
 | ID | Sev | Subject | Status |
 |----|-----|---------|--------|
+| R3-H1 | **High** | `mirror.yml` has **never once run**: 117 runs, 117 failures, 0 jobs created | Proved from CI history |
 | R3-M1 | Medium | `JOBVITE_HTTP_TOKENS` accepts an **empty-string bearer token** at boot | Proved at boot |
 | R3-M2 | Medium | `check-u1-pid1-shutdown.sh` verifies PID-1 on the `http` arm only | Proved by read |
 | R3-L1 | Low | `TOOL_REQUIREMENTS` may silently under-require a tool added to `KNOWN_TOOLS` | Latent, unguarded |
@@ -23,6 +24,115 @@ Findings are ranked by severity. Every one carries a suggested fix.
 | R3-L3 | Low | `AuditEvent.to_record`'s `optional` dict is a hand-kept second list of fields | Latent, unguarded |
 
 _(more below; this file is committed incrementally)_
+
+---
+
+## R3-H1 (High) - the mirror workflow has never mirrored anything, 117 runs, 117 failures
+
+**This finding is outside the brief's stated scope, and that is the point.** The brief scopes me to
+the seven units "plus `scripts/`, `docs/reviews/`, `ci.yml` and the suite". `mirror.yml` is in none
+of those. It is also the exact file this repository has already been burned by, and says so in its
+own test suite - `tests/test_workflow_pins.py:9-12`:
+
+> **Why the miss was structural rather than careless.** The implementation plan's shared-file table
+> named `.github/workflows/ci.yml` and nothing else, so `mirror.yml` and `pr-title.yml` were owned
+> by nobody and read by nobody. A rule naming one file in a directory selects for the files it does
+> not name.
+
+That lesson was applied at the **pin** axis. The same file still carries an unread defect at the
+**logic** axis, and a second scope line that names `ci.yml` and not the directory is what let it
+stay there.
+
+**Evidence.** `.github/workflows/mirror.yml:25` -
+
+```
+25	    if: ${{ secrets.MIRROR_TOKEN != '' }}
+```
+
+The `secrets` context is not available in a job-level `if:`. GitHub's context-availability table
+allows `github`, `needs`, `vars` and `inputs` there and not `secrets`, so the expression fails to
+evaluate and the run dies before any job is scheduled.
+
+**Measured, not inferred.** Read from the repository's own Actions history:
+
+```
+$ gh run list --workflow=mirror.yml --limit 200 --json conclusion --jq '.[].conclusion' | sort | uniq -c
+    117 failure
+$ gh run list --workflow=mirror.yml --limit 200 --json conclusion --jq 'length'
+117
+```
+
+**117 runs. 117 failures. Zero successes.** And the runs contain no jobs at all:
+
+```
+$ gh api repos/evolvconsulting/fast-mcp-jobvite/actions/runs/33235212551/jobs
+{"total_count":0,"jobs":[]}
+```
+
+`total_count: 0` with a `failure` conclusion and a 0s duration is the signature of a workflow that
+failed at **expression evaluation**: the run was created, the expression could not be resolved, and
+no runner was ever scheduled. Every push since `7a95a38` ("Host on evolvconsulting with an automatic
+mirror to the personal fork") has failed this way.
+
+**The failure it produces.** The mirror described at `mirror.yml:3-8` does not exist. Every push
+that does not originate from the maintainer's machine - "web edits, other maintainers, merged PRs",
+the precise cases the file says it covers - has never reached `Aztec03hub/fast-mcp-jobvite`. The
+comment at `:7-8` says the job "is inert until the repository defines a `MIRROR_TOKEN` secret"; it is
+in fact inert unconditionally, and the two states are indistinguishable from the outside, which is
+why 117 red runs went unread.
+
+**Alternative hypothesis, checked.** Line 25 is the only expression in the file evaluated outside a
+step: `on:`, `concurrency.group` (a literal), and `permissions` are all static, and
+`${{ secrets.MIRROR_TOKEN }}` at `:34` is inside a step `env:`, where the context *is* available.
+So the `if:` is the only candidate.
+
+**Suggested fix.** Move the emptiness test into the step, where `secrets` is legal, and drop the
+job-level `if:` entirely:
+
+```yaml
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push to mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_TOKEN:-}" ]; then
+            echo "MIRROR_TOKEN is not defined; nothing to mirror."
+            exit 0
+          fi
+          git push --prune --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/Aztec03hub/fast-mcp-jobvite.git" \
+            "+refs/remotes/origin/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+```
+
+This preserves the intended "inert without the secret" behaviour while keeping the run **green**, so
+a future real failure is visible instead of being the 118th red in a row.
+
+**And add the guard, or this recurs at a third axis.** The pins test already walks the directory;
+nothing evaluates the workflows. Either install `actionlint` as a CI step (it flags
+`secrets`-in-`if` directly, and no workflow linting exists today - `grep -n "actionlint\|yamllint"
+.github/workflows/ci.yml` returns nothing), or add to `tests/test_workflow_pins.py`:
+
+```python
+def test_no_job_level_if_reads_the_secrets_context() -> None:
+    """`secrets` is unavailable in `jobs.<id>.if`; the expression never evaluates."""
+    offenders = [
+        f"{p.name}:{n}" for p in sorted(WORKFLOWS.glob("*.yml"))
+        for n, line in enumerate(p.read_text().splitlines(), 1)
+        if re.match(r"\s*if:", line) and "secrets." in line
+    ]
+    assert not offenders, f"job-level `if:` reading secrets: {offenders}"
+```
+
+I would take `actionlint`: it is the version that catches the case nobody thought of, which is the
+whole subject of `test_workflow_pins.py`'s docstring.
 
 ---
 
