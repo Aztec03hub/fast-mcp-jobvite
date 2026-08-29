@@ -85,3 +85,48 @@ repos:
         # else rather than excluded, so a real value pasted into it is caught.
         args: ['--baseline', '.secrets.baseline']
         exclude: ^(uv\.lock|docs/research/fixtures/)
+
+  # ShellCheck. `devops/bash.md:734` is priority: required - "All scripts MUST
+  # pass ShellCheck with zero warnings" - and until this block landed nothing
+  # ran it. The only occurrence of the word in the tree was a
+  # `# shellcheck disable=SC2086` in ci.yml: a suppression for a linter that
+  # never ran.
+  #
+  # WIRED ONLY NOW THAT IT IS GREEN, which is the whole sequencing argument.
+  # Measured against this exact image before the block was added: 22 tracked
+  # `.sh` files, `--severity=warning`, ZERO output, exit 0. It was 4 warnings
+  # this morning; three fixes and one dead declaration closed them. Landing it
+  # earlier would have reproduced D3 from U0-REPORT - a gate red on a clean
+  # tree trains everyone to ignore it - and worse, ci.yml runs
+  # `pre-commit run --all-files`, so a red hook is red CI, not just a red
+  # commit.
+  #
+  # POSITIVE CONTROL, because a linter reporting nothing looks identical to a
+  # linter that did not run: at the DEFAULT severity the same command over the
+  # same 22 files reports 17 findings, all `note`. The zero at
+  # `--severity=warning` is a real threshold, not a no-op.
+  #
+  # `--severity=warning` is the threshold the clause's own CI form
+  # (`bash.md:741`) and pre-commit block (`:767`) specify for themselves, and
+  # it is what ci.yml already passes to actionlint's embedded shellcheck via
+  # SHELLCHECK_OPTS. One threshold, three call sites.
+  #
+  # SELECTION IS BY FILE, NOT BY DIRECTORY. `types: [shell]` is pre-commit's
+  # own identify pass over shebang and extension, so the population is the 22
+  # tracked `.sh` files - which includes four probes under docs/reviews/ and
+  # excludes ci.yml. Measuring `scripts/*.sh` (18) gives the wrong answer in
+  # both directions.
+  #
+  # ADOPTION CEILING, stated rather than discovered: this hook is
+  # `language: docker_image`. It pulls koalaman/shellcheck:v0.10.0 and needs a
+  # working Docker daemon at every commit. CONTRIBUTING.md makes
+  # `pre-commit install` mandatory, so this is the first hook here that
+  # hard-fails without Docker. It is what a `priority: required` clause
+  # prescribes verbatim, so it is adopted rather than deviated from; if it
+  # bites, the alternative is a `language: system` hook wrapping a pinned
+  # binary, and that is an ADR, not an edit.
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: ['--severity=warning']
