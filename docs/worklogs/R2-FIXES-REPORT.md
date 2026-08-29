@@ -393,6 +393,7 @@ files and re-broke nothing, and `check-harness-anchors.py` was re-run after it.
 | `bash scripts/check-u1-boot-controls.sh` | **23/23 controls fired** | 0 |
 | `bash scripts/check-u3-audit-controls.sh` | 15 killed, 0 not killed | 0 |
 | `bash scripts/check-u1-boot-amputation.sh` | 14 amputations A-N, every assertion died | 0 |
+| `bash scripts/check-u0-test-controls.sh` | 11/11 controls fired | 0 |
 | `python3 scripts/check-committed-file-types.py --all` | 238 checked, none refused | 0 |
 | `python3 docs/reviews/check-design-citation-shape.py` | clean - **still 0, not 1** | 0 |
 | `python3 docs/reviews/check-obligations.py` | 31 mappings, 23 anchors verified | 0 |
@@ -416,7 +417,7 @@ anchor floor  171  ->  174      (+3: M21, M22, M23)
    amputates `config.py` and `__main__.py`, both of which I changed, so it is the one that mattered
    most. Added to the gate table.
 
-2. **The remaining eight CI harnesses were not run** - `check-u0-test-controls.sh`,
+2. **The remaining seven CI harnesses were not run** -
    `check-u4-client-*`, `check-u5-jobs-*`, `check-u11-*`, `check-u15-*`,
    `check-suite-floor-amputation.sh`. None anchors on a file I edited except through
    `check-u3-audit-controls.sh`, which I did run, and the static anchor checker covers all 174
