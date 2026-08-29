@@ -588,6 +588,14 @@ async def test_retry_after_is_honoured_over_the_local_backoff() -> None:
     The header wins over the jittered schedule, and is then bounded by
     what remains of the outbound budget - an upstream asking for 900
     seconds must not be able to make us wait past a bound we promised.
+
+    **The bound is a STOP, not a shorter sleep** (R6-M1). `min(900,
+    remaining)` is `remaining`, so clamping slept the budget to zero and
+    bought an attempt `_attempt` refuses before the transport sees it.
+    A wait that would consume the budget now returns `0.0` and lets
+    `stop_after_delay` end the call. The clamp itself is still live and
+    is exercised by the third arm, where the jittered schedule is
+    shorter than what remains.
     """
     handler, _ = counting(
         [
@@ -611,10 +619,15 @@ async def test_retry_after_is_honoured_over_the_local_backoff() -> None:
     try:
         # No budget open: the header is honoured verbatim.
         assert c._wait_for_retry(_State()) == 900.0  # type: ignore[arg-type]  # noqa: SLF001
-        # Budget open: clamped to what is left of it.
+        # Budget open and the header asks for MORE than is left: stop.
         with jc.outbound_budget_scope(5.0):
+            assert c._wait_for_retry(_State()) == 0.0  # type: ignore[arg-type]  # noqa: SLF001
+        # Budget open and the header FITS: honoured verbatim, so the
+        # arm above is a decision about the budget rather than a
+        # function that returns 0.0 whenever a scope is open.
+        with jc.outbound_budget_scope(5000.0):
             clamped = c._wait_for_retry(_State())  # type: ignore[arg-type]  # noqa: SLF001
-        assert 0.0 < clamped <= 5.0
+        assert clamped == 900.0
     finally:
         await c.aclose()
 
@@ -626,6 +639,17 @@ def test_a_retry_after_we_cannot_trust_is_ignored_rather_than_guessed() -> None:
     never observed, and a wrong date silently becomes a wrong wait.
     Absent, malformed and negative all return `None`, which sends the
     caller back to the jittered schedule rather than to an invented one.
+
+    **`"0"` and `""` are the members that were missing** (R6-M3). The
+    docstring above used to say "absent, malformed and negative", which
+    was a true statement about a set that did not contain the
+    interesting case: `0` is `>= 0`, so it was returned verbatim and
+    `_wait_for_retry` preferred it to the jittered schedule - every
+    retry then fired with NO delay, which is
+    `backend/resilience.md:79-82`'s thundering herd, switched on by a
+    header the upstream controls. `""` is `ValueError` on `float()` and
+    so was already `None`; it is asserted here because "malformed" was
+    the word carrying it and no case checked it.
     """
     assert jc._retry_after_seconds({"Retry-After": "12"}) == 12.0  # noqa: SLF001
     assert jc._retry_after_seconds({}) is None  # noqa: SLF001
@@ -633,6 +657,13 @@ def test_a_retry_after_we_cannot_trust_is_ignored_rather_than_guessed() -> None:
     assert (  # noqa: SLF001
         jc._retry_after_seconds({"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"})
         is None
+    )
+    assert jc._retry_after_seconds({"Retry-After": ""}) is None  # noqa: SLF001
+    # FLOORED, not trusted and not rejected: the back-pressure is
+    # honoured and jitter cannot be switched off.
+    assert (  # noqa: SLF001
+        jc._retry_after_seconds({"Retry-After": "0"})
+        == jc.DEFAULT_RETRY_INITIAL_BACKOFF
     )
 
 
@@ -717,6 +748,260 @@ async def test_repeated_4xx_does_not_trip_the_breaker() -> None:
     finally:
         await c.aclose()
     assert len(seen) == jc.DEFAULT_BREAKER_FAILURE_THRESHOLD * 2
+
+
+async def test_a_non_outage_does_not_RESET_the_breakers_accumulated_failures() -> None:
+    """R6-H1. `== 0` cannot tell "not counted" from "reset to zero".
+
+    The two exclusion cases beside this one both start from a closed
+    breaker and assert `failure_count == 0`, and `0` is what BOTH
+    hypotheses produce from a start of `0`. They were true and they were
+    blind: `circuitbreaker.__exit__` calls `reset()` on every exception
+    its predicate DECLINES, so a 4xx did not merely fail to count - it
+    zeroed the counter and closed the breaker. Measured at **4 -> 0** by
+    `docs/reviews/probe-r6-breaker-reset.py`.
+
+    So this case starts from a NON-ZERO counter, which is the only start
+    the two hypotheses disagree about, and asserts the counter is
+    unchanged rather than that it is zero.
+
+    **Three arms, and the third is the control.** Without it, "the
+    counter did not move" passes just as well against a breaker whose
+    counter never moves at all.
+    """
+    threshold = jc.DEFAULT_BREAKER_FAILURE_THRESHOLD
+
+    async def drive_to_one_below_threshold() -> None:
+        handler, _ = counting(
+            [httpx2.Response(500, content=b'{"status":{"code":500}}')]
+        )
+        c = client(handler, retry_max_attempts=1)
+        try:
+            for _ in range(threshold - 1):
+                with pytest.raises(JobviteUpstreamError):
+                    await c.request("GET", JOBS_PATH)
+        finally:
+            await c.aclose()
+        assert jc._JOBVITE_BREAKER.failure_count == threshold - 1  # noqa: SLF001
+
+    # ARM 1 - a 4xx. DESIGN.md:354-355 says it "must not trip it"; it
+    # must not HEAL it either, and those are different behaviours.
+    await drive_to_one_below_threshold()
+    handler, _ = counting([httpx2.Response(404, content=b'{"status":{"code":404}}')])
+    c = client(handler)
+    try:
+        with pytest.raises(JobviteUpstreamError):
+            await c.request("GET", JOBS_PATH)
+    finally:
+        await c.aclose()
+    assert jc._JOBVITE_BREAKER.failure_count == threshold - 1, (  # noqa: SLF001
+        "a 4xx healed the breaker instead of being ignored"
+    )
+    assert jc._JOBVITE_BREAKER.state == "closed"  # noqa: SLF001
+
+    # ARM 2 - an exhausted budget, and it is worse in kind. The
+    # `counts_toward_breaker=False` docstring argues that counting it
+    # would let one slow invocation trip the breaker for every other
+    # caller; RESETTING it lets one slow invocation CLOSE the breaker
+    # for every other caller, with no successful call to Jobvite.
+    jc.reset_breaker_for_test()
+    await drive_to_one_below_threshold()
+
+    async def slow(_request: httpx2.Request) -> httpx2.Response:
+        await asyncio.sleep(0.15)
+        return httpx2.Response(200, content=b"{}")
+
+    c = client(slow, outbound_budget_seconds=0.05)
+    try:
+        with jc.outbound_budget_scope(0.001):
+            await asyncio.sleep(0.01)
+            with pytest.raises(JobviteUnavailableError):
+                await c.request("GET", JOBS_PATH)
+    finally:
+        await c.aclose()
+    assert jc._JOBVITE_BREAKER.failure_count == threshold - 1, (  # noqa: SLF001
+        "an exhausted budget healed the breaker instead of being ignored"
+    )
+
+    # ARM 3, THE CONTROL - mechanism-matched: the identical drive with a
+    # real outage in the last slot reaches the threshold and OPENS. This
+    # is what proves arms 1 and 2 read a live counter and not a
+    # constant.
+    jc.reset_breaker_for_test()
+    await drive_to_one_below_threshold()
+    handler, _ = counting([httpx2.Response(500, content=b'{"status":{"code":500}}')])
+    c = client(handler, retry_max_attempts=1)
+    try:
+        with pytest.raises(JobviteUpstreamError):
+            await c.request("GET", JOBS_PATH)
+    finally:
+        await c.aclose()
+    assert jc._JOBVITE_BREAKER.failure_count == threshold  # noqa: SLF001
+    assert jc._JOBVITE_BREAKER.state == "open"  # noqa: SLF001
+
+
+async def test_a_429_counts_toward_the_breaker_but_an_exhausted_budget_does_not() -> (
+    None
+):
+    """R6-H3. A SURVIVING MUTATION: `counts_toward_breaker` was inert.
+
+    `return exc.counts_toward_breaker` -> `return False` passed all 562
+    tests. M12 and M13 pin the two `False` directions - an exhausted
+    budget and a 4xx must not count - and **neither direction of the
+    `True` case was pinned anywhere**, so a rate-limited upstream could
+    become invisible to the breaker with nothing noticing.
+
+    `test_a_429_is_retried_and_then_mapped_to_503` asserts the status
+    mapping and never reads `failure_count`.
+
+    **Both arms in one case, deliberately.** The 429 arm alone passes
+    against a predicate that counts everything, which is the mutation
+    M12 applies; the budget arm alone passes against one that counts
+    nothing, which is the mutation this row applies. Only the pair
+    constrains the flag to be READ.
+    """
+    threshold = jc.DEFAULT_BREAKER_FAILURE_THRESHOLD
+
+    # ARM 1 - a 429 IS Jobvite telling us it is unwell, and counts.
+    handler, _ = counting(
+        [httpx2.Response(429, content=b'{"status":{"code":429}}', headers={})]
+    )
+    c = client(handler, retry_max_attempts=1)
+    try:
+        for _ in range(threshold):
+            with pytest.raises(JobviteUnavailableError):
+                await c.request("GET", JOBS_PATH)
+        assert jc._JOBVITE_BREAKER.state == "open"  # noqa: SLF001
+        assert jc._JOBVITE_BREAKER.failure_count >= threshold  # noqa: SLF001
+    finally:
+        await c.aclose()
+
+    # ARM 2 - a bound WE applied, driven the identical number of times
+    # through the identical loop, and it must NOT open.
+    jc.reset_breaker_for_test()
+
+    async def slow(_request: httpx2.Request) -> httpx2.Response:
+        await asyncio.sleep(0.15)
+        return httpx2.Response(200, content=b"{}")
+
+    c = client(slow, outbound_budget_seconds=0.05)
+    try:
+        for _ in range(threshold):
+            with jc.outbound_budget_scope(0.001):
+                await asyncio.sleep(0.01)
+                with pytest.raises(JobviteUnavailableError):
+                    await c.request("GET", JOBS_PATH)
+    finally:
+        await c.aclose()
+    assert jc._JOBVITE_BREAKER.state == "closed"  # noqa: SLF001
+    assert jc._JOBVITE_BREAKER.failure_count == 0  # noqa: SLF001
+
+
+async def test_a_write_that_meets_a_5xx_surfaces_502_and_not_an_internal_error() -> (
+    None
+):
+    """R6-H2. The ONLY path a write can take, and it raised a 500.
+
+    `_attempt` wraps a retryable status in the module-private
+    `_RetryableUpstream` **whatever the method**. The retrying branch
+    converted it back; the non-retrying branch had no converter, so a
+    POST meeting a 5xx raised the private type out of `request()`,
+    ADR-0017 mapped it to `/problems/internal-error` **500**, and the
+    detail read `An unexpected _RetryableUpstream occurred.`
+
+    Three defects from one cause, all asserted here: the status
+    (DESIGN.md:346-349 requires 502 for a Jobvite 5xx, and 500 is the
+    one status a caller must not diagnose upstream), the private class
+    name reaching an API consumer (`backend/error-handling.md:383`),
+    and the breaker never seeing the failure at all.
+
+    **The type is asserted as well as the status**, so a future
+    `about:blank` regression cannot pass this on the number alone.
+    """
+    handler, seen = counting([httpx2.Response(503, content=b'{"status":{"code":503}}')])
+    c = client(handler, retry_max_attempts=4)
+    try:
+        with pytest.raises(JobviteUpstreamError) as caught:
+            await c.request("POST", "/candidate", json_body={"firstName": "A"})
+    finally:
+        await c.aclose()
+
+    # §8 #21 still holds: ONE row, not four. The conversion did not
+    # accidentally put the write on the retrying branch.
+    assert seen == ["POST"]
+    problem = problem_from_exception(caught.value, RID_A)
+    assert problem["status"] == 502
+    assert problem["type"] == "/problems/external-service-error"
+    assert "_RetryableUpstream" not in problem["detail"]
+    # And it is an outage, so the breaker heard about it.
+    assert jc._JOBVITE_BREAKER.failure_count == 1  # noqa: SLF001
+
+
+async def test_a_write_that_meets_a_429_surfaces_503_like_a_read_does() -> None:
+    """The 429 sibling of the case above, and the positive control.
+
+    A 5xx and a 429 leave `_attempt` through the same `raise
+    _RetryableUpstream`, and `public_error()` maps them to DIFFERENT
+    public types - 502 and 503. Asserting only the 5xx arm would pass
+    against a converter that returned `self.cause` unconditionally,
+    which is exactly the mutation M3 applies one branch up.
+    """
+    handler, seen = counting(
+        [httpx2.Response(429, content=b'{"status":{"code":429}}', headers={})]
+    )
+    c = client(handler, retry_max_attempts=4)
+    try:
+        with pytest.raises(JobviteUnavailableError) as caught:
+            await c.request("POST", "/candidate", json_body={"firstName": "A"})
+    finally:
+        await c.aclose()
+    assert seen == ["POST"]
+    problem = problem_from_exception(caught.value, RID_A)
+    assert problem["status"] == 503
+    assert problem["type"] == "/problems/service-unavailable"
+
+
+async def test_a_wait_that_would_consume_the_budget_is_not_slept_out() -> None:
+    """R6-M1. The clamp bought an attempt `_attempt` refuses.
+
+    `min(retry_after, remaining)` **is** `remaining` whenever the
+    upstream asks for longer than we have, so honouring a `Retry-After`
+    of 900 against a 60-second budget slept the whole budget away and
+    the attempt it bought was rejected before the transport saw it.
+    Measured at 1.00s of a 1.0s budget by
+    `docs/reviews/probe-r6-wait-burns-budget.py`; it holds at any
+    budget.
+
+    **Asserted on the returned number, not on elapsed wall time**, the
+    way `test_a_whole_scan_shares_one_budget_rather_than_one_per_page`
+    does - a mock transport answers in microseconds and an elapsed-time
+    assertion would be measuring the clock rather than the decision.
+    """
+    handler, _ = counting([httpx2.Response(200, content=b"{}")])
+    c = client(handler)
+
+    class _State:
+        attempt_number = 1
+
+        class outcome:  # noqa: N801 - mirrors tenacity's attribute name
+            @staticmethod
+            def exception() -> Exception:
+                return jc._RetryableUpstream(  # noqa: SLF001
+                    JobviteUpstreamError(429, "slow down"), retry_after=900.0
+                )
+
+    try:
+        # The wait EXCEEDS what is left: stop, do not sleep it out.
+        with jc.outbound_budget_scope(5.0):
+            assert c._wait_for_retry(_State()) == 0.0  # type: ignore[arg-type]  # noqa: SLF001
+        # THE CONTROL - the same call with a budget the wait fits inside
+        # returns the header's own number, so the arm above is a
+        # decision about the budget and not a function that always
+        # returns 0.0.
+        with jc.outbound_budget_scope(5000.0):
+            assert c._wait_for_retry(_State()) == 900.0  # type: ignore[arg-type]  # noqa: SLF001
+    finally:
+        await c.aclose()
 
 
 async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:

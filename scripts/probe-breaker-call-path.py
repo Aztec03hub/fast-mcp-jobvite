@@ -62,8 +62,10 @@ Run it directly for the human-readable transcript:
 from __future__ import annotations
 
 import asyncio
+import importlib
 import inspect
-import sys
+import pathlib
+import re
 import threading
 import time
 from contextvars import ContextVar
@@ -74,15 +76,58 @@ import circuitbreaker
 #: Named here, in one place, so the "absence" this probe reports is a
 #: statement about a search whose terms are visible rather than about
 #: the author's imagination.
+#:
+#: **R6-N3 added six of these.** The original eight had no entry for
+#: `call_soon` or `call_soon_threadsafe` - asyncio's most basic
+#: schedulers and the immediate neighbours of the `call_later` the list
+#: DID think of - nor for `signal`, `run_in_executor`, `to_thread` or
+#: `concurrent`. A `circuitbreaker` release that expired half-open state
+#: from `loop.call_soon` would have passed arm 1 in silence. This is the
+#: "a hand-kept list is blind to the member nobody added" shape, and the
+#: list is still hand-kept: what makes it honest is arm 1c below, which
+#: requires every term to be DEMONSTRABLE in a file that really
+#: schedules.
+#:
+#: `sched` was dropped and `scheduler` put in its place: `sched` matched
+#: the words *scheduling* and *scheduled* as a substring, which is how
+#: it appeared to pass while testing nothing. `alarm` was considered and
+#: LEFT OUT - `signal.alarm` is implemented in C, so no readable Python
+#: source can serve as its control, and reaching for it is already
+#: caught by the `signal` term.
 SCHEDULING_NAMES: tuple[str, ...] = (
     "threading",
     "Timer",
     "call_later",
     "call_at",
+    "call_soon",
+    "call_soon_threadsafe",
     "create_task",
     "ensure_future",
-    "sched",
+    "scheduler",
     "sleep",
+    "signal",
+    "run_in_executor",
+    "to_thread",
+    "concurrent",
+)
+
+#: Modules that REALLY schedule, used by arm 1c. **Not this probe.**
+#: R6-M2: arm 1c used to search this probe's own source for the tuple
+#: above, which is defined in this same file - so a file containing
+#: nothing but the term list, with zero scheduling code of any kind,
+#: passed the control 8/8. Four of the eight terms appeared only as
+#: their own definition. A control that cannot fail cannot be told from
+#: one that does not test its subject, which is the sentence this
+#: probe's own docstring uses to justify arm 1c's existence.
+CONTROL_MODULES: tuple[str, ...] = (
+    "asyncio.base_events",
+    "asyncio.tasks",
+    "asyncio.unix_events",
+    "asyncio.threads",
+    "threading",
+    "sched",
+    "concurrent.futures.thread",
+    "signal",
 )
 
 #: A stand-in for `utils/correlation.py`'s `request_id_var`. The probe
@@ -91,8 +136,44 @@ SCHEDULING_NAMES: tuple[str, ...] = (
 probe_request_id: ContextVar[str | None] = ContextVar("probe_request_id", default=None)
 
 
+def module_source(module: object) -> str:
+    """Read a module's ENTIRE source, package or single file.
+
+    **The container, not one member** (R6-N3). `inspect.getsource` on a
+    PACKAGE returns only its `__init__.py`, so if `circuitbreaker` ever
+    ships as a package the search would run over an incomplete corpus
+    and report a clean empty - indistinguishable from a real absence,
+    which is a failure this project has measured three times. When the
+    module is a package this walks every `*.py` beside its `__init__`
+    and raises if it finds none, so a packaged release fails LOUDLY.
+
+    Args:
+        module: The imported module to read.
+
+    Returns:
+        The concatenated source text.
+
+    Raises:
+        RuntimeError: If a package yielded no readable source files.
+    """
+    path = getattr(module, "__file__", None)
+    if path is not None and path.endswith("__init__.py"):
+        files = sorted(pathlib.Path(path).parent.rglob("*.py"))
+        if not files:
+            raise RuntimeError(
+                f"{module!r} is a package and no *.py was readable under "
+                f"{pathlib.Path(path).parent} - the search would be a false empty."
+            )
+        return "\n".join(f.read_text(encoding="utf-8") for f in files)
+    return inspect.getsource(module)  # type: ignore[arg-type]
+
+
 def scheduling_names_in_source(module: object) -> list[str]:
     """Return every scheduling name that appears in a module's source.
+
+    **Whole words, not substrings.** `sched` used to match the words
+    *scheduling* and *scheduled*, so a term the corpus never really used
+    reported a hit (R6-M2).
 
     Args:
         module: The imported module to read.
@@ -102,8 +183,30 @@ def scheduling_names_in_source(module: object) -> list[str]:
         the order they are declared above. An empty list is the
         call-path answer.
     """
-    source = inspect.getsource(module)  # type: ignore[arg-type]
-    return [name for name in SCHEDULING_NAMES if name in source]
+    source = module_source(module)
+    return [
+        name
+        for name in SCHEDULING_NAMES
+        if re.search(rf"\b{re.escape(name)}\b", source)
+    ]
+
+
+def names_no_control_can_demonstrate() -> list[str]:
+    """Arm 1c: every term must be findable in code that SCHEDULES.
+
+    This is the arm R6-M2 falsified. It no longer reads this probe -
+    it reads `CONTROL_MODULES`, none of which has ever heard of
+    `SCHEDULING_NAMES`, so no file can pass by containing the question.
+
+    Returns:
+        The terms no control module contains. Empty is the pass.
+    """
+    sources = [module_source(importlib.import_module(m)) for m in CONTROL_MODULES]
+    return [
+        name
+        for name in SCHEDULING_NAMES
+        if not any(re.search(rf"\b{re.escape(name)}\b", s) for s in sources)
+    ]
 
 
 #: How long a probe breaker stays open. Small enough that the probe is
@@ -262,13 +365,18 @@ def main() -> int:
     else:
         print("       PASS - expiry cannot be fired by anything but a read")
 
-    control_names = scheduling_names_in_source(sys.modules[__name__])
-    print(f"ARM 1c positive control names in THIS module: {control_names}")
-    if not control_names:
-        print("       *** BROKEN CONTROL *** arm 1 cannot distinguish anything")
+    undemonstrable = names_no_control_can_demonstrate()
+    print(f"ARM 1c terms no scheduling module demonstrates: {undemonstrable or 'NONE'}")
+    print(f"       control modules read: {list(CONTROL_MODULES)}")
+    if undemonstrable:
+        print("       *** BROKEN CONTROL *** arm 1 searches for term(s) that no")
+        print("           real scheduling code contains, so their absence from")
+        print("           circuitbreaker means nothing.")
         ok = False
     else:
-        print("       PASS - the search term arm 1 uses is one that CAN be found")
+        print("       PASS - every term arm 1 uses is one that CAN be found in")
+        print("              code that really schedules, and none of the control")
+        print("              modules contains this probe's own term list.")
 
     stored, derived = asyncio.run(arm_2_behavioural())
     print(f"ARM 2  STORED state after the window elapsed:  {stored!r}")

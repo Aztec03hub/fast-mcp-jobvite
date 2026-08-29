@@ -261,7 +261,7 @@ make the breaker cases red.
 - the budget default **60 seconds** for the whole invocation.
 
 **Today those 25 requests fit easily, and the reason is a second missing mechanism.**
-`config.py:203` declares `outbound_rate_limit: int = Field(default=6, ge=1)` and
+`config.py`'s `outbound_rate_limit` field declares `outbound_rate_limit: int = Field(default=6, ge=1)` and
 **nothing in `src/` reads it** - `grep -rn "outbound_rate_limit" src/` returns exactly two hits, the
 declaration and my own comment saying it is not the budget. **The outbound self-throttle of
 `DESIGN.md`'s §4.4 does not exist**, so 25 mock-transport requests complete in milliseconds and the
@@ -286,8 +286,14 @@ size on my own: the design states no paging policy, and U6 was right to delete t
 
 ## 7. Findings, each with a suggested fix
 
+<!-- R6-N1: both citations said `config.py:203`, which was true on this
+     unit's branch base and became 228 across the merge - the derived
+     record decaying where no step's check looks. Repointed to the FIELD
+     NAME, which is unique in that file and cannot drift, rather than to a
+     fresh number that would decay the same way. -->
+
 **F1 - `outbound_rate_limit` has no consumer; the outbound self-throttle does not exist.**
-`config.py:203` declares it and `grep -rn "outbound_rate_limit" src/` finds only that declaration
+`config.py`'s `outbound_rate_limit` field declares it and `grep -rn "outbound_rate_limit" src/` finds only that declaration
 and my comment. Same shape as the budget obligation I was given (task #43): a promised mechanism
 with a named variable and no implementation, which reads as done. *Suggested fix:* a new task, and
 an `asyncio` token-bucket or a monotonic last-call timestamp on `JobviteClient`, gated on the same
