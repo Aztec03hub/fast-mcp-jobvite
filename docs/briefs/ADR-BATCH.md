@@ -39,8 +39,8 @@ Ruling: *"ACCEPTED. Both mechanisms, and the bound is in RECORDS rather than pag
 reason is internal to the ADR - the ADR elsewhere requires any bound be *"sane at both 50 and 500
 records per page"*, and a page ceiling is a different record count at each page size.
 
-**ALREADY IMPLEMENTED, and correctly.** `jobvite_client.py:518` is
-`MAX_SCAN_RECORDS: Final = 100_000`, and `:475-478` carries a comment recording this exact
+**ALREADY IMPLEMENTED, and correctly.** `src/fast_mcp_jobvite/services/jobvite_client.py:518` is
+`MAX_SCAN_RECORDS: Final = 100_000`, and `src/fast_mcp_jobvite/services/jobvite_client.py:475-478` carries a comment recording this exact
 conflict. **The design must describe the code**: a record ceiling. Writing `MAX_PAGES` into
 `DESIGN.md` would make the design describe something that does not exist.
 
@@ -56,7 +56,7 @@ states the budget *"bounds all attempts for one tool invocation"*, and the rulin
 ruling past it. Do not write that half twice.
 
 **Q1 CONTRADICTS THE SHIPPED CODE, AND THIS IS THE BIGGEST THING IN THIS BRIEF.**
-`jobvite_client.py:2039-2049` uses `min(transport_cap, configured_result_cap)` for the exhaustive
+`src/fast_mcp_jobvite/services/jobvite_client.py:2039-2049` uses `min(transport_cap, configured_result_cap)` for the exhaustive
 path with no branch, and carries a comment arguing FOR that: *"A separate 'exhaustive scans use the
 raw transport cap' rule would be a paging policy this design does not state, invented here, and
 untestable without a knob invented to test it."* U6 was right at the time - the design stated no
@@ -77,9 +77,9 @@ invocation. A later Correction fixes the logger name from `httpx` to `httpx2` in
 why: a filter on `httpx` attaches to a logger this library never writes to, so *"the fix would have
 been inoperative and every test of it would have passed."*
 
-**ALREADY IMPLEMENTED, and correctly.** `redaction.py:489` is `HTTPX_LOGGER_NAME: Final = "httpx2"`,
-`install_log_redaction` at `:498` is idempotent, and the constructor keyword is
-`jobvite_client.py:1234`. The design must say `httpx2`. **The ADR body still says `httpx` in the
+**ALREADY IMPLEMENTED, and correctly.** `src/fast_mcp_jobvite/utils/redaction.py:489` is `HTTPX_LOGGER_NAME: Final = "httpx2"`,
+`install_log_redaction` at `src/fast_mcp_jobvite/utils/redaction.py:498` is idempotent, and the constructor keyword is
+`src/fast_mcp_jobvite/services/jobvite_client.py:1234`. The design must say `httpx2`. **The ADR body still says `httpx` in the
 options it lists** - that text is superseded, not authoritative.
 
 ## SIX RULINGS, so you do not stop on them - and three citations that are WRONG
@@ -108,9 +108,13 @@ credential. Only the identifier and the letters were open. **Use `C2-T2`, Likeli
 Low -> Low.** It is a second Tampering row and T2 is the next free number.
 
 **R4. Leave `C2-T1` unqualified.** It stays literally true after adoption - schemas are not
-payloads - and a qualifier added to a true sentence is noise. **But `:1170`'s "These two plus
-`audit.py` make three log producers" MUST be fixed in the SAME edit**, because it resolves against a
-list this batch lengthens. Drop the count; do not bump it.
+payloads - and a qualifier added to a true sentence is noise. **But `:1170` MUST be fixed in the SAME edit**, because it
+resolves against a list this batch lengthens. Drop the count; do not bump it.
+
+Its whole sentence reads *"These two plus §5.3's `audit.py` make three log producers per
+invocation, against a clause that..."*. **The first version of this ruling quoted it trimmed at
+both "§5.3's" and "per invocation"** - the trimmed-citation failure this same document warns about
+a few lines further down, committed inside the warning. Read the whole sentence before editing it.
 
 **R5. Do NOT grow §13's deviation list.** Its header at `:1990` is *"The eleven required at
 freeze"* - a record of what was required AT FREEZE, not a running index. None of 0012-0033 is
@@ -124,12 +128,23 @@ eight would misstate the contract.
 
 ### Three citations in the ADRs are WRONG, measured on the frozen design
 
-- **ADR-0028 cites the §8 arm as `DESIGN.md:1276-1278`, twice. `sampling` is on `:1280`** - outside
-  that range, because `:1279` ends at "`elicitation`,". **An applier editing only the cited range
-  changes nothing and the checker still passes.** Anchor on the subject: `grep -n sampling` gives
-  exactly `687` and `1280`, and both are the edit.
-- **ADR-0027 cites `assert len(variables) == 15` at `test_repo_hygiene.py:81`. It is `:82`.**
-- **ADR-0031 cites `:509` for "makes a published `type` URI a contract". It is `:510`.**
+**COUNT THE SITES WITH THE GREP, NOT BY EYE.** Each count below is the command that produces it,
+because the first version of this section said "twice" where the answer was four - the fourth is
+written bare as `` `:1276-1278` `` and a `DESIGN\.md:1276-1278` pattern cannot see it. A selector
+narrower than its subject returns a clean, confident undercount.
+
+- **The §8 arm is cited as `DESIGN.md:1276-1278` at FOUR sites, and `sampling` is on `:1280`** -
+  outside that range, because `:1279` ends at "`elicitation`,". **An applier editing only the cited
+  range changes nothing and the checker still passes.**
+  `grep -rn ':1276-1278' docs/adr/` -> `0021:17`, `0028:27`, `0028:61`, `0028:102`.
+  Anchor on the subject instead: `grep -n sampling` on the frozen design gives exactly `687` and
+  `1280`, and both are the edit. **Rule on `0021:17` explicitly** - fix it, or say in one line why
+  an applied ADR is left as a record. Right now it is neither.
+- **`test_repo_hygiene.py:81` is cited at TWO sites, and the assert is on `:82`.**
+  `grep -rn 'test_repo_hygiene\.py:81' docs/adr/` -> `0027:35`, `0027:56`. (`:81` is
+  `variables = _declared_variables()`.)
+- **`DESIGN.md:509` is cited at ONE site and the sentence is on `:510`.**
+  `grep -rn 'DESIGN\.md:509' docs/adr/` -> `0031:28`.
 
 **ADR-0023 needs NO DESIGN.md CHANGE AT ALL** - the frozen design has zero strict-mode, ShellCheck
 or `bash.md` content (`grep -icE` returns 0), and its applied home is `OBLIGATIONS.md` row BASH-1,
@@ -137,43 +152,48 @@ already there. It also **contradicts itself**: its Decision puts `ci.yml` `run:`
 its own "does not settle" bullet says it does not cover `ci.yml`. The Ruling settles it in favour of
 the Decision. **Delete that stale bullet.**
 
-## The citation surface, re-measured at `1a51107` rather than estimated
+## The citation surface - MEASURE IT, this brief deliberately carries no numbers
 
-**The unit is OCCURRENCES, not lines** - `grep -rno 'DESIGN\.md:[0-9]' <dir> | wc -l`. Naming it
-is not pedantry: a line can carry two citations, and counting lines instead gives `docs/reviews`
-476 rather than 519. The orchestrator re-measured this block with the line form, read the 43 as a
-real fall, and wrote a paragraph explaining a change that had not happened. Both numbers were
-correct; they answered different questions. **State the command with the number.**
+**Every number that used to be here went stale, four times, inside one day.** `docs/worklogs` moved
+186 -> 215 and `docs/reviews` 519 -> 532 while agents committed reports; `docs/briefs` moved because
+editing THIS FILE adds citations to the very count it states. A brief that cites the design and then
+orders a citation sweep is its own moving target, and nothing in the repo said so until now.
+
+So run these, and put the answers in your report rather than back into this file:
 
 ```
-src               388        <- repoint
-tests             346        <- repoint
-scripts           133        <- repoint
-docs/briefs        42        <- repoint only the LIVE ones (see below)
-docs/adr           62        <- LEAVE (an ADR quotes the design it is amending)
-docs/worklogs     186        <- LEAVE (a worklog records what that unit saw)
-docs/reviews      519        <- LEAVE (a review cites the design as it stood)
+# per directory, and THE UNIT IS OCCURRENCES, NOT LINES - a line can carry two.
+for d in src tests scripts docs/briefs docs/adr docs/worklogs docs/reviews; do
+  printf '%-16s %5d\n' "$d" "$(grep -rno 'DESIGN\.md:[0-9]' "$d" | wc -l)"
+done
 ```
 
-**867 to repoint, 767 to leave alone**, and the split is a judgement you should re-derive rather
-than inherit. `check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this
-reason and says so; the same argument covers `docs/worklogs/` and applied ADRs.
+Counting lines instead gives `docs/reviews` 476 against 519 for occurrences. The orchestrator
+measured it the second way, read the difference as a real fall of 43, and wrote a paragraph
+explaining a change that had not happened. **State the command beside any number you report.**
 
-The four repointable directories grew between `9c41009` and `1a51107` (370/336/125 and 170), and
-`docs/reviews` did not move at all - which is what you would expect from a directory of records
-nobody edits, and is a small check that the split above is drawn in the right place. **Re-measure
-before you start**; a count written into a document decays exactly this way, and this project has
-watched a retyped constant rot in a brief, two obligation rows, a CI comment and three harness
-floors.
+**REPOINT** `src`, `tests`, `scripts`, and the LIVE briefs only.
+**LEAVE** `docs/adr` (an ADR quotes the design it is amending), `docs/worklogs` (a worklog records
+what that unit saw), `docs/reviews` (a review cites the design as it stood), and every SPENT brief.
 
-**`docs/briefs/` splits INSIDE itself, which is why its 42 is not 42.** A brief is an instruction
-while its task is open - a stale line number then sends an agent to the wrong text. Once the unit is
-done the brief is a RECORD of what that agent was told, and repointing it rewrites history exactly
-as repointing a worklog would. Measured at `1a51107`: 20 brief files carry citations, `PREAMBLE.md`
-carries **ZERO**, and the only briefs belonging to open tasks are `ADR-BATCH.md` (1) and
-`AUDIT-ROWS.md` (1). **So the live brief set is 2 citations, not 42, and it was 3 a few hours ago -
-`CRITICAL-COVERAGE.md` closed in between.** Re-derive that list against the task board at the time;
-more tasks will have closed.
+`check-design-citation-shape.py` already excludes `docs/reviews/` for exactly this reason and says
+so; the same argument covers the other two. **Do not report a single "to repoint" total unless it
+accounts for the brief split** - the previous revision of this section quietly dropped `docs/briefs`
+from BOTH sides, so its two totals summed to 42 less than its own table.
+
+**`docs/briefs/` splits INSIDE itself, which is why its count is not its count.** A brief is an
+instruction while its task is open - a stale line number then sends an agent to the wrong text. Once
+the unit is done the brief is a RECORD of what that agent was told, and repointing it rewrites
+history exactly as repointing a worklog would. `PREAMBLE.md` carries ZERO citations. Derive the live
+set against the task board at the time:
+
+```
+for f in docs/briefs/*.md; do printf '%-34s %s\n' "$(basename "$f")" "$(grep -c 'DESIGN\.md:[0-9]' "$f")"; done
+```
+
+**THIS FILE IS ITSELF A LIVE BRIEF AND MUST NOT BE REPOINTED WHOLESALE.** It quotes citations it is
+telling you are WRONG - `DESIGN.md:1276-1278` above is quoted precisely because it does not contain
+its subject. A sweep that repoints it destroys the instruction. Repoint nothing in this file.
 
 ## The recorded hazards, every one measured on this project
 
