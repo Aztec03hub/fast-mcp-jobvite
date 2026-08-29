@@ -53,6 +53,28 @@ Refs: EC-###
 
 **Never add a `Co-Authored-By` or "Generated with" trailer.**
 
+**The body does not change.** Ruling C3 fixes the SUBJECT line. The long explanatory bodies in this
+history are the part worth reading, and no clause objects to them - a commit here is expected to say
+what was measured and what it means, not merely what changed.
+
+**History predating this rule does not conform, and will NOT be rewritten.** Measured at `afaf226`:
+**50 of 222** subject lines match, and the conforming ones are almost all recent. That is not drift
+to be cleaned up; it is a decision. A gate red on a hundred and seventy commits nobody will rewrite
+teaches everyone to ignore the gate, which is the same argument this project already accepted for
+the cross-reference gate (wired only on the day it went green) and for `pip-audit`.
+
+So the subject-line rule is enforced by **review**, which is what ruling C3's own
+"commitlint / review" column allows. A `commit-msg` hook for NEW commits only may be added later.
+
+**And a caution from the author of that decision.** I broke the rule myself within hours of taking
+it - one commit in twenty, written while doing something else. If that rate continues, "enforced by
+review" is the wrong answer and a new-commits-only hook becomes the right one. The evidence for
+changing course is a measurement, not an opinion:
+
+```bash
+git log --format='%s' | grep -cvE '^[a-z]+(\([a-z0-9._/-]+\))?: '
+```
+
 ## Pull requests
 
 - Fill in `.github/pull_request_template.md`. `quality-gates.md:50` gates PR creation on a
