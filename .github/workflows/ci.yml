@@ -379,18 +379,55 @@ jobs:
       # recorded ignore is well-formed and unexpired, and it prints the
       # --ignore-vuln flags on stdout.
       #
-      # **NOTHING CONSUMES THOSE FLAGS, BECAUSE pip-audit IS NOT RUN ANYWHERE IN
-      # THIS WORKFLOW.** Verified, not assumed: `grep -n pip-audit` over
-      # .github/ returns only comments. DESIGN.md:1438 requires CI to run
-      # pip-audit and no step does. U11's scope is the script and this block
-      # (IMPLEMENTATION-PLAN.md:1365), and standing the pip-audit step up needs
-      # a dependency-slot decision U11 may not take: pip-audit is not in the
-      # frozen lock, and resolving it with `uv run --with` would repeat exactly
-      # the defect ADR-0015 records for pip-licenses - a gate auditing the
-      # frozen resolve that is itself unfrozen. Tracked separately; do not read
-      # a green here as "the dependency tree has been audited".
-      - name: Advisory audit
+      # THE FLAGS ARE NOW CONSUMED. U11 wrote this block saying plainly that
+      # nothing ran pip-audit, so the ignore mechanism was fully built and
+      # connected to nothing while the dependency tree went unaudited. It could
+      # not fix that itself: pip-audit was not in the frozen lock and the
+      # dependency slot was held elsewhere. Both are resolved, so the second step
+      # below is the half U11 could only describe.
+      #
+      # pip-audit is a DECLARED dev dependency and is run `--frozen`. Never
+      # `uv run --with pip-audit`: that resolves the tool unpinned outside
+      # uv.lock, which is the defect ADR-0015 records for pip-licenses - a gate
+      # auditing the frozen resolve that is itself unfrozen.
+      #
+      # AND U11'S BIGGEST UNVERIFIED ITEM IS NOW VERIFIED. It could not confirm
+      # that pip-audit actually accepts `--ignore-vuln` repeated per advisory,
+      # because the tool was not installed; the string came from the design and
+      # the plan, and neither is the tool. `pip-audit --help` reads:
+      #   --ignore-vuln ID   ignore a specific vulnerability by its vulnerability
+      #                      ID; this option can be used multiple times
+      # So the flags the script emits are the flags the tool takes.
+      - name: Advisory audit - the expiry half
         run: uv run --frozen python scripts/check_advisories.py
+
+      # The audit half. The flags come from the table via the script, so the
+      # table is the single source for both, and a hand-maintained flag list
+      # cannot drift from it - the two-lists defect DESIGN.md:1469-1471 names.
+      #
+      # The script's STDOUT IS the flag list and nothing else, which is why this
+      # captures it directly. I first wrote `--flags-only` here, an option that
+      # does not exist - CI referencing an interface nobody checked, in the step
+      # whose whole point is that the design asserted an interface nobody checked.
+      # Read `check_advisories.py --help` before changing this.
+      - name: Dependency audit
+        run: |
+          set -uo pipefail
+          flags=$(uv run --frozen python scripts/check_advisories.py); rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::the advisory table is invalid or an entry expired"; exit 1
+          fi
+          echo "ignore flags from the table: ${flags:-<none>}"
+          # Unquoted ON PURPOSE: $flags is a flag list built by our own script from
+          # a table of advisory ids, and word-splitting is how it becomes argv.
+          # shellcheck disable=SC2086
+          uv run --frozen pip-audit $flags || {
+            echo "::error::pip-audit found an advisory with no sanctioned ignore."
+            echo "::error::Fix or remove the dependency. If genuinely unreachable,"
+            echo "::error::add a time-boxed single-advisory entry to"
+            echo "::error::[tool.fast-mcp-jobvite.advisory-ignores] per DESIGN.md:1454-1473."
+            echo "::error::NEVER a blanket ignore and NEVER a raised threshold."
+            exit 1; }
 
       # DEFERRED TO U1. `fastmcp inspect` takes a server spec and server.py is U1's
       # file (`fastmcp inspect --help` confirms SERVER-SPEC is required). When it

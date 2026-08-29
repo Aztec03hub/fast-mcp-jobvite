@@ -47,6 +47,13 @@ dev = [
   # which is the one property ci.yml builds two assertions to guarantee for everything
   # else. ADR-0015 also asserted it WAS a dev dependency; it was not.
   "pip-licenses>=5",
+  # DESIGN.md's "CI must also run ... pip-audit" was satisfied by NOTHING: U11 built
+  # scripts/check_advisories.py to emit pip-audit's --ignore-vuln flags, and no step
+  # ran pip-audit, so the ignore mechanism was fully built and connected to nothing
+  # while the dependency tree went unaudited. Declared here rather than reached via
+  # `uv run --with pip-audit`, which resolves UNPINNED outside uv.lock - the exact
+  # defect ADR-0015 records for pip-licenses one entry above.
+  "pip-audit>=2.7",
   # C8-I1 is a CRITICAL row and DESIGN.md:1573-1586's two commit-time gates are its
   # stated mitigation. `.pre-commit-config.yaml` existed and pre-commit itself was
   # declared NOWHERE, so on a fresh clone `uv sync --frozen` produced an environment
