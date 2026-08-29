@@ -55,8 +55,10 @@ cp "$CLIENT" "$PRISTINE_DIR/client.py" ||
 
 echo "########## BASELINE - the intact tree"
 # BOUNDED, exactly as the rows below are, and for the same reason. This was
-# unbounded until a CI job sat on ONE step for thirty minutes with no output,
-# twice, and a hang is indistinguishable from a slow harness from outside.
+# unbounded until this was measured: `U9 HTTP hardening amputation` takes
+# 24m19s and PASSES, against 27-77s for the steps either side of it. Where one
+# step legitimately runs for 24 minutes, a real hang is indistinguishable from
+# normal slowness for as long as anyone will wait.
 # `timeout` returns 124, which is why a hang and a red suite get DIFFERENT
 # messages and DIFFERENT exit codes: "never finished" and "finished red" need
 # different diagnoses, and this project has been bitten before by two states
