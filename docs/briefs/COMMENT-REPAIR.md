@@ -25,11 +25,17 @@ colon has been flowed into the prose at whatever position the rewrap put it:**
 ## Measure first, and report the number before you change anything
 
 ```bash
-grep -rn "^\s*# : " --include="*.py" src/ tests/ scripts/ docs/ | wc -l
+grep -rn "^\s*# : " --include="*.py" src/ tests/ scripts/ docs/ | wc -l   # first lines only
+grep -rnE "^\s*#.*( : | :$)" --include="*.py" src/ tests/ scripts/ docs/ | wc -l   # whole runs
 ```
 
-It was 44 across `src/ tests/ scripts/` when this was written. **Get your own number and put it in
-the report**, including `docs/`, which that count excluded.
+**Run BOTH, and understand why they differ by about 4x.** The first sees only the FIRST line of a
+damaged run: the continuation lines lost their marker too and read as ordinary comments with a colon
+in the middle. Measured once: 55 by the first, 195 by the second.
+
+**Do not carry a number out of this brief.** It said "44", which was measured at a different commit
+than the one the agent started from - eleven more had landed in between. Get your own and put it in
+the report.
 
 ## THE CONSTRAINT THAT MAKES THIS A CAREFUL TASK
 
@@ -64,12 +70,23 @@ Repair first. If a repaired comment then breaks `W505`, hand-wrap it.
 
 ## Gates
 
-The full list is in `CONTRIBUTING.md`. This is a comment-only change, so **`git diff` must add zero
-non-comment lines** - check that and quote it:
+The full list is in `CONTRIBUTING.md`. This is a comment-only change, so **`git diff` must add and
+remove zero non-comment lines**:
 
 ```bash
-git diff <base>..HEAD -- src/ tests/ | grep -c "^+[^#+]"
+# added side
+git diff <base>..HEAD -- src/ tests/ | grep '^+' | grep -v '^+++' \
+  | sed 's/^+//;s/^[[:space:]]*//' | grep -vc '^#'
+# removed side - the half the first version of this brief never checked
+git diff <base>..HEAD -- src/ tests/ | grep '^-' | grep -v '^---' \
+  | sed 's/^-//;s/^[[:space:]]*//' | grep -vc '^#'
 ```
+
+**The first version of this brief got this wrong in two ways, and the agent quoted it back rather
+than quietly passing.** It said `grep -c "^+[^#+]"`, which (1) demands the `#` in column 1, so every
+INDENTED comment counts as code - it returned 22 on a diff whose 22 lines were all comments - and (2)
+checked only the ADDED side, so it would pass a diff that DELETED a line of code while rewriting the
+comment above it. Strip leading whitespace, and check both directions.
 
 `docs/` is `extend-exclude`d from ruff, so W505 does not apply there; `src/` and `tests/` are linted.
 

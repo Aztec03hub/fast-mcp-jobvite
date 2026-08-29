@@ -59,17 +59,21 @@ TOTAL=0
 # FileNotFoundError, and all eleven controls stopped running again.
 #
 # So the allow-list is gone, as its own comment prescribed. THE UNIT OF STAGING
-# IS NOW THE TREE, with a deny-list of things that must not be copied. An
-# allow-list of paths selects for exactly the path nobody thought of, and it
-# selected for .github, then for tests/credentialed, and now for server.json.
-# A deny-list fails the other way: a new directory is copied unnecessarily,
-# which costs a little time and breaks nothing.
+# IS NOW THE TREE: `git ls-files` decides, and NOTHING here selects a subset of
+# it. An allow-list of paths selects for exactly the path nobody thought of, and
+# it selected for .github, then for tests/credentialed, and now for server.json.
 #
-# Everything tracked by git is staged, which also means the copy matches what CI
-# checks out rather than what somebody remembered to name. Untracked build
-# artifacts (.venv, caches, .pytest_cache) are excluded for free, because git
-# does not track them.
-SKIP_TOP=(.git .venv venv node_modules)
+# THERE IS NO DENY-LIST EITHER, and this comment claimed there was one for four
+# commits. A `SKIP_TOP=(.git .venv venv node_modules)` array sat here, read by
+# nothing - `grep -rna SKIP_TOP` returned that single declaration - while the
+# prose above it described that dead array as the live staging mechanism. Eight
+# review rounds read past it. Both are gone; the paragraph now describes what
+# `stage()` actually does, which is: everything git tracks, and only that.
+#
+# Untracked build artifacts (.venv, caches, .pytest_cache) need no exclusion
+# rule, because git does not track them - which is the whole reason a deny-list
+# was never needed. It also means the copy matches what CI checks out rather
+# than what somebody remembered to name.
 
 stage () {
   local dest="$1"
@@ -154,8 +158,14 @@ run_control "remove --strict-markers from addopts" \
   "sed -i '/\"--strict-markers\",/d' pyproject.toml" \
   "test_an_undeclared_marker_fails_collection"
 
+# ONE expression, not two. This row carried a second `/^  "-m",$/d` that had
+# been dead for as long as anyone can check: `-m` and its value sit on ONE line
+# of addopts, so the pattern matched nothing and `sed` exited 0 saying so. The
+# row still FIRED, because the first expression deletes that whole line by
+# itself - which is precisely why nobody noticed. Found by the static anchor
+# checker on the first run after it learned to read `sed -i`.
 run_control "remove the -m selection from addopts" \
-  "sed -i '/\"not credentialed and not network\",/d; /^  \"-m\",$/d' pyproject.toml" \
+  "sed -i '/\"not credentialed and not network\",/d' pyproject.toml" \
   "test_the_default_selection_deselects_the_credentialed_arm"
 
 run_control "loosen the mcp pin to >=" \

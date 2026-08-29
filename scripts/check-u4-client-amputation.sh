@@ -246,7 +246,7 @@ amputate "A9d the v2 credential headers reach the log unredacted" "$CLIENT" \
 
 # ---------------------------------------------------------------------------
 # A9e - the exception text reaches the LOG unredacted. The consumer is still
-# safe, so M-5 stays fixed; what dies is DESIGN.md:314-315's "never in an
+# safe, so M-5 stays fixed; what dies is DESIGN.md:315-318's "never in an
 # exception message, `sc=` redacted before any log line".
 # ---------------------------------------------------------------------------
 amputate "A9e the exception text is logged without redact_text" "$CLIENT" \

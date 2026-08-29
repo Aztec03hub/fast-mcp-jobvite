@@ -109,6 +109,7 @@ uv run --frozen ruff check .           # lint
 uv run --frozen ruff format --check .  # format
 uv run --frozen mypy                   # types
 uv run --frozen pytest                 # the default offline suite, zero skips
+uv run --frozen python docs/reviews/check-quickstart.py  # the README's Quickstart really runs
 # THE CHEAP ONE FIRST. Reads every anchor out of every harness and greps its
 # target file, in milliseconds, without running a harness at all. A harness run
 # is minutes; this is what to run after any reformatting sweep. The floor is in
@@ -149,6 +150,7 @@ python3 docs/reviews/check-resweep-verdicts.py  # the resweep's tally checks its
 ```bash
 bash scripts/check-u1-pid1-shutdown.sh    # needs Docker; exits 2 if unavailable
 python3 docs/reviews/check-clause-citations.py  # needs the standards repo; exits 2 if absent
+SHELLCHECK_OPTS=--severity=warning actionlint   # needs actionlint + shellcheck on PATH
 ```
 
 **`check-clause-citations.py` resolves the CLAUSE column** - the half of every obligation row that says why the obligation is real. `check-obligations.py` verifies the artifact and says nothing about the clause. It cannot be a CI gate: it reads the `evolv-coder-standards` sibling checkout, which CI does not have. It proves each citation RESOLVES and explicitly does NOT prove the cited line says what the row claims - read the text it prints.

@@ -16,6 +16,13 @@ name: CI
 #   NEVER EXECUTED - GitHub-hosted actions that cannot run on a developer machine:
 #     codeql / trufflehog / sbom (anchore). They are written to the standards'
 #     pinned versions and their first real run is their first evidence.
+#     The `Lint the workflows` step joins them WITH ONE DIFFERENCE worth
+#     recording: the TOOL has been run here, on this tree, at the same
+#     version and the same SHELLCHECK_OPTS, with a positive control - 0
+#     findings, and re-introducing R3-H1's job-level `if:` produces the
+#     expected error and exit 1. What is unexecuted is the STEP: the
+#     `uses: docker://` invocation and its arg passing. That is a smaller
+#     unknown than the three above, and it is still an unknown.
 #
 #   DEFERRED with an owning unit, NOT silently omitted:
 #     scripts/check_advisories.py -> LANDED by U11 (f4f69f9). The step runs and
@@ -84,6 +91,43 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      # WORKFLOW LINTING. Nothing lint this file until now, and the cost of
+      # that was 119 consecutive silent failures: mirror.yml used `secrets`
+      # in a job-level `if:`, a context GitHub does not provide there, so
+      # every run died at expression evaluation with zero jobs. actionlint
+      # names that defect exactly - "context \"secrets\" is not allowed here"
+      # - and would have caught it the day it was written (R3-H1, task #22).
+      #
+      # MEASURED BEFORE WIRING, on this tree: 0 findings, and the positive
+      # control fires - re-introducing the job-level `if:` produces the
+      # message above and exit 1. A gate wired without that control is a
+      # gate nobody has seen work.
+      #
+      # SHELLCHECK_OPTS matches the threshold `bash.md:741,767` specifies
+      # for ITSELF. actionlint runs shellcheck over every `run:` block, and
+      # at the default threshold it reports one SC2015 (info) on the
+      # credentialed-collect step - `[ -n "$n" ] && [ "$n" -ge 3 ] || {...}`,
+      # where both operands are pure predicates so the idiom is correct.
+      # Using the standard's own threshold keeps the two halves of that
+      # standard - scripts and workflows - gated at one severity rather
+      # than two. Task #33 covers what a stricter setting would find.
+      # Downloaded and CHECKSUMMED rather than `uses:`. The action forms all
+      # resolve a tag, and `tests/test_workflow_pins.py` refuses an action
+      # with no `@ref` - it caught `docker://rhysd/actionlint:1.7.7` on the
+      # commit that added this step, which is the pin gate working on its
+      # author. A pinned tarball plus a sha256 is what `bash-standard` used
+      # for shellcheck, so the two tools are acquired the same way.
+      - name: Lint the workflows
+        run: |
+          set -euo pipefail
+          ver=1.7.7
+          sha=023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+          url=https://github.com/rhysd/actionlint/releases/download/v${ver}/actionlint_${ver}_linux_amd64.tar.gz
+          curl -fsSL "$url" -o /tmp/actionlint.tgz
+          echo "${sha}  /tmp/actionlint.tgz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
+          SHELLCHECK_OPTS=--severity=warning /tmp/actionlint -no-color
 
       - name: Coupling gate
         run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
@@ -363,6 +407,24 @@ jobs:
       # collected and the rest still pass. 3 derived from
       # `pytest -m credentialed --collect-only` on this branch, not from the
       # "deselected" figure in the default run, which also counts network.
+      # QUICKSTART PARITY. `readme-standard.md:66` is priority: required -
+      # "the Quickstart commands MUST be exercised by CI on every merge to
+      # the default branch" - and nothing did. tests/test_readme.py checks
+      # the README's structure, links, table and tool count; none of that
+      # runs a command.
+      #
+      # The checker PARSES the commands out of README.md rather than
+      # carrying a copy, so a README edit that breaks the Quickstart fails
+      # here. A copy would be the second-list defect this repository has
+      # now recorded in five separate places.
+      #
+      # It asserts the OUTPUT, not just the exit code: `fastmcp inspect`
+      # prints an ERROR and exits 0 when pointed at a path with no server
+      # object, which is how a wrong factory path looks identical to a
+      # working one. Measured - I hit exactly that earlier.
+      - name: The README's Quickstart still works
+        run: uv run --frozen python docs/reviews/check-quickstart.py
+
       - name: Collect the credentialed suite
         run: |
           set -uo pipefail
@@ -413,10 +475,10 @@ jobs:
       # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
       # shape stops matching, every anchor that still parses resolves perfectly
       # and the checker reports OK on a fraction of its coverage. Measured:
-      # deleting one shape drops 154 to 139 with an exit code of 0. Lowering
+      # deleting one shape drops 164 to 149 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 154
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 164
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -450,10 +512,12 @@ jobs:
       # one thing at a time in a COPY of the tree and requires the named test to go
       # red. Same "all fired, never a literal count" rule as the design controls.
       #
-      # NOTE, measured while wiring these gates: this is the one harness whose
-      # anchors scripts/check-harness-anchors.py cannot read, because it mutates
-      # with `sed -i` expressions rather than literal anchors. The checker NAMES
-      # it on every run rather than reporting a clean zero over it.
+      # NOTE: this harness mutates with `sed -i` expressions rather than literal
+      # anchors. The checker read none of them until shape D landed - it NAMED
+      # the harness as an unread mechanism rather than reporting a clean zero,
+      # which is why that gap was a task and not an incident. It now contributes
+      # 11 of the 164 anchors, and found a dead expression in one of them on its
+      # first run.
       - name: U0 test controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u0-test-controls.sh --controls-fired
 
@@ -718,6 +782,11 @@ jobs:
       # All four are permissive or weak-copyleft-not-shipped, and no strong
       # copyleft is present in either tree. Extending the allow-list is an ADR,
       # not a CI edit. See docs/worklogs/U0-REPORT.md.
+      # The ONE run: block with no strict-mode line, and that is deliberate:
+      # it is a single command whose exit code IS the step's result, so there
+      # is nothing after a failure to guard, no pipeline and no unset
+      # variable. Recorded because an unexplained absence invites a 'fix',
+      # and because the other 17 blocks do carry one - ADR-0023 SS scope.
       - name: Licence gate
         run: |
           uv run --frozen --with pip-licenses pip-licenses \

@@ -181,7 +181,7 @@ run_mutation "M08 the HR-XML error code is discarded" "$CLIENT" \
   'test_hr_xml_is_treated_as_an_error_body_never_as_a_success'
 
 # ===========================================================================
-# Credentials. DESIGN.md:311-316.
+# Credentials. DESIGN.md:312-318.
 # ===========================================================================
 
 # M09 - the redactor and the client stop naming the same header. This fails
@@ -192,7 +192,7 @@ run_mutation "M09 the secret header is renamed out from under the redactor" "$CL
   'test_the_client_and_the_redactor_name_the_SAME_two_headers'
 
 # M10 - v2 credentials move into the query string, which is exactly what
-# Jobvite's own published sample code does and what DESIGN.md:311-312 forbids.
+# Jobvite's own published sample code does and what DESIGN.md:312-313 forbids.
 run_mutation "M10 v2 credentials are put in the URL instead of the headers" "$CLIENT" \
   '            headers = self.v2_headers()
             query = dict(params or {})' \

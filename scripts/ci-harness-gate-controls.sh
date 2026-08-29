@@ -147,6 +147,13 @@ row "C15 every anchor applied passes" 0 applied.sh --anchors-applied
 stub short.sh yes 0 'ROWS: 11   ANCHORS APPLIED: 9'
 row "C16 9 of 11 anchors applied is caught" 1 short.sh --anchors-applied
 
+# C11 and C14 are this row's siblings, and its absence was the defect: `rows -ne
+# applied` is FALSE at 0 == 0, so a harness that ran NOTHING passed the gate
+# while the other two flags already refused their own zero. The generic form of
+# R4-M4, and it applied to every harness gated this way, not just U5's.
+stub norows.sh yes 0 'ROWS: 0   ANCHORS APPLIED: 0'
+row "C24 zero rows is caught, though 0 == 0" 1 norows.sh --anchors-applied
+
 echo
 echo "########## ROW COUNT - how a row goes missing without a red run"
 

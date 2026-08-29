@@ -221,8 +221,12 @@ MUST_N=(
 # vacuous: its credentials travel in HEADERS, which `redact_headers` scrubs at
 # the PRODUCER (M-5/L-1) before a record is ever built. The logging layers are
 # not what protects that arm, so requiring it to notice an amputation here would
-# declare an expectation the code does not owe. The row that COULD kill it
-# belongs to the client harness, whose subject is that module - see the board.
+# declare an expectation the code does not owe. The row that kills layer 1 is
+# A9d in check-u4-client-amputation.sh, whose subject IS that module: it removes
+# `redact_headers` from the log call and takes down
+# test_the_v2_credential_headers_are_redacted_in_the_failure_log. Measured
+# 2026-08-29, 1 failed / 412 passed on the whole suite. This pointer named "the
+# board" until then, which is a reference that decays the moment a task closes.
 MUST_LN=(
   "tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink"
 )

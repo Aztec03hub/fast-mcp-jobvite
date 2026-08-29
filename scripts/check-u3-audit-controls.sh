@@ -182,7 +182,7 @@ run_mutation "M10 the var is set directly, losing correlation.py's finally" "$AU
     if True:' \
   'test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself'
 
-# --- redaction (DESIGN.md:312-316) -----------------------------------------
+# --- redaction (DESIGN.md:312-318) -----------------------------------------
 run_mutation "M11 sc= dropped from the secret parameter set" "$REDACT" \
   'frozenset({"api", "sc", "companyid"})' \
   'frozenset({"api", "companyid"})' \

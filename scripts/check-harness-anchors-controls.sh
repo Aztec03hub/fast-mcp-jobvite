@@ -28,14 +28,35 @@ export PYTHONDONTWRITEBYTECODE=1
 FIRED=0
 TOTAL=0
 
-# A pristine copy of everything the checker reads: the harnesses and the files
-# they anchor into. Rebuilt per row, so no row can see another row's edits.
+# A pristine copy of everything the checker reads. Rebuilt per row, so no row
+# can see another row's edits.
+#
+# THE UNIT OF STAGING IS THE TREE, not a named pair of directories. This copied
+# `scripts` and `src` and nothing else, which was true of what the anchors
+# pointed at on the day it was written. The moment the checker learned to read
+# `sed -i`, U0's rows arrived pointing at `.env.example`, `.gitignore`,
+# `pyproject.toml` and `tests/conftest.py` - none of them staged - and five of
+# seven rows went red reporting "target file does not exist" about files that
+# exist. The failure was in this function, not in anything under test.
+#
+# That is the same defect check-u0-test-controls.sh has now hit FIVE times and
+# whose comment is three paragraphs long: a hand-kept list of paths selects for
+# the path nobody thought of. `git ls-files` is the authority, so the next
+# anchor into a new file needs no edit here.
 build_tree() {
   local dest="$1"
   rm -rf "$dest"
   mkdir -p "$dest"
-  cp -R "$REPO/scripts" "$dest/scripts"
-  cp -R "$REPO/src" "$dest/src"
+  local n
+  n=$(cd "$REPO" && git ls-files | wc -l)
+  [ "$n" -gt 0 ] || { echo "  STAGING CONTROL: git ls-files returned nothing"; return 1; }
+  (cd "$REPO" && git ls-files -z | tar --null -cf - -T -) | (cd "$dest" && tar -xf -) || return 1
+  # Positive control on the staging itself: a copy that silently contains
+  # nothing produces row failures that read exactly like real findings.
+  local probe
+  for probe in scripts/check-harness-anchors.py src pyproject.toml; do
+    [ -e "$dest/$probe" ] || { echo "  STAGING CONTROL: $probe missing from the copy"; return 1; }
+  done
 }
 
 # break_source <tree> - reflow a comment INSIDE a live anchor, which is exactly
@@ -63,6 +84,67 @@ target.write_text(s.replace(old, new))
 PY
 }
 
+# break_sed_anchor <tree> - invalidate one of U0's `sed -i` anchors in the copy.
+#
+# The SUBJECT IS DERIVED, never named here. The checker itself is imported and
+# asked which sed anchors it reads; the first one is taken, the text it matches
+# in its target file is found, and a character is inserted into the middle of
+# THAT MATCH. So the mutation is guaranteed to invalidate the anchor whatever
+# the anchor currently is, and this row cannot rot into breaking a pattern no
+# row uses any more - which is exactly how the first version of
+# probe-bash-namespace-amputation.sh went vacuous within the hour.
+#
+# Asking the checker to pick the subject is safe for a POSITIVE control: it
+# chooses WHERE to break the tree, and must then independently report the break.
+# A checker that picks a row and then cannot see the damage still fails here.
+break_sed_anchor() {
+  local tree="$1"
+  python3 - "$tree" <<'PY'
+import importlib.util, pathlib, re, sys
+
+tree = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "anchors", tree / "scripts/check-harness-anchors.py"
+)
+mod = importlib.util.module_from_spec(spec)
+# REGISTERED BEFORE EXEC, not after. `@dataclass` resolves its annotations
+# through `sys.modules[cls.__module__]`, so executing this module unregistered
+# dies inside dataclasses.py with an AttributeError about NoneType - nothing
+# that names the real cause. Measured, not anticipated.
+sys.modules["anchors"] = mod
+spec.loader.exec_module(mod)
+
+picked = None
+for h in sorted((tree / "scripts").glob("check-*.sh")):
+    if h.name.startswith("check-harness-anchors"):
+        continue
+    for a in mod.collect(h)[0]:
+        if a.shape == "sed-bre":
+            picked = a
+            break
+    if picked:
+        break
+
+if picked is None:
+    print("CONTROL SETUP FAILED: the checker reads no `sed -i` anchors at all")
+    sys.exit(3)
+
+target = tree / picked.target
+text = target.read_text()
+hits = list(re.finditer(picked.text, text, re.M))
+if len(hits) != 1:
+    print(f"CONTROL SETUP FAILED: {picked.target} has {len(hits)} hits, wanted 1")
+    sys.exit(3)
+m = hits[0]
+matched = m.group(0)
+mangled = matched[: len(matched) // 2] + "ZZ" + matched[len(matched) // 2 :]
+target.write_text(text[: m.start()] + mangled + text[m.end() :])
+if len(re.findall(picked.text, target.read_text(), re.M)) != 0:
+    print("CONTROL SETUP FAILED: the anchor still matches after the mutation")
+    sys.exit(3)
+PY
+}
+
 # amputate_checker <tree> <old> <new> - delete one rule from the checker.
 amputate_checker() {
   local tree="$1" old="$2" new="$3"
@@ -83,11 +165,12 @@ row() {
   local label="$1" want="$2" dobreak="$3"; shift 3
   TOTAL=$((TOTAL + 1))
   local tree="$WORK/t$TOTAL"
-  build_tree "$tree"
+  build_tree "$tree" || { echo "  $label: STAGING FAILED"; return; }
 
-  if [ "$dobreak" = yes ]; then
-    break_source "$tree" || { echo "  $label: SETUP FAILED"; return; }
-  fi
+  case "$dobreak" in
+    yes) break_source "$tree" || { echo "  $label: SETUP FAILED"; return; } ;;
+    sed) break_sed_anchor "$tree" || { echo "  $label: SETUP FAILED"; return; } ;;
+  esac
 
   if [ "$#" -eq 2 ]; then
     local backup="$WORK/backup$TOTAL"
@@ -121,6 +204,12 @@ echo "########## POSITIVE CONTROLS - the checker's subject, intact checker"
 row "P1 an intact tree passes" 0 no
 row "P2 a reflowed line inside a live anchor is caught" 1 yes
 
+# Shape D's subject. U0's rows are sed PATTERNS, not string literals, and until
+# the checker learned to read them all eleven were invisible - it named the
+# harness as UNREAD rather than counting it clean, which is the only reason this
+# was a task and not an incident.
+row "P3 an invalidated sed -i anchor is caught" 1 sed
+
 echo
 echo "########## AMPUTATIONS - the same broken tree, one rule deleted per row"
 
@@ -149,6 +238,12 @@ row "A4 findings are printed but the exit code ignores them" 0 yes \
   '    if stale:
         print(f"FAIL: {len(stale)} of {total} anchors do not resolve uniquely.")'
 
+# The sed shape, which is where the invalidated pattern lives. Without this row
+# shape D is a rule that has never been shown to be what finds anything.
+row "A5 the sed -i shape parses nothing" 0 sed \
+  '    d_anchors, d_seen = _shape_d(path.name, src, variables)' \
+  '    d_anchors, d_seen = ([], 0)'
+
 echo
 echo "########## FLOOR - a shape can vanish with every remaining anchor sound"
 
@@ -157,16 +252,34 @@ echo "########## FLOOR - a shape can vanish with every remaining anchor sound"
 # checker reports OK on a fraction of its coverage. Only the floor sees it.
 TOTAL=$((TOTAL + 1))
 tree="$WORK/floor"
-build_tree "$tree"
+build_tree "$tree" || echo "  F1: STAGING FAILED"
 cp "$tree/$CHECKER_REL" "$WORK/floor-backup"
 if amputate_checker "$tree" \
      '    c_anchors, c_seen = _shape_c(path.name, src, variables)' \
      '    c_anchors, c_seen = ([], 0)' \
    && ! cmp -s "$tree/$CHECKER_REL" "$WORK/floor-backup"; then
-  before=$(cd "$REPO" && python3 "$CHECKER_REL" --quiet 2>&1)
+  # NOT `--quiet`: that flag suppresses the `anchors resolved:` line, which is
+  # the line the floor below is read from. The first version of this derivation
+  # kept it and reported "could not read the intact anchor count" - loudly,
+  # which is the only reason it is not still here silently reading an empty
+  # string.
+  before=$(cd "$REPO" && python3 "$CHECKER_REL" 2>&1)
+  # THE FLOOR IS DERIVED, NEVER RETYPED. This line read `--floor 154`, a second
+  # copy of a number whose one home is ci.yml - in the very harness that exists
+  # to prove the floor works. Adding eleven anchors would have left it passing
+  # for the wrong reason: 154 is below the new intact count, so the row would
+  # have gone green whether or not the deleted shape mattered. It is now read
+  # back out of the intact run above, so it cannot disagree with the tree.
+  intact=$(printf '%s\n' "$before" | sed -n 's/^anchors resolved: //p')
+  case "$intact" in
+    ''|*[!0-9]*) intact=0 ;;
+  esac
   unfloored=$(cd "$tree" && python3 "$CHECKER_REL" 2>&1); un_rc=$?
-  floored=$(cd "$tree" && python3 "$CHECKER_REL" --floor 154 2>&1); fl_rc=$?
-  if [ "$un_rc" -eq 0 ] && [ "$fl_rc" -eq 1 ]; then
+  floored=$(cd "$tree" && python3 "$CHECKER_REL" --floor "$intact" 2>&1); fl_rc=$?
+  if [ "$intact" -eq 0 ]; then
+    echo "  SURVIVED F1: the intact anchor count could not be read, so there is"
+    echo "           no floor to test with. This row proves nothing."
+  elif [ "$un_rc" -eq 0 ] && [ "$fl_rc" -eq 1 ]; then
     FIRED=$((FIRED + 1))
     echo "  FIRED    F1 a deleted shape passes WITHOUT the floor (exit 0) and fails WITH it (exit 1)"
     printf '%s\n' "$unfloored" | grep -E '^(anchors resolved|OK)' | sed 's/^/      no floor:   /'
