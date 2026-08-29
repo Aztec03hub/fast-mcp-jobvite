@@ -1,22 +1,26 @@
 """DESIGN.md §8 case #3 - the credential patterns and the env template.
 
-`.gitignore` covers the credential patterns, and `.env.example` carries no real value.
+`.gitignore` covers the credential patterns, and `.env.example` carries
+no real value.
 
-Asserted against the COMMITTED files, because the row this covers (C8-I1) is about
-what reaches the repository rather than what reaches a log.
+Asserted against the COMMITTED files, because the row this covers
+(C8-I1) is about what reaches the repository rather than what reaches a
+log.
 
-**What this test must NOT assert, and why the negative statement is the important
-half.** Draft 2 of the plan said "every value in `.env.example` is empty". That is
-false against the committed tree and it is dangerous. Seven of the fifteen variables
-carry a value; eight are empty, and only SIX of those eight are secret-class -
-`JOBVITE_TOOLS` and `JOBVITE_PAGINATION_START_BASE` are empty non-secrets. The
-cheapest way to make "every value is empty" pass is to empty
-`JOBVITE_MAX_RESULTS=50` and `JOBVITE_OUTBOUND_RATE_LIMIT=6`, which un-answers the
-design's Q1 and re-blocks U1, U6 and U7 (PLAN-REVIEW-R2.md:255-270).
+**What this test must NOT assert, and why the negative statement is the
+important half.** Draft 2 of the plan said "every value in
+`.env.example` is empty". That is false against the committed tree and
+it is dangerous. Seven of the fifteen variables carry a value; eight are
+empty, and only SIX of those eight are secret-class - `JOBVITE_TOOLS`
+and `JOBVITE_PAGINATION_START_BASE` are empty non-secrets. The cheapest
+way to make "every value is empty" pass is to empty
+`JOBVITE_MAX_RESULTS=50` and `JOBVITE_OUTBOUND_RATE_LIMIT=6`, which
+un-answers the design's Q1 and re-blocks U1, U6 and U7
+(PLAN-REVIEW-R2.md:255-270).
 
-So the assertion is keyed on SECRET-CLASS, not on emptiness, and the deliberate
-non-secret defaults are pinned positively so that an agent "fixing" the tree by
-emptying them turns this red instead of green.
+So the assertion is keyed on SECRET-CLASS, not on emptiness, and the
+deliberate non-secret defaults are pinned positively so that an agent
+"fixing" the tree by emptying them turns this red instead of green.
 """
 
 from __future__ import annotations
@@ -25,9 +29,10 @@ import re
 
 from .conftest import ENV_EXAMPLE, GITIGNORE
 
-# DESIGN.md:1555-1560 counts five credential variables; §7.2 adds JOBVITE_HTTP_TOKENS,
-# the bearer-token map, as the sixth secret-class name. Six, enumerated here and
-# cross-checked against the file below so the list cannot silently go stale.
+# DESIGN.md:1555-1560 counts five credential variables; §7.2 adds
+# JOBVITE_HTTP_TOKENS, the bearer-token map, as the sixth secret-class
+# name. Six, enumerated here and cross-checked against the file below so
+# the list cannot silently go stale.
 SECRET_CLASS = [
     "JOBVITE_API_KEY",
     "JOBVITE_API_SECRET",
@@ -52,7 +57,10 @@ CREDENTIAL_PATTERNS = [".env", ".env.*", "*.key", "*.pem", "secrets/"]
 
 
 def _declared_variables() -> dict[str, str]:
-    """Parse `.env.example` to name -> value, from the file, never remembered."""
+    """Parse `.env.example` to name -> value, from the file.
+
+    Never from memory.
+    """
     out: dict[str, str] = {}
     for line in ENV_EXAMPLE.read_text().splitlines():
         stripped = line.strip()
@@ -67,8 +75,8 @@ def _declared_variables() -> dict[str, str]:
 def test_the_parser_actually_found_variables() -> None:
     """Positive control on the instrument.
 
-    Every assertion below iterates a dict this parser produced. A parser that
-    matched nothing would make all of them pass vacuously.
+    Every assertion below iterates a dict this parser produced. A parser
+    that matched nothing would make all of them pass vacuously.
     """
     variables = _declared_variables()
     assert len(variables) == 15, (
@@ -80,12 +88,13 @@ def test_every_secret_class_variable_is_empty() -> None:
     variables = _declared_variables()
     missing = [name for name in SECRET_CLASS if name not in variables]
     assert not missing, f".env.example does not declare {missing}"
-    # NAMES ONLY. The only condition under which this fires is "a real value is
-    # sitting in a secret-class slot", and this repository is PUBLIC - a failure
-    # message goes into a world-readable Actions log, which is exactly what
-    # credential-scanning vendors index. The variable NAME is the whole diagnosis;
-    # the value adds nothing and is the thing being protected. Length is offered
-    # for triage instead. CREDENTIAL-CHECKLIST.md:88 requires the redaction to
+    # NAMES ONLY. The only condition under which this fires is "a real
+    # value is sitting in a secret-class slot", and this repository is
+    # PUBLIC - a failure message goes into a world-readable Actions log,
+    # which is exactly what credential-scanning vendors index. The
+    # variable NAME is the whole diagnosis; the value adds nothing and
+    # is the thing being protected. Length is offered for triage
+    # instead. CREDENTIAL-CHECKLIST.md:88 requires the redaction to
     # happen before the capture touches disk.
     carrying = sorted(
         f"{name} ({len(variables[name])} chars)"
@@ -99,7 +108,7 @@ def test_every_secret_class_variable_is_empty() -> None:
 
 
 def test_the_deliberate_non_secret_defaults_are_intact() -> None:
-    """The guard against 'fixing' the tree by emptying values that answer Q1."""
+    """The guard against emptying the values that answer Q1."""
     variables = _declared_variables()
     wrong = {
         name: (variables.get(name), expected)
@@ -112,8 +121,8 @@ def test_the_deliberate_non_secret_defaults_are_intact() -> None:
 def test_no_value_in_env_example_looks_like_a_real_credential() -> None:
     """DESIGN.md:1272 - no REAL value.
 
-    A placeholder that looks like a credential is the thing a reader copies by
-    accident and a scanner mistakes for a finding.
+    A placeholder that looks like a credential is the thing a reader
+    copies by accident and a scanner mistakes for a finding.
     """
     variables = _declared_variables()
     suspicious = {
@@ -121,8 +130,9 @@ def test_no_value_in_env_example_looks_like_a_real_credential() -> None:
         for name, value in variables.items()
         if name in SECRET_CLASS or len(value) >= 20
     }
-    # Names and lengths only, for the same reason as above: this assertion fires
-    # only when a real-looking value is present, and printing it publishes it.
+    # Names and lengths only, for the same reason as above: this
+    # assertion fires only when a real-looking value is present, and
+    # printing it publishes it.
     offenders = sorted(
         f"{name} ({len(value)} chars)"
         for name, value in suspicious.items()
@@ -145,11 +155,13 @@ def test_gitignore_covers_every_credential_pattern() -> None:
 
 
 def test_gitignore_does_not_negate_the_credential_patterns() -> None:
-    """`!.env.example` is the one legal negation; any other un-ignores a credential.
+    """`!.env.example` is the one legal negation in `.gitignore`.
 
-    Ignoring `.env.*` and then re-including something under it would restore
-    exactly the hole the pattern list exists to close, and a membership check over
-    the entries above cannot see a `!` line.
+    Any other un-ignores a credential.
+
+    Ignoring `.env.*` and then re-including something under it would
+    restore exactly the hole the pattern list exists to close, and a
+    membership check over the entries above cannot see a `!` line.
     """
     negations = {
         line.strip()

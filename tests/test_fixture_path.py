@@ -1,20 +1,21 @@
-"""The fixture path resolves, and it is the one U4 will assert byte-exact against.
+"""The fixture path resolves, and U4 asserts byte-exact on it.
 
-This is a positive control on the SEARCH ITSELF, not decoration. A test that
-globs a path that does not exist returns a clean empty list and passes every
-"nothing unexpected here" assertion written over it. Every later unit's fixture
-reads go through `conftest.FIXTURES_DIR`, so if that path is ever wrong, this is
-the test that says so instead of fifteen downstream suites quietly asserting
-against nothing.
+This is a positive control on the SEARCH ITSELF, not decoration. A test
+that globs a path that does not exist returns a clean empty list and
+passes every "nothing unexpected here" assertion written over it. Every
+later unit's fixture reads go through `conftest.FIXTURES_DIR`, so if
+that path is ever wrong, this is the test that says so instead of
+fifteen downstream suites quietly asserting against nothing.
 """
 
 from __future__ import annotations
 
 from .conftest import FIXTURES_DIR
 
-# Enumerated from the committed tree, not remembered. DESIGN.md:1251-1257 puts
-# these in three tiers: recorded (byte-exact captures of real Jobvite error
-# transport), structural (the one genuine 200), and synthetic.
+# Enumerated from the committed tree, not remembered.
+# DESIGN.md:1251-1257 puts these in three tiers: recorded (byte-exact
+# captures of real Jobvite error transport), structural (the one genuine
+# 200), and synthetic.
 EXPECTED_FIXTURES = {
     "candidate_create_success.json",
     "candidate_list_empty.json",
@@ -49,7 +50,7 @@ def test_every_expected_fixture_is_present() -> None:
 
 
 def test_fixtures_are_readable_and_non_empty() -> None:
-    """A zero-byte fixture would satisfy a presence check and nothing else."""
+    """A zero-byte fixture satisfies a presence check, nothing more."""
     empty = [
         name
         for name in sorted(EXPECTED_FIXTURES)

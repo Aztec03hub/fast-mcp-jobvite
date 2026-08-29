@@ -1,23 +1,31 @@
-"""U15 - the committed-file-type gate. `DESIGN.md:1627-1637`, threat row C8-I1.
+"""U15 - the committed-file-type gate.
 
-**How this suite is built to be falsifiable in BOTH directions**, because a
-refusal-only suite is green against a gate that refuses everything, and a
-permission-only suite is green against a gate that permits everything:
+`DESIGN.md:1627-1637`, threat row C8-I1.
 
-- Every refusal assertion has a **partner** asserting an ordinary file of the
-  same shape is permitted. `test_an_ordinary_python_file_is_permitted` and the
-  other `_is_permitted` tests are the whole of the "permits everything" defence;
-  delete them and a `classify` returning a constant string passes the rest.
-- Every permission assertion is paired with the refusal it must not swallow.
-- The end-to-end arms drive **`git commit` itself** against an installed hook in
-  a throwaway repository, so they test the gate as it is actually invoked rather
-  than a function called the way its author had in mind.
+**How this suite is built to be falsifiable in BOTH directions**,
+because a refusal-only suite is green against a gate that refuses
+everything, and a permission-only suite is green against a gate that
+permits everything:
+
+- Every refusal assertion has a **partner** asserting an ordinary file
+  of the same shape is permitted.
+  `test_an_ordinary_python_file_is_permitted` and the other
+  `_is_permitted` tests are the whole of the "permits everything"
+  defence; delete them and a `classify` returning a constant string
+  passes the rest.
+- Every permission assertion is paired with the refusal it must not
+  swallow.
+- The end-to-end arms drive **`git commit` itself** against an installed
+  hook in a throwaway repository, so they test the gate as it is
+  actually invoked rather than a function called the way its author had
+  in mind.
 
 **The gate's stated ceiling is not tested here and must not be**
-(`DESIGN.md:1635-1637`): it stops a *file* of the wrong type. It does nothing
-about confidential prose pasted into Markdown, which is the incident that
-actually happened. `test_the_gate_does_NOT_stop_confidential_prose_in_markdown`
-pins that limit as a fact so nobody later reads this suite as closing it.
+(`DESIGN.md:1635-1637`): it stops a *file* of the wrong type. It does
+nothing about confidential prose pasted into Markdown, which is the
+incident that actually happened.
+`test_the_gate_does_NOT_stop_confidential_prose_in_markdown` pins that
+limit as a fact so nobody later reads this suite as closing it.
 """
 
 from __future__ import annotations
@@ -34,9 +42,9 @@ import pytest
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 GATE_PATH = REPO_ROOT / "scripts" / "check-committed-file-types.py"
 
-# A real, structurally valid one-page PDF. Not the bare 5-byte magic string: a
-# test that only ever sees `b"%PDF-"` proves the gate matches a literal, not
-# that it refuses the class of file that actually leaked.
+# A real, structurally valid one-page PDF. Not the bare 5-byte magic
+# string: a test that only ever sees `b"%PDF-"` proves the gate matches
+# a literal, not that it refuses the class of file that actually leaked.
 REAL_PDF = (
     b"%PDF-1.4\n"
     b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
@@ -48,7 +56,10 @@ REAL_PDF = (
 
 
 def _load_gate() -> types.ModuleType:
-    """Import the gate by path. Its filename is hyphenated and not a module."""
+    """Import the gate by path.
+
+    Its filename is hyphenated and not a module.
+    """
     spec = importlib.util.spec_from_file_location("u15_gate", GATE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -59,11 +70,11 @@ def _load_gate() -> types.ModuleType:
 gate = _load_gate()
 
 
-# ---------------------------------------------------------------------------
-# The instrument itself. If the gate file is missing or unreadable, a glob-style
-# suite over it passes vacuously - U0-REPORT section 7 named that trap and this
-# is the same control one unit later.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# The instrument itself. If the gate file is missing or unreadable, a
+# glob-style suite over it passes vacuously - U0-REPORT section 7 named
+# that trap and this is the same control one unit later.
+# ----------------------------------------------------------------------
 
 
 def test_the_gate_script_exists_and_is_executable_and_is_not_empty() -> None:
@@ -71,14 +82,15 @@ def test_the_gate_script_exists_and_is_executable_and_is_not_empty() -> None:
         f"{GATE_PATH} does not exist; every test below is vacuous"
     )
     assert GATE_PATH.stat().st_mode & 0o111, "the gate is not executable"
-    # Not decoration. A ZERO-BYTE Python file runs and exits 0, so an empty gate
-    # is indistinguishable from a working one to anything that only reads an
-    # exit code. The amputation harness's tree B is exactly this case.
+    # Not decoration. A ZERO-BYTE Python file runs and exits 0, so an
+    # empty gate is indistinguishable from a working one to anything
+    # that only reads an exit code. The amputation harness's tree B is
+    # exactly this case.
     assert GATE_PATH.stat().st_size > 1000, "the gate is empty or a stub"
 
 
 def test_the_rule_tables_are_populated() -> None:
-    """A gate whose tables are empty permits everything and still 'runs'."""
+    """A gate with empty tables permits everything and 'runs'."""
     assert len(gate.ALLOWED_EXTENSIONS) >= 10
     assert len(gate.DENIED_EXTENSIONS) >= 10
     assert len(gate.MAGIC) >= 10
@@ -86,10 +98,11 @@ def test_the_rule_tables_are_populated() -> None:
     assert ".raml" in gate.DENIED_EXTENSIONS
 
 
-# ---------------------------------------------------------------------------
-# POSITIVE CONTROLS. These are what stop the suite passing against a gate that
-# refuses everything. Named as such so a future editor does not "tidy" them.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# POSITIVE CONTROLS. These are what stop the suite passing against a
+# gate that refuses everything. Named as such so a future editor does
+# not "tidy" them.
+# ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -104,9 +117,9 @@ def test_the_rule_tables_are_populated() -> None:
         ("LICENSE", b"Apache License\n"),
         ("NOTICE", b"evolv Consulting\n"),
         (".env.example", b"JOBVITE_API_KEY=\n"),
-        # The regression that the two shipped gates refused each other on:
-        # detect-secrets needs this file committed and `.baseline` is not an
-        # extension anyone would think to allowlist.
+        # The regression that the two shipped gates refused each other
+        # on: detect-secrets needs this file committed and `.baseline`
+        # is not an extension anyone would think to allowlist.
         (".secrets.baseline", b'{"results": {}}\n'),
     ],
 )
@@ -116,21 +129,22 @@ def test_an_ordinary_repository_file_is_permitted(path: str, data: bytes) -> Non
     )
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # Rule 1 - extension denylist, and rule 2 - allowlist-first.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 # These two assert the DENYLIST's own message, not merely "was refused".
 #
-# Why the message and not the refusal: rule 1 is redundant with rule 2 today
-# and the gate says so at its own definition - neither `.pdf` nor `.raml` is on
-# the allowlist either, so removing them from the denylist entirely still
-# produces a refusal, just a different one. The mutation harness caught this:
-# an earlier version of these two tests asserted only `".pdf" in reason`, which
-# the rule-2 message ALSO satisfies, so both controls survived and the tests
-# were pinning nothing. The denylist's whole value is the message that names the
-# incident rather than saying "unknown type", so that is what is asserted.
+# Why the message and not the refusal: rule 1 is redundant with rule 2
+# today and the gate says so at its own definition - neither `.pdf` nor
+# `.raml` is on the allowlist either, so removing them from the denylist
+# entirely still produces a refusal, just a different one. The mutation
+# harness caught this: an earlier version of these two tests asserted
+# only `".pdf" in reason`, which the rule-2 message ALSO satisfies, so
+# both controls survived and the tests were pinning nothing. The
+# denylist's whole value is the message that names the incident rather
+# than saying "unknown type", so that is what is asserted.
 
 
 def test_a_pdf_by_extension_is_refused_BY_THE_DENYLIST() -> None:
@@ -146,7 +160,10 @@ def test_the_raml_that_leaked_is_refused_BY_THE_DENYLIST() -> None:
 
 
 def test_rules_1_and_2_are_both_reachable_and_give_different_answers() -> None:
-    """The redundancy the gate claims is real, and observable in the message."""
+    """The redundancy the gate claims is real and observable.
+
+    It shows in the refusal message.
+    """
     denied = gate.classify("x.pdf", b"text\n")
     unknown = gate.classify("x.bin", b"text\n")
     assert denied is not None and unknown is not None
@@ -154,7 +171,10 @@ def test_rules_1_and_2_are_both_reachable_and_give_different_answers() -> None:
 
 
 def test_an_unknown_extension_is_refused_not_permitted() -> None:
-    """Allowlist-first. This is the rule that catches the type nobody predicted."""
+    """Allowlist-first.
+
+    This is the rule that catches the type nobody predicted.
+    """
     reason = gate.classify("thing.bin", b"harmless text\n")
     assert reason is not None
     assert "allowlist" in reason
@@ -165,10 +185,10 @@ def test_an_unknown_extensionless_basename_is_refused() -> None:
     assert reason is not None
 
 
-# ---------------------------------------------------------------------------
-# Rule 3 - magic numbers. The arm the design says matters most, because an
-# extension denylist alone passes the leaked PDF renamed.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Rule 3 - magic numbers. The arm the design says matters most, because
+# an extension denylist alone passes the leaked PDF renamed.
+# ----------------------------------------------------------------------
 
 
 def test_a_real_pdf_renamed_markdown_is_refused_by_its_bytes() -> None:
@@ -178,10 +198,11 @@ def test_a_real_pdf_renamed_markdown_is_refused_by_its_bytes() -> None:
 
 
 def test_the_magic_rule_and_the_extension_rule_are_independently_load_bearing() -> None:
-    """Neither rule alone is sufficient, proven in both directions at once.
+    """Neither rule alone suffices, proven in both directions.
 
-    Extension-only would pass the renamed PDF. Magic-only would pass a `.pdf`
-    that happens to hold plain text, and would still let the extension through.
+    Extension-only would pass the renamed PDF. Magic-only would pass a
+    `.pdf` that happens to hold plain text, and would still let the
+    extension through.
     """
     renamed_pdf = gate.classify("notes.md", REAL_PDF)
     text_in_a_pdf_name = gate.classify("notes.pdf", b"just some text\n")
@@ -207,9 +228,9 @@ def test_other_binary_containers_are_refused_under_a_text_name(
     assert reason is not None, f"{label} content passed under a .md name"
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # Rule 4 - the NUL backstop.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def test_a_nul_byte_is_refused_even_with_an_allowed_extension() -> None:
@@ -219,35 +240,38 @@ def test_a_nul_byte_is_refused_even_with_an_allowed_extension() -> None:
 
 
 def test_the_nul_backstop_catches_content_no_magic_signature_matches() -> None:
-    """The backstop's whole point: an unknown binary format with no signature."""
+    """The backstop's point: an unknown binary with no signature."""
     exotic = b"\x11\x22\x33nothing-in-the-MAGIC-table\x00\x44"
     assert gate.classify("data.txt", exotic) is not None
-    # Partner: the same file without the NUL is permitted, so this is not
-    # passing merely because `data.txt` is refused for some other reason.
+    # Partner: the same file without the NUL is permitted, so this is
+    # not passing merely because `data.txt` is refused for some other
+    # reason.
     assert gate.classify("data.txt", exotic.replace(b"\x00", b"_")) is None
 
 
-# ---------------------------------------------------------------------------
-# The stated ceiling, pinned as a fact rather than left for a reader to assume
-# away. DESIGN.md:1635-1637.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# The stated ceiling, pinned as a fact rather than left for a reader to
+# assume away. DESIGN.md:1635-1637.
+# ----------------------------------------------------------------------
 
 
 def test_the_gate_does_NOT_stop_confidential_prose_in_markdown() -> None:
     """This asserts a LIMIT, not a capability. It must keep passing.
 
-    The incident that actually happened was confidential *prose*. This gate
-    permits it, by design, and `DESIGN.md:1635-1637` says so. If someone later
-    makes this test fail by teaching the gate to scan prose, that is a design
-    change and needs an ADR - not a quiet edit here.
+    The incident that actually happened was confidential *prose*. This
+    gate permits it, by design, and `DESIGN.md:1635-1637` says so. If
+    someone later makes this test fail by teaching the gate to scan
+    prose, that is a design change and needs an ADR - not a quiet edit
+    here.
     """
     prose = b"# Notes\n\nCONFIDENTIAL - Jobvite internal pricing, do not distribute.\n"
     assert gate.classify("docs/research/notes.md", prose) is None
 
 
-# ---------------------------------------------------------------------------
-# Rule 0 - the override, and the "same commit" property that makes it reviewable.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Rule 0 - the override, and the "same commit" property that makes it
+# reviewable.
+# ----------------------------------------------------------------------
 
 
 def test_the_allowlist_parser_ignores_comments_and_blank_lines() -> None:
@@ -263,9 +287,9 @@ def test_a_missing_allowlist_is_an_empty_set_not_an_error() -> None:
     assert gate.load_allowlist(missing) == set()
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # END TO END, against a real `git commit` with the real hook installed.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def _git(repo: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -281,8 +305,8 @@ def _git(repo: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str]:
 def scratch_repo(tmp_path: pathlib.Path) -> pathlib.Path:
     """A throwaway git repo with the gate script copied in.
 
-    Deliberately NOT the real repository: an end-to-end test that commits must
-    never be able to write to the tree it is run from.
+    Deliberately NOT the real repository: an end-to-end test that
+    commits must never be able to write to the tree it is run from.
     """
     repo = tmp_path / "repo"
     (repo / "scripts").mkdir(parents=True)
@@ -308,18 +332,19 @@ def _run_gate(repo: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str
 def test_e2e_an_ordinary_staged_file_passes(scratch_repo: pathlib.Path) -> None:
     """POSITIVE CONTROL for every e2e refusal below.
 
-    **Exit code 0 alone is NOT enough here, and this is the assertion the
-    amputation harness caught.** A zero-byte `check-committed-file-types.py`
-    runs and exits 0, so an earlier version of this test passed against a gate
-    that had been deleted down to an empty file - while every refusal test
-    around it correctly failed. A green positive control paired with red
-    refusals reads as "the gate is too permissive", which is the wrong
-    diagnosis and the expensive kind of wrong.
+    **Exit code 0 alone is NOT enough here, and this is the assertion
+    the amputation harness caught.** A zero-byte
+    `check-committed-file-types.py` runs and exits 0, so an earlier
+    version of this test passed against a gate that had been deleted
+    down to an empty file - while every refusal test around it correctly
+    failed. A green positive control paired with red refusals reads as
+    "the gate is too permissive", which is the wrong diagnosis and the
+    expensive kind of wrong.
 
-    So the gate must also SAY it looked: the success line carries the number of
-    files checked, and that number must be non-zero. This is the same pairing
-    U0 used for `.env.example` - an instrument that cannot be satisfied by
-    silence (U0-REPORT section 7).
+    So the gate must also SAY it looked: the success line carries the
+    number of files checked, and that number must be non-zero. This is
+    the same pairing U0 used for `.env.example` - an instrument that
+    cannot be satisfied by silence (U0-REPORT section 7).
     """
     (scratch_repo / "ok.py").write_text("x = 1\n")
     _git(scratch_repo, "add", "ok.py")
@@ -341,13 +366,14 @@ def test_e2e_a_real_pdf_staged_as_markdown_is_refused(
     result = _run_gate(scratch_repo)
     assert result.returncode == 1, result.stdout + result.stderr
 
-    # Assert the per-file REASON line, not the whole of stdout. The refusal
-    # banner itself contains the word "PDF" ("A CONFIDENTIAL vendor PDF ...
-    # reached public remotes"), so `"PDF" in result.stdout` is satisfied by any
-    # refusal for any reason. The amputation harness caught this: with the rule
-    # tables emptied, the file was refused as an unknown extension and this
-    # test still passed, reporting that magic-number sniffing worked when it
-    # had been deleted.
+    # Assert the per-file REASON line, not the whole of stdout. The
+    # refusal banner itself contains the word "PDF" ("A CONFIDENTIAL
+    # vendor PDF ... reached public remotes"), so
+    # `"PDF" in result.stdout` is satisfied by any refusal for any
+    # reason. The amputation harness caught this: with the rule tables
+    # emptied, the file was refused as an unknown extension and this
+    # test still passed, reporting that magic-number sniffing worked
+    # when it had been deleted.
     reason_lines = [ln for ln in result.stdout.splitlines() if "vendor-spec.md:" in ln]
     assert reason_lines, f"no per-file reason emitted: {result.stdout!r}"
     assert "PDF" in reason_lines[0], (
@@ -366,10 +392,11 @@ def test_e2e_a_nul_bearing_file_is_refused(scratch_repo: pathlib.Path) -> None:
 def test_e2e_the_gate_reads_the_index_not_the_worktree(
     scratch_repo: pathlib.Path,
 ) -> None:
-    """A file fixed in the worktree but still poisoned in the index is refused.
+    """A file poisoned in the index is refused, worktree aside.
 
-    This is the property that makes the gate meaningful at all: what gets
-    committed is the index, not what happens to be on disk when it runs.
+    This is the property that makes the gate meaningful at all: what
+    gets committed is the index, not what happens to be on disk when it
+    runs.
     """
     target = scratch_repo / "vendor-spec.md"
     target.write_bytes(REAL_PDF)
@@ -382,7 +409,7 @@ def test_e2e_the_gate_reads_the_index_not_the_worktree(
 def test_e2e_an_override_needs_its_allowlist_entry_staged(
     scratch_repo: pathlib.Path,
 ) -> None:
-    """DESIGN.md:1633-1634 - the exception must be in the same commit's diff."""
+    """DESIGN.md:1633-1634 - the exception is in the same diff."""
     (scratch_repo / "thing.bin").write_text("hello\n")
     (scratch_repo / ".file-type-allowlist").write_text("thing.bin\n")
     _git(scratch_repo, "add", "thing.bin")  # allowlist NOT staged
@@ -399,7 +426,10 @@ def test_e2e_an_override_needs_its_allowlist_entry_staged(
 def test_e2e_the_gate_fails_closed_when_it_cannot_run(
     scratch_repo: pathlib.Path, tmp_path: pathlib.Path
 ) -> None:
-    """An error is a refusal. A control that fails open is worse than none."""
+    """An error is a refusal.
+
+    A control that fails open is worse than none.
+    """
     stub_dir = tmp_path / "stub"
     stub_dir.mkdir()
     stub = stub_dir / "git"

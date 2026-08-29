@@ -63,12 +63,13 @@ the map exists to make visible.
 | B | Class | Artifact | Subject | Standard clause | Note |
 |---|---|---|---|---|---|
 | B16 | ABSENT | - | - | `ai/tool-calling.md:55-57` | No tool descriptions exist yet and no unit schedules their review |
-| B49 | MET | `pyproject.toml:185` | `line-length = 88` | `backend/python.md:35` | Code half only. The 72-character comment/docstring half of `python.md:36` is unenforced - see task B49b |
-| B50 | MET | `pyproject.toml:214` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
-| B51 | MET | `pyproject.toml:207` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
-| B52 | MET | `pyproject.toml:201` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
+| B49 | MET | `pyproject.toml:185` | `line-length = 88` | `backend/python.md:35` | The code half. The comment/docstring half is B49b below, met in the same commit that swept it |
+| B49b | MET | `pyproject.toml:222` | `max-doc-length = 72` | `backend/python.md:36` | `W505`, enabled in the same commit as the 1608-line sweep so the gate was never knowingly red. W505 is INERT without this setting, so this row anchors on it, not on the `W505` select entry |
+| B50 | MET | `pyproject.toml:225` | `convention = "google"` | `backend/python.md:97` | Type-hint half is `ANN` at `pyproject.toml:158` |
+| B51 | MET | `pyproject.toml:210` | `no datetime.utcnow` | `backend/python.md:227` | The `DTZ` rule family. This row is the reason the file exists: deleting it must now break something that names B51 |
+| B52 | MET | `pyproject.toml:204` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
 | B53 | MET | `.env.example:30` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
-| B58 | MET | `tests/test_collection_guard.py:173` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
+| B58 | MET | `tests/test_collection_guard.py:189` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
 | B59 | MET | `.github/workflows/ci.yml:281` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
 | B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md:117` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |

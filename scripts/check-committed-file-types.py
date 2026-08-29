@@ -1,46 +1,49 @@
 #!/usr/bin/env python3
 """Committed-file-type gate. DESIGN.md:1630-1637.
 
-WHY THIS EXISTS, stated because a control nobody understands gets disabled the
-first time it is inconvenient: a CONFIDENTIAL vendor PDF and an unlicensed RAML
-reached two public remotes on this project. Rewriting history was not enough -
-the blob stayed fetchable by commit SHA, and closing the exposure meant making
-both repositories private, then deleting and recreating them.
+WHY THIS EXISTS, stated because a control nobody understands gets
+disabled the first time it is inconvenient: a CONFIDENTIAL vendor PDF
+and an unlicensed RAML reached two public remotes on this project.
+Rewriting history was not enough - the blob stayed fetchable by commit
+SHA, and closing the exposure meant making both repositories private,
+then deleting and recreating them.
 
-A secret scanner cannot see either file. A PDF has no high-entropy token and
-matches no credential regex, so it passes every secret scanner cleanly. This
-gate is the other half.
+A secret scanner cannot see either file. A PDF has no high-entropy token
+and matches no credential regex, so it passes every secret scanner
+cleanly. This gate is the other half.
 
-WHAT IT DOES NOT DO, from the design's own admission at DESIGN.md:1635-1637:
-it stops a FILE of the wrong type entering the repository. It does nothing
-about confidential prose pasted into Markdown. Of the two files that actually
-leaked here, the `.raml` is refused by rule 2 (unknown extension) and the
-`.pdf` by rules 1 and 3 - but a reader who trusts this gate to prevent "the
-incident" in general is trusting it for something it cannot do.
+WHAT IT DOES NOT DO, from the design's own admission at
+DESIGN.md:1635-1637: it stops a FILE of the wrong type entering the
+repository. It does nothing about confidential prose pasted into
+Markdown. Of the two files that actually leaked here, the `.raml` is
+refused by rule 2 (unknown extension) and the `.pdf` by rules 1 and 3 -
+but a reader who trusts this gate to prevent "the incident" in general
+is trusting it for something it cannot do.
 
 THE FIVE RULES, in the order they are applied to each staged file:
 
   0. EXCEPTION. A path listed in `.file-type-allowlist` is skipped. The
-     allowlist is read FROM THE INDEX, not the working tree, so an exception
-     is usable only once it is staged - i.e. only when it appears in the same
-     commit's diff, where a reviewer sees it (DESIGN.md:1633-1634).
-  1. EXTENSION DENYLIST. The incident classes, refused by name so the message
-     says what happened rather than "unknown type".
+     allowlist is read FROM THE INDEX, not the working tree, so an
+     exception is usable only once it is staged - i.e. only when it
+     appears in the same commit's diff, where a reviewer sees it
+     (DESIGN.md:1633-1634).
+  1. EXTENSION DENYLIST. The incident classes, refused by name so the
+     message says what happened rather than "unknown type".
   2. ALLOWLIST-FIRST. Anything whose extension or basename is not on the
-     allowlist is REFUSED, not permitted. This is the rule that catches a file
-     type nobody anticipated, which is every interesting case.
-  3. MAGIC NUMBER. The decision is not made on the extension alone. A file
-     called `notes.md` whose bytes begin `%PDF-` is a PDF.
+     allowlist is REFUSED, not permitted. This is the rule that catches
+     a file type nobody anticipated, which is every interesting case.
+  3. MAGIC NUMBER. The decision is not made on the extension alone. A
+     file called `notes.md` whose bytes begin `%PDF-` is a PDF.
   4. NUL BACKSTOP. A file containing a NUL byte is binary whatever it is
      called and whatever its first bytes are.
 
-FAIL-CLOSED. Every error path exits non-zero. A control that fails open is
-worse than no control, because it is trusted. Exit 1 = a file was refused,
-exit 2 = the gate itself could not run. Both block the commit.
+FAIL-CLOSED. Every error path exits non-zero. A control that fails open
+is worse than no control, because it is trusted. Exit 1 = a file was
+refused, exit 2 = the gate itself could not run. Both block the commit.
 
 Usage:
-  scripts/check-committed-file-types.py          # the staged set (pre-commit)
-  scripts/check-committed-file-types.py --all    # every tracked file (CI)
+  scripts/check-committed-file-types.py # the staged set (pre-commit)
+  scripts/check-committed-file-types.py --all # every tracked file (CI)
 """
 
 from __future__ import annotations
@@ -76,8 +79,8 @@ ALLOWED_EXTENSIONS = frozenset(
     }
 )
 
-# Extension-less files and dotfiles, which carry the project's licence and
-# tooling config. Matched on the whole basename.
+# Extension-less files and dotfiles, which carry the project's licence
+# and tooling config. Matched on the whole basename.
 ALLOWED_BASENAMES = frozenset(
     {
         ".dockerignore",
@@ -86,10 +89,11 @@ ALLOWED_BASENAMES = frozenset(
         ".gitattributes",
         ".gitignore",
         ".python-version",
-        # The secret gate's audited baseline. Without this entry the two gates
-        # shipped in .pre-commit-config.yaml refuse each other: detect-secrets
-        # needs .secrets.baseline committed, and `.baseline` is not an
-        # extension anyone would think to allowlist. Measured, not assumed.
+        # The secret gate's audited baseline. Without this entry the two
+        # gates shipped in .pre-commit-config.yaml refuse each other:
+        # detect-secrets needs .secrets.baseline committed, and
+        # `.baseline` is not an extension anyone would think to
+        # allowlist. Measured, not assumed.
         ".secrets.baseline",
         "CODEOWNERS",
         "Dockerfile",
@@ -99,10 +103,11 @@ ALLOWED_BASENAMES = frozenset(
     }
 )
 
-# Rule 1. Redundant with rule 2 today and deliberately so: these are the classes
-# that actually leaked, plus credential material, and they get a message naming
-# the incident rather than the generic refusal. Redundancy is also what keeps
-# them refused if someone later widens the allowlist without thinking.
+# Rule 1. Redundant with rule 2 today and deliberately so: these are the
+# classes that actually leaked, plus credential material, and they get a
+# message naming the incident rather than the generic refusal.
+# Redundancy is also what keeps them refused if someone later widens the
+# allowlist without thinking.
 DENIED_EXTENSIONS = {
     ".7z": "archive",
     ".crt": "credential material",
@@ -126,7 +131,8 @@ DENIED_EXTENSIONS = {
     ".zip": "archive",
 }
 
-# Rule 3. Leading bytes that mean "this is not the text file it claims to be".
+# Rule 3. Leading bytes that mean "this is not the text file it claims
+# to be".
 MAGIC = (
     (b"%PDF-", "PDF"),
     (b"PK\x03\x04", "ZIP container (zip, docx, xlsx, pptx, jar)"),
@@ -154,7 +160,10 @@ MAGIC = (
 
 
 class GateError(Exception):
-    """The gate could not complete a check. Always fatal - see fail-closed."""
+    """The gate could not complete a check.
+
+    Always fatal - see fail-closed.
+    """
 
 
 def git(*args: str) -> bytes:
@@ -176,7 +185,10 @@ def git(*args: str) -> bytes:
 
 
 def staged_paths() -> list[str]:
-    """Paths added/copied/modified/renamed in the index. Deletions cannot leak."""
+    """Paths added/copied/modified/renamed in the index.
+
+    Deletions cannot leak.
+    """
     out = git("diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR")
     return [p for p in out.decode("utf-8", "surrogateescape").split("\0") if p]
 
@@ -198,11 +210,11 @@ def worktree_blob(path: str) -> bytes:
 
 
 def load_allowlist(read: Callable[[str], bytes]) -> set[str]:
-    """Read the exception list through the SAME reader as the files it governs.
+    """Read the exception list through the SAME reader as its files.
 
-    In staged mode that is the index, so an exception the author has edited but
-    not staged does not apply. That is the whole of "overrides only via an
-    allowlist entry in the same commit".
+    In staged mode that is the index, so an exception the author has
+    edited but not staged does not apply. That is the whole of
+    "overrides only via an allowlist entry in the same commit".
     """
     try:
         raw = read(ALLOWLIST_FILE)
@@ -219,7 +231,8 @@ def load_allowlist(read: Callable[[str], bytes]) -> set[str]:
 def classify(path: str, data: bytes) -> str | None:
     """Return a refusal reason, or None if the file may be committed."""
     name = Path(path).name
-    # A dotfile with no further dot ('.gitignore') is a basename, not an extension.
+    # A dotfile with no further dot ('.gitignore') is a basename, not an
+    # extension.
     suffix = (
         "" if (name.startswith(".") and name.count(".") == 1) else Path(name).suffix
     )
