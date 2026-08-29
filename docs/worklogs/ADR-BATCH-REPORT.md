@@ -132,10 +132,14 @@ gate's finding, then §8's new case gaining an owner.
 
 | Pass | Against | MOVED | BROKEN |
 |---|---|---|---|
-| 1 | `135c3ac` | **693** | **40** |
-| 2 | `7b8e317` | **569** | 0 |
-| 3 | `9f91ad3` | **266** | 0 |
+| 1 | `135c3ac`, the original freeze | **693** | **40** |
+| 2 | the ADR-batch commit, before the cross-reference fix | **569** | 0 |
+| 3 | the cross-reference-fix commit, before §8's case gained an owner | **266** | 0 |
 | post-base (task #11) | `135c3ac` | **1** | 3 |
+
+Passes 2 and 3 were run against commits on this branch **before** it was rebased onto
+`origin/main`; those SHAs no longer exist and are described rather than quoted, because a dead SHA
+in a report reads exactly like a live one.
 
 Every MOVED line was applied by **`docs/reviews/repoint-design-citations.py`**, written for this and
 committed rather than left in `/tmp`. It parses `check-design-citations.py`'s own output with a
