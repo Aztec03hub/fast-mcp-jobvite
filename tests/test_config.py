@@ -267,6 +267,109 @@ def test_a_malformed_token_map_is_refused_without_echoing_it(
     assert secret not in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    ("key", "why"),
+    [
+        ("", "the empty string is not a bearer token"),
+        ("   ", "a whitespace-only key is not a bearer token"),
+        ("\t\n", "nor is one made of other whitespace"),
+    ],
+)
+def test_an_empty_bearer_token_key_is_refused(
+    clean_env: pytest.MonkeyPatch, key: str, why: str
+) -> None:
+    """R3-M1: `_token_map_problems` read only `.values()`.
+
+    The KEYS are the bearer tokens, and nothing looked at them, so
+    `{"": ["jobs:read"]}` was a non-empty object holding no usable
+    credential - the "open server" condition at `config.py:19-20` in a
+    different shape. Proved to boot before the fix.
+    """
+    clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
+    clean_env.setenv("JOBVITE_HTTP_TOKENS", json.dumps({key: ["jobs:read"]}))
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    _set(clean_env, V2_PAIR)
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings()
+    assert "JOBVITE_HTTP_TOKENS" in str(excinfo.value), why
+
+
+def test_a_token_mapped_to_no_scopes_is_refused(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """R3-L2: a token that authenticates and authorises nothing.
+
+    Accepting it defers the failure from boot - where the refusals are
+    specified to happen - to the first request that needs a scope.
+    """
+    clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
+    clean_env.setenv("JOBVITE_HTTP_TOKENS", json.dumps({"tok": []}))
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    _set(clean_env, V2_PAIR)
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings()
+    assert "JOBVITE_HTTP_TOKENS" in str(excinfo.value)
+
+
+def test_a_token_mapped_to_a_blank_scope_is_refused(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """A scope of `"  "` grants nothing and names nothing.
+
+    This test exists because AMPUTATION found the guard unprotected:
+    deleting the whitespace-scope branch left all 52 tests green, so the
+    branch was correct code that nothing exercised. The empty-key and
+    empty-list arms each killed their amputation; this one did not,
+    which is the only reason the gap was visible at all.
+    """
+    clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
+    clean_env.setenv("JOBVITE_HTTP_TOKENS", json.dumps({"tok": ["  "]}))
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    _set(clean_env, V2_PAIR)
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings()
+    assert "JOBVITE_HTTP_TOKENS" in str(excinfo.value)
+
+
+def test_a_refusal_over_a_bad_key_never_echoes_the_token_map(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """The new refusals keep the existing no-echo discipline.
+
+    A message naming the offending key would publish token material from
+    the very map it is rejecting, and the other keys in that map are
+    real tokens.
+    """
+    live = "s3cr3t-live-token"  # noqa: S105 - the point of the case
+    clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
+    clean_env.setenv(
+        "JOBVITE_HTTP_TOKENS",
+        json.dumps({"": ["jobs:read"], live: ["jobs:read"]}),
+    )
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    _set(clean_env, V2_PAIR)
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings()
+    assert live not in str(excinfo.value)
+
+
+def test_a_well_formed_token_map_still_boots(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """The negative arm.
+
+    Without it, every refusal above passes on an implementation that
+    rejects every token map ever written.
+    """
+    clean_env.setenv("JOBVITE_MCP_TRANSPORT", "http")
+    clean_env.setenv(
+        "JOBVITE_HTTP_TOKENS", json.dumps({"tok": ["jobs:read", "jobs:write"]})
+    )
+    clean_env.setenv("JOBVITE_TOOLS", "search_jobs")
+    _set(clean_env, V2_PAIR)
+    assert load_settings().mcp_transport == "http"
+
+
 # ----------------------------------------------------------------------
 # The off-loopback TLS refusal (DESIGN.md:800-804). Three High rows rest
 # on it. The end-to-end process arms are in test_boot.py; these are the

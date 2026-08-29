@@ -390,6 +390,19 @@ def _token_map_problems(raw: SecretStr) -> list[str]:
             "JOBVITE_HTTP_TOKENS must be a non-empty JSON object mapping each "
             'bearer token to its scopes, e.g. {"<token>": ["jobs:read"]}'
         ]
+    # R3-M1. This loop read only `.values()`, so the KEYS - which are
+    # the bearer tokens - were never examined at all.
+    # `{"": ["jobs:read"]}` satisfied every check above and booted: a
+    # non-empty object holding no usable credential, which is the "open
+    # server" condition at config.py:19-20 wearing a different shape.
+    if any(not isinstance(token, str) or not token.strip() for token in parsed):
+        return [
+            "JOBVITE_HTTP_TOKENS maps an empty or whitespace-only bearer "
+            "token; every key must be a usable token"
+        ]
+
+    # Still `.values()`: no message here may name a token, so the key is
+    # deliberately not bound in this loop.
     for scopes in parsed.values():
         if not isinstance(scopes, list) or not all(
             isinstance(scope, str) for scope in scopes
@@ -397,6 +410,20 @@ def _token_map_problems(raw: SecretStr) -> list[str]:
             return [
                 "JOBVITE_HTTP_TOKENS maps a token to something other than a "
                 "list of scope strings"
+            ]
+        # R3-L2, the same family: a token mapped to NO scopes
+        # authenticates and can then authorise nothing. That is not a
+        # usable credential either, and accepting it defers the failure
+        # from boot - where the refusals are specified to happen - to
+        # the first request.
+        if not scopes:
+            return [
+                "JOBVITE_HTTP_TOKENS maps a token to an empty scope list; a "
+                "token that holds no scope can authorise nothing"
+            ]
+        if any(not scope.strip() for scope in scopes):
+            return [
+                "JOBVITE_HTTP_TOKENS maps a token to an empty or whitespace-only scope"
             ]
     return []
 
