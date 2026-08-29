@@ -415,7 +415,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 591
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 596
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -525,7 +525,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 306
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 313
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -590,7 +590,7 @@ jobs:
       - name: U7 resilience amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
-            --amputation --min-rows 16 --row-re '^########## A[0-9]+ '
+            --amputation --min-rows 19 --row-re '^########## A[0-9]+ '
 
       # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
       # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
