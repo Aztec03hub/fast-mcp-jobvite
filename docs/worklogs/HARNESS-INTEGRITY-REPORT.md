@@ -437,5 +437,8 @@ Post-rebase suite: **362 passed, 2 deselected, 0 skipped**. (`main`'s own `45a60
   with one. I judge the trade correct (the marker is ours, the log string is not) but it is a real
   loss and the decision was mine.
 
-Worktrees `/tmp/harness-base` and `/tmp/harness-pid1` removed; `/tmp/harness-work` removed after the
-final run. Nothing was pushed and nothing was merged.
+Worktrees `/tmp/harness-base` and `/tmp/harness-pid1` removed. **`/tmp/harness-work` is left in
+place**: it holds the rebased `fix/harness-integrity` and a synced `.venv`, so the merge and any
+re-run land there without a fresh `uv sync`. Remove it with
+`git worktree remove --force /tmp/harness-work` once the branch is merged - the branch itself lives
+in the repository, not in the worktree. Nothing was pushed and nothing was merged.
