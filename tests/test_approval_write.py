@@ -958,6 +958,57 @@ async def test_send_email_true_is_forwarded_and_not_quietly_dropped() -> None:
     assert ats.rows[0]["candidate"]["sendEmail"] is True
 
 
+@pytest.mark.parametrize("send_email", [True, False])
+async def test_the_audit_event_records_send_email_as_its_value(
+    audit_records: list[dict[str, Any]],
+    send_email: bool,
+) -> None:
+    """R7-M4: the audit event must answer "did this email a person?".
+
+    `send_email` was in `NON_SENSITIVE_ARGUMENT_KEYS`' complement, so
+    the audit event recorded it as `[REDACTED:bool]`. For every other
+    argument recording the SHAPE is what makes the event auditable
+    (`utils/redaction.py`'s own docstring). **For a `bool` the shape is
+    the whole domain**, so the record could not distinguish a write that
+    emailed a live person from one that did not.
+
+    `DESIGN.md:1719` C1-T1 names flipping this field to `true` a
+    **High** threat and `DESIGN.md:242` makes its `false` default a
+    safety property. The audit event is the artefact a compliance reader
+    consults after the fact, and it was the one place that question had
+    to be answerable and was not.
+
+    **BOTH directions, because R7 measured it unpinned in both.** Adding
+    the key broke nothing - and no test asserted it was redacted either,
+    so the previous behaviour was held in place by nothing at all. A
+    single-value arm here would pass against a tool that hard-codes
+    whichever value it was written with.
+    """
+    ats = _JobviteRows()
+    server = build_server(settings(), client_factory=ats.factory())
+    async with Client(
+        server, mode=HANDSHAKE_MODE, elicitation_handler=approve_everything
+    ) as client:
+        await client.call_tool(
+            CREATE_CANDIDATE,
+            {"params": {**VALID_ARGS, "send_email": send_email}},
+        )
+
+    events = audit_events(audit_records)
+    assert events, "the invocation emitted no audit event; this would be vacuous"
+    recorded = events[-1]["arguments"]["send_email"]
+    assert recorded is send_email, (
+        f"the audit event records send_email as {recorded!r}, not {send_email!r}; "
+        "C1-T1 cannot be answered from this record"
+    )
+
+    # The pairing: admitting this key must not admit the PII beside it.
+    for pii_key in ("first_name", "last_name", "email"):
+        assert events[-1]["arguments"][pii_key] == "[REDACTED:str]", (
+            f"{pii_key} is no longer redacted in the audit event"
+        )
+
+
 async def test_the_body_reaches_the_wire_under_jobvites_own_keys() -> None:
     """`JOBVITE-CONTRACT.md:269-300`, nesting included."""
     ats = _JobviteRows()

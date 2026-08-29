@@ -103,10 +103,20 @@ SECRET_HEADERS: Final[frozenset[str]] = frozenset({"x-jvi-api", "x-jvi-sc"})
 #:
 #: **Fail-closed: anything absent from this set is redacted.** Every
 #: member is here because its value is structurally an identifier, a
-#: bound or a page cursor rather than anything a candidate typed or that
-#: identifies one. A tool added later contributes its arguments to the
-#: audit event redacted, and stays that way until someone adds the key
-#: here deliberately - which is the point.
+#: bound, a page cursor, **or a closed-domain flag whose shape IS its
+#: value** - rather than anything a candidate typed or that identifies
+#: one. A tool added later contributes its arguments to the audit event
+#: redacted, and stays that way until someone adds the key here
+#: deliberately - which is the point.
+#:
+#: **The fourth clause was added with `send_email` and is not a
+#: loosening.** For every other argument here, recording the SHAPE is
+#: enough to make the event auditable. For a `bool` the shape is the
+#: whole domain, so `[REDACTED:bool]` answers nothing: the record cannot
+#: distinguish a write that emailed a live person from one that did not.
+#: A flag qualifies only when its domain is closed AND enumerating it
+#: discloses nothing about a candidate - which is why `query`, also a
+#: single value, is still absent below.
 #:
 #: `query` is deliberately ABSENT. A `search_candidates` query is free
 #: text a caller composed, and the obvious thing to search for is a
@@ -122,6 +132,21 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         "count",
         "page",
         "eId",
+        # ADMITTED BY THE FOURTH CLAUSE ABOVE, AND IT IS THE ONE
+        # ARGUMENT HERE WITH A THREAT ROW OF ITS OWN. DESIGN.md:1719
+        # C1-T1 names flipping `send_email` to `true` a HIGH threat and
+        # DESIGN.md:242 makes its `false` default a safety property.
+        # Redacted to `[REDACTED:bool]` the audit event - the artefact a
+        # compliance reader consults after the fact - could not answer
+        # "did this write email a live person?", which is the single
+        # question that row exists to make answerable.
+        #
+        # DESIGN.md:1072 says `send_email` "is an argument like any
+        # other". That line and C1-T1 pull in opposite directions on
+        # this field; the audit surface is where it matters, and the
+        # value discloses nothing about the candidate. Raised as a task
+        # rather than settled here - the design is frozen.
+        "send_email",
         # `companyId` WAS HERE AND IS A CREDENTIAL. R2-H5.
         #
         # This file already classified it as one: SECRET_QUERY_PARAMS
