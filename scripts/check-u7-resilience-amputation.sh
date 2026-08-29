@@ -251,7 +251,7 @@ amputate "A8  the outage predicate is deleted and nothing is an outage" \
         return False'
 
 # ===========================================================================
-# CORRELATED LOGGING - §8 #13, DESIGN.md:654-660
+# CORRELATED LOGGING - §8 #13, DESIGN.md:674-680
 # ===========================================================================
 
 amputate "A9  the retry line is not written at all" \

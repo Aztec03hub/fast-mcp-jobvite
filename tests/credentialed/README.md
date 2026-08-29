@@ -3,9 +3,9 @@
 Tests here need a real Jobvite credential. **CI never runs them and never skips them.**
 They are excluded by *selection* - the `credentialed` marker, deselected by the
 `-m` in `[tool.pytest.ini_options].addopts` - because a skip counts as a failure
-(`DESIGN.md:1290-1293`).
+(`DESIGN.md:1310-1313`).
 
-**CI does `--collect-only` against them** (`DESIGN.md:1305-1310`). A suite that is
+**CI does `--collect-only` against them** (`DESIGN.md:1325-1330`). A suite that is
 excluded and never collected rots silently: an import error or a renamed fixture in
 it is invisible until the day someone finally has a credential.
 

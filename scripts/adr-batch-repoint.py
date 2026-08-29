@@ -131,7 +131,7 @@ def main() -> int:
     for path in files:
         # keyed (lineno, occurrence-index-on-that-line) -> replacement
         # text. The index is load-bearing: `str.replace` on a line
-        # carrying both `DESIGN.md:551` and `DESIGN.md:551-553` rewrites
+        # carrying both `DESIGN.md:571` and `DESIGN.md:571-573` rewrites
         # the wrong one, because the shorter form is a prefix of the
         # longer.
         edits: dict[tuple[int, int], str] = {}

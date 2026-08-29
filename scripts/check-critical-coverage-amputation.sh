@@ -407,7 +407,7 @@ amputate "A15 the floors are typed in rather than read from the design" "$CHECKE
 #
 # #94 closed the registration credential guard and a read tool's error
 # arm in `tools/candidates.py`. `tools/jobs.py` carries both shapes and
-# is NOT on DESIGN.md:1425's critical-path list, so ADR-0010 gives it
+# is NOT on DESIGN.md:1445's critical-path list, so ADR-0010 gives it
 # the 85% tool-module floor - it measured 97.44% line and 91.67% branch
 # with the guard entirely untested, and `check-coverage-floors.py`
 # passed it and always would. The floor is not defective; it is loose,
@@ -475,7 +475,7 @@ amputate "A18 the registration guard reads only half its credential pair" "$JOBS
 # member of the derived population is killed by an assertion.
 #
 # **`tools/candidates.py` measures 100.00% LINE AND 100.00% BRANCH.**
-# It is on DESIGN.md:1425's critical-path list at ADR-0010's 95/90
+# It is on DESIGN.md:1445's critical-path list at ADR-0010's 95/90
 # floors, and both arms below are EXECUTED on every run by cases that
 # assert the caller-visible half (`is_error`, the problem object) and
 # never read the row. This is what a coverage-invisible gap looks like

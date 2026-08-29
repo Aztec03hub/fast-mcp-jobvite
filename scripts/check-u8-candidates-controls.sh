@@ -148,7 +148,7 @@ PY
 
 # ===========================================================================
 # §8 #19 - FENCING, INCLUDING CONTENT THAT CLOSES ITS OWN FENCE.
-# DESIGN.md:797-798 and :754 (merge-gating).
+# DESIGN.md:817-818 and :754 (merge-gating).
 # ===========================================================================
 
 # Only the CLOSING token is stripped. This passes the committed seed
@@ -201,7 +201,7 @@ mutate "M4  an admitted free-text field is passed through unfenced" \
 # ===========================================================================
 
 # The tempting implementation: keep everything, render it as text. This
-# is the exact behaviour DESIGN.md:804-805 forbids, and it satisfies any
+# is the exact behaviour DESIGN.md:824-825 forbids, and it satisfies any
 # assertion phrased about the value's TYPE.
 mutate "M5  an unregistered field is stringified instead of dropped" \
   "$REDACTION" \
@@ -228,7 +228,7 @@ mutate "M6  a fenced field arriving as a non-string is stringified" \
                 # §8 #20. Fencing is defined for strings only, so this'
 
 # ===========================================================================
-# PATH-KEYED, NOT NAME-KEYED (DESIGN.md:800-802).
+# PATH-KEYED, NOT NAME-KEYED (DESIGN.md:820-822).
 # ===========================================================================
 
 # THE COLLISION ITSELF. Lookup falls back to the LEAF NAME, so
@@ -323,7 +323,7 @@ mutate "M12 a malformed date is guessed rather than refused" \
 
 # THE TIDY-UP THE CASE EXISTS TO PREVENT. The write spelling is
 # "corrected" to match the read one, which is exactly what
-# DESIGN.md:1414 calls "the kind of wart a well-meaning normalisation
+# DESIGN.md:1434 calls "the kind of wart a well-meaning normalisation
 # removes".
 mutate "M13 the write spelling is tidied into the read one" \
   "$NORMALISE" \

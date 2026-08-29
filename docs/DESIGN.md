@@ -445,6 +445,26 @@ day must be filtered. That is the sole guidance Jobvite gives. So the client car
 outbound rate limit with a conservative default, and the README must state the envelope once one exists (§10.1), because a user
 syncing hourly is outside what the vendor documents and should know it.
 
+**That outbound throttle IS NOT IMPLEMENTED. The two rules below constrain whoever builds it; they do not
+describe what runs today** (ADR-0025). `JOBVITE_OUTBOUND_RATE_LIMIT` is declared, typed, defaulted,
+documented in `.env.example` and covered by config tests, and **no code reads it** - which is the defect
+ADR-0025 was raised over. This section states the shape the implementation must take so that the unit
+which builds it does not choose that shape silently.
+
+- **The throttle is PER-PROCESS**, scoped like §4.3's circuit breaker and for the same reason: it exists
+  to protect Jobvite from us, and Jobvite sees our process, not our scans. A per-scan throttle lets N
+  concurrent scans each spend the full allowance, so the rate arriving at Jobvite is N times the limit
+  and the limit means nothing. Two mechanisms with one purpose must not hold opposite ideas of what
+  they are protecting.
+- **Time spent waiting on the throttle SPENDS §4.3's outbound budget.** A bound that excludes the term
+  dominating the wait is not a bound, and a caller does not care whether we were waiting on Jobvite or
+  waiting on ourselves.
+
+**Those two rules compose with §4.5's paging, and that composition is the implementer's to check.**
+ADR-0025 works the arithmetic through on this design's own worked example and is where it is recorded.
+Whoever implements the throttle must either size the defaults so the composition holds, or raise it as
+an ADR against §4.5 - not settle it silently, which is the outcome ADR-0025 exists to prevent.
+
 The mandated Redis token bucket is not used: the standard's rationale is replica
 desynchronisation, and a single-process server has no replicas. **ADR-0002.**
 

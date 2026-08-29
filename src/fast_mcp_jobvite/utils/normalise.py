@@ -13,11 +13,11 @@ half of, beside the first, in a different file - which is exactly the
 two-lists defect `models/fencing.py` exists to avoid one layer up.
 
 **The `eId`/`EId` asymmetry is JOBVITE'S, NOT OURS**
-(`JOBVITE-CONTRACT.md:321`, DESIGN.md:1440-1441). Reads return `eId`;
+(`JOBVITE-CONTRACT.md:321`, DESIGN.md:1460-1461). Reads return `eId`;
 the create response returns `EId`. **It looks like a typo and is not**,
 which is why the two spellings are separate named constants: a
 refactor that tidies them into one has to delete an assertion rather
-than merely edit a literal. DESIGN.md:1414 puts it as "the kind of wart
+than merely edit a literal. DESIGN.md:1434 puts it as "the kind of wart
 a well-meaning normalisation removes".
 """
 
@@ -133,7 +133,7 @@ def blank_to_none(value: Any) -> Any:  # noqa: ANN401 - walks arbitrary JSON val
     """Unify Jobvite's empty strings with nulls (§9 hazard 4).
 
     "Phone fields use `""`. Treated identically at the boundary"
-    (DESIGN.md:1445-1446). A caller that has to test both `is None` and
+    (DESIGN.md:1465-1466). A caller that has to test both `is None` and
     `== ""` for the same absence has been handed the vendor's problem.
 
     **Whitespace counts as blank.** `" "` in a phone field is the same

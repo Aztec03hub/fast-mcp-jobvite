@@ -395,7 +395,7 @@ mutate "M23b a 429's counts_toward_breaker is ignored" \
   '        return False'
 
 # ===========================================================================
-# CORRELATED LOGGING (DESIGN.md:654-660, §8 #13)
+# CORRELATED LOGGING (DESIGN.md:674-680, §8 #13)
 # ===========================================================================
 
 # The direction is reported backwards. Every line still looks
@@ -426,7 +426,7 @@ mutate "M20 the retry line reports a constant attempt number" \
   '        attempt=state.attempt_number,' \
   '        attempt=1,'
 
-# THE URL REACHES A RETRY LINE. DESIGN.md:658-660: "a retry line is
+# THE URL REACHES A RETRY LINE. DESIGN.md:678-680: "a retry line is
 # exactly where an unredacted URL would otherwise reach a log", because
 # the v1 jobFeed URL carries `sc=` in its query string.
 mutate "M21 the retry line carries the exception's full text" \
@@ -475,7 +475,7 @@ mutate "M29 progress is sampled after the page, so the break fires always" \
   '            for item in page:'
 
 # The break stops setting `incomplete`, so a caller receives a truncated
-# result that claims to be whole - the silent under-read DESIGN.md:488-496
+# result that claims to be whole - the silent under-read DESIGN.md:508-516
 # exists to prevent, arriving by a new road.
 mutate "M30 a stalled scan reports itself as complete" \
   "$CLIENT" \

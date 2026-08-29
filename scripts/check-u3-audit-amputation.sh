@@ -173,7 +173,7 @@ amputate "A6  attach_audit_warnings returns the payload untouched" "$AUDIT" \
 # notices its absence then U3 does not actually use it.
 # ---------------------------------------------------------------------------
 amputate "A7  request_id_var is never bound" "$AUDIT" \
-  '    # DESIGN.md:644-646: minted and bound in the same statement.
+  '    # DESIGN.md:664-666: minted and bound in the same statement.
     with request_id_scope(resolve_request_id(inbound_request_id)) as request_id:' \
   '    request_id = resolve_request_id(inbound_request_id)
     if True:'
@@ -195,7 +195,7 @@ amputate "A9  redact_arguments returns its input unchanged" "$REDACT" \
     if isinstance(arguments, Mapping):'
 
 # ---------------------------------------------------------------------------
-# A10 - the stderr failure channel is deleted. DESIGN.md:770-771 says the
+# A10 - the stderr failure channel is deleted. DESIGN.md:790-791 says the
 # report must NOT go down the audit stream that just failed, so if nothing
 # notices stderr going silent, that requirement is untested.
 # ---------------------------------------------------------------------------

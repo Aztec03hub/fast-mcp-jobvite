@@ -2,7 +2,7 @@
 # PID 1 receives SIGTERM, the lifespan tears down, and the process exits inside the
 # grace period - on BOTH transports.
 #
-# WHY THIS FILE EXISTS. DESIGN.md:1079-1087 carried two inherited limits on the
+# WHY THIS FILE EXISTS. DESIGN.md:1099-1107 carried two inherited limits on the
 # shutdown mitigation, one of which was "PID 1 was never simulated". U1 closed it
 # by measurement and reported the numbers in prose. The script that produced them
 # lived in /tmp and a restart destroyed it, so the measurement became exactly what

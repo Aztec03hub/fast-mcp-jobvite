@@ -152,7 +152,7 @@ PY
 # value a threat row is written about.
 # ===========================================================================
 
-# C2-I1, DESIGN.md:1800. Flipped to True the framework log receives raw
+# C2-I1, DESIGN.md:1820. Flipped to True the framework log receives raw
 # candidate PII. Flipping rather than deleting, because the framework's
 # own default is False and a deleted keyword changes nothing.
 mutate "M1  include_payloads is flipped to True" \
@@ -216,7 +216,7 @@ mutate "M6  search_jobs is scoped to candidate PII instead of job data" \
   '    SEARCH_JOBS: SCOPE_JOBS,' \
   '    SEARCH_JOBS: SCOPE_CANDIDATES,'
 
-# DESIGN.md:897-901. Applied on stdio, `_RequireScopes` denies an absent
+# DESIGN.md:917-921. Applied on stdio, `_RequireScopes` denies an absent
 # token and every tool disappears from a transport the design declares
 # fully authorised.
 mutate "M7  the scopes are applied on stdio too" \

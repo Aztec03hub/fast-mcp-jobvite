@@ -1,14 +1,14 @@
-"""`search_jobs` end to end, against the wire (DESIGN.md:1386-1398).
+"""`search_jobs` end to end, against the wire (DESIGN.md:1406-1418).
 
 **Every assertion about `request_id` is made on the WIRE RESULT, never
-on the `ToolResult` the tool returned.** DESIGN.md:1393-1395 is
+on the `ToolResult` the tool returned.** DESIGN.md:1413-1415 is
 explicit that the object-level assertion would pass while the wire
 carried nothing, because `ToolResult.to_mcp_result()` short-circuits on
 `_raw_mcp_result` before it looks at `meta`. Every case here therefore
 drives an in-process `fastmcp.Client` and reads what came back.
 
 A suite passing only against synthetic fixtures proves the client is
-self-consistent, not that it speaks Jobvite (DESIGN.md:1319-1321).
+self-consistent, not that it speaks Jobvite (DESIGN.md:1339-1341).
 `error_auth_200_body401.json` is the one exception in this file: it is
 a **recorded** capture of real Jobvite transport, and the trap it
 carries is the only Critical on the client.
@@ -125,7 +125,7 @@ def client_factory(
 
     No third-party mocking library, which matters because a
     credential-free test strategy cannot afford to depend on one
-    (DESIGN.md:1420-1421).
+    (DESIGN.md:1440-1441).
     """
 
     def make() -> JobviteClient:
@@ -152,7 +152,7 @@ ERROR_200_BODY_401 = "error_auth_200_body401.json"
 
 
 # ======================================================================
-# THE TOOL, END TO END. DESIGN.md:1386-1398 and the plan's U5 bullets.
+# THE TOOL, END TO END. DESIGN.md:1406-1418 and the plan's U5 bullets.
 # ======================================================================
 
 
@@ -181,7 +181,7 @@ async def test_the_recorded_200_with_401_body_is_a_502_problem() -> None:
     The registry's answer is `/problems/external-service-error` **502**
     - never Jobvite's own 401, which would tell the caller *their*
     credentials failed when the credential that failed is the one this
-    server holds (DESIGN.md:533-540).
+    server holds (DESIGN.md:553-560).
     """
     server = build_server(
         settings(), client_factory=client_factory(fixture_bytes(ERROR_200_BODY_401))
@@ -198,7 +198,7 @@ async def test_the_recorded_200_with_401_body_is_a_502_problem() -> None:
     assert problem["status"] == 502
     assert set(REQUIRED_MEMBERS) <= set(problem)
     # Jobvite's own status is preserved in `detail`, never in `status`
-    # (DESIGN.md:572-574).
+    # (DESIGN.md:592-594).
     assert "401" in problem["detail"]
     assert problem["status"] != 401
 
@@ -206,7 +206,7 @@ async def test_the_recorded_200_with_401_body_is_a_502_problem() -> None:
 # ======================================================================
 # SS8 #16 - request_id, on the WIRE, matched against the audit event.
 # The two arms travel by DIFFERENT channels and are different
-# assertions rather than a repetition (DESIGN.md:672-678).
+# assertions rather than a repetition (DESIGN.md:692-698).
 # ======================================================================
 
 
@@ -219,7 +219,7 @@ async def test_case16_read_arm_request_id_on_the_wire_meta(
     model**, which is the half that catches the tempting fix of
     declaring `request_id` as a model field: `additionalProperties` is
     false, so an undeclared top-level key is rejected outright
-    (DESIGN.md:679-690).
+    (DESIGN.md:699-710).
     """
     server = build_server(
         settings(), client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS))
@@ -233,7 +233,7 @@ async def test_case16_read_arm_request_id_on_the_wire_meta(
     # uses. Found by mutation: renaming `REQUEST_ID_META_KEY` moved
     # this assertion with it, so the test passed against a server
     # publishing the id under a key no caller could guess - and
-    # DESIGN.md:686-690 makes the documented key the whole point,
+    # DESIGN.md:706-710 makes the documented key the whole point,
     # because "an id a caller cannot reach discharges nothing".
     # An assertion that reads the constant under test cannot see it
     # change.
@@ -274,7 +274,7 @@ async def test_case16_error_arm_request_id_in_the_problem_object(
     """Error: the id travels in the problem's own `request_id` member.
 
     A different channel from the read arm's `_meta`, and therefore a
-    different assertion (DESIGN.md:672-678). The `instance` URN is
+    different assertion (DESIGN.md:692-698). The `instance` URN is
     built from the same id, so a mismatch between them would mean the
     problem was assembled from two invocations.
     """
@@ -291,7 +291,7 @@ async def test_case16_error_arm_request_id_in_the_problem_object(
     audited = audit_event(audit_records)["request_id"]
     assert problem["request_id"] == audited
     assert problem["instance"].endswith(audited)
-    # DESIGN.md:661-662 requires the id on EVERY result, so the
+    # DESIGN.md:681-682 requires the id on EVERY result, so the
     # error arm carries it in `_meta` as well - but the problem
     # member is what `error-contract.md` specifies and is asserted
     # above in its own right.
@@ -360,7 +360,7 @@ async def test_the_audit_event_records_an_error_as_an_error(
 
 
 async def test_the_result_cap_reports_showing_n_of_total() -> None:
-    """A capped page says so rather than truncating (DESIGN.md:488-496).
+    """A capped page says so rather than truncating (DESIGN.md:508-516).
 
     `total` is the ENVELOPE's own value, so `showing 1 of 2` is only
     reachable if the cap is applied to the items and the total is read
@@ -385,7 +385,7 @@ async def test_the_result_cap_reports_showing_n_of_total() -> None:
 async def test_an_uncapped_page_is_not_reported_as_capped() -> None:
     """POSITIVE CONTROL for the cap: it does not fire on every call.
 
-    DESIGN.md:488-492 says wiring the completeness signal to every
+    DESIGN.md:508-512 says wiring the completeness signal to every
     call would fire it on the default path and train everyone to
     ignore it. Without this arm a cap that always fired would pass the
     case above.
@@ -406,7 +406,7 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
     """`total` is Jobvite's, and is never recomputed.
 
     Driven directly rather than through the wire because it needs a
-    `total` that disagrees with the page - DESIGN.md:506-520's "total
+    `total` that disagrees with the page - DESIGN.md:526-540's "total
     is reported and never trusted" only has teeth when the two differ.
     """
     payload = {
@@ -522,7 +522,7 @@ def test_a_decided_model_still_generates() -> None:
     """POSITIVE CONTROL: the refusal above is not refusing everything.
 
     A guard that refuses everything is not a guard and its refusals
-    prove nothing (DESIGN.md:1431-1432).
+    prove nothing (DESIGN.md:1451-1452).
     """
 
     class Decided(BaseModel):
@@ -680,7 +680,7 @@ def test_job_fields_take_an_explicit_not_free_text_decision() -> None:
 
 
 async def test_the_server_lists_exactly_the_enabled_tools() -> None:
-    """`JOBVITE_TOOLS` is the allow-list (DESIGN.md:970-987)."""
+    """`JOBVITE_TOOLS` is the allow-list (DESIGN.md:990-1007)."""
     server = build_server(
         settings(), client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS))
     )
@@ -717,7 +717,7 @@ async def test_the_server_lists_the_same_tools_on_http() -> None:
     **This asserted through `client.list_tools()` until U9, and U9
     made that the wrong instrument rather than making the property
     false.** `require_scopes` now removes a tool the CALLER's token
-    does not hold (DESIGN.md:889-892), and an in-memory client
+    does not hold (DESIGN.md:909-912), and an in-memory client
     presents no token at all, so the listing is empty on HTTP while
     registration is identical. Reading the registry directly asserts
     the sentence in the docstring; reading the listing asserted the
@@ -769,7 +769,7 @@ def test_registering_search_jobs_without_credentials_refuses() -> None:
     (`test_registering_the_candidate_tools_without_credentials_refuses`,
     task #94) and this one had nothing: `search_jobs`' guard was the
     only uncovered branch left in the module, and `tools/jobs.py` is
-    not on DESIGN.md:1425's critical-path list, so ADR-0010 gives it
+    not on DESIGN.md:1445's critical-path list, so ADR-0010 gives it
     the 85% tool-module floor and the module measured 97% with the
     guard untouched. No floor was ever going to notice.
 
@@ -863,7 +863,7 @@ def test_a_control_character_or_bidi_override_is_rejected(
 
 
 def test_an_ordinary_identifier_still_passes() -> None:
-    """POSITIVE CONTROL for the rejections (DESIGN.md:1431-1432)."""
+    """POSITIVE CONTROL for the rejections (DESIGN.md:1451-1452)."""
     assert SearchJobsInput(ids="TESTJOB1").ids == "TESTJOB1"
 
 
@@ -876,7 +876,7 @@ def test_an_unknown_argument_is_refused() -> None:
 async def test_a_rejected_argument_fails_closed_before_the_tool_body(
     audit_records: list[dict[str, Any]],
 ) -> None:
-    """Pre-dispatch rejection reaches no tool body (DESIGN.md:588-608).
+    """Pre-dispatch rejection reaches no tool body (DESIGN.md:608-628).
 
     **And carries no problem object**, which is SS5.1's third
     exception: the rejection is *raised* by the framework rather than
@@ -1048,7 +1048,7 @@ async def test_trace_context_is_absent_when_the_caller_sends_none(
     A field that is always absent and a field that is always
     synthesised each pass a single-arm test. A minted id in a field
     named for the host's trace looks like a join and is not one
-    (DESIGN.md:703-705).
+    (DESIGN.md:723-725).
     """
     server = build_server(
         settings(), client_factory=client_factory(fixture_bytes(JOB_LIST_SUCCESS))
@@ -1105,7 +1105,7 @@ async def test_the_default_client_factory_carries_the_configured_result_cap(
 ) -> None:
     """U6-F1: both halves of the cap must hold the same number.
 
-    `DESIGN.md:453-455` makes the cap `min(transport_cap,
+    `DESIGN.md:473-475` makes the cap `min(transport_cap,
     configured_result_cap)` and says neither unit owns all of it. This
     module applies the configured half in-tool; the client bounds what
     leaves the transport. The default factory omitted `max_results`,
@@ -1162,7 +1162,7 @@ async def test_the_default_client_factory_carries_the_pagination_start_base(
     **The assertion is BEHAVIOUR, not the keyword argument.** A case
     asserting `seen[0]["start_base_overrides"] == {...}` passes against
     a client that ignores what it was handed; `scan_start()` is what a
-    scan actually reads (DESIGN.md:497-499), so the built client is
+    scan actually reads (DESIGN.md:517-519), so the built client is
     asked directly.
 
     `client_factory=None` is the whole point, exactly as it is for F1:
@@ -1172,7 +1172,7 @@ async def test_the_default_client_factory_carries_the_pagination_start_base(
     **The silence arm is not decoration.** Without it this case passes
     against a factory that hands every route a base unconditionally,
     which is the failure mode that loses record zero on a 0-based
-    server - the one DESIGN.md:482-483 exists to prevent.
+    server - the one DESIGN.md:502-503 exists to prevent.
     """
     built: list[JobviteClient] = []
 

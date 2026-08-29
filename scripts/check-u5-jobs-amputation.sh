@@ -165,7 +165,7 @@ PY
 # A1 - THE RESULT CAP IS GONE ENTIRELY. Every item Jobvite returned is
 # forwarded and `total` is recomputed to agree, so `showing N of N` is
 # true on every call and the cap reports nothing because there is
-# nothing to report. This is DESIGN.md:488-496 deleted outright.
+# nothing to report. This is DESIGN.md:508-516 deleted outright.
 # ---------------------------------------------------------------------------
 amputate "A1  the result cap does not exist; total is recomputed to agree" \
   "$TOOLS" \
@@ -193,7 +193,7 @@ amputate "A2  the success result carries no _meta at all" "$TOOLS" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -214,7 +214,7 @@ amputate "A2  the success result carries no _meta at all" "$TOOLS" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -232,7 +232,7 @@ amputate "A2  the success result carries no _meta at all" "$TOOLS" \
 
 # ---------------------------------------------------------------------------
 # A3 - THE ERROR PATH RAISES INSTEAD OF RETURNING. This deletes
-# DESIGN.md:576-580's central property: problem objects are the one
+# DESIGN.md:596-600's central property: problem objects are the one
 # error shape no configuration can distort BECAUSE they are returned.
 # Raised, it goes through `mask_error_details` and the caller gets a
 # masked string with no `request_id`, no `status` and no `type`.
@@ -243,7 +243,7 @@ amputate "A3  the error path raises rather than returning a problem" "$TOOLS" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -264,7 +264,7 @@ amputate "A3  the error path raises rather than returning a problem" "$TOOLS" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -280,7 +280,7 @@ amputate "A3  the error path raises rather than returning a problem" "$TOOLS" \
 # A4 - THE AUDIT EVENT IS NEVER EMITTED. Both id cases match the wire
 # against "the audit event"; with no event there is nothing to match.
 # This is the row that proves those two are not asserting against
-# silence - the same construction DESIGN.md:1341-1343 uses to pair its
+# silence - the same construction DESIGN.md:1361-1363 uses to pair its
 # own #4 and #5.
 # ---------------------------------------------------------------------------
 amputate "A4  no audit event is ever emitted (the id pairings go vacuous)" \
@@ -290,7 +290,7 @@ amputate "A4  no audit event is ever emitted (the id pairings go vacuous)" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -311,7 +311,7 @@ amputate "A4  no audit event is ever emitted (the id pairings go vacuous)" \
                 event.result_status = "error"
                 # AuditPhase.READ: a read is recoverable and losing the
                 # tool is worse than losing one audit line
-                # (DESIGN.md:766-768). The warnings it can return are
+                # (DESIGN.md:786-788). The warnings it can return are
                 # for a POST-WRITE failure only, so a read discards
                 # them - there is no success payload to attach them to
                 # on this branch.
@@ -393,7 +393,7 @@ amputate "A9  inbound identifiers accept any character" "$CONSTRAINTS" \
 
 # ---------------------------------------------------------------------------
 # A10 - THE `summary` FIELD IS GONE. The caller-facing
-# `showing N of total` string DESIGN.md:493-495 names disappears from
+# `showing N of total` string DESIGN.md:513-515 names disappears from
 # the result. `showing` and `total` remain, so a test asserting only the
 # numbers survives - and that survivor is the finding, because the
 # design specifies the reported STRING.

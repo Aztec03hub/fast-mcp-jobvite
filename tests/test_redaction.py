@@ -115,7 +115,7 @@ def test_a_url_with_no_query_is_returned_unchanged() -> None:
 def test_a_url_carrying_no_secret_is_untouched() -> None:
     """Positive control: the redactor does not mangle innocent URLs.
 
-    DESIGN.md:1431-1432 - a guard that refuses everything is not a
+    DESIGN.md:1451-1452 - a guard that refuses everything is not a
     guard.
     """
     url = "https://api.jobvite.com/api/v2/jobs?count=50&start=0"
@@ -281,7 +281,7 @@ def test_a_container_under_an_unlisted_key_is_redacted_WHOLE() -> None:
     leaf that happened to carry an allow-listed name - so `job_id`
     escaped from inside a blob called `secretBlob`.
 
-    DESIGN.md:1856 describes C6-I2's mechanism as a **path-keyed**
+    DESIGN.md:1876 describes C6-I2's mechanism as a **path-keyed**
     allow-list for this reason: membership is a property of the path,
     not of the leaf name in isolation.
     """

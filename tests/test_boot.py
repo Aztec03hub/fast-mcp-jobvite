@@ -1,6 +1,6 @@
 """§8 #10: an off-loopback bind without TLS refuses to START.
 
-DESIGN.md:1358-1361.
+DESIGN.md:1378-1381.
 
 Three High threat rows (C1-S1, C1-T1, C1-I1) rest on this refusal, and
 none of them rested on a test before.
@@ -61,7 +61,7 @@ def test_off_loopback_without_tls_exits_naming_the_reason(
 def test_the_default_loopback_bind_starts_a_real_process(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Positive control for the REAL-PROCESS pair (DESIGN.md:1358-1361).
+    """Positive control for the REAL-PROCESS pair (DESIGN.md:1378-1381).
 
     Its partner is
     `test_off_loopback_with_the_assertion_declared_starts`. Named for
@@ -97,7 +97,7 @@ def test_off_loopback_with_the_assertion_declared_starts(
 
     Binding the wildcard address is what an operator behind a
     terminating proxy actually does, so a refusal that fired here too
-    would be a guard that refuses everything (DESIGN.md:1431-1433).
+    would be a guard that refuses everything (DESIGN.md:1451-1453).
     """
     port = free_port()
     env = clean_env(
@@ -120,7 +120,7 @@ def test_off_loopback_with_the_assertion_declared_starts(
 def test_http_without_tokens_exits_rather_than_serving_openly(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:885-887, as a process arm.
+    """DESIGN.md:905-907, as a process arm.
 
     An open server is the alternative.
     """
@@ -136,7 +136,7 @@ def test_http_without_tokens_exits_rather_than_serving_openly(
 
 
 def test_a_missing_credential_exits_naming_the_variable(tmp_path: pathlib.Path) -> None:
-    """DESIGN.md:966-970: a missing credential fails at BOOT.
+    """DESIGN.md:986-990: a missing credential fails at BOOT.
 
     And the refusal names it.
     """
@@ -166,7 +166,7 @@ def test_the_refusal_status_is_the_sysexits_ex_config_number() -> None:
 
 
 def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> None:
-    """DESIGN.md:984-989, as a process arm.
+    """DESIGN.md:1004-1009, as a process arm.
 
     Rather than as a validator call.
     """
@@ -236,7 +236,7 @@ def test_the_server_reaches_serving_on_both_transports(
 ) -> None:
     """The broadest positive control: the unit can actually start.
 
-    DESIGN.md:848-851 records that this section's variables were found
+    DESIGN.md:868-871 records that this section's variables were found
     missing by someone trying to build against it and discovering the
     unit could not be started at all.
     """

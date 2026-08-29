@@ -1,12 +1,12 @@
 """`get_job_feed` end to end, and the one arm that carries a High.
 
 **C5-I1 is the reason this unit is late rather than part of U5**
-(`DESIGN.md:1844`). `GET /v1/jobFeed` structurally requires `api`, `sc`
+(`DESIGN.md:1864`). `GET /v1/jobFeed` structurally requires `api`, `sc`
 and `companyId` as **query parameters** (DESIGN.md:312-318), so it is
 the one route in this server whose URL is itself a credential.
 
 **THE ABSENCE ARM IS PAIRED, AND THE PAIRING IS THE WHOLE POINT.**
-DESIGN.md:1325-1331 states it as two cases that cannot be satisfied by
+DESIGN.md:1345-1351 states it as two cases that cannot be satisfied by
 silence: *"the log stream carries records for an invocation that
 produced them ... untestable against a stream nothing proves
 non-empty"*, and then *"a secret never reaching a log record, including
@@ -193,7 +193,7 @@ async def call_feed(
     """Drive `get_job_feed` over an in-process client, and return it.
 
     Every case reads what came back over the WIRE rather than the
-    `ToolResult` the tool returned, for DESIGN.md:1393-1395's reason:
+    `ToolResult` the tool returned, for DESIGN.md:1413-1415's reason:
     `ToolResult.to_mcp_result()` short-circuits on `_raw_mcp_result`
     before it looks at `meta`, so an object-level assertion about
     `_meta` passes while the wire carries nothing.
@@ -216,7 +216,7 @@ async def call_feed(
 async def test_case2_the_call_emits_a_log_record_carrying_its_non_secret_attributes(
     log_records: list[dict[str, Any]],
 ) -> None:
-    """THE POSITIVE HALF (DESIGN.md:1325-1329).
+    """THE POSITIVE HALF (DESIGN.md:1345-1349).
 
     The call emits a record carrying the request's **non-secret**
     attributes: the client's `jobvite request` line, with the HTTP
@@ -243,7 +243,7 @@ async def test_case2_the_call_emits_a_log_record_carrying_its_non_secret_attribu
     )
 
     # A SECOND PRODUCER on the same call, so the pairing does not rest
-    # on one line either (DESIGN.md:1249-1251's three log producers).
+    # on one line either (DESIGN.md:1269-1271's three log producers).
     audit_events = [r for r in log_records if r["message"] == AUDIT_EVENT_NAME]
     assert len(audit_events) == 1, "the invocation emitted no audit event"
     assert audit_events[0]["extra"]["tool_name"] == GET_JOB_FEED
@@ -271,7 +271,7 @@ async def test_case2_no_log_record_carries_the_jobfeed_secret(
         "jobvite request" in text and JOBFEED_PATH in text for text in rendered
     ), (
         "THE STREAM IS SILENT. Everything below would pass on an empty "
-        "list, which is the exact shape ADR-0013 and DESIGN.md:1325-1329 "
+        "list, which is the exact shape ADR-0013 and DESIGN.md:1345-1349 "
         "refuse."
     )
 
@@ -299,7 +299,7 @@ async def test_case2_the_url_bearing_producer_emits_it_redacted(
     logger, at INFO: `HTTP Request: GET <the whole URL> "HTTP/1.1
     200"`. On every other route that line is harmless; on this one it
     carries `api`, `sc` and `companyId`. It is the THIRD log producer
-    DESIGN.md:1249-1251 counts and the only one that handles the URL,
+    DESIGN.md:1269-1271 counts and the only one that handles the URL,
     so a C5-I1 arm that never looks at it has not looked at the
     dangerous producer.
 
@@ -560,7 +560,7 @@ async def test_the_feed_credentials_travel_as_query_parameters() -> None:
 
 
 async def test_the_route_is_the_v1_base_not_v2() -> None:
-    """`/v1/jobFeed`, not `/api/v2/...` (DESIGN.md:453, contract §9).
+    """`/v1/jobFeed`, not `/api/v2/...` (DESIGN.md:473, contract §9).
 
     Every offline case drives a MockTransport that answers whatever it
     is asked, so the base URL is free unless something asserts it.
@@ -657,7 +657,7 @@ async def test_jobfeed_success_round_trips_to_a_typed_result() -> None:
 async def test_jobfeed_empty_round_trips_to_an_empty_page() -> None:
     """`jobfeed_empty.json`: zero jobs is a SUCCESS, not an error.
 
-    The pairing matters on this route more than most: DESIGN.md:533-540
+    The pairing matters on this route more than most: DESIGN.md:553-560
     records that a Jobvite auth failure arrives as an empty-looking
     body, so "empty" must be a shape the tool returns cleanly AND the
     401 case must not reach it. `test_jobvite_client.py` owns the
@@ -674,7 +674,7 @@ async def test_jobfeed_empty_round_trips_to_an_empty_page() -> None:
 
 
 # ======================================================================
-# THE RESULT CAP - the in-tool half only (DESIGN.md:455-457, 469-477)
+# THE RESULT CAP - the in-tool half only (DESIGN.md:475-477, 469-477)
 # ======================================================================
 
 
@@ -701,7 +701,7 @@ def test_the_cap_reads_total_from_the_envelope_not_from_the_items() -> None:
 
     Counting the items would make `showing N of N` true on every call
     and delete the only signal that a page was capped
-    (DESIGN.md:506-520).
+    (DESIGN.md:526-540).
     """
     payload = {JOB_FEED_ENVELOPE_KEY: [{"id": "A"}, {"id": "B"}], "total": 900}
     assert build_feed_result(payload, 1).total == 900
@@ -783,7 +783,7 @@ def test_the_transport_cap_is_not_reimplemented_here() -> None:
     """U6 owns the page cap; this unit consumes it.
 
     The design states the `/v1/jobFeed` page cap once, in the client
-    layer (DESIGN.md:453), and `services/jobvite_client.py` is not this
+    layer (DESIGN.md:473), and `services/jobvite_client.py` is not this
     unit's file. A second copy of the number here is the split that
     made the RESULT cap wrong in two halves that were each correct
     alone (U6's F1), so this asserts the absence **by reading the
@@ -897,7 +897,7 @@ def test_an_unadmitted_field_does_not_fail_the_call() -> None:
 
 
 async def test_the_feed_tool_is_not_registered_when_it_is_not_named() -> None:
-    """The deploy-time control (DESIGN.md:970-987).
+    """The deploy-time control (DESIGN.md:990-1007).
 
     A tool that registers and then refuses is a tool a client can
     still see.
@@ -935,7 +935,7 @@ async def test_request_id_reaches_the_caller_in_meta(
     """The audit id and the wire `_meta` id are the SAME id.
 
     Read off the wire result, never the returned `ToolResult`
-    (DESIGN.md:1393-1395), and matched against the audit event so the
+    (DESIGN.md:1413-1415), and matched against the audit event so the
     id a caller could quote actually names the invocation that was
     recorded.
     """
@@ -998,7 +998,7 @@ async def test_a_job_feed_read_error_is_a_problem_object_and_an_audit_row(
     green; the amputation harness's row A17 is that measurement.
 
     Two claims, not one. The caller must get a problem object rather
-    than a raise (DESIGN.md:576-580), **and the audit row must record
+    than a raise (DESIGN.md:596-600), **and the audit row must record
     the failure as a failure**: a read that fails and is written down
     as a success is a record that lies, and the row is the only
     evidence anyone has afterwards. The sibling tool `search_jobs`
