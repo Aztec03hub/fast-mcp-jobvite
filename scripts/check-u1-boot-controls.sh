@@ -63,6 +63,28 @@ echo
 control() {
   local label="$1" file="$2" landed="$3" named="$4"
   TOTAL=$((TOTAL + 1))
+
+  # THE SELECTOR MUST RESOLVE BEFORE THE MUTATION IS TRUSTED (R4-M3's shape,
+  # ported here from check-u5-jobs-controls.sh). `pytest <node-id>` exits
+  # NON-ZERO when it cannot collect the id at all, and this function reads any
+  # non-zero as "the named test went red" - so a RENAMED test makes its row
+  # report FIRED forever while running nothing.
+  #
+  # MEASURED on this harness before the guard existed: one selector repointed at
+  # `test_this_name_does_not_exist_anywhere` produced
+  #     [M8 first reason only] FIRED   (... went red)
+  #     23/23 controls fired.        exit 0
+  # A fully green harness, one row of which could not aim.
+  #
+  # The row is NOT counted as fired, so FIRED < TOTAL and the run exits 1: a
+  # harness that cannot aim must fail rather than report.
+  if ! uv run --frozen pytest "$named" --collect-only -q \
+       -p no:cacheprovider >/dev/null 2>&1; then
+    echo "  [$label] SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
+    echo "  -> this row has been reporting FIRED without running. Fix the harness."
+    return
+  fi
+
   if ! grep -qF -- "$landed" "$file"; then
     echo "  [$label] MUTATION DID NOT LAND (expected to find: $landed)"
     echo "  -> not counted as fired; this is a harness failure, not a result"

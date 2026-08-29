@@ -219,10 +219,10 @@ class Settings(BaseSettings):
 
     # --- Limits
     # ------------------------------------------------------------
-    #: DESIGN.md:1569-1573. 50 is the figure the caller-facing string
+    #: DESIGN.md:1572-1575. 50 is the figure the caller-facing string
     #: `showing 50 of 1,240` already uses, not an arbitrary pick.
     max_results: int = Field(default=50, ge=1)
-    #: DESIGN.md:1574-1580. **A conservative guess, not a vendor
+    #: DESIGN.md:1576-1581. **A conservative guess, not a vendor
     #: figure** - Jobvite documents no numeric limit at all. Checklist
     #: row 9 is what replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)
