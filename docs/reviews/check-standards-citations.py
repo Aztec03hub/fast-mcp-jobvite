@@ -40,7 +40,52 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-CORPUS = ROOT.parent / "evolv-coder-standards" / "standards"
+
+
+def _corpus() -> pathlib.Path:
+    """Where the standards live, tried in three places.
+
+    **A plain sibling-of-ROOT lookup made this checker unrunnable in a
+    `/tmp` worktree, which `docs/briefs/PREAMBLE.md` MANDATES that every
+    agent works in.** It resolved `/tmp/evolv-coder-standards/standards`,
+    found nothing, and exited 2 - correctly, by its own rule, for a
+    reason that had nothing to do with the citations. U14 hit it and
+    symlinked the corpus by hand to get its gates run.
+
+    So: an explicit `EVOLV_STANDARDS` override, then the sibling of this
+    checkout, then **the sibling of the MAIN worktree**, which git can
+    always tell us. The third needs no setup and is what makes a
+    worktree work: `--git-common-dir` points at the main checkout's
+    `.git` whatever worktree we are in.
+
+    Absence is still exit 2 and that rule does not move. This widens
+    where it LOOKS, never what it concludes when it finds nothing.
+    """
+    from os import environ
+    from subprocess import run
+
+    override = environ.get("EVOLV_STANDARDS")
+    if override:
+        return pathlib.Path(override)
+
+    candidates = [ROOT.parent / "evolv-coder-standards" / "standards"]
+    try:
+        common = run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        main_root = (ROOT / common).resolve().parent
+        candidates.append(main_root.parent / "evolv-coder-standards" / "standards")
+    except Exception:  # noqa: BLE001 - git absent is just one fewer candidate
+        pass
+
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+CORPUS = _corpus()
 LIVE = ("src", "tests", "scripts")
 STRUCTURAL = ("```", "|---", "---", "|--", ":--")
 
