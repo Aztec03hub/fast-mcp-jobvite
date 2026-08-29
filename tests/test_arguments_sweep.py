@@ -569,8 +569,10 @@ def test_route_C_refuses_a_response_type_that_is_not_a_model() -> None:
 #      re-serialises and never stores the payload. A model placed there
 #      would validate a body the transport has already accepted in
 #      full, so the bound that matters for this path is the 1 MiB body
-#      cap at the middleware seat - ADR-0029 as corrected, task #81 -
-#      and no model can stand in for it.
+#      cap at the middleware seat - ADR-0029 as corrected - and no
+#      model can stand in for it. **That cap is now LANDED**, as
+#      `http_hardening.BodySizeLimitMiddleware`, so this path is bounded
+#      on the HTTP transport by something that runs before any model.
 #   3. Putting a model there where there is none is a new contract - it
 #      decides what shape a host response must have before this server
 #      will read one key out of it - and inventing that in a fix is what
@@ -1082,8 +1084,14 @@ def test_case9_reject_a_payload_larger_than_one_mebibyte() -> None:
     """`DESIGN.md:165`, **as far as this layer reaches**.
 
     ADR-0029 records that this is the ARGUMENT PAYLOAD and not the
-    middleware body cap the design asks for. The arm is real and the
-    residue is written down rather than implied by a green.
+    middleware body cap the design asks for. **That cap now exists** -
+    `http_hardening.BodySizeLimitMiddleware`, with its own boundary arms
+    in `tests/test_body_cap.py` - so the residue this docstring used to
+    name is bounded on the HTTP transport.
+
+    **This arm is not made redundant by it and must not be deleted.**
+    The body cap is HTTP-only by construction, and this one runs on both
+    transports: on stdio it is the only inbound size bound there is.
     """
     with pytest.raises(ValueError, match="larger than"):
         check_structural_limits({"k": "x" * (1024 * 1024 + 1)})

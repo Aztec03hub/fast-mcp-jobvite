@@ -53,6 +53,14 @@ from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.timing import TimingMiddleware
 from fastmcp.tools.base import Tool
 
+# The name `fastmcp` itself uses for this type
+# (`server/mixins/transport.py:15`), aliased on import for the same
+# reason it aliases it: an unqualified `Middleware` in this module
+# already means the MCP-protocol one, and the whole of ADR-0029's
+# correction is that the two are different layers.
+from starlette.middleware import Middleware as ASGIMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
 from .audit import resolve_request_id
 from .config import (
     CREATE_CANDIDATE,
@@ -64,6 +72,7 @@ from .config import (
     Settings,
     is_loopback,
 )
+from .errors import VALIDATION_ERROR, build_problem
 from .utils.correlation import request_id_scope
 
 #: The three data classes of DESIGN.md §4.1, which DESIGN.md:828-829
@@ -162,6 +171,33 @@ EXCLUDED_MIDDLEWARE: Final[frozenset[str]] = frozenset(
         "PingMiddleware",
     }
 )
+
+#: DESIGN.md:165's *"Max total request body size - 1 MiB"*, at the
+#: layer that row names.
+#:
+#: **THIS IS NOT `constraints.MAX_PAYLOAD_BYTES` AND IT IS NOT IMPORTED
+#: FROM IT.** The two constants hold the same number off the same design
+#: row and bound two different things, which is the whole of ADR-0029:
+#: `MAX_PAYLOAD_BYTES` bounds the *serialised argument payload* on both
+#: transports, and this bounds the *HTTP request body* on the HTTP
+#: transport. Importing one into the other would say in code that they
+#: are one control, and they are not - deleting either leaves a real
+#: hole. `tests/test_arguments_sweep.py` pins both to the literal
+#: `DESIGN.md:162-165` writes down, which is the one place the design's
+#: number and the code's constants are joined.
+#:
+#: **This one is byte-exact and `MAX_PAYLOAD_BYTES` is not** (R8-M2).
+#: That module re-serialises with `json.dumps(..., ensure_ascii=False)`
+#: and so under-measures a `\u`-escaping client by up to 6x. Nothing is
+#: re-serialised here: the number compared is either the caller's own
+#: `Content-Length` or a running sum of the bytes ASGI actually
+#: delivered. The residue R8-M2 records is now bounded at the layer that
+#: can see the bytes, which is what that note asked for.
+MAX_REQUEST_BODY_BYTES: Final = 1024 * 1024
+
+#: The header the declared-length arm reads. ASGI lower-cases every
+#: header name in `scope["headers"]`, and these are `bytes`, not `str`.
+_CONTENT_LENGTH_HEADER: Final = b"content-length"
 
 
 def token_client_id(token: str) -> str:
@@ -387,6 +423,263 @@ def apply_tool_scopes(server: FastMCP[Any], settings: Settings) -> None:
         tool.auth = require_scopes(TOOL_SCOPES[tool.name])
 
 
+class _BodyTooLarge(Exception):  # noqa: N818 - not an "Error"; it is a signal
+    """Raised out of the wrapped `receive` when the running sum trips.
+
+    **Deliberately not a `FastMcpJobviteError`.** That hierarchy is the
+    tool layer's, and `problem_from_exception` maps it; this never
+    reaches the tool layer and never reaches that mapper. It exists only
+    to unwind the application out of an `await receive()` so the
+    middleware below can answer instead, and it is caught by the one
+    `except` that raised it.
+    """
+
+
+class BodySizeLimitMiddleware:
+    """DESIGN.md:165's 1 MiB request-body cap, at the ASGI layer.
+
+    **Why here and not `build_middleware`** (ADR-0029 as corrected).
+    `build_middleware` returns `fastmcp` `Middleware` objects, which are
+    MCP-*protocol* middleware: by the time one runs, the body has been
+    read off the socket and parsed into a message. A cap there would
+    bound nothing, because the bytes are already in memory. An
+    `ASGIMiddleware` - which is `starlette.middleware.Middleware`, the
+    type `FastMCP.http_app` and `run_http_async` both take - sits under
+    that and sees `scope`, `receive` and `send`. It is the only layer in
+    this server where a body can be refused before it is buffered.
+
+    **Two arms, because a body can arrive two ways.**
+
+    1. **`Content-Length` declared.** Refused on the header alone. The
+       application is never called and not one byte of body is read.
+    2. **No `Content-Length`** - `Transfer-Encoding: chunked`. There is
+       no number to read, so `receive` is wrapped and the delivered
+       bytes are summed as they arrive. The sum is compared on **every**
+       chunk, so the refusal fires on the chunk that crosses the line
+       and never after the whole body is held. **This is the arm an
+       attacker uses**, because omitting the header is free and defeats
+       any check that only reads it.
+
+    A caller that lies - `Content-Length: 10` followed by a megabyte -
+    is caught by arm 2, which runs regardless of what arm 1 read. The
+    two are not alternatives; arm 1 is an early exit and arm 2 is the
+    bound.
+
+    **What the caller gets, and why that row.**
+    `/problems/validation-error`, **422**, built by `build_problem` like
+    every other problem object in this server.
+
+    ADR-0029 declined to pick between 413 and 422 and left the choice to
+    this unit. **413 is not available.** `errors.py`'s registry is
+    closed - "every entry is a verbatim row of `error-contract.md`;
+    nothing here is minted locally" - and that table has **no 413 row**
+    at all. Choosing 413 means minting `/problems/payload-too-large`,
+    and DESIGN.md:510-511 makes a published `type` URI a contract owed
+    forever, which is exactly the invention the registry is closed
+    against. ADR-0031 already ruled this once, for the refused-approval
+    condition: **add the row's use, not a new slug.**
+
+    422 is also the right answer on the merits rather than merely the
+    available one. `error-contract.md`'s own "When" column for that row
+    reads *"Request body/params failed validation"*, and an oversized
+    body is the fourth row of the same §2.1 table whose other three are
+    validation failures. DESIGN.md:186-188 reached the same number from
+    the other side: it corrects an earlier revision that said `400` with
+    *"had one done so its status would be 422, not 400, per the registry
+    mapping in §5.1"*.
+
+    **The cost of 422, stated rather than glossed:** 413 is the more
+    precise HTTP status, and a client reading only the status line loses
+    the signal that the problem was size. That signal is in `detail`,
+    which names the limit and what was received - the load-bearing role
+    ADR-0031 gave `detail` for the same reason.
+
+    **Why a problem object at all, when §2.1's other three limits
+    produce none.** DESIGN.md:181-190 is about checks *in the input
+    models*, which run pre-dispatch and are *raised* by the framework -
+    §5.1's third exception. This middleware is on the other side of that
+    boundary: it is an HTTP layer holding `send`, so it *returns* a
+    response, which is the property §5.1 says makes a problem object
+    safe. The §8 #9 argument arms still assert `ValidationError` and are
+    still right to; this arm asserts a problem shape and is not in
+    tension with them.
+
+    **HTTP only, by construction.** Nothing constructs this on stdio -
+    it is reachable only through `http_run_kwargs`, which
+    `__main__.py` calls only for `transport="http"`. There is no request
+    body on stdio, so this cap bounds nothing there and
+    `constraints.MAX_PAYLOAD_BYTES` remains the only inbound bound on
+    that path. **The two are not duplicates.**
+
+    Attributes:
+        app: The ASGI application this wraps.
+        max_bytes: The ceiling, in bytes. A body of exactly this size is
+            ACCEPTED; one byte more is refused.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        max_bytes: int = MAX_REQUEST_BODY_BYTES,
+    ) -> None:
+        """Wrap `app` with a ceiling on the request body.
+
+        Args:
+            app: The ASGI application to wrap. Starlette constructs this
+                positionally, which is why it is the first parameter.
+            max_bytes: The ceiling. Defaulted rather than required so
+                that the default is the design's number and a test that
+                wants a small one has to say so out loud.
+        """
+        self.app = app
+        self.max_bytes = max_bytes
+
+    def _declared_length(self, scope: Scope) -> int | None:
+        """Return the request's `Content-Length`, or `None`.
+
+        `None` covers three cases that are all handled the same way -
+        the header is absent, it is not an integer, or it is negative -
+        because every one of them means *there is no trustworthy
+        declared size*, and the streaming bound is what answers that.
+        Refusing here on a malformed header would be this module
+        deciding framing validity, which is the transport's job.
+
+        Args:
+            scope: The ASGI connection scope.
+
+        Returns:
+            The declared length when there is a usable one.
+        """
+        for name, value in scope.get("headers", []):
+            if name.lower() != _CONTENT_LENGTH_HEADER:
+                continue
+            try:
+                declared = int(value)
+            except (TypeError, ValueError):
+                return None
+            return declared if declared >= 0 else None
+        return None
+
+    def _problem_response(self, scope: Scope, received: str) -> bytes:
+        """Build the 422 body for a refusal, as JSON bytes.
+
+        The correlation id comes from the caller's `X-Request-ID` by way
+        of `resolve_request_id`, so a refusal joins to the caller's own
+        logs exactly as a tool call does. `RequestIdMiddleware` cannot
+        do it for us: it is MCP-protocol middleware and never runs,
+        because this refusal happens before any message is parsed.
+
+        Args:
+            scope: The ASGI connection scope, for the inbound header.
+            received: How much arrived, phrased for `detail`.
+
+        Returns:
+            The serialised problem object.
+        """
+        wanted = REQUEST_ID_HEADER.lower().encode()
+        inbound: str | None = None
+        for name, value in scope.get("headers", []):
+            if name.lower() == wanted:
+                inbound = value.decode("latin-1")
+                break
+        problem = build_problem(
+            VALIDATION_ERROR,
+            (
+                f"request body is larger than {self.max_bytes} bytes "
+                f"(DESIGN.md:165); {received}"
+            ),
+            resolve_request_id(inbound),
+        )
+        return json.dumps(problem).encode()
+
+    async def _refuse(
+        self,
+        scope: Scope,
+        send: Send,
+        received: str,
+    ) -> None:
+        """Send the 422 problem response and read nothing further.
+
+        `application/problem+json` is `error-contract.md:44`'s required
+        media type on every error response, and is set here explicitly
+        rather than left to a framework default this response never
+        reaches.
+
+        Args:
+            scope: The ASGI connection scope.
+            send: The ASGI send callable.
+            received: How much arrived, phrased for `detail`.
+        """
+        body = self._problem_response(scope, received)
+        await send(
+            {
+                "type": "http.response.start",
+                "status": VALIDATION_ERROR.status,
+                "headers": [
+                    (b"content-type", b"application/problem+json"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Bound the request body, then hand off to the application.
+
+        Args:
+            scope: The ASGI connection scope.
+            receive: The ASGI receive callable.
+            send: The ASGI send callable.
+
+        Raises:
+            _BodyTooLarge: Re-raised in the one case this cannot answer
+                - the application had already begun a response when the
+                bound tripped, so there is no status line left to write.
+                Letting it propagate closes the connection, which is a
+                worse outcome than a 422 and a better one than a
+                half-written response claiming success.
+        """
+        if scope["type"] != "http":
+            # Lifespan and websocket scopes have no request body. A cap
+            # that "handled" them would be inoperative code.
+            await self.app(scope, receive, send)
+            return
+
+        # --- arm 1: the declared length, read before any body ---------
+        declared = self._declared_length(scope)
+        if declared is not None and declared > self.max_bytes:
+            await self._refuse(scope, send, f"Content-Length declared {declared} bytes")
+            return
+
+        # --- arm 2: the running bound on what actually arrives --------
+        # Runs even when arm 1 passed, because arm 1 believed a number
+        # the caller chose.
+        seen = 0
+        response_started = False
+
+        async def counting_receive() -> Message:
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > self.max_bytes:
+                    raise _BodyTooLarge
+            return message
+
+        async def watching_send(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, counting_receive, watching_send)
+        except _BodyTooLarge:
+            if response_started:
+                raise
+            await self._refuse(scope, send, f"received over {self.max_bytes} bytes")
+
+
 def http_run_kwargs(settings: Settings) -> dict[str, Any]:
     """Return the keyword arguments `mcp.run(transport="http")` takes.
 
@@ -413,13 +706,29 @@ def http_run_kwargs(settings: Settings) -> dict[str, Any]:
         settings: Settings that have already passed
             `validate_settings`.
 
+    **`middleware` is ALWAYS set, and on loopback too.** It carries
+    `BodySizeLimitMiddleware`, which is DESIGN.md:165's body cap
+    (ADR-0029 as corrected). Unlike `allowed_hosts`, this is not a
+    rebinding control that loopback makes moot: anything that can open a
+    socket to this server can send it an unbounded body, and on loopback
+    that set is every process on the host. `starlette.middleware.
+    Middleware` is what `run_http_async` means by `ASGIMiddleware`, and
+    it defers construction, so the class and its keyword go in and the
+    framework instantiates it around the app.
+
     Returns:
-        `host` and `port` always; `allowed_hosts` and `allowed_origins`
-        only off loopback.
+        `host`, `port` and `middleware` always; `allowed_hosts` and
+        `allowed_origins` only off loopback.
     """
     kwargs: dict[str, Any] = {
         "host": settings.mcp_host,
         "port": settings.mcp_port,
+        "middleware": [
+            ASGIMiddleware(
+                BodySizeLimitMiddleware,
+                max_bytes=MAX_REQUEST_BODY_BYTES,
+            )
+        ],
     }
     if not is_loopback(settings.mcp_host):
         host = settings.mcp_host
@@ -434,11 +743,13 @@ __all__ = [
     "EXCLUDED_MIDDLEWARE",
     "INBOUND_BURST_CAPACITY",
     "INBOUND_MAX_REQUESTS_PER_SECOND",
+    "MAX_REQUEST_BODY_BYTES",
     "REQUEST_ID_HEADER",
     "SCOPE_CANDIDATES",
     "SCOPE_FEED",
     "SCOPE_JOBS",
     "TOOL_SCOPES",
+    "BodySizeLimitMiddleware",
     "RequestIdMiddleware",
     "apply_tool_scopes",
     "build_middleware",
