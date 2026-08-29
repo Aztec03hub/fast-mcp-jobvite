@@ -292,8 +292,8 @@ jobs:
           # the code it covered can RAISE it.
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
-          # that has to be defended. 342 measured at 61d1171.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 342
+          # that has to be defended. 348 measured at f0c3764.
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 348
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
