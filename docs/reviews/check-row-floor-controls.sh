@@ -63,15 +63,15 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # exits 6 on a floor breach, not 1. A control asserting `rc -eq 1` everywhere
 # would have called it broken.
 TABLE="
-check-harness-anchors-controls.sh|^row \"|1|1
-check-suite-floor-amputation.sh|^amputate \"|0|1
-check-u0-test-controls.sh|^run_control \"|0|1
-check-u1-boot-controls.sh|^control \"|0|1
-check-u11-advisory-controls.sh|^control (MUT|AMP) |0|6
-check-u15-gate-controls.sh|@@.*@@.*@@|0|1
-check-u3-audit-controls.sh|^run_mutation \"|0|1
-check-u4-client-controls.sh|^run_mutation \"|0|1
-check-u7-resilience-controls.sh|^mutate \"|0|1
+check-harness-anchors-controls.sh|^row \"|1|1|cmd
+check-suite-floor-amputation.sh|^amputate \"|0|1|cmd
+check-u0-test-controls.sh|^run_control \"|0|1|cmd
+check-u1-boot-controls.sh|^control \"|0|1|cmd
+check-u11-advisory-controls.sh|^control (MUT|AMP) |0|6|cmd
+check-u15-gate-controls.sh|@@.*@@.*@@|0|1|data
+check-u3-audit-controls.sh|^run_mutation \"|0|1|cmd
+check-u4-client-controls.sh|^run_mutation \"|0|1|cmd
+check-u7-resilience-controls.sh|^mutate \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }
@@ -91,7 +91,8 @@ if [ -z "$ROW" ]; then
   list_harnesses >&2
   exit 2
 fi
-WANT_RC="${ROW##*|}";  rest="${ROW%|*}"
+MODE="${ROW##*|}";     rest="${ROW%|*}"
+WANT_RC="${rest##*|}"; rest="${rest%|*}"
 EXTRA="${rest##*|}";   rest="${rest%|*}"
 ROW_RE="${rest#*|}"
 
@@ -140,22 +141,61 @@ trap 'cp "$B" "$S"; rm -f "$B" "$B.out"' EXIT
 STARTS=$(grep -nE "$ROW_RE" "$B" | head -n "$DELETE" | cut -d: -f1 | paste -sd, -)
 echo "deleting rows at lines: $STARTS"
 
-# A row invocation is a logical line: the call plus every continuation held
-# by a trailing backslash. Deleting only the first physical line would leave
-# an orphaned continuation and the harness would die of a syntax error, which
-# also exits non-zero and would have looked exactly like the floor firing.
-awk -v starts="$STARTS" '
-BEGIN { n = split(starts, a, ","); for (i = 1; i <= n; i++) kill[a[i]] = 1 }
-NR in kill { del = 1 }
-del { if ($0 ~ /\\$/) next; del = 0; next }
-{ print }
-' "$B" > "$S"
+# HOW A ROW IS REMOVED, and why the obvious way is wrong.
+#
+# THE FIRST VERSION OF THIS SCRIPT DELETED LINES: the call plus every
+# following line held by a trailing backslash. That reads the continuation
+# the way a person skimming reads it, and it is WRONG, because a row's
+# arguments may themselves contain newlines. `check-u7-resilience-controls.sh`
+# row M2 passes a single-quoted Python fragment spanning four lines; the
+# backslash rule stopped at the first of them and left the remaining three as
+# loose shell. It PASSED every check that version had - `cmp` saw a change,
+# `bash -n` parsed the wreckage, the row count fell by the right amount - and
+# the only visible trace was an empty file named `=` left in the repository
+# root by the orphaned fragment. Measured, not reasoned about.
+#
+# So the extent of a row is not computed here at all. Prefixing the call with
+# the `:` builtin hands the whole logical command - quotes, embedded newlines
+# and all - to bash's own parser, which consumes it and does nothing with it.
+# The row does not run and is not counted, which is exactly what a lost row
+# is. `data` rows are lines in a here-document rather than commands, so those
+# are deleted outright; a `:` in front of one would only edit a data field.
+if [ "$MODE" = cmd ]; then
+  # `:` still EXPANDS its arguments, so a row carrying a command substitution
+  # would execute it. Refuse rather than measure that.
+  if awk -v starts="$STARTS" '
+      BEGIN { n = split(starts, a, ","); for (i = 1; i <= n; i++) kill[a[i]] = 1 }
+      NR in kill { on = 1 }
+      on && /^[[:space:]]*$/ { on = 0 }
+      on { print }' "$B" | grep -qE '\$\(|`'; then
+    echo 'ABORT: a row in range carries a command substitution; the : builtin would run it'
+    exit 9
+  fi
+  awk -v starts="$STARTS" '
+    BEGIN { n = split(starts, a, ","); for (i = 1; i <= n; i++) kill[a[i]] = 1 }
+    NR in kill { print ": " $0; next }
+    { print }' "$B" > "$S"
+else
+  awk -v starts="$STARTS" '
+    BEGIN { n = split(starts, a, ","); for (i = 1; i <= n; i++) kill[a[i]] = 1 }
+    NR in kill { next }
+    { print }' "$B" > "$S"
+fi
 
 if cmp -s "$S" "$B"; then
   echo "ABORT: the deletion did NOT land - the file is unchanged"
   exit 9
 fi
-echo "deletion landed: $(( $(wc -l < "$B") - $(wc -l < "$S") )) line(s) removed"
+
+# THE CONTAINER CHECK. The row invocations still matching the ERE must have
+# dropped by exactly DELETE. This is what catches a neutralisation that
+# landed on the wrong line, or landed on fewer lines than it claimed.
+LEFT=$(grep -cE "$ROW_RE" "$S")
+echo "row invocations still matching: $LEFT (was $MATCHED, must be $((MATCHED - DELETE)))"
+if [ "$LEFT" -ne "$((MATCHED - DELETE))" ]; then
+  echo "ABORT: $DELETE rows were meant to go and $((MATCHED - LEFT)) did"
+  exit 9
+fi
 
 if ! bash -n "$S"; then
   echo "ABORT: the deletion left the harness syntactically invalid; a syntax"
