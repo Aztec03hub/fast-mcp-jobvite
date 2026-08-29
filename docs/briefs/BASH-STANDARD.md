@@ -8,8 +8,14 @@ Your agent name is `bash-standard`. Your branch is `chore/bash-standard`. Your r
 
 ## What is true, measured
 
-`standards/devops/bash.md` is `priority: required`, `applicable_to: [bash, shell, ci-cd]`. This repo
-has **13 `scripts/*.sh`, 2580 lines**, plus shell inside every `ci.yml` step. And:
+`standards/devops/bash.md` is `priority: required`, `applicable_to: [bash, shell, ci-cd]`.
+
+**Do not take a script count from this brief.** It said "13 scripts, 2580 lines", which was true when
+written and was 15 / 3374 by the time the agent read it - and the agent flagged it. Derive it:
+`ls scripts/*.sh | wc -l` and `cat scripts/*.sh | wc -l`. Three documents in this project have now
+carried a decayed count; the fix is always to name the command instead of the number.
+
+And:
 
 ```
 grep -c "bash.md" docs/OBLIGATIONS.md          -> 0
@@ -52,7 +58,10 @@ outside the lock, the defect ADR-0015 records. shellcheck is a binary, not a Pyt
 
 Decide whether `set -uo pipefail` is (a) a deviation needing a numbered ADR, or (b) actually
 compliant because the clause admits it. **Read `bash.md:40` and its surrounding context at source
-before deciding** - do not take my summary of it as the clause. Next free ADR number is **0022**.
+before deciding** - do not take my summary of it as the clause.
+
+**Do not take an ADR number from this brief either.** It said 0022; 0022 already existed. Derive the
+next free one: `ls docs/adr/[0-9]*.md | tail -1`.
 
 If it is a deviation, the ADR must say what these harnesses need that `-e` prevents, and be specific:
 a harness runs a test suite that is *expected* to fail under a mutation, and reads the exit code.
