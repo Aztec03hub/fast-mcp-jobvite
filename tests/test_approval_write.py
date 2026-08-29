@@ -1275,3 +1275,169 @@ async def test_case22_a_declined_answer_carrying_approve_true_refuses() -> None:
     )
     assert isinstance(decision, ApprovalDecision)
     assert decision.approved is False, "a DECLINED response authorised the write"
+
+
+# ======================================================================
+# 9. THE THREE UNREAD BRANCHES OF THE APPROVAL PATH (#94).
+#
+#    ADR-0010 puts approval on the critical-path floor at 95% line and
+#    90% branch. Approval measured 78.57% BRANCH against that floor
+#    while its line coverage read 96% - the miss was entirely on the
+#    half nobody looks at.
+#
+#    All three arms below run in the SAME direction: a shape the server
+#    cannot read must refuse. Each is paired with a positive control,
+#    because "refuses an unreadable shape" is satisfied by a function
+#    that refuses everything, and that function approves nothing and is
+#    not the fix (DESIGN.md:1370-1371).
+# ======================================================================
+
+
+async def test_a_context_with_no_request_context_refuses() -> None:
+    """`ctx.request_context is None` must fail closed, not read on.
+
+    `observed_protocol_version` returns `None` for it, which lands in
+    the third case: neither era is identified, so nothing authorises
+    the write. This is the arm where the discriminator cannot be read
+    AT ALL, as distinct from
+    `test_an_absent_protocol_version_refuses`, where the context exists
+    and carries no version.
+
+    **The assertion is the whole decision, not just `approved`.** A
+    refusal recorded as `SAMPLING`/`REFUSED` would be a different
+    claim - that a mechanism was consulted and said no - and ADR-0033
+    publishes this vocabulary, so the mechanism and the state are part
+    of the contract rather than diagnostics.
+    """
+    from fast_mcp_jobvite.approval import (
+        ApprovalDecision,
+        ApprovalMechanism,
+        ApprovalState,
+        resolve_approval,
+    )
+
+    ctx = _FakeContext("2026-07-28")
+    # The arm under test. Set after construction so the rest of the
+    # fake - including the two measured traps - is untouched.
+    ctx.request_context = None  # type: ignore[assignment]
+
+    decision = await resolve_approval(ctx, message="m", request_state="s")  # type: ignore[arg-type]
+
+    assert isinstance(decision, ApprovalDecision)
+    assert decision.approved is False
+    assert decision.mechanism is ApprovalMechanism.NO_HANDLER
+    assert decision.state is ApprovalState.UNAVAILABLE
+    assert decision.protocol_version is None
+
+
+async def test_an_input_responses_container_of_an_unreadable_shape_refuses() -> None:
+    """`_answer_for`'s third arm: neither a mapping nor a `RootModel`.
+
+    The helper accepts two container shapes on purpose - the spike
+    measured `answers.root` and the pinned library hands over a plain
+    dict - and the version after next could hand over a third. **The
+    arm that matters is what happens then**, and it must be a refusal,
+    because the alternative is a write authorised out of a container
+    the server could not read.
+
+    A list is used rather than an invented type: it is what a host
+    serialising its responses positionally would plausibly send, it has
+    no `root`, and it is not a `Mapping`.
+
+    The positive control is the same era with a readable container, so
+    this case cannot pass against a helper that returns `None` for
+    everything.
+    """
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        ApprovalMechanism,
+        ApprovalState,
+        resolve_approval,
+    )
+
+    unreadable = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses=[_Answer("accept", {"approve": True})],
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(unreadable, ApprovalDecision)
+    assert unreadable.approved is False, (
+        "an approval was read out of a container shape the server does not "
+        "understand, which authorises a write on an unparsed response"
+    )
+    # The era WAS identified, so this is a refusal by the sampling
+    # mechanism and not the no-handler case above.
+    assert unreadable.mechanism is ApprovalMechanism.SAMPLING
+    assert unreadable.state is ApprovalState.REFUSED
+
+    readable = await resolve_approval(
+        _FakeContext(  # type: ignore[arg-type]
+            "2026-07-28",
+            input_responses={
+                APPROVAL_REQUEST_KEY: _Answer("accept", {"approve": True})
+            },
+        ),
+        message="m",
+        request_state="s",
+    )
+    assert isinstance(readable, ApprovalDecision)
+    assert readable.approved is True, (
+        "the positive control did not approve, so the refusal above proves "
+        "nothing - a helper refusing every container would satisfy it"
+    )
+
+
+async def test_an_accepted_response_whose_content_is_not_a_dict_refuses() -> None:
+    """`_approved_by_conjunction`'s shape guard, which is not defensive.
+
+    `content = getattr(response, "content", None) or {}` admits
+    whatever the host sent, and the value half of the conjunction is a
+    `.get` on it. A response carrying `content` as a JSON *string* - a
+    host that serialised the object one layer too many - would raise
+    `AttributeError` inside the write path without this guard, and an
+    exception on the approval leg is not a refusal: it is an error
+    whose handling lives somewhere else entirely.
+
+    **The action half is `accept` here on purpose.** With `action` set
+    to anything else the first half of the conjunction refuses and this
+    arm is never reached, so a case that varied both would prove the
+    wrong thing.
+
+    The positive control is the dict form of the same content, which is
+    what separates this from a guard that refuses every acceptance.
+    """
+    from fast_mcp_jobvite.approval import (
+        APPROVAL_REQUEST_KEY,
+        ApprovalDecision,
+        ApprovalState,
+        resolve_approval,
+    )
+
+    async def decide(content: object) -> ApprovalDecision:
+        decision = await resolve_approval(
+            _FakeContext(  # type: ignore[arg-type]
+                "2026-07-28",
+                input_responses={APPROVAL_REQUEST_KEY: _Answer("accept", content)},
+            ),
+            message="m",
+            request_state="s",
+        )
+        assert isinstance(decision, ApprovalDecision)
+        return decision
+
+    serialised = await decide('{"approve": true}')
+    assert serialised.approved is False, (
+        "a JSON string was read as an approval, so a host that serialised "
+        "its content one layer too many authorises the write"
+    )
+    assert serialised.state is ApprovalState.REFUSED
+
+    genuine = await decide({"approve": True})
+    assert genuine.approved is True, (
+        "the positive control did not approve, so the refusal above is "
+        "satisfied by a conjunction that refuses every acceptance"
+    )
