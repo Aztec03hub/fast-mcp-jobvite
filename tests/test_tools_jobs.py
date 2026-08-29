@@ -26,7 +26,7 @@ from typing import Annotated, Any
 
 import httpx2
 import pytest
-from fastmcp import Client
+from fastmcp import Client, FastMCP
 from loguru import logger
 from pydantic import BaseModel, SecretStr, ValidationError, computed_field
 
@@ -760,6 +760,77 @@ async def test_the_tool_advertises_a_serialisation_output_schema() -> None:
     properties = tool.outputSchema["properties"]
     assert "showing" in properties
     assert "summary" in properties
+
+
+def test_registering_search_jobs_without_credentials_refuses() -> None:
+    """`search_jobs`' registration credential guard, untested until now.
+
+    The SIBLING module's guard has one
+    (`test_registering_the_candidate_tools_without_credentials_refuses`,
+    task #94) and this one had nothing: `search_jobs`' guard was the
+    only uncovered branch left in the module, and `tools/jobs.py` is
+    not on DESIGN.md:1364's critical-path list, so ADR-0010 gives it
+    the 85% tool-module floor and the module measured 97% with the
+    guard untouched. No floor was ever going to notice.
+
+    `validate_settings` refuses this configuration at boot, and the
+    positive control below proves it still does. **That is exactly why
+    this arm needs its own case**: the guard's only remaining caller is
+    a path where the boot check was bypassed - a test, a library
+    consumer calling `register` directly, or a future `build_server`
+    that stops calling `validate_settings` - and in every one of them
+    the alternative to raising is registering a tool that will reach
+    for a credential that is not there.
+
+    **The assertion names what the message must carry.** A bare
+    `pytest.raises(ValueError)` would pass against an unrelated
+    `ValueError`, and the operator reading it needs to be told which
+    tool was enabled.
+
+    **Both halves of the disjunction are driven separately.** The
+    guard is `api_key is None or api_secret is None`; a case supplying
+    neither credential is satisfied by a guard that reads only the
+    first, so each half is also asserted alone.
+    """
+    from fast_mcp_jobvite.config import ConfigurationError, validate_settings
+    from fast_mcp_jobvite.tools.jobs import register
+
+    uncredentialed = Settings(tools=SEARCH_JOBS)
+
+    with pytest.raises(ValueError) as raised:
+        register(FastMCP("test"), uncredentialed)
+    message = str(raised.value)
+    assert SEARCH_JOBS in message, (
+        "the refusal did not name the enabled tool, so an operator cannot "
+        "tell which configuration it is complaining about"
+    )
+    assert "validate_settings" in message
+
+    for present, half_credentialed in (
+        ("api_key", Settings(tools=SEARCH_JOBS, api_key=SecretStr("only-the-key"))),
+        (
+            "api_secret",
+            Settings(tools=SEARCH_JOBS, api_secret=SecretStr("only-the-secret")),
+        ),
+    ):
+        with pytest.raises(ValueError) as one_sided:
+            register(FastMCP("test"), half_credentialed)
+        assert SEARCH_JOBS in str(one_sided.value), (
+            f"a configuration holding only {present} registered the tool, so "
+            "the guard reads one credential and not the pair"
+        )
+
+    # THE FIRST LINE OF DEFENCE, ASSERTED RATHER THAN ASSUMED. The
+    # comment on the guard claims boot already refuses this; if that
+    # stopped being true the guard would be the ONLY thing standing
+    # here, and this case would be the only notice of it.
+    with pytest.raises(ConfigurationError):
+        validate_settings(uncredentialed)
+
+    # The positive control: the same registration with credentials
+    # present does not raise, so the case above is not satisfied by a
+    # `register` that refuses everything.
+    register(FastMCP("test"), settings())
 
 
 # ======================================================================

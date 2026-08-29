@@ -975,3 +975,47 @@ async def test_the_output_schema_is_built_in_serialisation_mode() -> None:
     assert {"showing", "summary", "jobs", "total"} <= set(advertised["properties"]), (
         f"the advertised schema omits the computed fields: {advertised}"
     )
+
+
+# ======================================================================
+# THE ERROR ARM'S AUDIT ROW (task #97).
+# ======================================================================
+
+
+async def test_a_job_feed_read_error_is_a_problem_object_and_an_audit_row(
+    log_records: list[dict[str, Any]],
+) -> None:
+    """`get_job_feed`'s error arm, which was WALKED but never asserted.
+
+    **Coverage was not the instrument that found this.** The arm reads
+    100% covered, because
+    `test_case2_a_jobfeed_transport_failure_carries_no_secret_to_the_caller`
+    drives a failing call through it on its way to a redaction claim.
+    That case asserts `result.is_error` and then measures the secret,
+    which is the whole of what it set out to do - and it means the row
+    the failure WRITES DOWN was executed by every run and checked by
+    none. Deleting `event.result_status = "error"` left the suite
+    green; the amputation harness's row A17 is that measurement.
+
+    Two claims, not one. The caller must get a problem object rather
+    than a raise (DESIGN.md:536-540), **and the audit row must record
+    the failure as a failure**: a read that fails and is written down
+    as a success is a record that lies, and the row is the only
+    evidence anyone has afterwards. The sibling tool `search_jobs`
+    already has this pairing
+    (`test_the_audit_event_records_an_error_as_an_error`); this tool
+    did not.
+    """
+    result = await call_feed(b"not json at all")
+
+    assert result.is_error is True
+    problem = result.structured_content
+    assert problem is not None
+    assert problem["status"] == 502
+
+    events = [r for r in log_records if r["message"] == AUDIT_EVENT_NAME]
+    assert len(events) == 1, f"expected one audit event, got {len(events)}"
+    assert events[0]["extra"]["result_status"] == "error", (
+        "the audit row recorded a failed feed read as anything other than an "
+        "error, so the only surviving evidence of the failure is wrong"
+    )
