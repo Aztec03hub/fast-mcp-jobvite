@@ -311,3 +311,36 @@ def test_redact_text_leaves_a_non_credential_at_sign_alone(message: str) -> None
     the test above while destroying the messages it is meant to keep readable.
     """
     assert redact_text(message) == message
+
+
+# The walk matches the DECLARED type, not `list` (round 2's M-7).
+# ---------------------------------------------------------------------------
+
+
+def test_a_tuple_is_walked_like_a_list() -> None:
+    """`JsonValue` declares `Sequence`, and the walk used to test `list`.
+
+    **A tuple is a `Sequence` and therefore in contract**, so it fell through to
+    `return arguments` unredacted at the top level. Measured before the fix:
+    `redact_arguments(({"email": "a@b.c"},))` returned the address untouched
+    while the identical list redacted it. A pydantic field typed `tuple[...]`
+    is all it takes to reach this.
+
+    The nested case was safe only by accident - a tuple under an UNLISTED key
+    hits `_redacted_value` and becomes `[REDACTED:tuple]` - so the leak needed
+    an allow-listed key or the top level.
+    """
+    assert redact_arguments(({"email": "a@b.c"},)) == [{"email": "[REDACTED:str]"}]
+
+
+def test_a_string_is_not_walked_character_by_character() -> None:
+    """The guard on the fix, and without it the fix is worse than the defect.
+
+    `str` and `bytes` are `Sequence`s too. Matching `Sequence` without excluding
+    them turns every string argument into a list of one-character strings, which
+    would pass a "the tuple is redacted" assertion while corrupting every
+    ordinary value the audit event carries.
+    """
+    assert redact_arguments("plain string") == "plain string"
+    assert redact_arguments(b"raw") == b"raw"
+    assert redact_arguments({"note": "hello"}) == {"note": "[REDACTED:str]"}

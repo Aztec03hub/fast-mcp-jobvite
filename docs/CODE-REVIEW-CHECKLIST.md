@@ -54,7 +54,18 @@ diagnosis a second time.
 
 - [ ] Type hints on all functions
 - [ ] Pydantic models for request/response shapes
-- [ ] `pyright` is clean on the delta, and new files are clean outright
+- [ ] **`mypy` is clean** on the delta, and new files are clean outright
+
+> **This row named `pyright` until round 2 caught it, and the way it was caught matters.** The
+> reviewer discharged it with `uv run --frozen --with pyright ...` - which resolves the tool
+> **outside the lock**, exactly the defect ADR-0015 records for `pip-licenses` and `ci.yml` forbids
+> for `pip-audit`. A checklist row naming a tool the project cannot run under `--frozen` does not
+> just fail to help: it *instructs* a careful reviewer into the unfrozen-tool defect, which is what
+> happened.
+>
+> `mypy` is what `pyproject.toml` declares, what CI gates on, and what `backend/python.md:370`
+> names. Adding `pyright` to the lock was the alternative and was rejected: it is a second type
+> checker for a typing convenience, and U4 already declined `types-defusedxml` on the same ground.
 
 ## Security
 

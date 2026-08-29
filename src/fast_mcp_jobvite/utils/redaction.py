@@ -228,7 +228,16 @@ def redact_arguments(arguments: JsonValue) -> JsonValue:
             )
             for key, value in arguments.items()
         }
-    if isinstance(arguments, list):
+    # `Sequence`, not `list`, because that is what `JsonValue` DECLARES. The walk
+    # tested `list`, so a tuple - which is a `Sequence` and therefore in contract -
+    # fell through to `return arguments` UNREDACTED at the top level. Measured:
+    # `redact_arguments(({"email": "a@b.c"},))` returned the address untouched
+    # while the list form redacted it. A pydantic field typed `tuple[...]` is all
+    # it takes.
+    #
+    # `str` and `bytes` are Sequences too and must NOT be walked character by
+    # character; they are handled above as scalars.
+    if isinstance(arguments, Sequence) and not isinstance(arguments, str | bytes):
         return [redact_arguments(item) for item in arguments]
     return arguments
 
