@@ -93,7 +93,7 @@ def main() -> int:
     print(
         "\nUnder `set -o pipefail` each of these returns 141 when the match is\n"
         "found early on a large output, reporting a string that IS present as\n"
-        "ABSENT. Replace with `grep -q... <<< \"$out\"`, which keeps grep's\n"
+        'ABSENT. Replace with `grep -q... <<< "$out"`, which keeps grep\'s\n'
         "PER-LINE semantics, or with a bash substring test where no `^` or\n"
         "line anchoring is involved."
     )

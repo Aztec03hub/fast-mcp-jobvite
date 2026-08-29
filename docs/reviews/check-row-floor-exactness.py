@@ -35,13 +35,13 @@ existed, and the external floor tolerated the loss of three rows the
 internal one would have caught.
 
 **WHAT THIS DOES NOT COVER, stated because a partial check selects for
-the form it cannot see.** 24 harnesses carry a literal `ROW_FLOOR`. The
-control table names 9, so the exactness claim covers 9. Only 8 harnesses
-carry BOTH floors, so the agreement claim covers 8 - the other 16 have a
-single number with nothing to check it against, and 8 more are floored
-only in `ci.yml`. **Neither claim reaches the majority of harnesses.**
-That gap is task #102; it is not closed by this file, and this file
-passing does not mean it is.
+the form it cannot see.** Neither claim reaches every harness: the
+exactness claim reaches only those the control table names, and the
+agreement claim only those carrying BOTH floors. **The program prints
+both counts on every run** - read them there rather than here, because
+the three counts written into this docstring were already stale within
+hours of being typed. The remainder is task #102, and this file passing
+does not mean it is closed.
 """
 
 from __future__ import annotations

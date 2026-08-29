@@ -148,8 +148,10 @@ def check(targets: dict[str, str | None]) -> int:
     for name, referent in targets.items():
         path = REPO_ROOT / name
         if not path.exists():
-            failures.append(f"{path}: does not exist - a check at a missing path is a "
-                            f"clean empty, never a pass")
+            failures.append(
+                f"{path}: does not exist - a check at a missing path is a "
+                f"clean empty, never a pass"
+            )
             continue
         text = path.read_text()
         try:
@@ -161,15 +163,19 @@ def check(targets: dict[str, str | None]) -> int:
         total_refs += refs
         rel = path.relative_to(REPO_ROOT)
         via = f" (+{referent})" if referent else ""
-        print(f"  {rel}{via}: {len(headings(text))} numbered headings, {refs} "
-              f"references, {len(missing)} unresolved")
+        print(
+            f"  {rel}{via}: {len(headings(text))} numbered headings, {refs} "
+            f"references, {len(missing)} unresolved"
+        )
         for lineno, ref in missing:
             failures.append(f"{rel}:{lineno}: §{ref} does not exist in this document")
 
     if total_refs == 0:
-        failures.append("SELECTOR CONTROL: zero references found across every file. "
-                        "The "
-                        "pattern is broken, not the corpus.")
+        failures.append(
+            "SELECTOR CONTROL: zero references found across every file. "
+            "The "
+            "pattern is broken, not the corpus."
+        )
 
     if failures:
         print(f"\n{len(failures)} problem(s):")
@@ -207,8 +213,10 @@ def controls() -> int:
         fired += 1
         print("  CONTROL the unmutated document is clean -> FIRED")
     else:
-        print("  CONTROL the unmutated document is clean -> DID NOT FIRE "
-              "(the real file is red; fix that first)")
+        print(
+            "  CONTROL the unmutated document is clean -> DID NOT FIRE "
+            "(the real file is red; fix that first)"
+        )
 
     print(f"\n{fired}/{total} controls fired.")
     return 0 if fired == total else 1

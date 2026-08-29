@@ -90,6 +90,11 @@ decoy = "SCHEDULING_NAMES = " + repr(NAMES) + "\n"
 decoy_found = [n for n in NAMES if n in decoy]
 print()
 print("ARM B - a file containing ONLY the term list, zero scheduling code:")
-print(f"    arm 1c's predicate finds {len(decoy_found)}/8 -> "
-      f"{'PASSES (control is tautological)' if len(decoy_found) == 8 else
-         'fails (control is real)'}")
+print(
+    f"    arm 1c's predicate finds {len(decoy_found)}/8 -> "
+    f"{
+        'PASSES (control is tautological)'
+        if len(decoy_found) == 8
+        else 'fails (control is real)'
+    }"
+)

@@ -97,6 +97,7 @@ real_run = subprocess.run
 def _raises(exc):
     def _run(*_a, **_kw):
         raise exc
+
     return _run
 
 
@@ -138,7 +139,10 @@ finally:
 got = csc._corpus()  # noqa: SLF001
 proc = subprocess.run(
     [sys.executable, str(HERE / "check-standards-citations.py")],
-    cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+    cwd=REPO_ROOT,
+    capture_output=True,
+    text=True,
+    check=False,
 )
 row(
     "D. happy path unchanged, and the wired gate still exits 0",

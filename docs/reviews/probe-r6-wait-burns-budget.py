@@ -86,8 +86,10 @@ async def main() -> None:
     a = await arm("ARM 1c no Retry-After (jittered backoff) ", None)
     b = await arm("ARM 1  Retry-After: 900 (>> the budget)  ", "900")
     print()
-    print(f"ARM 0c control: {ctl:.2f}s - a non-retryable call returns at once,"
-          f" so the harness measures elapsed time and not a constant")
+    print(
+        f"ARM 0c control: {ctl:.2f}s - a non-retryable call returns at once,"
+        f" so the harness measures elapsed time and not a constant"
+    )
     print(f"ARM 1c        : {a:.2f}s - the LOCAL backoff also burns the budget")
     burned = b >= BUDGET * 0.9
     print(

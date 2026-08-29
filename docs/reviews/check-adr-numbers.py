@@ -72,8 +72,10 @@ def main() -> int:
     lowest, highest = min(numbers), max(numbers)
     gaps = [n for n in range(lowest, highest + 1) if n not in numbers]
 
-    print(f"ADRs: {sum(len(v) for v in numbers.values())}, numbered "
-          f"{lowest:04d}-{highest:04d}")
+    print(
+        f"ADRs: {sum(len(v) for v in numbers.values())}, numbered "
+        f"{lowest:04d}-{highest:04d}"
+    )
 
     for number, names in sorted(duplicates.items()):
         print(f"  DUPLICATE {number:04d}:")
@@ -116,12 +118,18 @@ def _branch_numbers() -> dict[int, set[str]]:
     claimed: dict[int, set[str]] = collections.defaultdict(set)
     branches = subprocess.run(
         ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.split()
     for branch in branches:
         listing = subprocess.run(
             ["git", "ls-tree", "-r", "--name-only", branch, "--", "docs/adr/"],
-            cwd=ROOT, capture_output=True, text=True, check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         for path in listing.stdout.splitlines():
             match = re.search(r"docs/adr/(\d{4})-", path)
@@ -138,8 +146,10 @@ def _report_branches(highest_here: int) -> None:
         return
 
     highest = max(claimed)
-    print(f"\nAcross {len({b for v in claimed.values() for b in v})} local branch(es): "
-          f"highest ADR number claimed anywhere is {highest:04d}.")
+    print(
+        f"\nAcross {len({b for v in claimed.values() for b in v})} local branch(es): "
+        f"highest ADR number claimed anywhere is {highest:04d}."
+    )
 
     elsewhere = sorted(n for n in claimed if n > highest_here)
     for number in elsewhere:

@@ -245,12 +245,16 @@ show_missing = true
 # the plan, every ADR, DECISIONS.md and the worklogs returns nothing.
 line-length = 88  # B49: the code half (python.md:35)
 target-version = "py312"
+
+# MARKDOWN IS PROSE HERE, NOT SOURCE. Taking `extend-exclude = ["docs"]` off so
+# ruff could finally read the wired checkers also switched on ruff's Markdown
+# support, and `ruff format` then wanted to rewrite the Python code blocks
+# INSIDE 17 documents - `docs/DESIGN.md` among them, which is FROZEN and whose
+# blocks are quoted illustrations, not code that runs. Seven of its blocks would
+# have been rewritten. The `.py` files under `docs/` stay fully linted AND
+# formatted; only the documents are out.
 src = ["src", "tests"]
-# docs/reviews/*.py are the design-coupling gate harnesses. They are owned by the
-# review process, predate this manifest, and CI runs them by exit code rather than
-# by style. Reformatting them under a lint config written after them would rewrite
-# a gate nobody asked to change.
-extend-exclude = []
+extend-exclude = ["**/*.md"]
 
 [tool.ruff.lint]
 select = [
@@ -296,7 +300,11 @@ convention = "google"       # python.md:97 (B50 docstring half)
 # The gate script is a CLI: printing IS its interface, and its refusal message is
 # the control being tested. T20 would forbid the thing the tests assert on.
 "{scripts,docs/reviews}/**" = ["T201", "D103"]
-# `docs/reviews/**` is nineteen wired CI gates and their probes. It is the
+# `docs/reviews/**` holds the wired CI gates and their probes. (No count here:
+# three independent measurements of "how many are wired" disagreed - 19, 18 and
+# 16 - because some are named only inside ci.yml COMMENTS and some are reached
+# indirectly through a shell harness. The number is not load-bearing for this
+# exemption, and a retyped constant is how the last four went stale.) It is the
 # `tests/*` population living at another path, and it gets that population's
 # exemptions for the same stated reasons: asserts and subprocess ARE the
 # mechanism in a harness, and an unannotated probe helper is fine. Everything

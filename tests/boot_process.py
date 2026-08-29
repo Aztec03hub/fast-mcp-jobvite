@@ -14,6 +14,7 @@ what §8 #10 requires and what a supervisor observes.
 from __future__ import annotations
 
 import ctypes
+import functools
 import os
 import pathlib
 import signal
@@ -133,9 +134,45 @@ def write_marker_entry(tmp_path: pathlib.Path) -> pathlib.Path:
 #: already is - `interpreter_of` reads `/proc/<pid>/cmdline`.
 _PR_SET_PDEATHSIG = 1
 
+#: Distinct exit codes, because `os._exit(1)` from a `preexec_fn` is
+#: indistinguishable to the caller from the entry script failing to
+#: import - and those need different diagnoses.
+_EXIT_NO_LIBC = 100
+_EXIT_PRCTL_FAILED = 101
+_EXIT_PARENT_ALREADY_GONE = 102
 
-def _die_with_parent() -> None:
-    """Ask the kernel to SIGKILL this child when its parent dies.
+
+def _load_libc() -> ctypes.CDLL | None:
+    """Resolve libc AT IMPORT, before anything forks.
+
+    **`dlopen` after `fork` can deadlock the child.** It takes the
+    loader locks, and a lock held by another thread at the moment of
+    the fork is held forever in the child, which has only the forking
+    thread. This suite IS multi-threaded at spawn time - AnyIO worker
+    threads, which `test_shutdown.py` documents as the reason the stdio
+    arm needs a forced exit - so calling `ctypes.CDLL` inside the
+    `preexec_fn`, as this first shipped, was a hang waiting for a
+    schedule. Resolving here moves it before the fork.
+
+    Returns None rather than raising: a failure here would otherwise
+    break COLLECTION of every module importing this one, on a machine
+    where the only real consequence is that these process tests cannot
+    run.
+    """
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+    except OSError:
+        return None
+    libc.prctl.argtypes = (ctypes.c_int, ctypes.c_ulong)
+    libc.prctl.restype = ctypes.c_int
+    return libc
+
+
+_LIBC = _load_libc()
+
+
+def _die_with_parent(parent_pid: int) -> None:
+    """Ask the kernel to SIGKILL this child when `parent_pid` dies.
 
     **A `try: ... finally: proc.kill()` cannot do this.** No Python
     cleanup runs when the harness itself is SIGKILLed, and that is the
@@ -145,15 +182,30 @@ def _die_with_parent() -> None:
     kernel is the only party that can reap a child whose parent was
     never given a chance to.
 
+    **The parent pid is PASSED IN, not assumed to be 1.** The first
+    version asked `os.getppid() == 1`, which is wrong in both
+    directions: in a container where pytest is itself PID 1 every child
+    sees 1 from birth and would die at spawn, and under a
+    `PR_SET_CHILD_SUBREAPER` process manager an orphan reparents to the
+    subreaper rather than to 1, so the check never fires. Comparing
+    against the actual parent is right in both.
+
     Runs between `fork` and `exec` in the child.
+
+    Args:
+        parent_pid: `os.getpid()` read in the PARENT, before the fork.
     """
-    libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    libc.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL)
+    if _LIBC is None:
+        os._exit(_EXIT_NO_LIBC)
+    # The return is CHECKED. A silently failed install leaves the child
+    # unprotected, which is the whole defect wearing the fix's name.
+    if _LIBC.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL) != 0:
+        os._exit(_EXIT_PRCTL_FAILED)
     # The race prctl cannot close by itself: if the parent died in the
     # window between `fork` and this call, the signal has already been
-    # delivered to nobody. Re-parenting is the observable, so check it.
-    if os.getppid() == 1:
-        os._exit(1)
+    # delivered to nobody. Re-parenting is the observable.
+    if os.getppid() != parent_pid:
+        os._exit(_EXIT_PARENT_ALREADY_GONE)
 
 
 def spawn_marker_server(
@@ -185,7 +237,7 @@ def spawn_marker_server(
             stdin=subprocess.PIPE if stdio else subprocess.DEVNULL,
             stdout=sink,
             stderr=subprocess.STDOUT,
-            preexec_fn=_die_with_parent,  # noqa: PLW1509
+            preexec_fn=functools.partial(_die_with_parent, os.getpid()),  # noqa: PLW1509
         )
     deadline = time.time() + GRACE_SECONDS
     while time.time() < deadline:

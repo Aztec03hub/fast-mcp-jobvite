@@ -42,9 +42,7 @@ R6 = HERE / "probe-r6-breaker-reset.py"
 PROBE_FAILCLOSED = HERE / "probe-repoint-fail-closed.py"
 PROBE_SWALLOW = HERE / "probe-gate-swallowed-exceptions.py"
 
-ORIGINAL: dict[pathlib.Path, str] = {
-    p: p.read_text() for p in (REPOINT, STANDARDS, R6)
-}
+ORIGINAL: dict[pathlib.Path, str] = {p: p.read_text() for p in (REPOINT, STANDARDS, R6)}
 PROBLEMS: list[str] = []
 
 
@@ -52,7 +50,10 @@ def run_probe(probe: pathlib.Path) -> tuple[int, list[str]]:
     """Run one probe; return its exit code and the rows that FAILED."""
     proc = subprocess.run(
         [sys.executable, str(probe)],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     failed = [
         line.split()[1].rstrip(".")

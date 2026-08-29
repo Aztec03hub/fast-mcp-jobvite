@@ -73,7 +73,10 @@ def _corpus() -> pathlib.Path:
     try:
         common = run(
             ["git", "rev-parse", "--git-common-dir"],
-            cwd=ROOT, capture_output=True, text=True, check=True,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         main_root = (ROOT / common).resolve().parent
         candidates.append(main_root.parent / "evolv-coder-standards" / "standards")
@@ -105,9 +108,17 @@ CITE = re.compile(r"\b(?:([a-z][a-z-]*)/)?([a-z][a-z0-9-]*\.md):(\d+)(?:-(\d+))?
 #: Documents that are OURS, not the corpus. A citation to one of these
 #: is a different population with its own checker, or none.
 OURS = {
-    "design.md", "readme.md", "contributing.md", "changelog.md",
-    "jobvite-api.md", "jobvite-contract.md", "fastmcp.md", "standards.md",
-    "implementation-plan.md", "obligations.md", "decisions.md",
+    "design.md",
+    "readme.md",
+    "contributing.md",
+    "changelog.md",
+    "jobvite-api.md",
+    "jobvite-contract.md",
+    "fastmcp.md",
+    "standards.md",
+    "implementation-plan.md",
+    "obligations.md",
+    "decisions.md",
 }
 
 
