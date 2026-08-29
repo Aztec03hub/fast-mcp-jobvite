@@ -9,6 +9,7 @@ teardown is usually not.
 from __future__ import annotations
 
 import ast
+import json
 import pathlib
 from collections.abc import AsyncIterator
 from typing import Any
@@ -234,3 +235,102 @@ async def test_a_server_with_no_enabled_tool_registers_nothing() -> None:
     server = build_server(settings)
     async with Client(server) as client:
         assert await client.list_tools() == []
+
+
+@pytest.mark.asyncio
+async def test_the_live_middleware_stack_is_five_and_the_fifth_is_injected() -> None:
+    """ADR-0032: `build_middleware` returns four and FIVE run.
+
+    `FastMCP.__init__` appends `DereferenceRefsMiddleware()` whenever
+    `dereference_schemas` is true, which is its default. The threat
+    model at `DESIGN.md:1725` names the stack it analysed as
+    `Timing, StructuredLogging, RateLimiting` - so C2 was written
+    against a stack that is not the one that runs.
+
+    Asserting the WHOLE list rather than "the fifth is present": a
+    membership check cannot see a sixth arriving, and a framework bump
+    injecting one is precisely what this pins.
+    """
+    settings = Settings(
+        tools="search_jobs",
+        api_key=SecretStr("k"),
+        api_secret=SecretStr("s"),  # noqa: S106
+    )
+    names = [type(m).__name__ for m in build_server(settings).middleware]
+    assert names == [
+        "RequestIdMiddleware",
+        "TimingMiddleware",
+        "StructuredLoggingMiddleware",
+        "RateLimitingMiddleware",
+        "DereferenceRefsMiddleware",
+    ], f"the live stack changed: {names}"
+
+
+def test_no_input_model_produces_a_ref_for_the_middleware_to_inline() -> None:
+    """ADR-0032's tripwire, and its failure is a SIGNAL not a defect.
+
+    `DereferenceRefsMiddleware` runs on every request and inlines `$ref`
+    in published tool schemas. ADR-0032 rules its threat row low because
+    it is a live NO-OP: measured, all five input models are flat, every
+    field a bounded scalar, so there is nothing for it to inline.
+
+    **This reads the MODELS, which is the pre-middleware side, and the
+    first version of this test read the published schemas instead - a
+    control that could not fail.** The published side has no `$ref` by
+    construction, because removing them is the middleware's entire job.
+    Measured against a deliberately nested `SearchJobsInput`:
+
+        MODEL      $ref count: 1
+        PUBLISHED  $ref count: 0
+
+    So a `$ref` count of zero read through a `Client` says nothing about
+    whether the models nest. It reports the middleware working, which it
+    would do either way.
+
+    **That is a property of today's MODELS, not of the middleware.**
+    `$ref` appears the moment any model nests - a sub-model, an enum,
+    a discriminated union - and U14 landed a shared `InboundModel`
+    base whose own tests already carry a `NestedProbe`.
+
+    **So if this goes red, do not update the number.** It means
+    ADR-0032's central fact has expired and its C2 row needs re-reading
+    against a middleware that now rewrites what every caller sees.
+    Nesting a model is fine; discovering it afterwards is not.
+    """
+    models = _input_models()
+    assert len(models) >= 5, (
+        f"found {len(models)} input models; the discovery is broken and a "
+        "green here would mean nothing"
+    )
+    offenders = sorted(
+        name
+        for name, model in models
+        if '"$ref"' in json.dumps(model.model_json_schema())
+    )
+    assert not offenders, (
+        f"{offenders} now nest, so DereferenceRefsMiddleware is no longer a "
+        "no-op. Re-read ADR-0032's C2 row rather than updating this test."
+    )
+
+
+def _input_models() -> list[tuple[str, type]]:
+    """Every `*Input` model under `tools/`, discovered not listed."""
+    import importlib
+    import pkgutil
+
+    import pydantic
+
+    import fast_mcp_jobvite.tools as tools_pkg
+
+    found: list[tuple[str, type]] = []
+    for info in pkgutil.iter_modules(tools_pkg.__path__):
+        module = importlib.import_module(f"{tools_pkg.__name__}.{info.name}")
+        for attr in dir(module):
+            obj = getattr(module, attr)
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, pydantic.BaseModel)
+                and attr.endswith("Input")
+            ):
+                found.append((attr, obj))
+    return found
