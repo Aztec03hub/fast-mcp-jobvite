@@ -91,7 +91,63 @@ def main() -> int:
         return 1
 
     print("Every ADR number is unique, contiguous, and matches its own heading.")
+    _report_branches(highest)
     return 0
+
+
+def _branch_numbers() -> dict[int, set[str]]:
+    """ADR numbers claimed on EVERY local branch, not just this one.
+
+    **R8-L1: this checker read only the working tree, so it reported
+    0030 as free on a branch where another branch had already taken
+    it.** A reviewer on `review/r8` was told "ADRs: 29, numbered
+    0001-0029, exit 0" while ADR-0030 was already Accepted on `main`,
+    which was not an ancestor of its base. The checker was right about
+    the tree and wrong about the question anyone asks it, which is
+    "may I take the next number?".
+
+    That is the two-agents-both-correct-when-they-looked collision this
+    project has already had once, with U10 and me both taking 0027.
+    """
+    import subprocess
+
+    claimed: dict[int, set[str]] = collections.defaultdict(set)
+    branches = subprocess.run(
+        ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split()
+    for branch in branches:
+        listing = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", branch, "--", "docs/adr/"],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        for path in listing.stdout.splitlines():
+            match = re.search(r"docs/adr/(\d{4})-", path)
+            if match:
+                claimed[int(match.group(1))].add(branch)
+    return claimed
+
+
+def _report_branches(highest_here: int) -> None:
+    """Say what the NEXT FREE number is across every branch."""
+    claimed = _branch_numbers()
+    if not claimed:
+        print("\nNo branches scanned; the cross-branch check did not run.")
+        return
+
+    highest = max(claimed)
+    print(f"\nAcross {len({b for v in claimed.values() for b in v})} local branch(es): "
+          f"highest ADR number claimed anywhere is {highest:04d}.")
+
+    elsewhere = sorted(n for n in claimed if n > highest_here)
+    for number in elsewhere:
+        print(f"  ELSEWHERE {number:04d} exists on {', '.join(sorted(claimed[number]))}")
+        print("            but NOT in this checkout - do not reuse this number.")
+
+    print(f"NEXT FREE ADR NUMBER: {max(highest, highest_here) + 1:04d}")
+    if elsewhere:
+        print("Take it from THIS line, not from the count above: a number can be")
+        print("claimed on a branch this checkout cannot see.")
 
 
 if __name__ == "__main__":
