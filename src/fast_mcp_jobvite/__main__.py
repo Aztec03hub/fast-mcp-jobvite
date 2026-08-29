@@ -63,12 +63,13 @@ stream and a clean-stop arm measuring 0 on the same construction.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import signal
 import sys
 from types import FrameType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 
 from loguru import logger as _loguru
 
@@ -132,6 +133,100 @@ def _redact_message(record: Record) -> bool:
     return True
 
 
+def _redact_json(value: object) -> object:
+    """Redact every string anywhere inside one decoded JSON document.
+
+    Walks rather than pattern-matching the line, so the redaction can never
+    corrupt the JSON: `redact_url` percent-encodes what it reassembles, and a
+    URL sitting next to a closing quote in the raw text would have that quote
+    swallowed into the redacted parameter value. Redacting the DECODED strings
+    and re-encoding keeps the record parseable by construction.
+
+    Args:
+        value: A decoded JSON value, or anything nested inside one.
+
+    Returns:
+        The same structure with every string redacted. Non-strings - numbers,
+        booleans, `None` - are returned unchanged; none of them can carry a
+        credential.
+    """
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, dict):
+        return {key: _redact_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_json(item) for item in value]
+    return value
+
+
+def _redact_serialised(line: str) -> str:
+    """Redact one serialised record - EVERY field, not just `message`.
+
+    **`_redact_message` above reaches one field and `serialize=True` renders
+    several.** Measured at this commit, on a process configured the shipped
+    way: a stdlib `logger.exception` whose exception text carried
+    `?api=...&sc=...&companyId=...` arrived on stderr with the credentials in
+    the clear **twice** - once in `record.exception.value` and once in the
+    rendered `text`, which carries the formatted traceback. `_redact_message`
+    saw neither, because neither is `record["message"]`.
+
+    `_InterceptHandler` forwards `record.exc_info` for **every** stdlib logger
+    in the process, so the producers are not enumerable: any dependency that
+    calls `logger.exception` or `logger.error(..., exc_info=True)` reaches
+    this. `__main__.main` itself is one (`logger.exception` on the abnormal
+    termination path). Naming the producers is the allow-list that let the
+    `httpx2` leak sit unseen; this redacts the CONTAINER instead - whatever
+    `serialize` rendered, whatever produced it.
+
+    Args:
+        line: One serialised record as loguru handed it to the sink,
+            newline included.
+
+    Returns:
+        The redacted line, newline restored.
+    """
+    try:
+        payload = json.loads(line)
+    except ValueError:
+        # `serialize=True` makes this unreachable by construction, so the
+        # fallback is here to FAIL CLOSED rather than because a case is known:
+        # returning `line` unchanged would publish whatever could not be
+        # parsed. The text arm can mangle punctuation adjacent to a URL; a
+        # mangled line beats a leaked one.
+        return redact_text(line)
+    return json.dumps(_redact_json(payload)) + "\n"
+
+
+def _redacting_sink(stream: TextIO) -> object:
+    """Build the one sink: redact the serialised record, then write it.
+
+    **The stream is captured HERE, at configuration time**, which is the
+    binding `logger.add(sys.stderr, ...)` had and which
+    `tests/test_logging_process.py`'s failing-sink arms depend on: they replace
+    `sys.stderr` before importing this module and expect the sink to stay on
+    the object they installed.
+
+    **The write is flushed explicitly.** A stream sink is flushed by loguru; a
+    function sink is not, and an unflushed write to a full disk returns
+    normally and raises later at interpreter shutdown - which is exactly the
+    failure `catch=False` exists to route into `audit.emit`'s policy
+    (DESIGN.md:712-718). Without the flush, H-2's `/dev/full` arm would stop
+    measuring anything.
+
+    Args:
+        stream: The text stream to write to - `sys.stderr` in production.
+
+    Returns:
+        The sink callable to hand to `logger.add`.
+    """
+
+    def sink(message: str) -> None:
+        stream.write(_redact_serialised(str(message)))
+        stream.flush()
+
+    return sink
+
+
 class _InterceptHandler(logging.Handler):
     """Forward stdlib `logging` records into loguru.
 
@@ -178,9 +273,18 @@ def configure_logging() -> None:
     # replace it, and the default would keep writing field-less duplicates.
     _loguru.remove()
     _loguru.add(
-        # stderr, explicitly. stdout is the JSON-RPC channel on stdio, and a
-        # single log record written there corrupts the protocol.
-        sys.stderr,
+        # stderr, explicitly, through the redacting sink. stdout is the
+        # JSON-RPC channel on stdio, and a single log record written there
+        # corrupts the protocol.
+        #
+        # A SINK rather than the bare stream, because `filter=` below reaches
+        # `record["message"]` and `serialize` renders more than that field -
+        # `record["exception"]` and the formatted `text` among them. Both are
+        # kept: the filter cleans the record for any handler, and the sink
+        # cleans everything that was actually rendered. Both call
+        # `redact_text`, so DESIGN.md:312-316's "enforced in one place" holds -
+        # there is one redactor, applied at two depths, not two redactors.
+        _redacting_sink(sys.stderr),
         level=_LOG_LEVEL,
         serialize=True,
         catch=False,
