@@ -389,7 +389,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 470
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 500
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -499,7 +499,7 @@ jobs:
       # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
       # this number is a visible diff that has to be defended.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 201
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 239
 
       - name: Harness anchor checker controls, all fired
         run: |
@@ -547,6 +547,24 @@ jobs:
 
       - name: U6 paging amputation, every anchor applied
         run: bash scripts/ci-harness-gate.sh check-u6-paging-amputation.sh --anchors-applied
+
+      # ----- U7, resilience: timeout, retry, breaker (DESIGN.md:342-358) -----
+      # WIRED IN THE MERGE COMMIT, like U6's. A harness that runs nowhere is not
+      # a control, and this is the unit DESIGN.md:64-68 names as one of two
+      # mechanisms NEVER EXECUTED - sitting among measured results and borrowing
+      # their credibility. These two steps are what stops it drifting back there.
+      #
+      # `--min-rows 16` and the row regex come from the harness's own shape, not
+      # from a preference: the amputation harness declines to amputate two
+      # behaviours whose deletion makes the scan loop forever, so its row count
+      # is not the number of behaviours it covers and the floor has to be stated.
+      - name: U7 resilience controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
+
+      - name: U7 resilience amputation, every row applied
+        run: |
+          bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
+            --amputation --min-rows 16 --row-re '^########## A[0-9]+ '
 
       # U0's tests assert properties about the manifest, the marker config and the
       # committed tree. Every one of them would pass against an absent file or a

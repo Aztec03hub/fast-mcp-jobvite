@@ -187,7 +187,20 @@ async def arm_2_behavioural() -> tuple[str, str]:
         expected_exception=ValueError,
     )
 
-    @breaker
+    # `circuitbreaker` ships no `py.typed`, so mypy sees an
+    # untyped decorator and refuses to keep the wrapped
+    # function's type. Ignored HERE rather than widening the
+    # module override in pyproject.toml, because this file is a
+    # probe outside mypy's configured scope and that override is
+    # a contract for shipped code.
+    #
+    # Recorded because THE TWO SCOPES DIFFER: ci.yml runs bare
+    # `uv run --frozen mypy` (46 files) while `mypy .` reaches
+    # 51, so this line is invisible to the gate and visible to
+    # anyone who checks more widely. The gate's set is a subset
+    # of the wider one, so the difference cannot produce a false
+    # green - only a surprise.
+    @breaker  # type: ignore[untyped-decorator]
     async def always_fails() -> None:
         msg = "forced"
         raise ValueError(msg)
