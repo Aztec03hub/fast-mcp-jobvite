@@ -107,6 +107,22 @@ def _as_date(value: Any, field: str, where: str) -> dt.date:  # noqa: ANN401
     raise ValueError(msg)
 
 
+def _looks_like(candidate: str, target: str) -> bool:
+    """Is `candidate` plausibly a misspelling of `target`?
+
+    Deliberately narrow. A prefix relationship catches the singular/plural slip
+    that actually happened (`advisory-ignore` for `advisory-ignores`), and an
+    equal-length one-character difference catches a transposition or typo. It does
+    NOT do fuzzy distance over everything, because a false positive here raises on
+    somebody's unrelated tool table.
+    """
+    if candidate.startswith(target) or target.startswith(candidate):
+        return True
+    if len(candidate) == len(target):
+        return sum(a != b for a, b in zip(candidate, target, strict=True)) == 1
+    return False
+
+
 def load_entries(pyproject: Path) -> list[Any]:
     """Read the ignore table out of `pyproject.toml`.
 
@@ -131,12 +147,47 @@ def load_entries(pyproject: Path) -> list[Any]:
         msg = f"cannot parse {pyproject}: {exc}"
         raise AdvisoryTableError(msg) from exc
 
-    for key in TABLE_PATH:
-        if not isinstance(doc, dict) or key not in doc:
+    # FAIL-CLOSED ON A MISSPELLING, which this used to fail OPEN on.
+    #
+    # Walking TABLE_PATH and returning [] the moment a key is missing cannot tell
+    # "no ignore table, which is the normal state" from "the table is there and I
+    # spelled its name wrong". Measured before the fix: renaming the table to
+    # `advisory-ignore` (no s) with a SIX-YEAR-EXPIRED entry inside it exited 0
+    # with no output and no warning - a wrong zero that explains itself, and the
+    # exact shape of every silent-failure defect this repository has recorded.
+    #
+    # So the parent table is inspected for near-misses before the absence is
+    # accepted. An unrelated `[tool.something-else]` is not our business; a key
+    # under `[tool]` that looks like ours and is not ours is a typo, not a state.
+    for depth, key in enumerate(TABLE_PATH):
+        if not isinstance(doc, dict):
+            msg = f"[{'.'.join(TABLE_PATH[:depth])}] is not a table"
+            raise AdvisoryTableError(msg)
+        if key not in doc:
+            near = sorted(k for k in doc if k != key and _looks_like(k, key))
+            if near:
+                msg = (
+                    f"[{'.'.join([*TABLE_PATH[:depth], key])}] is absent, but "
+                    f"{near} is present at the same level. That is a misspelled "
+                    "advisory-ignore table, not an empty one, and treating it as "
+                    "empty would silently honour nothing while reporting success"
+                )
+                raise AdvisoryTableError(msg)
             return []
         doc = doc[key]
     if not isinstance(doc, dict):
         msg = f"[{'.'.join(TABLE_PATH)}] is not a table"
+        raise AdvisoryTableError(msg)
+
+    # An unknown key inside OUR table is a misspelling too - `entires = [...]`
+    # would otherwise read as an empty table with a stray value beside it.
+    unknown = sorted(k for k in doc if k != "entries")
+    if unknown:
+        msg = (
+            f"[{'.'.join(TABLE_PATH)}] carries unknown keys {unknown}. The only "
+            "key here is `entries`; anything else is a typo that would leave real "
+            "ignores unread"
+        )
         raise AdvisoryTableError(msg)
 
     entries = doc.get("entries", [])
@@ -205,7 +256,32 @@ def check_entries(
             refusals.append(str(exc))
             continue
 
+        # M1: THE PREMISE, not just the arithmetic. The budget is measured from
+        # `recorded` (ADR-0020), and until this check existed nothing said
+        # `recorded` had to be in the past. `date = "2030-01-01"` with
+        # `expires = "2030-01-31"` computes a budget of 30, passes, and stays
+        # legal for years - the exact unbounded ignore ADR-0020 chose this
+        # measurement to prevent. The gate enforced the arithmetic and not the
+        # premise it rests on.
+        if recorded > now:
+            refusals.append(
+                f"{where}: recorded {recorded.isoformat()} is in the future "
+                f"(today {now.isoformat()}). The 30-day budget runs from that "
+                "date, so a future one is an unbounded ignore"
+            )
+            continue
+
         budget = (expires - recorded).days
+        # L1: a NEGATIVE budget passed the `> MAX` check, and `expires < now`
+        # only catches it when the expiry is also past. An entry expiring
+        # BEFORE the day it was recorded is incoherent whatever today is.
+        if budget < 0:
+            refusals.append(
+                f"{where}: expiry {expires.isoformat()} precedes the recorded "
+                f"date {recorded.isoformat()}"
+            )
+            continue
+
         if budget > MAX_IGNORE_DAYS:
             refusals.append(
                 f"{where}: expiry is {budget} days after {recorded.isoformat()}, "

@@ -414,3 +414,95 @@ def test_a_non_date_expiry_is_refused() -> None:
     flags, refusals = gate.check_entries([entry(expires="soon")], NOW)
     assert flags == []
     assert "not an ISO date" in refusals[0]
+
+
+# --- Review round 1: M1, L1 and M2. Each fix gets its own arm, and each --------
+# refusal is attributable to ONE field, so a test cannot pass for the wrong reason.
+
+
+def test_a_recorded_date_in_the_future_is_refused() -> None:
+    """M1. The 30-day budget runs from `date`, so a future `date` is unbounded.
+
+    Measured before the fix: `date = "2030-01-01"` with `expires = "2030-01-31"`
+    computes a budget of exactly 30, passed every check, emitted its flag, and
+    would have stayed legal for years. The gate enforced the arithmetic and never
+    the premise ADR-0020 rests it on.
+
+    This entry is legal in every OTHER respect - the budget is 30, and the expiry
+    is in the future - so a pass here can only mean the future-date check is gone.
+    """
+    entries = [entry(date="2030-01-01", expires="2030-01-31")]
+    flags, refusals = gate.check_entries(entries, NOW)
+    assert flags == [], "a future-dated entry emitted a flag"
+    assert len(refusals) == 1
+    assert "in the future" in refusals[0], refusals[0]
+
+
+def test_an_expiry_preceding_its_recorded_date_is_refused() -> None:
+    """L1. A NEGATIVE budget passed the `> MAX_IGNORE_DAYS` check.
+
+    `expires < now` catches it only when the expiry is also in the past, and the
+    `> MAX_IGNORE_DAYS` check compares a NEGATIVE number against 30. An entry
+    expiring before the day it was recorded is incoherent whatever today is.
+
+    **Both dates are in the PAST on purpose.** My first version used 2027 and
+    2026, and the future-date check above fired instead - so the test passed while
+    saying nothing about this one. A refusal has to be attributable to exactly one
+    field or it is not a test of that field.
+    """
+    entries = [entry(date="2026-07-01", expires="2026-06-15")]
+    flags, refusals = gate.check_entries(entries, NOW)
+    assert flags == []
+    assert len(refusals) == 1
+    assert "precedes the recorded date" in refusals[0], refusals[0]
+
+
+def test_a_misspelled_table_raises_rather_than_reading_as_empty(
+    tmp_path: Path,
+) -> None:
+    """M2. The gate failed OPEN on a misspelling while its docstring said closed.
+
+    Walking the table path and returning `[]` at the first missing key cannot
+    distinguish "there is no ignore table", which is the normal and shipped state,
+    from "the table is right there and its name is misspelled". Measured before
+    the fix: renaming it to `advisory-ignore` with a SIX-YEAR-EXPIRED entry inside
+    exited 0, emitted nothing, and warned about nothing.
+
+    That is a wrong zero that explains itself - the shape this repository has paid
+    for repeatedly - and it is the one input class U11's controls did not cover.
+    """
+    manifest = tmp_path / "pyproject.toml"
+    manifest.write_text(
+        "[tool.fast-mcp-jobvite.advisory-ignore]\n"
+        'entries = [{ id = "GHSA-old-old-old", date = "2020-01-01", '
+        'reason = "probe", expires = "2020-01-31" }]\n'
+    )
+    with pytest.raises(gate.AdvisoryTableError) as excinfo:
+        gate.load_entries(manifest)
+    assert "misspelled" in str(excinfo.value)
+
+
+def test_an_unknown_key_inside_the_table_raises() -> None:
+    """M2's sibling: `entires = [...]` would read as an empty table.
+
+    A typo in the KEY leaves real ignores unread with no signal at all.
+    """
+    manifest = Path(__file__).parent / "_m2_unknown_key.toml"
+    manifest.write_text("[tool.fast-mcp-jobvite.advisory-ignores]\nentires = []\n")
+    try:
+        with pytest.raises(gate.AdvisoryTableError) as excinfo:
+            gate.load_entries(manifest)
+        assert "unknown keys" in str(excinfo.value)
+    finally:
+        manifest.unlink(missing_ok=True)
+
+
+def test_the_absent_table_is_still_legal(tmp_path: Path) -> None:
+    """The control for all three above: a manifest with NO table is fine.
+
+    Without this, the fixes could have been "raise on everything", which passes
+    every rejection arm and breaks the shipped state.
+    """
+    manifest = tmp_path / "pyproject.toml"
+    manifest.write_text('[project]\nname = "x"\nversion = "0"\n')
+    assert gate.load_entries(manifest) == []
