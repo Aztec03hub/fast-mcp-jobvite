@@ -245,12 +245,16 @@ server cannot tell a person from a handler - see the README's disclosures.
   are illustrations OF the bare-text citation form, not pointers to content, and a comment now says
   so. (2026-08-29 01:03 PM CDT)
 
-- **`main` now keeps its CI runs; every other ref still cancels.** `cancel-in-progress` was true for
+- **`main`'s in-progress CI run is no longer cancelled; every other ref still cancels.** `cancel-in-progress` was true for
   all refs, which is right for a busy branch and wrong for a trunk: on `main` the run IS the record,
   and a cancelled run leaves none. Measured on 2026-08-29, `main` had **54 cancelled runs, 5
   failures and zero successes in a day** - and because a cancelled conclusion is not a failure,
   nothing read as red while the trunk had been broken for hours. Each push cancelled the evidence
-  that the previous one was broken. (2026-08-29 12:45 PM CDT)
+  that the previous one was broken. **This does not mean every commit gets a run:** measured after
+  the change, GitHub keeps at most one PENDING run per concurrency group and cancels older queued
+  ones regardless of the setting - two were cancelled having never scheduled a runner at all. What
+  it buys is a trunk that always has a run which will reach a conclusion, where before it had 54
+  cancellations and none. (2026-08-29 12:45 PM CDT)
 
 - ADRs separated from the freeze. The two jobs the instrument was doing - recording a deviation
   from a required standard, and being the only thing that may change a frozen design - were stated
