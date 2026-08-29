@@ -279,21 +279,38 @@ jobs:
         run: |
           set -uo pipefail
           out=$(uv run --frozen pytest 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || exit "$rc"
+          [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
           if printf '%s\n' "$out" | grep -qE '[0-9]+ skipped'; then
+            echo "$out"
             echo "::error::the suite skipped tests. A skip is a green that tested nothing."
             exit 1
           fi
-          # And the run must have actually selected something.
-          printf '%s\n' "$out" | grep -qE '[1-9][0-9]* passed' || {
-            echo "::error::no tests passed; the selection matched nothing"; exit 1; }
+          # FLOOR, not merely non-empty. This guard read `grep -qE '[1-9][0-9]*
+          # passed'` until L6, and that is satisfied by "1 passed" - three hundred
+          # tests could vanish and the step stayed green. Nothing else in the
+          # pipeline floors the count: coverage is a ratio, so deleting a test and
+          # the code it covered can RAISE it.
+          #
+          # A ratchet. Raise it when tests are added; lowering it is a visible diff
+          # that has to be defended. 333 measured at 025aa55.
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 333
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
       # default suite and run here with its positive control.
+      # Floored for the same reason as the default suite, and it needs it MORE:
+      # this arm is a matched pair, and the pair is the point. If the negative arm
+      # alone stopped being collected, the positive one would pass by itself and
+      # the step would be green while proving nothing. `pytest` exits 5 when it
+      # collects nothing at all, so the empty case was already caught - the
+      # HALF-empty case was not. 2 derived from `-m network --collect-only`, not
+      # from the "2 deselected" in the default run, which also counts credentialed.
       - name: Network-dependent arms
-        run: uv run --frozen pytest -m network
+        run: |
+          set -uo pipefail
+          out=$(uv run --frozen pytest -m network 2>&1); rc=$?
+          [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 2
 
       # The credentialed suite is never run and never skipped, but it MUST be
       # collected: a suite that is excluded and never collected rots silently, and
@@ -455,6 +472,22 @@ jobs:
           fi
           rows=$(printf '%s\n' "$out" | grep -cE '^########## A[0-9]+ ')
           [ "$rows" -ge 10 ] || { echo "::error::only $rows amputation rows ran, expected 10"; exit 1; }
+
+      # The guard that floors the suite size is itself a thing that can silently
+      # stop working, and it would fail in exactly the way it exists to catch:
+      # quietly, with everything green. Its harness reports "N/M killed" and this
+      # step requires N == M, the same rule as every other harness here.
+      - name: Suite-floor guard amputation, every row killed
+        run: |
+          set -uo pipefail
+          out=$(bash scripts/check-suite-floor-amputation.sh 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::the suite-floor harness exited $rc"; exit 1; }
+          if printf '%s\n' "$out" | grep -qE 'DID NOT LAND|ANCHOR MISSING|ANCHOR NOT UNIQUE'; then
+            echo "::error::a suite-floor amputation anchor moved; that row tested nothing"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'post-run re-check of the real script: exit=0' || {
+            echo "::error::the harness did not restore the script it mutated"; exit 1; }
 
       - name: U4 client mutation controls, all killed
         run: |
