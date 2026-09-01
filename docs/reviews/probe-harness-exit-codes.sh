@@ -88,6 +88,17 @@ for s in "${SCRIPTS[@]}"; do
   status="${line##*status=}"
   [ -n "$line" ] || status="NO-LINE"
 
+  # A TIMEOUT IS NOT A MEASUREMENT, so it is NOT written to the ledger. 124 is
+  # `timeout`'s own code for "I killed it"; recording it would freeze a budget
+  # artefact into a file whose whole purpose is to be compared against another
+  # run, and the resume above would then never retry it. Left unrecorded, the
+  # next call with a larger budget picks it up.
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    printf '%-42s TIMED OUT at %ss - NOT recorded; re-run with a larger budget\n' "$s" "$BUDGET"
+    rm -f "$log"
+    continue
+  fi
+
   printf '%-42s rc=%-4s status=%-8s\n' "$s" "$rc" "$status" >> "$OUT"
   printf '%-42s rc=%-4s status=%-8s %ss\n' "$s" "$rc" "$status" "$took"
   rm -f "$log"
