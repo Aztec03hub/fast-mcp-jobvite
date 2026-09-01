@@ -411,6 +411,127 @@ Recorded so the next reviewer does not repeat them, and so the greens above are 
   brief's time budget. The static row counts in R12-H2 are derived from unconditional top-level call
   sites, not from a run.
 
+## Addendum - `check-review-coverage.py` at `42293f3`, reviewed as extra credit
+
+Dispatched to me after the round above, on the grounds that a new unreviewed checker is exactly the
+category this round audits. It is **unwired** and exits 1 today, so none of this is live. I read it
+at `git show 42293f3:docs/reviews/check-review-coverage.py` (174 lines), ran it, and probed it; the
+copy was removed and my tree is clean.
+
+The design decision at its centre - **refuse to infer a range, report UNDECLARED instead** - is
+right, and it is the load-bearing one. Everything below is around that decision, not against it.
+
+### R12-H3 (High) - the container is `HEAD`, not `main`, and its LOWER BOUND is set by the declarations themselves
+
+Line 149 is `trunk = git("rev-list", f"{earliest}..HEAD").split()`. The docstring says *"the commits
+on `main`"*. Two separate ways that reads the wrong population, and I hit both at once by simply
+running it in my own worktree:
+
+```
+  DECLARED  REVIEW-R12.md: f699f74..dad014e (45 commits)
+  UNDECLARED CODE-REVIEW-R9.md: no REVIEW-COVERS line, no reason
+
+Trunk commits since f699f74: 47
+Inside a declared review range: 45
+COVERED BY NOTHING: 2
+```
+
+**2, where you measured 59.** Neither number is a lie and both are useless without knowing which
+population they describe.
+
+1. **`HEAD` is whatever branch you are on.** I am on `review/r12` at `dad014e` plus two commits, so
+   "trunk" here is my branch. This matters for #119: `actions/checkout` leaves HEAD at the PR's
+   MERGE commit, so wiring this as-is makes every pull request red for its own not-yet-trunk
+   commits. **Fix:** resolve the container explicitly - `git rev-list <earliest>..origin/main`, or
+   take the ref as an argument defaulting to `main` - and refuse (exit 2) if that ref does not
+   resolve, rather than silently falling back to HEAD.
+
+2. **The floor is derived from the declarations, so the metric is not monotone.** `earliest` is
+   `min(ranges.values(), key=<ancestor count>)[0]` (`:146-148`) - the oldest DECLARED base. In my
+   tree `CODE-REVIEW-R9.md` carries no declaration, so the only range is mine, `earliest` becomes
+   `f699f74`, and the 35 older commits R9's range would have anchored **left the denominator
+   entirely**. That is the finding: the set being measured is defined by the set doing the
+   measuring, so **deleting one `REVIEW-COVERS` line moves "COVERED BY NOTHING" from 59 to 2 and
+   reads as a 96% improvement.** A coverage number that improves when a declaration is removed is
+   the wrong direction for this instrument to be able to move.
+   **Fix:** pin the floor to a constant the declarations cannot move - the same `8695101` your run
+   names, as a module-level `TRUNK_ORIGIN` with the reason beside it - and keep `min(...)` only as
+   an assertion: if any declared base is older than `TRUNK_ORIGIN`, that is a defect in one of them,
+   not a new floor.
+
+### R12-M4 (Medium) - the population is a name-shaped glob and it misses a real round
+
+`review_documents()` globs `*REVIEW-R*.md` (`:101`). Enumerating the container instead of the glob:
+
+```
+in the container but NOT in the glob: ['REVIEW-CODE-R2.md']
+```
+
+`REVIEW-CODE-R2.md` is a genuine code-review round - R2, the U1/U3/U4 round - and the substring
+`REVIEW-R` is absent from its name because the words are the other way round. It is therefore
+**neither DECLARED, nor HISTORIC, nor UNDECLARED: it is not in the population at all**, so nothing
+will ever ask it for a declaration and nothing records that it is missing one. A glob named for the
+shape its author pictured missing the member spelled differently is the shape this repository has
+now measured seven times.
+
+**Fix:** select by CONTENT or by an explicit roster, not by name shape. Cheapest honest version:
+glob `*.md`, keep anything whose first heading matches `CODE-REVIEW|REVIEW-R`, and require every
+excluded file to be named in a stated `NOT_A_ROUND` map with its reason - the same discipline
+`UNDECLARED_BY_HISTORY` already applies one level down. As a stopgap, `*REVIEW*R[0-9]*.md` picks up
+`REVIEW-CODE-R2.md` today, and `REVIEW-CODE-R2.md` needs a `UNDECLARED_BY_HISTORY` entry the moment
+it is in scope.
+
+### R12-M5 (Medium) - the exemption and the verdict read `UNDECLARED_BY_HISTORY` with different rules
+
+`:132` grants the exemption on KEY membership (`n not in UNDECLARED_BY_HISTORY`); `:135` prints the
+verdict on VALUE truthiness (`if reason:`). An entry whose reason is `""` therefore gets the
+exemption while being reported as unexplained. Probed by setting `REVIEW-R3.md` to `""`:
+
+```
+  UNDECLARED REVIEW-R3.md: no REVIEW-COVERS line, no reason
+```
+
+...printed by a run in which `REVIEW-R3.md` was never in `unexplained`. The docstring at `:71-72`
+states the intended rule - *"A bare name is refused: the reason IS the exemption"* - and the code
+does not implement it. This is `de6cd95`'s defect in miniature: a verdict line and the assertion
+behind it reading the same population by different rules.
+
+**Fix:** one line. Make the exemption test truthiness too -
+`unexplained = [n for n in undeclared if not UNDECLARED_BY_HISTORY.get(n)]` - so a blank reason is
+refused exactly as a missing key is. And assert at import that no value is blank, so the failure is
+at the map rather than at a run.
+
+### R12-L3 (Low) - "could not measure" and "found something" both exit 1
+
+`git()` raises `SystemExit(message)` on a git failure (`:88-90`), and a string argument to
+`SystemExit` exits **1** - the same code `main()` returns for "there are uncovered commits". A bad
+SHA in a declaration, a missing ref, or git absent all render as a finding. This repository's own
+convention is that `2` means the checker could not run: `check-review-coverage.py` already uses it
+correctly at `:122` and `:142`, and `check-standards-citations.py:139` is the canonical case.
+
+**Fix:** `raise SystemExit(2)` after printing, or `sys.exit(2)`, in `git()`.
+
+### R12-N2 (nit) - only the FIRST declaration in a document is read
+
+`DECLARATION.search()` (`:110`) returns one match. Measured on a two-declaration document: 2
+present, `.search()` returns the first, the second is dropped in silence. A round that covered two
+disjoint stretches - or a document later amended with a second range - loses coverage it declared.
+
+**Fix:** `finditer`, and union the ranges. Two lines, and it removes a way for a declaration to be
+written and not counted.
+
+### On the declaration this round made
+
+`REVIEW-COVERS: f699f74..dad014e` credits all 45 commits to a round that read 62 of the range's 133
+files. The checker cannot see that, by construction - it records coverage per commit and says so at
+`:39-44`. **So the manufactured-coverage risk the docstring rules out on the inferrer's side is
+still open on the author's side**, and it will get worse the moment two agents split a range by
+path, which is what happened here. **Suggested fix:** an optional third field -
+`<!-- REVIEW-COVERS: f699f74..dad014e PATHS: docs/reviews scripts .github -->` - and treat a commit
+as covered only when the union of the ranges claiming it also covers every path it touched
+(`git show --name-only`). Two path-split rounds then compose into full coverage, and one of them
+alone does not.
+
 ## Worktree
 
 `/home/plafayette/claude_projects/fmj-worktrees/r12-gates` is left in place at the orchestrator's
