@@ -73,13 +73,24 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # so the next harness cannot be added without being covered, which is the only
 # form of this fix that does not need someone to remember.
 #
-# The exactness claim now covers all 24 rows below. The firing claim covers
-# only the first NINE - the ones #91 actually ran - plus
-# `check-u15-gate-amputation.sh` in the singular
-# `check-row-floor-control.sh`. **The fourteen added afterwards have been
-# checked but never watched.** `--list` prints the table, not the evidence;
-# a reader who takes a row here as proof the floor has been seen to fire is
-# reading more than this file says. Task #102 is the remainder.
+# The exactness claim covers all 24 rows below, and SO DOES THE FIRING CLAIM
+# NOW. #91 watched the first nine; #102 watched the remaining fourteen at
+# `0c25ae3` and found all of them tight, with the evidence written up in
+# `docs/worklogs/FLOOR-FIRING-REPORT.md`; `check-u15-gate-amputation.sh` was
+# watched by the singular `check-row-floor-control.sh` and has been re-watched
+# through this script since it became row 24 (R12-M1). Every row here has been
+# seen to fire.
+#
+# R12-L1: THESE LINES SAID THE OPPOSITE UNTIL NOW, and the shape is worth
+# keeping. They read *"the fourteen added afterwards have been checked but never
+# watched ... Task #102 is the remainder"* for as long as #102 had been closed,
+# because `0c25ae3` added a worklog and touched no code - `git diff 0c25ae3^
+# 0c25ae3 --stat` is one file. A control that UNDERSTATES its own coverage and
+# points at a closed task is still a control nobody can read correctly, and the
+# fix is to rewrite the sentence rather than append a correction under it.
+#
+# What `--list` prints is still the table, not the evidence. The evidence is the
+# worklog and a run of this script.
 #
 # For those fourteen the ERE and the EXTRA were DERIVED per harness and
 # checked rather than assumed: each has exactly ONE counter increment and it

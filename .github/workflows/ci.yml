@@ -760,8 +760,16 @@ jobs:
       # and #91 found the gap between them: u7 held 31 rows against a floor
       # of 26, so five rows could be deleted with this job green. Neither
       # branch was wrong - the MERGE produced the slack, which is the
-      # direction that never announces itself. Checks the harnesses the control
-      # table names - the program prints how many, and #102 is the remainder.
+      # direction that never announces itself.
+      #
+      # THREE CLAIMS NOW, and the program prints a population count for each
+      # rather than naming one here, because the counts that were named here
+      # went stale. It checks the harnesses the control table names AND asserts
+      # that table is EQUAL to the set of harnesses carrying a ROW_FLOOR
+      # (R12-M1, which found one missing), AND compares every `--min-rows` in
+      # this file to the rows its harness will actually print (R12-H2, which
+      # found u14 at 16 rows against 10 and u7's amputation at 22 against 19).
+      # The remainder is #107: one canonical machine line per harness.
       - name: Every checked row floor EQUALS its harness's live row count
         run: python3 docs/reviews/check-row-floor-exactness.py
 
