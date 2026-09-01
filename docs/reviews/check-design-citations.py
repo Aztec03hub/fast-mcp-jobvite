@@ -72,6 +72,8 @@ import re
 import subprocess
 import sys
 
+import repoint_exempt
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DESIGN = REPO_ROOT / "docs" / "DESIGN.md"
 
@@ -119,7 +121,11 @@ def _tracked_files() -> list[pathlib.Path]:
 #: the marker and was flagged anyway. A wired gate went red on a report
 #: describing the very defect the gate looks for - the sixth time in one
 #: day a checker has found the document that documents it.
-EXEMPT_MARKER = "REPOINT-EXEMPT"
+EXEMPT_MARKER = repoint_exempt.MARKER
+#: CITATIONS skipped, not LINES. #142 changed the unit deliberately:
+#: the old line count reported 51 while 36 of those lines carried no
+#: citation at all, so the number that was supposed to make the
+#: exemption visible was mostly counting prose about the exemption.
 EXEMPT_SKIPPED = 0
 
 
@@ -138,13 +144,18 @@ def citations() -> list[tuple[pathlib.Path, int, int, int]]:
             text = path.read_text()
         except UnicodeDecodeError:
             continue
+        rel = path.relative_to(REPO_ROOT).as_posix()
         for lineno, line in enumerate(text.splitlines(), start=1):
-            if EXEMPT_MARKER in line:
-                EXEMPT_SKIPPED += 1
-                continue
             for m in _CITATION.finditer(line):
                 start = int(m.group(1))
                 end = int(m.group(2)) if m.group(2) else start
+                # #142: the marker selects the LINE and the register
+                # grants the CITATION. Neither alone is an exemption,
+                # and anything else on the line stays in the
+                # population - which is the granularity half of R13-H1.
+                if repoint_exempt.is_exempt(line, rel, start, end):
+                    EXEMPT_SKIPPED += 1
+                    continue
                 found.append((path, lineno, start, end))
     return found
 
@@ -201,7 +212,8 @@ def _report_bounds(total_lines: int) -> int:
     # `DESIGN.md:99999-99999 REPOINT-EXEMPT` passes THIS gate and the
     # shape gate, both exit 0, nothing printed - a citation 97,866
     # lines past the end of a 2133-line file.
-    print(f"  lines skipped as {EXEMPT_MARKER}: {EXEMPT_SKIPPED}")
+    print(f"  citations exempt (marked AND registered): {EXEMPT_SKIPPED}")
+    print(repoint_exempt.report())
     if bad:
         print(f"\n{len(bad)} problem(s):")
         for b in bad:
