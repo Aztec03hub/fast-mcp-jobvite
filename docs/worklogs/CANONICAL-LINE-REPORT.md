@@ -327,20 +327,33 @@ by construction, so this cannot be mistaken for a result at a glance.
    refactor having moved a harness's exit code. Timeouts are now not recorded at all, so the row
    drops out of the comparison instead of poisoning it.
 
-4. **Every background retry was killed within seconds, and the cause was my own leftover monitors.**
-   Three watcher loops from earlier attempts were still alive, occupying background slots, so each
-   new ledger pass was killed on arrival - while the FIRST attempt, started when no watchers
-   existed, had run for eleven minutes. The symptom looked like an external policy killing my work;
-   it was resource exhaustion I had caused and not cleaned up. Stopping the three watchers made the
-   next attempt start immediately and stay up. **A retry that fails differently from the original is
-   evidence about the environment, not about the thing being retried** - and I spent two rounds
-   treating it as the latter.
+4. **Every background retry was killed, and I have NOT established why. I asserted a cause once
+   and was wrong within the hour.** Four consecutive resumes died, every one of them while
+   `check-u0-test-controls.sh` - the slowest harness here, 711s solo - was the running row, none of
+   them recording a single new line.
 
-   One of those watchers was itself defective in the way this report keeps finding: its liveness
-   check was `pgrep -f "ledger-before"`, and the watcher's own command line contains that string, so
-   it matched ITSELF and could never have reported the ledger as stopped. That is the third instance
-   here of an instrument inside its own population, after the container gate matching its own prose
-   and my `pkill` killing its own shell.
+   **What I wrongly claimed:** that three leftover watcher loops of mine were occupying background
+   slots. I cleared them, relaunched, watched it start, and committed that diagnosis. **The next
+   attempt was killed anyway.** The observation I built it on was two seconds long, and two seconds
+   is indistinguishable from every other attempt - all of which also started. I wrote a cause into
+   the record on evidence that could not discriminate between the cause being right and being
+   irrelevant.
+
+   **What is actually ruled out, by measurement:** not OOM (no kernel OOM lines; 25GB available),
+   not load (2.5, with the machine otherwise idle), not the leftover watchers (cleared, still
+   killed), and not a stranded mutation or dirty tree (all three worktrees verified clean after
+   every kill). What remains untested is whether something signals the process group; the pass is
+   now launched under `setsid`, in its own session with no controlling terminal, which would put it
+   out of reach of a group signal. **That is a test, not a diagnosis** - if it survives, the cause
+   is narrowed to group-signalling; if it dies too, that is ruled out as well.
+
+   One leftover watcher WAS defective, and it is worth keeping separately from the wrong diagnosis
+   it was used to support: its liveness check was `pgrep -f "ledger-before"`, and the watcher's own
+   command line contains that string, so it matched ITSELF and could never have reported the ledger
+   as stopped. That is the third instance in this task of an instrument inside its own population,
+   after the container gate matching its own prose and my `pkill` killing its own shell. **A broken
+   instrument found while chasing a cause is not evidence for that cause**, and folding the two
+   together is how the wrong diagnosis got written up as confidently as it did.
 
 **Defect 3 was found by the orchestrator reviewing my `ps` output, not by me.** The guard already
 existed when he raised it - which is why no 124 has ever entered either ledger, and why
