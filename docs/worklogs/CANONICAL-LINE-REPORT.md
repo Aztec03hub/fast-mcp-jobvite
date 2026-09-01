@@ -348,16 +348,157 @@ intersection is. A perfect agreement over seven rows is not evidence about thirt
 
 ## 6. Gates
 
-TO BE FILLED IN
+Floors DERIVED from `ci.yml` by grep, never retyped:
+
+```
+$ grep -oE 'check-suite-floor\.sh [0-9]+' .github/workflows/ci.yml | head -1
+check-suite-floor.sh 868
+$ grep -oE 'check-harness-anchors\.py --self-check --floor [0-9]+' .github/workflows/ci.yml
+check-harness-anchors.py --self-check --floor 458
+```
+
+| gate | command, run argument for argument | result |
+|---|---|---|
+| suite | `uv run --frozen pytest -q -p no:cacheprovider` | **868 passed, 0 skipped**, 6 deselected, 57.48s |
+| types | `uv run --frozen mypy` | **exit 0** - no issues in 96 source files |
+| lint | `uv run --frozen ruff check . && uv run --frozen ruff format --check .` | **exit 0** - chained with `&&`, never `cmd; echo "EXIT=$?"` |
+| shell | `~/.local/bin/shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh docs/reviews/*.sh` | **exit 0** |
+| anchors | `python3 scripts/check-harness-anchors.py --self-check --floor 458` | **exit 0** - 458 anchors, all resolving to exactly one hit |
+| row floors | `python3 docs/reviews/check-row-floors.py` | **exit 0** - 32 harnesses, 0 with no floor at either layer |
+| exactness | `python3 docs/reviews/check-row-floor-exactness.py` | **exit 0** - 23 checked, every floor equals its live row count |
+
+**868 passed with 0 skipped**, and the count equals the floor exactly. The 6 deselected are the
+pre-existing marker-based deselection, not skips - reported because a deselected test is a test
+that did not run, and the distinction is the kind that gets lost in a summary.
+
+### ShellCheck actually runs, proved rather than assumed
+
+An absent ShellCheck does not fail; it silently checks nothing. So the binary was exercised on a
+file with known warning-level defects BEFORE the clean run was believed:
+
+```
+$ ~/.local/bin/shellcheck --version   ->  0.10.0
+$ ~/.local/bin/shellcheck --severity=warning /tmp/bad.sh
+  SC2164 (warning): Use 'cd ... || exit' ...
+  SC2128 (warning): Expanding an array without an index ...
+POSITIVE CONTROL exit=1
+```
+
+**The first positive control I wrote did NOT fire**: it used `echo $foo`, which is SC2086 at *info*
+severity and therefore invisible at `--severity=warning`. It reported exit 0 on a file I had written
+to be broken, which would have licensed the clean run for the wrong reason. A positive control has
+to be matched to the threshold the real gate uses, not merely to the tool.
+
+### Steps handed over for `ci.yml`, each RUN FIRST from the worktree
+
+The preamble is explicit that a report suggesting a `ci.yml` step must run it first, because three
+consecutive reports handed over steps that did not work. All three below were executed in the
+committed tree, and the tree was verified clean afterwards:
+
+```
+bash docs/reviews/check-harness-result.sh                       -> exit 0   (36/36 EQUAL)
+bash docs/reviews/check-harness-result-controls.sh              -> exit 0   (8/8 fired)
+bash docs/reviews/probe-floor-checker-planted-defect.sh         -> exit 0   (4/4 caught)
+git status --porcelain                                          -> empty
+```
+
+The first is cheap and static and belongs in the fast block. The second and third run real
+artifacts and take seconds, not minutes - both are affordable in the harness block. **The
+comparison step (`compare-harness-exit-codes.sh`) is deliberately NOT proposed for `ci.yml`**: it
+consumes ledgers produced by hours-long local passes, and a CI step that cannot produce its own
+inputs is a step that will be green because it found nothing to read.
 
 ---
 
 ## 7. Findings, each with a suggested fix
 
-TO BE FILLED IN
+**F1 - MEDIUM - `ci-harness-gate.sh` still parses three hand-kept tally shapes.**
+`--controls-fired`, `--result-killed` and `--anchors-applied` each grep a distinct prose literal.
+This is the same container defect, in the tally half rather than the floor half, and #102's sixth
+tally shape is what raised this task.
+*Suggested fix (a hypothesis, not an instruction):* extend the grammar with SEMANTICALLY NAMED
+per-diagnosis fields rather than one generic `fired=` - `fired=N/M` only on harnesses counting
+controls, `killed=N/M` only on those counting mutations - and have the gate select the field its
+flag names. The `key=value` grammar tolerates absent fields and every consumer parses by key
+lookup, so adding fields cannot break them. Filed as **task #120** with the blast radius (~20
+`ci.yml` steps) and the reason it was not smuggled into this task.
+
+**F2 - MEDIUM - the SINGULAR floor control could report success over an empty evidence block.**
+`docs/reviews/check-row-floor-control.sh:58` displayed a two-shape grep and discarded the result;
+the verdict rested on `rc -eq 1` alone. A harness that reworded its floor message, or printed none,
+left a blank line under "CONTROL FIRED" and the control still passed. This is #102's defect standing
+unfixed in the sibling **because the fix was applied to the instance that got reported.**
+*Fixed* at `699863c`: it now parses the canonical line and asserts `status=breach`, reported floor
+== the source's `ROW_FLOOR`, and `rows == floor - 1` after one deletion. **UNVERIFIED - not yet
+run** (see §8).
+
+**F3 - LOW - four harnesses counted no rows at all, and two of them are floored only externally.**
+`check-u1-boot-amputation.sh`, `check-u3-audit-amputation.sh`, `check-u4-client-amputation.sh` and
+`check-u1-pid1-shutdown.sh` had no row counter, so their canonical line could only ever have said
+`rows=0` - and `rows=0` beside a green is the shape a row floor exists to catch. Each gained a
+counter incremented at the TOP of its row function, so a row aborting on a missing anchor still
+counts as having run.
+*Suggested fix, beyond what I did:* `check-u1-boot-amputation.sh` and `check-u3-audit-amputation.sh`
+carry an EXTERNAL `--min-rows` floor in `ci.yml` counted by the gate from their output, and no
+internal `ROW_FLOOR`. Now that they count their own rows, they can carry one - which would bring
+them inside `check-row-floor-exactness.py`'s population and inside the floor-firing controls, both
+of which currently cannot see them. That is #79-adjacent and wants its own measured floor, so I did
+not add one on a guess.
+
+**F4 - LOW - SIGKILL prints no line, and that is a real ceiling of any trap-based mechanism.**
+`kill -9` runs no trap, so a SIGKILLed script emits nothing. It is not a silent pass -
+`ci-harness-gate.sh` already branches on `rc >= 128` - but the mechanism cannot cover it.
+*Suggested fix:* have `ci-harness-gate.sh` require a `HARNESS-RESULT name=<the harness it ran>` line
+in the output it captured, and fail explicitly when it is absent. That converts "no line" from
+something a reader must notice into something a gate refuses, and it costs one grep.
+
+**F5 - NIT, and it is evidence rather than a complaint - my own container gate had two defects,
+both found by its negative control, neither findable by reading it.**
+(a) it matched the format string in its OWN prose, reporting two copies where there is one;
+(b) its "sources the shared file" test used `grep -qF 'lib/harness-result.sh'` and **passed a script
+whose `.` line had been deleted**, because the `# shellcheck source=lib/harness-result.sh` directive
+three lines above carries the same substring. Both fixed, both recorded in the file beside the code.
+*The generalisation, which cost a third instance to see:* my own report's prose then reproduced the
+format string and tripped the same check, so the scan is now restricted to executable source -
+prose is a record, not a producer. **If an instrument can appear in its own population, it will.**
 
 ---
 
 ## 8. What I did NOT verify
 
-TO BE FILLED IN
+This section is for what I could not settle, not for what I did not try.
+
+**1. The exit-code ledger is at 7 of 36 compared.** 0 moved across those 7. **Nothing is known about
+the other 29**, and `compare-harness-exit-codes.sh` exits non-zero on that incompleteness by
+construction so it cannot be misread. The remaining work is one command per side, and it is paused
+at the orchestrator's instruction so that `check-u0-test-controls.sh` - the slowest harness here -
+can be measured solo for task #108 rather than under three-way contention. Resume order agreed:
+singular control, then before arm at budget 900, then after arm at 900, never two at once.
+
+**2. `docs/reviews/check-row-floor-control.sh` has been rewritten and NOT RUN.** `shellcheck` is 0
+and `bash -n` is clean; neither is "watched fire". A control rewritten and never watched fail is
+precisely what this task calls untested, and the label stays on until it has been run.
+
+**3. The `rows` values reported by the four harnesses that gained a counter are unverified against a
+hand count.** The counter is incremented once per row function call and the ledger records only
+`status`, so nothing I ran has yet compared, say, `check-u1-boot-amputation.sh`'s reported row count
+against the number of `report` calls in its source. `check-row-floor-exactness.py` performs exactly
+that join for harnesses with an internal `ROW_FLOOR` - which these four do not have (F3) - so they
+sit outside it.
+
+**4. I have not run the harnesses through `ci-harness-gate.sh` with their real `ci.yml` flags.** The
+canonical line is additive and cannot match any `--row-re` or vocabulary phrase in that file, which
+I checked by reading; I did not execute the ~20 gated steps to confirm it. The exit-code ledger
+covers the harnesses themselves, not the gate wrapping them.
+
+**5. Whether the 900s per-script budget is right is unmeasured.** It matches a convention rather
+than evidence. `check-u0-test-controls.sh` has exceeded 500s and 736s in separate runs under
+contention; the orchestrator is recording its solo duration, which is the number that would let this
+bound be set against measurement.
+
+**6. `docs/DESIGN.md` (frozen at `aca9397`) and the 33 numbered ADRs.** I read ADR-0023 and ADR-0018
+in full because they govern harness strict-mode and exit-status semantics directly, and grepped the
+rest plus `DESIGN.md` for harness- and reporting-related clauses, finding none that this change
+touches. I did not read `DESIGN.md`'s 2133 lines end to end; this task changes no `src/` behaviour
+and no design surface, so I judged the targeted read sufficient - but that is a judgement, and it is
+recorded here rather than left implicit.
