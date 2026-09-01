@@ -17,6 +17,14 @@
 # in fact landed. A clean zero that explains itself is the dangerous kind.
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd "$HERE/.." && pwd)
 SCRIPT="$REPO/scripts/check-suite-floor.sh"
@@ -26,7 +34,7 @@ BACKUP=$(mktemp)
 export PYTHONDONTWRITEBYTECODE=1
 
 cleanup () { cp "$BACKUP" "$SCRIPT"; rm -f "$BACKUP"; }
-trap cleanup EXIT
+trap 'harness_result_emit; cleanup' EXIT
 
 cp "$SCRIPT" "$BACKUP"
 
@@ -87,7 +95,7 @@ amputate "A4 the summary is read as the FIRST match, so a test's stdout spoofs i
   'tail -1 | cut' 'head -1 | cut'
 
 cleanup
-trap - EXIT
+trap harness_result_emit EXIT
 
 echo
 echo "$fired/$total amputations killed a test."
@@ -114,6 +122,10 @@ echo "post-run re-check of the real script: exit=0"
 # killed a test." at 7d3800c. Lowering this number is a visible diff
 # that has to be defended.
 ROW_FLOOR=4
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$total" "$ROW_FLOOR"
 if [ "$total" -lt "$ROW_FLOOR" ]; then
   echo "::error::$total/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "         A harness with fewer rows than its floor is green for the wrong reason."

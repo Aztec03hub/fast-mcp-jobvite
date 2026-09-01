@@ -21,6 +21,14 @@
 # little.
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 floor="${1:-}"
 case "$floor" in
   '' | *[!0-9]*)
@@ -43,6 +51,10 @@ if [ -z "$passed" ]; then
   exit 1
 fi
 
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$passed" "$floor"
 if [ "$passed" -lt "$floor" ]; then
   echo "::error::$passed passed, but the floor is $floor." >&2
   echo "         Tests were removed, renamed out of collection, or deselected." >&2

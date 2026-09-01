@@ -25,6 +25,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -69,7 +77,14 @@ TOTAL_SURVIVORS=0
 # ---------------------------------------------------------------------------
 # amputate <label> <file> <old> <new>
 # ---------------------------------------------------------------------------
+# A ROW COUNTER, added by task #107. This harness had none, so the
+# canonical result line could only ever report rows=0 - and rows=0
+# beside a green is exactly the shape a row floor exists to catch.
+# The increment is at the TOP of the row function so that a row
+# which aborts on a missing anchor still counts as having run.
+HR_COUNTED_ROWS=0
 amputate() {
+  HR_COUNTED_ROWS=$((HR_COUNTED_ROWS + 1))
   local label="$1" file="$2" old="$3" new="$4"
 
   echo "########## $label"
@@ -220,5 +235,9 @@ amputate "A10 nothing is written to stderr" "$AUDIT" \
   '    sys.stderr.write(f"{message}\n")' \
   '    return None'
 
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$HR_COUNTED_ROWS" 0
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
 echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"

@@ -25,6 +25,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,7 +43,7 @@ SUITE="tests/test_body_cap.py"
 OUT=/tmp/body-cap-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
 cp "$HARDENING" "$PRISTINE_DIR/hardening.py" ||
   { echo "COULD NOT TAKE PRISTINE COPY of $HARDENING"; exit 3; }
@@ -215,6 +223,10 @@ echo "########## END. Survivors above are the finding, not a failure."
 # a count of `amputate` calls taken by reading this file, which is the count
 # that goes stale the moment a row stops applying. Lowering this is a visible
 # diff that has to be defended.
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$ROWS" "$ROW_FLOOR"
 if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
   echo "::error::$ROWS/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "         A harness with fewer rows than its floor is green for the"

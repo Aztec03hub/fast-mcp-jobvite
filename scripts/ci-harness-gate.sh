@@ -48,6 +48,14 @@
 #                             exit 1 is a FINDING and exit 3 is "could not run"
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # THE ANCHOR-FAILURE VOCABULARY, all of it, across every harness here. A phrase
@@ -134,6 +142,12 @@ echo "gate vocabulary for $harness (derived from its source): ${present[*]}"
 tree_before=$(git status --porcelain 2>/dev/null || true)
 
 out=$(bash "$HARNESS_PATH" 2>&1); rc=$?
+
+# A gate invocation runs exactly ONE harness, so its own row count is 1
+# and it has no floor. Called HERE rather than earlier so that every
+# refusal above - no harness named, no such harness, no gate vocabulary -
+# still reports status=refused, which is what those refusals are.
+harness_result_ran 1 0
 echo "$out"
 
 # ---- did the harness put the tree back? ------------------------------------

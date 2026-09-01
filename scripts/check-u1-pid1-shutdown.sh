@@ -53,6 +53,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="python:3.12-slim"
 GRACE=15
@@ -63,7 +71,7 @@ SITE_PACKAGES="$REPO/.venv/lib/python3.12/site-packages"
 [ -d "$SITE_PACKAGES" ] || { echo "CANNOT RUN: $SITE_PACKAGES is missing; run uv sync --frozen"; exit 2; }
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'harness_result_emit; rm -rf "$WORK"' EXIT
 
 # The marker entry script comes from tests/boot_process.py so there is ONE source of
 # truth for how teardown is observed. Duplicating it here would be the two-lists
@@ -77,7 +85,14 @@ PY
 
 FAILED=0
 
+# A ROW COUNTER, added by task #107. This harness had none, so the
+# canonical result line could only ever report rows=0 - and rows=0
+# beside a green is exactly the shape a row floor exists to catch.
+# The increment is at the TOP of the row function so that a row
+# which aborts on a missing anchor still counts as having run.
+HR_COUNTED_ROWS=0
 run_arm () {
+  HR_COUNTED_ROWS=$((HR_COUNTED_ROWS + 1))
   local transport="$1"
   local name="u1-pid1-${transport}-$$"
   local marker="$WORK/marker-${transport}.txt"
@@ -173,6 +188,10 @@ echo "PID-1 shutdown, host venv under $IMAGE, no --init, docker stop -t $GRACE"
 run_arm stdio
 run_arm http
 
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$HR_COUNTED_ROWS" 0
 if [ "$FAILED" -ne 0 ]; then
   echo "FAILED"
   exit 1

@@ -248,44 +248,73 @@ git -C "$REPO" diff --quiet -- "$S" \
   && echo "restored: and identical to the commit" \
   || { echo "::error::RESTORE FAILED - $S still differs from HEAD"; exit 9; }
 
-echo "--- the floor's own line ---"
-# THE SAME THREE SHAPES floor_line() accepts, and it must stay that way:
-# when this display knew two shapes and the assertion knew three, the control
-# printed "CONTROL FIRED" above a BLANK evidence block - a verdict with
-# nothing under it. Evidence and assertion read the same population or the
-# verdict is unsupported.
-grep -E "(^|[^0-9])${EXPECT}/${FLOOR} ROWS|holds ${EXPECT} rows, below its floor of ${FLOOR}|ONLY ${EXPECT} ROWS RAN against a floor of ${FLOOR}" \
-  "$B.out" || true
+echo "--- the harness's canonical result line ---"
+# ONE LINE, PARSED BY FIELD NAME. Task #107.
+#
+# WHAT USED TO BE HERE. A `grep -E` alternation of THREE breach-message shapes,
+# and below it a `floor_line()` holding the SAME three as separate greps - two
+# hand-kept lists of the prose a healthy harness might print, which had to be
+# edited in lockstep. Their own comment recorded that the list "HAS NOW MISSED
+# ONE THREE TIMES", and when the display knew two shapes and the assertion knew
+# three, this control printed "CONTROL FIRED" above a BLANK evidence block: a
+# verdict with nothing under it.
+#
+# The lists are DELETED rather than extended. Every script under `scripts/` now
+# prints one canonical line from `scripts/lib/harness-result.sh`, and this
+# control reads that line and NOTHING else. A harness may reword its prose
+# freely; a fourth prose shape can no longer break this file, because no prose
+# shape is named in it.
+#
+# THE LINE IS SELECTED BY `name=`, not by position. `tail -1` alone would read
+# the wrong line whenever a gate echoes the output of the harness it ran.
+RESULT=$(grep -E "^HARNESS-RESULT name=$TARGET " "$B.out" | tail -1)
+echo "${RESULT:-<the harness printed no canonical line at all>}"
 echo "exit with $DELETE row(s) deleted: $rc (must be $WANT_RC)"
 
-# THREE PROSE SHAPES, AND THIS LIST HAS NOW MISSED ONE THREE TIMES.
-# Enumerated over all 23 harnesses in the table, by the echo directly under
-# each floor comparison: 19 print `N/M ROWS - THE HARNESS LOST ROWS.` (in
-# four different prefixes), 3 print `holds N rows, below its floor of M`,
-# and `check-critical-coverage-amputation.sh` alone prints `ONLY N ROWS RAN
-# against a floor of M`. Each miss made this control report a HEALTHY
-# harness as broken.
-#
-# **THIS IS A HAND-KEPT LIST BESIDE ITS CONTAINER and it should not exist.**
-# The durable fix is for every harness to print ONE canonical machine line
-# alongside its human sentence, and for this control to grep only that.
-# Task #107. Until then the three literals below are the whole population,
-# enumerated rather than guessed - and a fourth shape will break this again.
-floor_line() {
-  grep -qE "(^|[^0-9])${EXPECT}/${FLOOR} ROWS" "$1" ||
-    grep -qF "holds ${EXPECT} rows, below its floor of ${FLOOR}" "$1" ||
-    grep -qF "ONLY ${EXPECT} ROWS RAN against a floor of ${FLOOR}" "$1"
-}
+# Field extraction with no shape list of its own: the line is `key=value` pairs
+# separated by spaces, so it is split on spaces and the key is looked up by
+# name. A field added to the grammar later cannot break this.
+field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
 
 ok=0
-floor_line "$B.out" || {
-  echo "::error::the floor named neither '$EXPECT/$FLOOR ROWS' nor"
-  echo "         'holds $EXPECT rows, below its floor of $FLOOR'. Either the"
-  echo "         comparison never fired, or the counter does not track rows."
+if [ -z "$RESULT" ]; then
+  echo "::error::the harness printed NO 'HARNESS-RESULT name=$TARGET ...' line."
+  echo "         Either it does not source scripts/lib/harness-result.sh, or an"
+  echo "         EXIT trap set later in it replaced the armed one without"
+  echo "         chaining harness_result_emit. A missing line is NOT a pass:"
+  echo "         nothing here can say whether the floor fired."
   echo "--- last 25 lines of the run ---"
   tail -25 "$B.out"
   ok=1
-}
+else
+  GOT_ROWS=$(field "$RESULT" rows)
+  GOT_FLOOR=$(field "$RESULT" floor)
+  GOT_STATUS=$(field "$RESULT" status)
+
+  # THREE SEPARATE CLAIMS, EACH REPORTED SEPARATELY. The old shape match
+  # collapsed them into one grep, so a harness whose counter did not track rows
+  # failed with the same message as one whose floor never fired.
+  if [ "$GOT_ROWS" != "$EXPECT" ]; then
+    echo "::error::the harness reported rows=$GOT_ROWS after $DELETE row(s) were"
+    echo "         deleted; it must report $EXPECT. The counter does not track"
+    echo "         rows - which is the defect that was actually broken on"
+    echo "         check-u15-gate-amputation.sh, and the one an impossible-floor"
+    echo "         run cannot reach."
+    ok=1
+  fi
+  if [ "$GOT_FLOOR" != "$FLOOR" ]; then
+    echo "::error::the harness reported floor=$GOT_FLOOR, but its source says"
+    echo "         ROW_FLOOR=$FLOOR. The reported floor and the compared floor"
+    echo "         are not the same value."
+    ok=1
+  fi
+  if [ "$GOT_STATUS" != "breach" ]; then
+    echo "::error::the harness reported status=$GOT_STATUS, wanted breach. A"
+    echo "         'refused' means it never reached its floor comparison at all;"
+    echo "         an 'ok' means the comparison ran and did not fire."
+    ok=1
+  fi
+fi
 [ "$rc" -eq "$WANT_RC" ] || {
   echo "::error::exit $rc, wanted $WANT_RC - the floor's exit is swallowed or"
   echo "         something else failed first."
@@ -293,7 +322,4 @@ floor_line "$B.out" || {
 }
 rm -f "$B.out"
 [ "$ok" -eq 0 ] || exit 1
-# NOT "prints $EXPECT/$FLOOR ROWS" - that sentence is FALSE for the four
-# harnesses whose floor line carries no `N/M ROWS` at all. The real line was
-# already printed above under "--- the floor's own line ---".
-echo "CONTROL FIRED: $TARGET loses $DELETE row(s) and its floor said so, exiting $rc."
+echo "CONTROL FIRED: $TARGET loses $DELETE row(s), reported rows=$EXPECT floor=$FLOOR status=breach, exiting $rc."
