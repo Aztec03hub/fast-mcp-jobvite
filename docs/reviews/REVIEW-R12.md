@@ -39,6 +39,31 @@ Both floors are TIGHT (868 == 868, 458 == 458). `grep -cE ' SKIPPED'` over the r
 
 ---
 
+## Disposition - all eight accepted and fixed on `review/r12`
+
+Fixed in the orchestrator's stated order. Every fix was measured both ways before it was committed;
+the evidence is in each commit message and repeated under each finding below.
+
+| Finding | Fix | Commit |
+|---|---|---|
+| H1 | re-anchored on unreflowable lines, `assert` -> recorded PROBLEM, and WIRED | `ee4c816` |
+| H2 | a third claim comparing every `--min-rows` to a live count; u14 10->16, u7 19->22 from runs | `874dedc` |
+| M1 | `check-u15-gate-amputation.sh` added as a row, plus a container assertion in both directions | `368c545` |
+| M2 | `files = [..., "scripts"]`, proved with a two-arm control on two separate files | `1fa7b5e` |
+| L1 | the "never watched" prose rewritten in place; ci.yml's dangling `#102` repointed | `ca84093` |
+| L2 | the count deleted rather than corrected | `ee84ab7` |
+| N1 | the symmetric check added - **and it found 46, not the 2 I filed** | `ee84ab7` |
+| M3 | no code fix: `0fb4cd6` closed it, out of range. Recorded, not actioned | - |
+
+**Two things I got wrong, corrected in place above rather than appended to.** N1's size (2 filed, 46
+measured) and the wired/unwired inventory in H1 (three files mislabelled by a grep that counted
+comments). Both are the same failure this report is about, committed by the report.
+
+**Not done, and needing its own task:** the 46 ranges N1 now names. They span `src/`, `tests/` and
+`scripts/`, where three other agents are working.
+
+---
+
 ## Findings
 
 ### R12-H1 (High) - `probe-docs-lint-amputation.py` has been DEAD since `449968f`, and nothing noticed
@@ -85,10 +110,18 @@ the closing tree-clean re-check. The two probes it drives still pass on their ow
 7/7 under `uv run --frozen python`) - but nothing has shown them able to FAIL since `449968f`.
 
 It went unnoticed because the probe is **unwired**: `grep -n 'probe-docs-lint-amputation'
-.github/workflows/ci.yml` returns nothing. Of the 13 unwired `.py` files under `docs/reviews/` and
-4 under `scripts/`, only `classify-w505.py` and the two `adr-batch-*.py` declare themselves
-one-shots - so this one sits in exactly the "cannot tell deliberately-unwired from overlooked" state
-`classify-w505.py`'s own docstring says is the reason it declares itself.
+.github/workflows/ci.yml` returns nothing. Of the 39 `.py` files under `docs/reviews/` and
+`scripts/`, **19 are unwired** and only `classify-w505.py` and the two `adr-batch-*.py` declare
+themselves one-shots - so this one sat in exactly the "cannot tell deliberately-unwired from
+overlooked" state `classify-w505.py`'s own docstring says is the reason it declares itself.
+
+**A CORRECTION TO MY OWN METHOD HERE.** I first derived that inventory by grepping each basename
+against the whole of `ci.yml`, which counts a name appearing in a COMMENT as wired. Three files were
+mislabelled that way - `check-design-citation-shape.py`, `check-clause-citations.py` and
+`check-env-vars-are-declared.py` are all unwired, each named only in prose. Re-derived by parsing
+every job's `run:` blocks out of the YAML and searching those: **20 wired** (including this probe
+now), 19 not. An instrument's output stated as the object's property, which is the failure this
+report spends most of its length on.
 
 I checked every other probe in the tree at HEAD, so this is one file and not a class:
 `probe-r4-h3-live-arm-cannot-detect`, `probe-r6-arm1c-tautology`, `probe-r6-breaker-reset`,
@@ -314,19 +347,32 @@ and extension, so the population is the tracked `.sh` files, which includes the 
 
 ---
 
-### R12-N1 (nit) - two repointed citation ranges end one line past their subject
+### R12-N1 (nit as filed, MEDIUM as measured) - 46 citation ranges end one line past their subject
 
-`scripts/check-u7-resilience-controls.sh` cites `DESIGN.md:373-383` for the 429 clause and
-`DESIGN.md:674-680` for correlated logging. Read with a numbered awk over `docs/DESIGN.md`, line 383
-and line 680 are both **blank**; the 429 clause ends at 375 (ADR-0030's paragraph at 382) and the
-logging paragraph at 679. `check-design-citations.py` rejects a range that STARTS on a blank line
-(`elif not lines[lo - 1].strip()`) but has no symmetric check on the end, so both pass.
+**FIXED, and my own filing was the illustration.** I raised this off the TWO instances I had
+happened to read: `scripts/check-u7-resilience-controls.sh` cites `DESIGN.md:373-383` for the 429
+clause and `DESIGN.md:674-680` for correlated logging, and lines 383 and 680 are both blank (the
+429 clause ends at 375, ADR-0030's paragraph at 382, the logging paragraph at 679).
+`check-design-citation-shape.py` rejects a range that STARTS on a blank line and had no mirror for
+one that ENDS on one, so both passed.
 
-**Suggested fix:** add the mirror condition to `check-design-citations.py` - a range whose LAST line
-is blank is one line long - then trim the two ranges to `373-382` and `674-679`. Every other
-repointed range I read resolved to its stated subject exactly (`366-367` the 4xx/breaker clause,
-`392-394` the outbound budget, `359-361` retries-live-inside-this-module, `365` "one call, four rows
-created", `370` the `retry_after` hint).
+**Adding the mirror found 46, not 2.** That is this checker's own opening lesson - a partial check
+selects for the form it cannot see - arriving at the reviewer writing the check for it. A finding
+raised from a partial read is a partial check. The severity above is corrected rather than left as
+filed.
+
+**Fixed at `ee84ab7`:** the symmetric condition is in, as a plain finding rather than an opt-in
+flag, because `check-design-citation-shape.py` is NOT wired - so a red run is a backlog to work,
+which is exactly what its own closing paragraph asks for. Run: 871 citations, **46 "ends on a BLANK
+line (one line too long)"**, exit 1.
+
+**The 46 are NOT swept, deliberately.** They span `src/` and `tests/`, which are `review-r11`'s, and
+`scripts/`, where `canonical-line` and `review-r9` are both working; a sweep from this branch would
+collide with all three. It needs its own task.
+
+Every other repointed range I read resolved to its stated subject exactly (`366-367` the 4xx/breaker
+clause, `392-394` the outbound budget, `359-361` retries-live-inside-this-module, `365` "one call,
+four rows created", `370` the `retry_after` hint).
 
 ---
 
