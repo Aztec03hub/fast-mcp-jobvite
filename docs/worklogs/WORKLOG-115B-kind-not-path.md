@@ -166,7 +166,7 @@ here."*
 
     uv run --frozen python docs/reviews/check-design-citations.py   EXIT=1
       FAIL: docs/worklogs/AUDIT-SURVIVORS-REPORT.md:266:
-            DESIGN.md:99999 is past the end of DESIGN.md (2133 lines)
+            DESIGN.md:99999 is past the end of DESIGN.md (2133 lines)  <!-- REPOINT-EXEMPT: quotes a checker failure as evidence -->
 
 That is **pre-existing at my base `9b00879`** and nothing to do with this branch.
 `git show 9b00879:docs/worklogs/AUDIT-SURVIVORS-REPORT.md` line 266 carries the planted
