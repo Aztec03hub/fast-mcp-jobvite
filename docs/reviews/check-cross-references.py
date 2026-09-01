@@ -121,10 +121,21 @@ def unresolved(
 ) -> list[tuple[int, str]]:
     """Every `§n.m` in neither this document nor its referent."""
     known = headings(text)
-    if not known:
-        raise ValueError("no numbered headings found at all")
     if referent:
         known |= headings((REPO_ROOT / referent).read_text())
+    # THE GUARD RUNS AFTER THE REFERENT IS MERGED IN, and it used to run
+    # before (#139). Its purpose is to refuse a check against an EMPTY
+    # heading set, where every reference would be reported broken and
+    # the finding would be an artefact of the instrument. But run before
+    # the merge it also refused every document that has NO numbered
+    # headings OF ITS OWN and cites another document's - which is
+    # precisely what an ADR is. MEASURED: 22 of the 30 non-record
+    # documents carrying section references were rejected this way,
+    # including 21 ADRs, so the load-bearing half of the population was
+    # structurally uncheckable while the checker reported success on the
+    # three documents it did admit.
+    if not known:
+        raise ValueError("no numbered headings found at all")
     missing: list[tuple[int, str]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         # A line that NAMES another document is citing that document's
@@ -191,11 +202,21 @@ def controls() -> int:
     """Prove each check can go red, on real content not a toy."""
     design = REPO_ROOT / "docs" / "DESIGN.md"
     text = design.read_text()
+    design_name = "docs/DESIGN.md"
     fired = 0
     total = 0
 
+    # THE NAME IS LOAD-BEARING AND THESE CONTROLS OMITTED IT (#139).
+    # `unresolved()` consults `_EXEMPT[name]`, so a call without `name`
+    # asks a DIFFERENT QUESTION than the gate asks: DESIGN.md's §20.2
+    # exemption stops applying and the document reads as having one
+    # unresolved reference. The third control below therefore reported
+    # "the real file is red" against a file the gate calls clean, and it
+    # had been doing so unnoticed because CI runs this checker WITHOUT
+    # `--controls`. A control that does not reproduce the gate's own
+    # call is measuring its own construction.
     total += 1
-    if unresolved(text.replace("§8", "§99", 1)):
+    if unresolved(text.replace("§8", "§99", 1), None, design_name):
         fired += 1
         print("  CONTROL a dangling reference is caught -> FIRED")
     else:
@@ -210,7 +231,7 @@ def controls() -> int:
         print("  CONTROL a file with no headings is a failure -> FIRED")
 
     total += 1
-    if not unresolved(text):
+    if not unresolved(text, None, design_name):
         fired += 1
         print("  CONTROL the unmutated document is clean -> FIRED")
     else:

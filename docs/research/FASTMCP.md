@@ -4,8 +4,11 @@
 
 Research method: PyPI JSON API, the official docs site `gofastmcp.com`, `modelcontextprotocol.io`,
 and direct inspection of installed source trees. Claims read out of a source tree rather than the
-docs are tagged `[FROM SOURCE]`. Claims marked **[SPIKE]** were executed — see
-[`FASTMCP-SPIKE-4.md`](FASTMCP-SPIKE-4.md) for the evidence.
+docs are tagged `[FROM SOURCE]`. Claims marked **[SPIKE]** were executed; a
+**[FASTMCP-SPIKE-4.md §n]** tag names the section of
+[`FASTMCP-SPIKE-4.md`](FASTMCP-SPIKE-4.md) holding the evidence. The section number
+belongs to THAT document, never to this one - both files number their sections from
+1, so a bare `§7` here would read as this document's §7 and point at the wrong text.
 
 > **Changelog.** This document originally recommended pinning `fastmcp>=3.4.7,<4.0.0` and staying
 > off the 4.0 beta. Phil overruled that on 2026-08-27: we are deliberate early adopters of
@@ -19,32 +22,32 @@ docs are tagged `[FROM SOURCE]`. Claims marked **[SPIKE]** were executed — see
 
 | Decision | Recommendation |
 |---|---|
-| **Version to pin** | `fastmcp==4.0.0b4` **and** `fastmcp-slim==4.0.0b4` as direct dependencies, with `[tool.uv] prerelease = "explicit"`. Naming `fastmcp-slim` is not optional — without it the resolver either fails or drags in a *beta pydantic*. **[SPIKE §1.3]** Pin `mcp` too: the one 4.0 defect we found was caused by a dependency major-bump underneath unchanged code. |
-| **Python floor** | **3.12** (per the standards). Verified working on 3.11.15 and 3.12.3; behaviour identical. **[SPIKE §10.1]** |
-| **MCP spec revision we get** | **`2026-07-28`** (sessionless) by default, and `2025-11-25` for handshake-era clients — both served simultaneously from one server on one port. Proven, not quoted. **[SPIKE §3.3]** |
-| **Transport** | **stdio by default**, Streamable HTTP opt-in via config. `mcp.run(transport="http", host=..., port=..., path="/mcp")`; `/mcp` is also the default path. `sse` is deprecated. A public repo gets both local and hosted users, so hardcoding HTTP locks out every local client. **[SPIKE §7]** |
-| **Auth** | `StaticTokenVerifier` from `fastmcp.server.auth.providers.jwt`, token dict loaded from the environment. Never hand-roll a `TokenVerifier` subclass. Per-tool authorization via `@mcp.tool(auth=require_scopes(...))`. **[SPIKE §4]** |
-| **Errors** | `raise ToolError(...)` for anything actionable; let unexpected exceptions raise and set `mask_error_details=True`. **[SPIKE §5]** |
-| **Required config** | pydantic-settings with non-defaulted fields. `fastmcp.json` **cannot** express a required env var and fails *silently*. **[SPIKE §10]** |
-| **Mandatory workaround** | An **explicit** SIGTERM handler that raises `KeyboardInterrupt`, plus `os._exit(0)` after `run()` returns — or lifespan teardown never runs on container stop, and on stdio the process survives SIGTERM entirely. Do **not** use `signal.getsignal(SIGINT)`: it can install *ignore SIGTERM*. **[SPIKE §19.5]** |
+| **Version to pin** | `fastmcp==4.0.0b4` **and** `fastmcp-slim==4.0.0b4` as direct dependencies, with `[tool.uv] prerelease = "explicit"`. Naming `fastmcp-slim` is not optional — without it the resolver either fails or drags in a *beta pydantic*. **[FASTMCP-SPIKE-4.md §1.3]** Pin `mcp` too: the one 4.0 defect we found was caused by a dependency major-bump underneath unchanged code. |
+| **Python floor** | **3.12** (per the standards). Verified working on 3.11.15 and 3.12.3; behaviour identical. **[FASTMCP-SPIKE-4.md §10.1]** |
+| **MCP spec revision we get** | **`2026-07-28`** (sessionless) by default, and `2025-11-25` for handshake-era clients — both served simultaneously from one server on one port. Proven, not quoted. **[FASTMCP-SPIKE-4.md §3.3]** |
+| **Transport** | **stdio by default**, Streamable HTTP opt-in via config. `mcp.run(transport="http", host=..., port=..., path="/mcp")`; `/mcp` is also the default path. `sse` is deprecated. A public repo gets both local and hosted users, so hardcoding HTTP locks out every local client. **[FASTMCP-SPIKE-4.md §7]** |
+| **Auth** | `StaticTokenVerifier` from `fastmcp.server.auth.providers.jwt`, token dict loaded from the environment. Never hand-roll a `TokenVerifier` subclass. Per-tool authorization via `@mcp.tool(auth=require_scopes(...))`. **[FASTMCP-SPIKE-4.md §4]** |
+| **Errors** | `raise ToolError(...)` for anything actionable; let unexpected exceptions raise and set `mask_error_details=True`. **[FASTMCP-SPIKE-4.md §5]** |
+| **Required config** | pydantic-settings with non-defaulted fields. `fastmcp.json` **cannot** express a required env var and fails *silently*. **[FASTMCP-SPIKE-4.md §10]** |
+| **Mandatory workaround** | An **explicit** SIGTERM handler that raises `KeyboardInterrupt`, plus `os._exit(0)` after `run()` returns — or lifespan teardown never runs on container stop, and on stdio the process survives SIGTERM entirely. Do **not** use `signal.getsignal(SIGINT)`: it can install *ignore SIGTERM*. **[FASTMCP-SPIKE-4.md §19.5]** |
 
 ### The httpx → httpx2 decision (open)
 
 4.0 replaces `httpx` with **`httpx2`**, which reaches the public API (`Client.__init__` is typed
 `auth: httpx2.Auth`). `httpx` is not installed at all. The two **do** coexist as separate modules,
 so our Jobvite client may use either — but `except httpx.HTTPError` will never catch a
-FastMCP-raised exception. Keep every `except httpx.*` in one module. **[SPIKE §1.2]**
+FastMCP-raised exception. Keep every `except httpx.*` in one module. **[FASTMCP-SPIKE-4.md §1.2]**
 
 ### Top 5 things `fast-mcp-jira` does that we must not copy
 
 1. **`mcp-server.json` is not a FastMCP artifact.** Zero hits across the installed package `[FROM SOURCE]`. The real manifest is **`fastmcp.json`** (`source` required, plus `environment`, `deployment`). `fast-mcp-jira`'s `env_vars` array with `display_name`/`sensitive`/`validation` is a half-remembered **`server.json`** (the MCP Registry artifact, whose keys are `environmentVariables`/`isRequired`/`isSecret`) under the wrong filename with the wrong casing — which is exactly why nothing reads it. See §12(b).
-2. **Hand-rolled `ApiKeyVerifier(TokenVerifier)`** (`auth.py`) — reimplements `StaticTokenVerifier` plus a bespoke `AuthRateLimiter`. ~150 lines to delete. Note the framework's own `RateLimitingMiddleware` is **not per-client by default** and needs an explicit `get_client_id` **[SPIKE §13.1]**.
+2. **Hand-rolled `ApiKeyVerifier(TokenVerifier)`** (`auth.py`) — reimplements `StaticTokenVerifier` plus a bespoke `AuthRateLimiter`. ~150 lines to delete. Note the framework's own `RateLimitingMiddleware` is **not per-client by default** and needs an explicit `get_client_id` **[FASTMCP-SPIKE-4.md §13.1]**.
 3. **A stale version floor.** `fastmcp>=3.1.0` (2026-03-03) hides `MultiAuth`, `run_in_thread`, `AuthCheck`/`require_scopes`, tool `timeout=`, and the whole `providers/` auth directory.
 4. **Tools return `build_response(False, error=...)` dicts on failure**, so the client sees `isError: false` on every upstream 4xx. Raise `ToolError` instead.
 5. **Hardcoded HTTP transport with no stdio path** (`__main__.py`), plus custom logging/caching infrastructure that framework middleware now covers.
 
 **NOT outdated, verified twice:** `from fastmcp.server.lifespan import lifespan` used as a decorator
-**survives into 4.0.0b4**, and `|` composition works. Do not "fix" that import. **[SPIKE §2]**
+**survives into 4.0.0b4**, and `|` composition works. Do not "fix" that import. **[FASTMCP-SPIKE-4.md §2]**
 
 ---
 
@@ -69,16 +72,16 @@ Source: `https://pypi.org/pypi/fastmcp/json`.
 ### MCP protocol revision
 
 - Installed `mcp` is **1.29.0**. `mcp.types.LATEST_PROTOCOL_VERSION == "2025-11-25"`, `DEFAULT_NEGOTIATED_VERSION == "2025-03-26"` `[FROM SOURCE]`.
-- **The docs site does not publish an "implements spec revision X" statement for any FastMCP release.** For 4.0 this no longer matters: the server itself reports its supported versions via `server/discover`, and that was executed **[SPIKE §3.1]**.
+- **The docs site does not publish an "implements spec revision X" statement for any FastMCP release.** For 4.0 this no longer matters: the server itself reports its supported versions via `server/discover`, and that was executed **[FASTMCP-SPIKE-4.md §3.1]**.
 - Per `https://modelcontextprotocol.io/specification/versioning`: *"The **current** protocol version is [**2026-07-28**]."* That revision replaces the initialize-handshake with per-request version declaration via `io.modelcontextprotocol/protocolVersion` in `_meta` (and the `MCP-Protocol-Version` header over Streamable HTTP), adds a mandatory `server/discover` RPC, and returns `UnsupportedProtocolVersionError` on mismatch.
 - Per `https://gofastmcp.com/updates`, FastMCP **4.0.0b1** is where dual-era support lands: *"Dual protocol support: both sessionless `2026-07-28` and older session-based handshake per connection."*
 
 ### Version and spec facts
 
 - `fastmcp` 4.0.0b4 released **2026-08-26**; 3.4.7 (last stable) 2026-08-10. `requires_python >=3.10`.
-- 4.0 resolves to `mcp` **2.1.1**, `mcp-types` 2.1.1, `starlette` 1.6.0, `httpx2` 2.12.0, and requires `pydantic>=2.12`. **[SPIKE §1.1]**
-- The current published MCP spec revision is **`2026-07-28`**, per `https://modelcontextprotocol.io/specification/versioning`. 4.0 serves it **and** the older handshake revisions from the same server. **[SPIKE §3]**
-- `server/discover` reports `supportedVersions: ["2026-07-28"]` **only**, despite demonstrably serving 2025-11-25 clients — do not treat that list as exhaustive. **[SPIKE §3.1]**
+- 4.0 resolves to `mcp` **2.1.1**, `mcp-types` 2.1.1, `starlette` 1.6.0, `httpx2` 2.12.0, and requires `pydantic>=2.12`. **[FASTMCP-SPIKE-4.md §1.1]**
+- The current published MCP spec revision is **`2026-07-28`**, per `https://modelcontextprotocol.io/specification/versioning`. 4.0 serves it **and** the older handshake revisions from the same server. **[FASTMCP-SPIKE-4.md §3]**
+- `server/discover` reports `supportedVersions: ["2026-07-28"]` **only**, despite demonstrably serving 2025-11-25 clients — do not treat that list as exhaustive. **[FASTMCP-SPIKE-4.md §3.1]**
 
 ---
 
@@ -412,7 +415,7 @@ fastmcp run server.py -- --config config.json        # pass args to the server
 
 ## 7. Lifespan — survives 4.0, and the reference project's import is CORRECT
 
-`fastmcp/server/lifespan.py` **exists in 4.0.0b4** (and in 3.4.7) and the `@lifespan` decorator import path `from fastmcp.server.lifespan import lifespan` is exactly what its own module docstring documents `[FROM SOURCE]`. Composition and teardown order are executed and confirmed on 4.0 **[SPIKE §9.1]**:
+`fastmcp/server/lifespan.py` **exists in 4.0.0b4** (and in 3.4.7) and the `@lifespan` decorator import path `from fastmcp.server.lifespan import lifespan` is exactly what its own module docstring documents `[FROM SOURCE]`. Composition and teardown order are executed and confirmed on 4.0 **[FASTMCP-SPIKE-4.md §9.1]**:
 
 ```python
 from fastmcp import FastMCP
@@ -486,21 +489,21 @@ Hooks by specificity: `on_message`; `on_request` / `on_notification`; `on_call_t
 
 Built-ins (modules confirmed present at `fastmcp/server/middleware/` `[FROM SOURCE]`: `authorization, caching, dereference, error_handling, logging, ping, rate_limiting, response_limiting, timing, tool_injection`):
 
-| Middleware | Status for us **[SPIKE §6, §13]** |
+| Middleware | Status for us **[FASTMCP-SPIKE-4.md §6, §13]** |
 |---|---|
 | `StructuredLoggingMiddleware` | ✅ safe — keep `include_payloads=False` (payloads are candidate PII) |
 | `TimingMiddleware` | ✅ safe |
 | `ResponseCachingMiddleware` | ✅ safe; tool-call caching is **opt-in** via `call_tool_settings` |
-| `RetryMiddleware` | ⛔ **cannot exclude a tool** — no `tools=` parameter, hooks `on_request`, and it duplicated a non-idempotent write 4x in one call. Put retries in the Jobvite client instead **[SPIKE §13.3]** |
-| `RateLimitingMiddleware` | ✅ **adopt for D4**, with: explicit `get_client_id` (default keys everyone to `"global"`), burst sized `calls + 2`, restart-to-reconfigure (attribute mutation has no effect), and refusals arriving as raised `MCPError`s not problem objects **[SPIKE §14.1]** |
+| `RetryMiddleware` | ⛔ **cannot exclude a tool** — no `tools=` parameter, hooks `on_request`, and it duplicated a non-idempotent write 4x in one call. Put retries in the Jobvite client instead **[FASTMCP-SPIKE-4.md §13.3]** |
+| `RateLimitingMiddleware` | ✅ **adopt for D4**, with: explicit `get_client_id` (default keys everyone to `"global"`), burst sized `calls + 2`, restart-to-reconfigure (attribute mutation has no effect), and refusals arriving as raised `MCPError`s not problem objects **[FASTMCP-SPIKE-4.md §14.1]** |
 | `ErrorHandlingMiddleware` | ⛔ **default `transform_errors=True` breaks the `ToolError` contract** — turns tool failures into raised `MCPError`s and relabels `ToolError` as "Internal error". Only usable with `transform_errors=False` |
 | `ResponseLimitingMiddleware` | ⛔ **BROKEN** — truncation drops `structured_content` while the `outputSchema` remains, so the client raises. Cap sizes inside the tool instead |
-| `PingMiddleware` | ➖ inert — the `ping` RPC does not exist on the sessionless era **[SPIKE §14.4]** |
+| `PingMiddleware` | ➖ inert — the `ping` RPC does not exist on the sessionless era **[FASTMCP-SPIKE-4.md §14.4]** |
 | `DereferenceMiddleware`, `ToolInjectionMiddleware`, `AuthorizationMiddleware` | ❓ untested — assume nothing |
 
 Four of the eight exercised are unusable or need their defaults overridden. **Spike any middleware before adopting it.**
 
-**Error-shape note:** RFC 9457 problem objects *returned* from a tool are unaffected by `ErrorHandlingMiddleware`, `transform_errors` and `mask_error_details` alike — they are the only error shape no configuration can distort, which argues for making them our primary error channel for expected conditions **[SPIKE §14.2]**.
+**Error-shape note:** RFC 9457 problem objects *returned* from a tool are unaffected by `ErrorHandlingMiddleware`, `transform_errors` and `mask_error_details` alike — they are the only error shape no configuration can distort, which argues for making them our primary error channel for expected conditions **[FASTMCP-SPIKE-4.md §14.2]**.
 
 Access HTTP headers inside middleware via `get_http_headers()` from `fastmcp.server.dependencies`.
 
@@ -843,9 +846,9 @@ So: **`server.json` is the declaration to clients; pydantic-settings is the enfo
 
 ## What I could NOT verify
 
-- **The spec revision is no longer an open question.** It was resolved by execution: `server/discover` on 4.0.0b4 reports `supportedVersions: ["2026-07-28"]`, and a legacy client negotiates `2025-11-25` against the same server **[SPIKE §3]**.
+- **The spec revision is no longer an open question.** It was resolved by execution: `server/discover` on 4.0.0b4 reports `supportedVersions: ["2026-07-28"]`, and a legacy client negotiates `2025-11-25` against the same server **[FASTMCP-SPIKE-4.md §3]**.
 - **GitHub releases/CHANGELOG were not read directly.** `api.github.com/repos/jlowin/fastmcp/releases` returned a non-list payload (rate limit or the repo has moved — context7 redirects `/jlowin/fastmcp` to `/prefecthq/fastmcp`, suggesting an org transfer). The version/date table above is from the PyPI JSON API, which is authoritative for release timing; the change descriptions are from the official `gofastmcp.com/updates` page. **I did not cross-check the changelog against the git history.**
-- **The 3.x → 4.0 migration table in §11 is still documentation-derived**, taken from the official upgrade guide. The items I executed are marked **[SPIKE]**; the rest (tasks, `Depends()`, `create_proxy`, `mount`, `OpenAPIProvider`) are unverified. The lifespan question that used to sit here **is resolved: `fastmcp.server.lifespan.lifespan` survives into 4.0** **[SPIKE §2]**.
+- **The 3.x → 4.0 migration table in §11 is still documentation-derived**, taken from the official upgrade guide. The items I executed are marked **[SPIKE]**; the rest (tasks, `Depends()`, `create_proxy`, `mount`, `OpenAPIProvider`) are unverified. The lifespan question that used to sit here **is resolved: `fastmcp.server.lifespan.lifespan` survives into 4.0** **[FASTMCP-SPIKE-4.md §2]**.
 - **`IntrospectionTokenVerifier` import path** is quoted from the docs (`fastmcp.server.auth.providers.introspection`) and the module file exists `[FROM SOURCE]`, but I did not instantiate it or read its constructor.
 - **`https://gofastmcp.com/deployment/testing` returns 404.** The testing content lives at `/patterns/testing`. If a `deployment/testing` page is referenced anywhere, it is stale.
 - **The `fastmcp install` subcommand surface** was not enumerated beyond the top-level help line.
