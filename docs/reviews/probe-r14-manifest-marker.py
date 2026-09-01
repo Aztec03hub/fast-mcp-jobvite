@@ -42,6 +42,7 @@ import json
 import pathlib
 import subprocess
 import sys
+from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CHECKER = ROOT / "docs" / "reviews" / "check-settings-are-read.py"
@@ -92,27 +93,29 @@ def substitute(path: pathlib.Path, old: str, new: str) -> None:
 VARIABLE = "JOBVITE_OUTBOUND_RATE_LIMIT"
 
 
-def read_manifest() -> dict:
+def read_manifest() -> dict[str, Any]:
     """The manifest, parsed."""
-    return json.loads(MANIFEST.read_text(encoding="utf-8"))
+    document: dict[str, Any] = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return document
 
 
-def write_manifest(document: dict) -> None:
-    """Write a parsed manifest back, formatting irrelevant to the check."""
+def write_manifest(document: dict[str, Any]) -> None:
+    """Write a parsed manifest back; formatting is irrelevant here."""
     MANIFEST.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
-def rate_limit_entry(document: dict) -> dict:
+def rate_limit_entry(document: dict[str, Any]) -> dict[str, Any]:
     """The one real declaration, or refuse - a plant needs a subject."""
     for package in document.get("packages", []):
         for entry in package.get("environmentVariables", []):
             if entry.get("name") == VARIABLE:
-                return entry
+                found: dict[str, Any] = entry
+                return found
     message = f"{MANIFEST.name} has no {VARIABLE} entry to plant against"
     raise SystemExit(message)
 
 
-def plant_duplicate(document: dict) -> dict:
+def plant_duplicate(document: dict[str, Any]) -> dict[str, Any]:
     """A SECOND declaration of the same name, deliberately unmarked."""
     clone = dict(rate_limit_entry(document))
     clone["description"] = "An outbound self-throttle, requests per minute."
@@ -120,7 +123,7 @@ def plant_duplicate(document: dict) -> dict:
     return document
 
 
-def plant_outside(document: dict) -> dict:
+def plant_outside(document: dict[str, Any]) -> dict[str, Any]:
     """Strip the real entry; plant a MARKED look-alike out of scope."""
     for package in document.get("packages", []):
         package["environmentVariables"] = [
@@ -140,8 +143,17 @@ def tree_is_clean() -> bool:
         # CLEAN - and this guard's own message says "commit or stash
         # first". Measured: modify+`git add` gives exit 0 without HEAD
         # and exit 1 with it (R14-R1 N1).
-        ["git", "-C", str(ROOT), "diff", "--quiet", "HEAD", "--",
-         str(MANIFEST), str(CHECKER)],
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "diff",
+            "--quiet",
+            "HEAD",
+            "--",
+            str(MANIFEST),
+            str(CHECKER),
+        ],
         check=False,
     )
     return done.returncode == 0
@@ -189,8 +201,8 @@ def main() -> int:
         substitute(CHECKER, NARROW, WIDE)
 
         # LINE-RULE: THE ARM THAT MAKES THE JSON BRANCH LOAD-BEARING
-        # (R14-R1 H1). Reword the description so it carries the marker
-        # WITHOUT repeating the variable name. That is a CORRECTLY
+        # (R14-R1 H1). Reword the description so it carries the
+        # marker WITHOUT repeating the variable name. A CORRECTLY
         # marked manifest. The structural reader must accept it; a
         # line rule cannot, because name and marker no longer share a
         # line. Without this arm the whole branch is an amputation
@@ -231,7 +243,7 @@ def main() -> int:
         )
 
         # SCOPE-OUT: strip the real entry and plant a MARKED look-alike
-        # OUTSIDE packages[*].environmentVariables. The old whole-document
+        # OUTSIDE packages[*].environmentVariables. The old whole-doc
         # walk accepted this and exited 0 on a manifest with no real
         # declaration at all (R14-R1 H2, second plant).
         write_manifest(plant_outside(read_manifest()))
