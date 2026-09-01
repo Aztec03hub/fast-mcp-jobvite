@@ -1,11 +1,29 @@
 # CODE-REVIEW-R11 - the 45-commit hole, code and design half
 
+<!-- REVIEW-COVERS: f699f74..dad014e -->
+
 **Range:** `git diff f699f74..dad014e -- src tests docs/adr docs/DESIGN.md`, 56 files, +1052/-727.
 **Worktree:** `/home/plafayette/claude_projects/fmj-worktrees/r11-code`, branch `review/r11`, detached
 from `dad014e`. **Frozen design read as `git show aca9397:docs/DESIGN.md`**, which is byte-identical
 to the working tree's copy (`git show aca9397:docs/DESIGN.md | cmp - docs/DESIGN.md` -> identical).
-`review-r12` has the checkers, scripts and workflows; two things I noticed in that half are at the
-end, unchased.
+
+### What the coverage declaration above does and does not claim
+
+`check-review-coverage.py` reads the `REVIEW-COVERS` line as `git rev-list f699f74..dad014e` - the 45
+commits, `f699f74` exclusive and `dad014e` inclusive. That is the range **I was made responsible
+for**, and declaring it is what stops this stretch of trunk from looking unreviewed again.
+
+**It is not a claim that I read every line of those 45 commits, and the difference is a path filter.**
+This round was dispatched with the scope `-- src tests docs/adr docs/DESIGN.md`, which is 56 of the
+133 files the range touches. The other half - the checkers, `scripts/`, and `.github/workflows/` - went
+to `review-r12` over the same commit range, so the span is covered by two documents with
+complementary path filters rather than by this one alone. If `review-r12`'s document ends up without
+a `REVIEW-COVERS` line, this declaration will make the range read as fully covered when only the
+`src`/`tests`/design slice of it was mine, and that is the failure mode worth watching: the checker's
+own docstring says it proves a commit falls inside a declared range and never that anyone read it.
+
+Two things I noticed inside `review-r12`'s half and deliberately did not chase are listed under
+**What I did NOT verify**, at the end.
 
 ## Gates, each read from its own exit code
 
