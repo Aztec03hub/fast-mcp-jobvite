@@ -375,9 +375,17 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
-- **Every pytest call in a harness is bounded now - 64 of 64 - and the five that were missed all
-  wore a prefix.** A previous sweep bounded 59 and reported itself finished. The five it left
-  behind share one property: **not one of them starts its line with `uv run`**. They are a command
+- **Nine more harness pytest calls were bounded, and the count I first published was wrong.** I
+  wrote "64 of 64"; review R10 measured **64 of 73**. My selector was
+  `grep 'uv run --frozen pytest' scripts/*.sh`, narrow by SPELLING (four harnesses invoke
+  `"${PY[@]}" -m pytest`) and by PATH (`scripts/*.sh` cannot see the seven tracked `.sh` files in
+  `docs/reviews/`). Six of the nine it missed are wired in CI. **The container is
+  `git ls-files '*.sh'`** - the fix contained the very defect it was fixing, and the four
+  harnesses skipped are exactly the four absent from that change's own diff: the sweep opened the
+  files it was already editing. The five described below were real; the total was not.
+
+  Within the part I did sweep, an earlier pass bounded 59 and reported itself finished, and the
+  five it left behind share one property: **not one of them starts its line with `uv run`**. They are a command
   substitution (`out=$(cd ... && uv run ... | tail -1)`), a subshell inside a test
   (`if ! (cd ... && uv run ...)`), and three calls behind an environment assignment
   (`PYTHONDONTWRITEBYTECODE=1 uv run ...`). All 59 the sweep did fix start the line, so a selector
