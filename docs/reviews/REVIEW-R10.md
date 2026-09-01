@@ -1,5 +1,7 @@
 # REVIEW-R10 - `dad014e..3e0c8ae`
 
+<!-- REVIEW-COVERS: dad014e..3e0c8ae -->
+
 **Reviewer:** `review-r9`, fresh. Nothing here was reconstructed from the author's task records or
 commit messages; every claim below was re-derived from the code, from `git`, or from a probe run in
 this worktree.
@@ -8,6 +10,22 @@ this worktree.
 branch `review/r9`.
 
 **Scope:** 13 commits, 33 files, +641/-116. This range was merged and pushed without a review round.
+
+**What the `REVIEW-COVERS` declaration above does and does not claim.** It is the range I read:
+`git log --oneline dad014e..3e0c8ae` is 13 commits, `dad014e` is a true ancestor of `3e0c8ae`, so
+the range is linear and `dad014e` itself - task #114's merge - is correctly excluded, having been
+the previous round's endpoint rather than mine.
+
+Two edges the range does not capture, stated so the declaration is not read as more than it is:
+
+- **Findings reach outside it.** R10-H1 is largely about `check-u0-test-controls.sh`,
+  `check-u11-advisory-controls.sh` and the two `check-u15-gate-*.sh` harnesses, and R10-N1 is about
+  `check-settings-are-read.py:99` - **none of which this range modifies.** I found them by
+  enumerating the container the range's work claimed to have swept. Declaring the range does not
+  declare those files reviewed; it declares these 13 commits reviewed.
+- **Reading is not reviewing.** I read many files at `HEAD` for context - ADRs, `ci.yml`,
+  `PREAMBLE.md`, whole harnesses - without reviewing the commits that produced them. Only the 13
+  are covered.
 
 **On the round number.** I was dispatched as "R9" and this document was first written under that
 name; the orchestrator corrected it mid-round. `docs/reviews/CODE-REVIEW-R9.md` already exists,
