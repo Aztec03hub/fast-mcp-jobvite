@@ -174,15 +174,25 @@ def amputate(
 # f-string above them is what killed this row at 449968f. Verified
 # unique: the three-line anchor occurs once, while the indented
 # `continue` alone occurs three times in that file.
+# #142 MOVED THE THIRD LINE OF THIS ANCHOR. The exemption test used to
+# be `if "REPOINT-EXEMPT" in cited_line:` on the line directly after the
+# `continue`; it is now `repoint_exempt.is_exempt(...)` and sits four
+# lines further down, past the `old_s`/`old_e` reads it now needs. So
+# the anchor stopped matching, the row reported `anchor:` rather than a
+# survivor, and the trunk went red. Re-anchored on `old_s = int(...)`,
+# which is what actually follows the `continue` today. Verified unique:
+# this three-line form occurs ONCE, while the indented `continue` alone
+# occurs three times in that file - which is why the anchor stays three
+# lines long rather than being trimmed to the line being amputated.
 amputate(
     "A1 fail-open REPOINT-EXEMPT read restored",
     REPOINT,
     """            )
             continue
-        if "REPOINT-EXEMPT" in cited_line:""",
+        old_s = int(m["os"])""",
     """            )
             cited_line = ""
-        if "REPOINT-EXEMPT" in cited_line:""",
+        old_s = int(m["os"])""",
     PROBE_FAILCLOSED,
     {"A", "B"},
 )
