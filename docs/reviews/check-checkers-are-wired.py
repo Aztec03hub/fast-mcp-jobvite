@@ -59,6 +59,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -157,12 +158,44 @@ def strip_comments(body: str) -> str:
     return re.sub(r"(?m)(?<!\$)#.*$", "", body)
 
 
-#: A step body that invokes a checker with the interpreter that has only
-#: the standard library. `uv run ...` reaches the project environment;
-#: a bare `python3 docs/reviews/x.py` does not.
-_BARE_PYTHON = re.compile(
-    r"(?<!uv run )(?<!uv run --frozen )python3?\s+\S*?(?P<name>check-[\w-]+\.py)"
-)
+#: Shell operators that END one command and begin the next. A step body
+#: is not one command: `out=$(python3 x.py 2>&1); rc=$?` is three, and
+#: without this split the first token is `out=$(python3`, which no
+#: interpreter test can match. Sixteen of ci.yml's checker steps are
+#: written in exactly that capture-and-check shape.
+_SEGMENT = re.compile(r"\$\(|`|\)|\(|&&|\|\||;|\||\{|\}|\n")
+
+#: Runners that reach the PROJECT environment, so a `python` token after
+#: one of them is NOT bare, however many flags sit in between.
+#:
+#: **This is a TOKEN test, and that is the whole fix.** The old form
+#: was two negative lookbehinds, `(?<!uv run )(?<!uv run --frozen )`.
+#: A Python lookbehind must be FIXED WIDTH, so it can spell exactly
+#: one prefix and no other, so
+#: exact prefix - `uv run  --frozen` with two spaces and
+#: `uv run --frozen -- python` both slipped past it and were reported as
+#: bare interpreters, failing the build for a reason that was not about
+#: the code. Neither can be expressed as a lookbehind at all.
+_PROJECT_RUNNERS = frozenset({"uv", "poetry", "pipenv", "hatch", "tox"})
+
+#: A token that IS a bare interpreter, by basename: `python`, `python3`,
+#: `python3.12`, and any path to one of them.
+_INTERPRETER = re.compile(r"^python(?:\d+(?:\.\d+)*)?$")
+
+#: Interpreter options that consume the FOLLOWING token, so what comes
+#: after them is an option ARGUMENT and not the script.
+#:
+#: `-X faulthandler` is why this set exists. "the first token after the
+#: interpreter that does not start with `-`" - the obvious rule, and the
+#: one suggested to me - picks `faulthandler` as the script and the
+#: detector goes quiet again, one flag later.
+_OPT_WITH_VALUE = frozenset({"-X", "-W", "--check-hash-based-pycs"})
+
+#: Options after which there is no script path to find at all.
+_OPT_NO_SCRIPT = ("-c", "-m")
+
+#: The script token must BE a checker, not merely contain the name.
+_CHECKER_NAME = re.compile(r"^check-[\w-]+\.py$")
 
 #: `import x` / `from x import ...` at the start of a line - top-level
 #: imports only, which is where an unavailable module kills the process.
@@ -190,8 +223,61 @@ def third_party_imports(name: str) -> list[str]:
     )
 
 
+def _commands(text: str) -> list[list[str]]:
+    """Every command in `text`, as a list of argv tokens.
+
+    Segmented on shell operators first, then `shlex.split`. Tokenising
+    is what makes the walk below flag-tolerant; a regex cannot be, which
+    is the entire lesson of the defect this replaced.
+    """
+    out: list[list[str]] = []
+    for chunk in _SEGMENT.split(text):
+        stripped = chunk.strip()
+        if not stripped:
+            continue
+        try:
+            tokens = shlex.split(stripped, comments=True)
+        except ValueError:
+            #: An unbalanced quote inside ONE segment. A whitespace
+            #: split keeps the command visible; dropping it would make
+            #: the detector silently blind to exactly the body it could
+            #: not parse, which is the failure shape this file is about.
+            tokens = stripped.split()
+        if tokens:
+            out.append(tokens)
+    return out
+
+
+def _script_of(tokens: list[str]) -> str | None:
+    """The script a BARE interpreter in `tokens` runs, if there is one.
+
+    `None` when the command runs no bare interpreter, when a project
+    runner supplies the environment, or when `-c`/`-m` means there is no
+    script path at all.
+    """
+    for i, token in enumerate(tokens):
+        if not _INTERPRETER.match(pathlib.PurePath(token).name):
+            continue
+        if any(t in _PROJECT_RUNNERS for t in tokens[:i]):
+            return None
+        rest = tokens[i + 1 :]
+        j = 0
+        while j < len(rest):
+            opt = rest[j]
+            if opt == "--":
+                j += 1
+                break
+            if not opt.startswith("-") or opt == "-":
+                break
+            if opt.startswith(_OPT_NO_SCRIPT):
+                return None
+            j += 2 if opt in _OPT_WITH_VALUE else 1
+        return rest[j] if j < len(rest) else None
+    return None
+
+
 def bare_python_steps(text: str) -> list[tuple[str, list[str]]]:
-    """Checkers run by a bare interpreter that need more than stdlib.
+    r"""Checkers run by a bare interpreter that need more than stdlib.
 
     **THIS EXISTS BECAUSE I SHIPPED EXACTLY THIS AND TURNED main RED.**
     Every other checker in `docs/reviews/` is stdlib-only, so the family
@@ -202,12 +288,32 @@ def bare_python_steps(text: str) -> list[tuple[str, list[str]]]:
 
     A convention that is safe for every existing member is not safe for
     the member that breaks the assumption the convention rests on.
+
+    **AND IT WAS DEFEATED BY ONE FLAG FOR ITS WHOLE FIRST DAY.** The
+    original was a regex whose path segment was `\S*?`, which cannot
+    cross a space, so `python3 -u <checker>` - an ordinary thing to
+    write for a step whose Actions output you want unbuffered -
+    shipped the identical defect and this said nothing. Widening the
+    regex was the tempting repair and it is the wrong one: `-\w+\s+`
+    still misses `-X faulthandler`, and nothing pattern-shaped can
+    cover `python3.12`.
+    So the invocation is TOKENISED and walked instead. The spellings are
+    controls in `--self-test`, one per spelling, including the negative
+    arm - a detector that fires on everything is as useless as one that
+    fires on nothing, and only the negative arm tells them apart.
     """
     problems: list[tuple[str, list[str]]] = []
-    for match in _BARE_PYTHON.finditer(text):
-        name = match.group("name")
+    seen: set[str] = set()
+    for tokens in _commands(text):
+        script = _script_of(tokens)
+        if script is None:
+            continue
+        name = pathlib.PurePath(script).name
+        if not _CHECKER_NAME.match(name) or name in seen:
+            continue
         needed = third_party_imports(name)
         if needed:
+            seen.add(name)
             problems.append((name, needed))
     return problems
 
@@ -235,8 +341,79 @@ def run_bodies() -> tuple[str, int]:
     return "\n".join(bodies), steps
 
 
+def _control_subjects() -> tuple[str, str]:
+    """A checker needing a third-party module, and one that does not.
+
+    **DERIVED from the population, never named.** A name written into
+    the control here would invert SILENTLY the day that checker's
+    imports changed - the row would keep printing PASS while
+    asserting the opposite of what it says. That is the same failure
+    the census itself is built to avoid, one level up.
+    """
+    pys = [n for n in checkers() if n.endswith(".py")]
+    needs = [n for n in pys if third_party_imports(n)]
+    stdlib = [n for n in pys if not third_party_imports(n)]
+    if not needs or not stdlib:
+        raise SystemExit(
+            "cannot build the spelling controls: the population holds "
+            f"{len(needs)} checker(s) needing a third-party module and "
+            f"{len(stdlib)} stdlib-only. Both arms need at least one; "
+            "without the stdlib arm a detector that fires on EVERY "
+            "line would pass every row below."
+        )
+    return f"docs/reviews/{needs[0]}", f"docs/reviews/{stdlib[0]}"
+
+
+def _spelling_controls() -> list[tuple[str, bool]]:
+    """One `(step body, must it fire?)` pair per interpreter spelling.
+
+    The positive rows are the ways a bare interpreter can be spelled;
+    every one of them ships the `ModuleNotFoundError` this file exists
+    to prevent, and the regex this replaced caught only four of them.
+
+    The `uv` rows are the FALSE-POSITIVE direction: a safe invocation
+    reported as bare fails the build for a reason that is not about the
+    code, which is how the two-space form (`uv run  --frozen`) behaved.
+
+    The last two rows are the NEGATIVE ARM and they are the load-bearing
+    ones. Every positive row above would also pass for a detector that
+    simply returned True for any line containing a checker name. Only a
+    stdlib-only checker, invoked bare, staying SILENT separates a
+    detector from a rubber stamp.
+    """
+    needs, stdlib = _control_subjects()
+    return [
+        # Bare interpreters. All must fire.
+        (f"python3 {needs}", True),
+        (f"python {needs}", True),
+        (f"python3 -u {needs}", True),
+        (f"python3 -X faulthandler {needs}", True),
+        (f"python3 -B {needs}", True),
+        (f"python3.12 {needs}", True),
+        (f"/usr/bin/python3 {needs}", True),
+        (f"env python3 {needs}", True),
+        (f"python3 -- {needs}", True),
+        (f"python3 {needs} --self-test", True),
+        (f"out=$(python3 {needs} 2>&1); rc=$?", True),
+        (f"cd docs/reviews && python3 {pathlib.PurePath(needs).name}", True),
+        # The project environment. None may fire.
+        (f"uv run python {needs}", False),
+        (f"uv run --frozen python {needs}", False),
+        (f"uv run  --frozen python {needs}", False),
+        (f"uv run --frozen python3 {needs}", False),
+        (f"uv run --frozen -- python {needs}", False),
+        # No interpreter at all, and no script to find.
+        (f"{needs}", False),
+        ("python3 -m pytest", False),
+        # THE NEGATIVE ARM. A stdlib-only checker must stay silent.
+        (f"python3 {stdlib}", False),
+        (f"python3 -u {stdlib}", False),
+        (f"/usr/bin/python3 -X faulthandler {stdlib}", False),
+    ]
+
+
 def self_test() -> int:
-    """Three controls, each aimed at a way this checker could lie."""
+    """Controls, each aimed at a way this checker could lie."""
     text, steps = run_bodies()
     failures: list[str] = []
 
@@ -268,13 +445,30 @@ def self_test() -> int:
     if me not in checkers():
         failures.append(f"{me} is NOT in its own population")
 
+    # 5. ONE CONTROL PER INTERPRETER SPELLING, WITH A NEGATIVE ARM.
+    #    The detector this replaced was a regex, and it was defeated by
+    #    a single `-u` for its whole first day - in the function whose
+    #    docstring says it exists because that exact defect turned main
+    #    red. There is no spelling below that a reader can look at and
+    #    call unreasonable, and that is the point: the failure was never
+    #    an exotic invocation, it was an ordinary one the pattern had
+    #    not been written against.
+    spellings = _spelling_controls()
+    for body, must_fire in spellings:
+        fired = bool(bare_python_steps(body))
+        if fired != must_fire:
+            wanted = "fire" if must_fire else "stay silent"
+            failures.append(f"spelling `{body}` should {wanted}, got fired={fired}")
+
+    total = 4 + len(spellings)
     print(f"run steps parsed: {steps}")
     for line in failures:
         print(f"  CONTROL FAILED: {line}")
     if failures:
-        print(f"\n{len(failures)} control(s) failed. The instrument is wrong.")
+        print(f"\n{len(failures)} of {total} control(s) failed. The instrument")
+        print("is wrong.")
         return 1
-    print("4/4 controls passed.")
+    print(f"{total}/{total} controls passed.")
     return 0
 
 
