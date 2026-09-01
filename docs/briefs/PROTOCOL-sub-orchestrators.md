@@ -161,3 +161,42 @@ read on its own line, and what it could not settle.
 
 **A Tier-1 report that contains no correction of its own brief is
 suspicious.** Every substantial agent report today corrected something.
+
+---
+
+## What the first two Tier-1 runs measured, 2026-09-01
+
+**BOTH SPAWNED ZERO TIER-2 WORKERS.** Each judged nothing warranted a
+pane; one said so outright — *"~15 sites, not worth a pane"*. **The value
+of this tier is JUDGEMENT and ISOLATION, not fan-out.** Do not measure the
+protocol by how many agents it starts. The worktree and the bring-me-the-
+ruling gate did the work; the fan-out permission went unused and was still
+right to grant.
+
+**HANDING A NUMBER AS AN EXPLICIT HYPOTHESIS IS WHAT PRODUCED THE
+CORRECTIONS.** Both briefs said *"the count is N — verify it, do not repeat
+it"*, and both agents returned a different, better number with its reason.
+One found the count was never a single number: the two gates it spanned do
+not share a container (51 sites vs 25). **A brief with no checkable number
+in it cannot produce that**, which is why the rule about reports that
+correct their own brief only works if the brief contains something to
+correct.
+
+**WITHHOLDING THE RULING PRODUCED A BETTER DESIGN THAN SPECIFYING ONE.** A
+sub-orchestrator told to bring the choice back with trade-offs returned
+with the fact that *settles* it — one candidate form provably could not
+meet the brief's own acceptance criterion. Ruling on its argument beat
+ruling on taste.
+
+**WHEN YOU ASK FOR A CONTROL, ASK FIRST WHETHER THE THING CAN BE MADE
+IMPOSSIBLE.** I asked for a control proving that documentation of a new
+marker could not itself become an exemption. The agent chose a data file
+with a suffix neither scanner reads, so the recursion cannot occur at all.
+A structural answer beats a control; the control then costs nothing and
+documents that the structure is doing the work.
+
+**AN EXEMPTION MARKER INFLATES FROM ITS OWN DOCUMENTATION.** Measured in
+one day: 47 marked lines, 51 after two briefs *discussing* the marker, 60
+after merging the review that *found* the defect, 61 now. Every increment
+was prose, not an exemption. A bare-substring marker makes writing about
+it load-bearing — so **the most careful writers expand the hole fastest.**
