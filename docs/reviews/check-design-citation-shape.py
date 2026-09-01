@@ -35,6 +35,17 @@ is at 312-313.
 nobody has finished counting, and wiring a gate whose backlog is unknown
 lands red - which this project has refused three times. Run it, fix what
 it names, then wire it.
+
+**R12-N1 ADDED A FOURTH SHAPE: a range that ENDS on a blank line**, i.e.
+one line longer than its subject. The start check had had no mirror
+since it was written. It was raised off TWO instances a reviewer had
+read (`DESIGN.md:373-383`, `:674-680`); the sweep found **46**, which is
+this docstring's own lesson arriving at the person writing the check.
+Harmless per instance and cumulative in the aggregate: a range that can
+grow a line at every repoint eventually spans the next section, and
+`check-design-citations.py` will keep calling it resolved the whole way.
+Those 46 are the backlog this file's last paragraph is about, and the
+number is printed by the run rather than trusted from here.
 """
 
 from __future__ import annotations
@@ -106,6 +117,16 @@ def main() -> int:
                         findings[
                             "starts on a BLANK line (the off-by-one shape)"
                         ].append(where)
+                    # R12-N1. See the docstring: raised off two read
+                    # instances, 46 found. A finding rather than an
+                    # opt-in flag because this checker is not wired, so
+                    # a red run is a backlog and not a broken trunk.
+                    # Only multi-line ranges can have this shape; a
+                    # wholly blank one is caught above.
+                    elif end > start and not body[-1].strip():
+                        findings["ends on a BLANK line (one line too long)"].append(
+                            where
+                        )
 
     if seen == 0:
         print("PARSED ZERO CITATIONS. The selector is broken; a green means nothing.")
