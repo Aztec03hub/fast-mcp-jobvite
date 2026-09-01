@@ -204,13 +204,46 @@ def _report_bounds(total_lines: int) -> int:
 
 
 def _report_moves(sha: str) -> int:
-    old = subprocess.run(
+    # `check=True` USED TO RAISE HERE, and the traceback it produced
+    # cost three CI rounds to read. On a SHALLOW checkout the blob is
+    # simply absent, `git show` exits 128, and CalledProcessError
+    # propagated out of a probe two layers up - where it surfaced as
+    # `exit=1 failed=none`, which names nothing at all.
+    #
+    # A MISSING OBJECT IS A BROKEN INSTRUMENT, NOT A FINDING, and the
+    # two must not share an exit code. `check-design-freeze.py` already
+    # says this for the same cause; here is its sibling learning it.
+    done = subprocess.run(
         ["git", "show", f"{sha}:docs/DESIGN.md"],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
-        check=True,
-    ).stdout
+        check=False,
+    )
+    if done.returncode != 0:
+        detail = done.stderr.strip()
+        print(f"git show {sha}:docs/DESIGN.md failed: {detail}")
+        # THE PHRASING IS THE WHOLE TRICK, and my first version missed
+        # the one git actually emits. A depth-1 clone that HAS the path
+        # but not the commit says "exists on disk, but not in <sha>" -
+        # not "bad object", which is what a wholly unknown ref gets.
+        # Matching only the second left the hint silent in the exact
+        # case it was written for; a local shallow-clone control is
+        # what showed that.
+        missing = (
+            "bad object",
+            "unknown revision",
+            "exists on disk, but not in",
+            "does not exist",
+        )
+        if any(phrase in detail for phrase in missing):
+            print(f"THE COMMIT {sha[:7]} IS NOT IN THIS CLONE. That is almost")
+            print("always a SHALLOW checkout - `actions/checkout` defaults to")
+            print("fetch-depth 1 and cannot see it. Set `fetch-depth: 0` on the")
+            print("job. It is NOT evidence that any citation moved.")
+        print("This is a BROKEN INSTRUMENT, not a finding. Exit 3.")
+        return 3
+    old = done.stdout
     new = DESIGN.read_text()
     if old == new:
         print(f"DESIGN.md is byte-identical to {sha}. No citation can have moved.")

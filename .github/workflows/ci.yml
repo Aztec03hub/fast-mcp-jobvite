@@ -635,7 +635,21 @@ jobs:
     name: Lint, types, tests
     runs-on: ubuntu-latest
     steps:
+      # FULL HISTORY, and this job genuinely needs it. `actions/checkout`
+      # defaults to fetch-depth 1, so the clone holds ONE commit.
+      # `probe-repoint-fail-closed.py` pins the historical commit
+      # `28be78a` and asks `check-design-citations.py --since` to read
+      # DESIGN.md at it; on a depth-1 clone `git show` exits 128 and the
+      # whole job dies.
+      #
+      # THIS COST THREE CI ROUNDS TO FIND, because the failure surfaced
+      # two layers up as `exit=1 failed=none` - a probe reporting that
+      # something went wrong while discarding the traceback that said
+      # what. `design-gates` and `supply-chain` already set this; `test`
+      # was the job nobody had needed it in yet.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
