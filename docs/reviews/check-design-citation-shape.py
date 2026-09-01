@@ -158,10 +158,10 @@ def main() -> int:
     for path in paths:
         body_lines = path.read_text(errors="replace").splitlines()
         for num, text in enumerate(body_lines, 1):
-            # The marker `repoint-design-citations.py` already honours: a
-            # line that RECORDS where a defect was must not be repointed,
-            # and must not be reported as one either. Kept narrow - it
-            # skips the line, not the file.
+            # The marker `repoint-design-citations.py` already
+            # honours: a line that RECORDS where a defect was must
+            # not be repointed, and must not be reported as one
+            # either. Kept narrow - it skips the line, not the file.
             if EXEMPT in text:
                 continue
             for match in CITE.finditer(text):
@@ -177,9 +177,7 @@ def main() -> int:
                 if not "".join(body).strip():
                     findings["the entire range is blank"].append(where)
                 elif all(
-                    line.strip().startswith(STRUCTURAL)
-                    for line in body
-                    if line.strip()
+                    line.strip().startswith(STRUCTURAL) for line in body if line.strip()
                 ):
                     findings["only a fence or table separator"].append(where)
                 elif not body[0].strip():
