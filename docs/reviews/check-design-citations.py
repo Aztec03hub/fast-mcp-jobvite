@@ -39,13 +39,16 @@ WHAT THIS CAN AND CANNOT DO, stated plainly because the gap matters:
   citation is right"** - which is exactly the distinction that let all
   three defects above survive.
 
-THE `--since` MODE IS THE POINT. `docs/DESIGN.md` is frozen at
-`aca9397`, where ADR-0025's Q2 and Q3 re-froze it. REPOINT-EXEMPT for
-the addresses above. That edit shifts an unknown number of the
-citations in this tree, and there are 841 of them (counted by this
+THE `--since` MODE IS THE POINT. `docs/DESIGN.md`'s freeze SHA lives in
+`docs/DESIGN-FREEZE.txt` and is not retyped here - it was retyped
+once, the design moved at `86ab20e`, and every copy went on naming
+the old object.
+REPOINT-EXEMPT for the addresses above. That edit shifts an unknown
+number of the citations in this tree, and there are 841 of them (by this
 script, not by the grep I first reached for, which said 836). Run:
 
-    python3 docs/reviews/check-design-citations.py --since aca9397
+    python3 docs/reviews/check-design-citations.py \
+        --since "$(cat docs/DESIGN-FREEZE.txt)"
 
 before and after, and it maps old line numbers to new ones through a
 real diff, then reports every citation whose target moved. Without it,

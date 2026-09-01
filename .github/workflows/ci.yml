@@ -171,6 +171,19 @@ jobs:
       - name: Coupling gate
         run: python3 docs/reviews/check-coupling.py docs/DESIGN.md
 
+      # WIRED THE DAY IT WENT GREEN, and not before. It exits 0 now that
+      # docs/DESIGN-FREEZE.txt names 5d17cd7; it exited 1 against the stale
+      # aca9397, printing what had moved, and exits 2 on an empty
+      # declaration rather than comparing nothing and passing.
+      #
+      # It exists because the freeze pointer and the design came apart for
+      # a full day and no gate asked. The edit happened to replace one line
+      # in place, so every line-numbered citation still resolved - had it
+      # inserted a line they would all have been one off, resolving and
+      # wrong. Benign by luck is the argument for the gate, not against it.
+      - name: The design at its declared freeze is the design on main
+        run: python3 docs/reviews/check-design-freeze.py
+
       # Wired the day it went green, and not one commit before. It exited 1 on
       # exactly one finding - DESIGN.md §5.3's `SS5.4`, a section that does not
       # exist - and was deliberately left unwired, because a knowingly red gate

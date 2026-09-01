@@ -9,7 +9,8 @@ committed on your branch. Your task record is **#104**.
 
 ## Read these first, in this order
 
-1. `docs/DESIGN.md` §7 (the audit trail) - frozen at `aca9397`. It is the authority.
+1. `docs/DESIGN.md` §7 (the audit trail), at the SHA in `docs/DESIGN-FREEZE.txt`. It is the
+   authority. Do NOT retype that SHA anywhere - read the file.
 2. `docs/adr/` - **every** numbered ADR. An ADR overrides a standard inside its own scope.
 3. `docs/reviews/probe-audit-row-container.sh` - the existing one-shape probe you are generalising.
 4. The commit on `fix/audit-shapes` - **and read its message before its code.**

@@ -139,9 +139,20 @@ def controls() -> int:
     return 0 if fired == total else 1
 
 
+def frozen_sha() -> str:
+    """The frozen-design SHA, READ from `docs/DESIGN-FREEZE.txt`.
+
+    Never a literal here. The SHA was retyped into two checkers and a
+    brief, the design moved at `86ab20e`, and all three kept naming the
+    old object - benign only because the edit happened to fall outside
+    what anyone was reading. A value chosen once appears once.
+    """
+    return (ROOT / "docs" / "DESIGN-FREEZE.txt").read_text(encoding="utf-8").strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sha", default="aca9397", help="the frozen DESIGN.md")
+    parser.add_argument("--sha", default=frozen_sha(), help="the frozen DESIGN.md")
     parser.add_argument(
         "--controls", action="store_true", help="prove the population is by kind"
     )
