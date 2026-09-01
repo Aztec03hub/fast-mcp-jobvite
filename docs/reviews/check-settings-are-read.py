@@ -54,7 +54,6 @@ import pathlib
 import subprocess
 import sys
 import tokenize
-from collections.abc import Iterator
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
@@ -134,14 +133,34 @@ def marker_lines(variable: str, marker: str, name: str) -> list[int]:
     indistinguishable from a real absence and would make the
     "marker present" arm pass by never looking.
 
-    **JSON IS READ STRUCTURALLY, NOT BY LINE.** The same-line rule is
-    what stops this passing on an unrelated sentence, but a JSON object
-    puts `"name"` and `"description"` on DIFFERENT lines by
-    construction - so applied to `server.json` the line rule would
-    report a clean zero no matter what the manifest said, and the arm
-    would pass by never being able to match. Parsing instead asks the
-    question the line rule was approximating: does the entry FOR THIS
-    VARIABLE carry the marker in the text a consumer reads?
+    **THE LOOKUP IS SCOPED TO `packages[*].environmentVariables`, and
+    a DUPLICATE NAME IS REFUSED** (R14-R1 H2). The first version walked
+    the WHOLE document and accepted the entry if ANY node with a
+    matching name carried the marker. Two plants passed against a lying
+    manifest: a DUPLICATE entry with one marked and one not, and a
+    marked look-alike planted OUTSIDE `environmentVariables` while the
+    real entry was stripped. The manifest's root object also carries
+    `name` and `description`, so the walk was searching places that are
+    not variable declarations at all. That is the hand-kept-list defect
+    this arm was written to fix, surviving inside the fix.
+
+    **JSON IS READ STRUCTURALLY, NOT BY LINE - AND THE FIRST VERSION OF
+    THIS PARAGRAPH OVERSTATED WHY** (R14-R1 H1). It claimed the line
+    rule "would report a clean zero no matter what the manifest said".
+    That is FALSE against the manifest this round wrote:
+    `server.json`'s description BEGINS with the variable name, so the
+    name and the marker do share a line and the plain rule matches. An
+    amputation deleting this whole branch exits 0 - it is a SURVIVOR on
+    today's tree, and the claim was refuted by the very wording the same
+    round chose.
+
+    **What the branch actually prevents is a FALSE POSITIVE, not a false
+    pass.** A description that carries `NOT YET IMPLEMENTED` without
+    repeating the variable name is a correctly marked manifest, and the
+    line rule calls it unmarked and fails the gate. That is the load-
+    bearing case, it is measured by the probe's LINE-RULE arm, and it is
+    the honest reason to parse rather than grep. The wording of any one
+    description is not something this checker should depend on.
     """
     path = ROOT / name
     if not path.is_file():
@@ -163,29 +182,30 @@ def _json_marker_lines(path: pathlib.Path, variable: str, marker: str) -> list[i
     consumer reading the manifest.
     """
     text = path.read_text(encoding="utf-8")
+    document = json.loads(text)
+    if not isinstance(document, dict):
+        message = f"{path.name} is not a JSON object"
+        raise SystemExit(message)
     entries = [
-        node
-        for node in _walk_json(json.loads(text))
-        if isinstance(node, dict) and node.get("name") == variable
+        entry
+        for package in document.get("packages", [])
+        if isinstance(package, dict)
+        for entry in package.get("environmentVariables", [])
+        if isinstance(entry, dict) and entry.get("name") == variable
     ]
     if not entries:
         message = f"{path.name} declares no {variable} entry, so this cannot match"
         raise SystemExit(message)
-    if not any(marker in str(entry.get("description", "")) for entry in entries):
+    if len(entries) > 1:
+        message = (
+            f"{path.name} declares {variable} {len(entries)} times. Which one an "
+            "operator reads is undefined, so this refuses rather than picking."
+        )
+        raise SystemExit(message)
+    if marker not in str(entries[0].get("description", "")):
         return []
     quoted = f'"{variable}"'
     return [n for n, line in enumerate(text.splitlines(), 1) if quoted in line]
-
-
-def _walk_json(node: object) -> Iterator[object]:
-    """Every dict and list member reachable in parsed JSON."""
-    yield node
-    if isinstance(node, dict):
-        for value in node.values():
-            yield from _walk_json(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from _walk_json(value)
 
 
 def settings_fields() -> dict[str, int]:
