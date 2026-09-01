@@ -104,6 +104,55 @@ So every one of those sites now names the hang with the literal phrase `TIMED OU
 `ci-harness-gate.sh` greps for, and refuses to emit a verdict for the row. A bound that stops a
 hang but lets it be scored is half a fix.
 
+**The general shape, since it is not specific to timeouts.** Five of six misreading in the
+*reassuring* direction is not luck. A harness's default branch is the happy one, because harnesses
+are written expecting their subject to ANSWER - so any new way of *not answering* lands in whatever
+branch was written for a normal reply. **When you make a failure mode terminate, ask what the
+terminating value MEANS to the code that reads it.** `survivors: NONE` from a hung amputation run
+is a clean zero that explains itself perfectly and measures nothing.
+
+### The guard shipped the defect it was written to find, and ShellCheck caught it
+
+Recorded because it is the third instance of this shape in one day. The first draft of
+`check-pytest-bounded.sh` read:
+
+```bash
+out=$(grep -nE "$PATTERN" $(git ls-files '*.sh') | ...)
+```
+
+ShellCheck flagged SC2046. That is a real defect here, not a style note: a tracked path containing
+a space splits into two nonexistent paths, and **grep at a path that does not exist exits
+clean-empty** - which this script would then have read as "nothing to check" and reported as a pass.
+
+The guard exists to catch a search whose selector cannot see part of its container. It would have
+failed in exactly that way, in the reassuring direction, on the class of input it hunts. It is now
+NUL-delimited into an array, and the reasoning is in a comment at the site so the next person does
+not "simplify" it back.
+
+### The merge with `canonical-line`, measured rather than assumed
+
+`chore/canonical-line` migrated `scripts/*.sh` to a canonical `HARNESS-RESULT` line and touches
+five of the same files this branch does. **A trial merge is clean**, and the hunk ranges say why -
+the two sets of edits sit in disjoint regions of every shared file:
+
+```
+$ git merge-tree --write-tree --name-only chore/canonical-line review/r9
+EXIT=0   (clean; tree a5b3376)
+
+file                            canonical-line hunks     review/r9 hunks
+check-suite-floor-amputation.sh  19, 29, 90, 116          62
+check-u0-test-controls.sh        27, 208                  114, 140, 142
+check-u11-advisory-controls.sh   37, 54, 225              65, 67
+check-u15-gate-amputation.sh     18, 23, 194              54, 56, 71, 74
+check-u15-gate-controls.sh       22, 27, 155              58, 60
+```
+
+`canonical-line` edits the strict-mode prologue and the tally/result lines at the top and bottom of
+each harness; this branch edits the pytest invocation and its exit-code handling in the middle.
+Nothing here rewrites a `HARNESS-RESULT` line and nothing there touches a `timeout` or a `124`
+branch. Measured with `merge-tree` against git objects, with no checkout and no ref moved, because
+grepping a working tree while other agents move branches has produced false findings here before.
+
 ---
 
 # Findings
