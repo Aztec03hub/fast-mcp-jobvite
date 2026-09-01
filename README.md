@@ -79,7 +79,7 @@ values for the secret-class entries.
 | `JOBVITE_HTTP_TOKENS` | No | *(none)* | Bearer tokens accepted on the `http` transport. |
 | `JOBVITE_TLS_TERMINATED_BY_PROXY` | No | `false` | Asserts that a proxy terminates TLS. The server refuses to bind off-loopback in plaintext without it. |
 | `JOBVITE_MAX_RESULTS` | No | `50` | Upper bound on results returned by any tool, minimum 1. |
-| `JOBVITE_OUTBOUND_RATE_LIMIT` | No | `6` | Outbound requests per **minute** to Jobvite, minimum 1. |
+| `JOBVITE_OUTBOUND_RATE_LIMIT` | No | `6` | `JOBVITE_OUTBOUND_RATE_LIMIT` IS NOT YET IMPLEMENTED (ADR-0025): it is declared and validated, and **no code reads it**, so setting it changes nothing today. Intended as outbound requests per **minute** to Jobvite, minimum 1. |
 | `JOBVITE_OUTBOUND_BUDGET_SECONDS` | No | `60` | Total wall-clock budget for all outbound attempts in one tool invocation. Greater than 0. |
 | `JOBVITE_PAGINATION_START_BASE` | No | *(unset)* | Overrides the detected pagination base. Leave unset unless a measurement says otherwise. |
 

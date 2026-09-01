@@ -51,6 +51,8 @@ import urllib.parse
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
+from httpx2._client import logger as _httpx2_logger  # noqa: SLF001
+
 from ..models.fencing import (
     LIST_MARKER,
     PATH_SEPARATOR,
@@ -479,14 +481,21 @@ class RedactingLogFilter(logging.Filter):
 
 #: The logger `httpx2` emits its request lines on.
 #:
+#: **DERIVED FROM THE IMPORTED MODULE, NEVER RETYPED** - ADR-0026's
+#: second consequence, in its own words: *"The implementation must
+#: derive the logger name from the imported module, not retype it. The
+#: package is vendored as `httpx2` and a future rename would silently
+#: detach the filter again."* This line was `Final = "httpx2"` until
+#: R11-M1, which is the literal the ADR forbids, and it survived
+#: review because the design had been edited to say it was derived.
+#:
 #: **`httpx2`, not `httpx`** (ADR-0007), and the distinction is not
 #: cosmetic here: a filter installed on `httpx` is accepted by
 #: `logging` without complaint, never fires, and leaves the leak
 #: exactly as measured - a fix that lands on the wrong artefact.
-#: `tests/test_redaction.py` asserts this constant against the
-#: library's own logger object, so a rename upstream goes red rather
-#: than going quiet.
-HTTPX_LOGGER_NAME: Final = "httpx2"
+#: Reading the library's own logger object is what makes that
+#: unspellable rather than merely tested for.
+HTTPX_LOGGER_NAME: Final[str] = _httpx2_logger.name
 
 #: Serialises the check-then-add below. Two threads constructing a
 #: client at once would otherwise both read a filter-less logger and

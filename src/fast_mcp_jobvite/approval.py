@@ -190,7 +190,7 @@ class ApprovalMechanism(enum.StrEnum):
     """Which approval path produced the response (ADR-0021).
 
     **The set is CLOSED**, for the reason `error-contract.md`'s registry
-    is closed (DESIGN.md:561-562): a value emitted into an audit record
+    is closed (DESIGN.md:761-762): a value emitted into an audit record
     is a contract, and an open string invites a fourth spelling of the
     first three. ADR-0021 defines exactly these three and §8's
     audit-event case asserts the emitted value is one of them.

@@ -18,7 +18,9 @@ values.
 
 from __future__ import annotations
 
+import ast
 import logging
+import pathlib
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -28,6 +30,7 @@ import pytest
 from pydantic import SecretStr
 
 from fast_mcp_jobvite.services.jobvite_client import JobviteClient
+from fast_mcp_jobvite.utils import redaction
 from fast_mcp_jobvite.utils.redaction import (
     HTTPX_LOGGER_NAME,
     NON_SENSITIVE_ARGUMENT_KEYS,
@@ -529,10 +532,52 @@ def test_the_logger_guarded_is_the_one_the_library_actually_logs_through(
     they would install on a logger nothing writes to, observe one
     filter on it, and observe no credentials in a stream that never
     carried any. This is the one case that reads the library rather
-    than our own constant, so a rename upstream - or a `httpx`/`httpx2`
-    typo here - goes red instead of going quiet.
+    than our own constant.
+
+    **THE FIRST ASSERTION IS NOW A TAUTOLOGY, AND THAT IS THE POINT**
+    (R11-M1). `HTTPX_LOGGER_NAME` used to be the literal `"httpx2"`,
+    and this line was the only thing standing between a typo and a
+    silently dead filter. ADR-0026 requires the name DERIVED from the
+    imported module rather than retyped - *"the package is vendored as
+    `httpx2` and a future rename would silently detach the filter
+    again"* - and now it is, so both sides are the same object's name
+    by construction.
+
+    It is kept, with a **source-level** assertion beside it, because
+    the regression it now guards against - someone retyping the
+    literal - cannot be caught at runtime at all. **My first attempt
+    was `HTTPX_LOGGER_NAME is _httpx2_logger.name`, and it SURVIVED
+    the amputation**: CPython interns short identifier-shaped string
+    literals, so `"httpx2" is logger.name` is `True` and the identity
+    check passes against exactly the code it was written to refuse. A
+    guard whose subject is what the SOURCE says has to read the
+    source. The BEHAVIOURAL claim - that a credential-bearing record
+    comes out redacted - is the inverted probe's, which is what
+    ADR-0026 says the assertion has to be.
     """
     assert HTTPX_LOGGER_NAME == httpx2._client.logger.name  # noqa: SLF001
+
+    module = ast.parse(pathlib.Path(redaction.__file__).read_text(encoding="utf-8"))
+    assigned = [
+        node.value
+        for node in ast.walk(module)
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "HTTPX_LOGGER_NAME"
+        and node.value is not None
+    ]
+    assert len(assigned) == 1, (
+        f"found {len(assigned)} annotated assignments to HTTPX_LOGGER_NAME; "
+        "the search is broken and a green here would mean nothing"
+    )
+    assert isinstance(assigned[0], ast.Attribute), (
+        "HTTPX_LOGGER_NAME is assigned "
+        f"{type(assigned[0]).__name__}, not an attribute of the imported "
+        "module. It has been retyped as a literal, which ADR-0026 forbids: "
+        "a literal detaches silently when the package is renamed, and no "
+        "runtime comparison can see the difference because CPython interns "
+        "the literal to the same object."
+    )
 
 
 async def test_building_many_clients_leaves_exactly_one_redaction_filter(

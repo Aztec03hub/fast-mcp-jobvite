@@ -894,11 +894,22 @@ class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
     def public_error(self) -> JobviteUpstreamError | JobviteRetryLaterError:
         """Convert to what the caller is allowed to see.
 
+        **THE NON-429 BRANCH CARRIES THE HINT TOO** (ADR-0030, R11-H1).
+        It used to `return self.cause` untouched, so a 5xx arriving
+        with a `Retry-After` we could not afford surfaced as a 502 with
+        the hint discarded - the shape the ADR is titled after. The
+        value assigned is `self.retry_after`, which is
+        `_retry_after_seconds(response.headers)` and nothing else: only
+        what Jobvite actually sent, never a number we worked out. When
+        Jobvite sent none it stays `None`, which means *we were not
+        told* and not *do not retry*.
+
         Returns:
             A `JobviteRetryLaterError` (503) for a 429, honouring
             `Retry-After` - DESIGN.md:373-383 says a 429 is "retried and
             then mapped to 503, honouring `Retry-After` when present" -
-            and the original `JobviteUpstreamError` (502) otherwise.
+            and the original `JobviteUpstreamError` (502) otherwise,
+            now carrying the same hint when the upstream sent one.
         """
         if self.cause.upstream_status == RATE_LIMITED_STATUS:
             return JobviteRetryLaterError(
@@ -906,6 +917,7 @@ class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
                 retry_after=self.retry_after,
                 counts_toward_breaker=True,
             )
+        self.cause.retry_after = self.retry_after
         return self.cause
 
 

@@ -175,6 +175,109 @@ async def test_search_jobs_returns_a_typed_result_over_the_wire() -> None:
     assert result.is_error is False
 
 
+#: What the fake upstream puts in `Retry-After`. **Read by the
+#: assertion rather than retyped beside it**, so changing it here
+#: changes what the test demands - which is what makes the amputation
+#: below meaningful instead of a second literal that has to be kept in
+#: step (R11-H1; ADR-0030 "do not let the test assert only presence").
+UPSTREAM_RETRY_AFTER = 900.0
+
+
+async def test_the_upstreams_retry_after_reaches_the_caller_on_a_502() -> None:
+    """ADR-0030's ruling, asserted at the TOOL BOUNDARY.
+
+    **This case exists because the two that came before it built the
+    problem object themselves.** `test_resilience.py` called
+    `problem_from_exception(err, RID, retry_after=err.retry_after)` -
+    a shape no production site makes - and `test_error_contract.py`
+    passed a literal into `build_problem`. Both tested
+    `**extensions` plumbing, which worked; neither tested the claim in
+    its own docstring. Measured on `dad014e`: production's actual call,
+    `problem_from_exception(exc, event.request_id)`, returned a problem
+    with no `retry_after` at all, so DESIGN.md:376-382 was a promise no
+    caller was ever kept.
+
+    So this reads the envelope off a real `ToolResult`, over an
+    in-process `Client`, with nothing but the fake upstream supplying
+    the number. **The value is asserted, not its presence** - a
+    presence check passes against a hardcoded constant.
+
+    `retry_max_attempts=1` because the retry loop is not the subject:
+    the hint surviving the conversion to a public error is. A 5xx we
+    decline to retry is exactly the shape ADR-0030 was raised over.
+    """
+    seen: list[httpx2.Request] = []
+
+    def make() -> JobviteClient:
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            seen.append(request)
+            return httpx2.Response(
+                503,
+                content=b"upstream is unwell",
+                headers={"Retry-After": str(int(UPSTREAM_RETRY_AFTER))},
+            )
+
+        return JobviteClient(
+            api_key=SecretStr("test-api-key"),
+            api_secret=SecretStr("test-api-secret"),
+            transport=httpx2.MockTransport(handler),
+            retry_max_attempts=1,
+        )
+
+    server = build_server(settings(), client_factory=make)
+    async with Client(server) as client:
+        result = await client.call_tool(
+            SEARCH_JOBS, {"params": {}}, raise_on_error=False
+        )
+
+    assert seen, "the fake upstream was never called, so nothing was measured"
+    assert result.is_error is True
+    problem = result.structured_content
+    assert problem is not None
+    # The registry row is UNCHANGED. `retry_after` is an RFC 9457
+    # extension member, not an eighth required one and not a new slug
+    # (DESIGN.md:377-379).
+    assert problem["type"] == EXTERNAL_SERVICE_ERROR.type
+    assert problem["status"] == 502
+    assert set(REQUIRED_MEMBERS) <= set(problem)
+    assert problem["retry_after"] == UPSTREAM_RETRY_AFTER, (
+        f"the 502 carried {problem.get('retry_after')!r}, not "
+        f"{UPSTREAM_RETRY_AFTER}. The hint Jobvite volunteered was dropped "
+        "somewhere between the header and the caller."
+    )
+
+
+async def test_a_502_carries_no_retry_after_when_the_upstream_sent_none() -> None:
+    """The other half of the rule, and it is not the same assertion.
+
+    ADR-0030: *"Do not attach a hint we synthesised. Only a value the
+    upstream actually sent."* Absence means **we were not told**, never
+    *do not retry*, and the common case is absence - DESIGN.md:373-375
+    records that Jobvite returns no rate-limit header on any observed
+    call.
+
+    Without this arm a fix that hardcoded a plausible default would
+    pass the case above and be exactly the defect ADR-0030 forbids.
+    """
+    server = build_server(
+        settings(), client_factory=client_factory(b"upstream is unwell", status=503)
+    )
+    async with Client(server) as client:
+        result = await client.call_tool(
+            SEARCH_JOBS, {"params": {}}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+    problem = result.structured_content
+    assert problem is not None
+    assert problem["status"] == 502
+    assert "retry_after" not in problem, (
+        f"a 502 carried retry_after={problem.get('retry_after')!r} when the "
+        "upstream sent no Retry-After header. That value can only have been "
+        "invented here, which ADR-0030 forbids."
+    )
+
+
 async def test_the_recorded_200_with_401_body_is_a_502_problem() -> None:
     """The trap: HTTP 200, `status.code` 401 (C5-S1).
 

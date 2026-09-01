@@ -71,6 +71,49 @@ EXEMPT: dict[str, str] = {
     ),
 }
 
+#: **THE OPERATOR-FACING HALF, AND IT IS SYMMETRIC** (R11-M2). An
+#: exemption above is a note between maintainers; `README.md` and
+#: `.env.example` are what the person deploying this reads, and both
+#: described `JOBVITE_OUTBOUND_RATE_LIMIT` as a working control while
+#: `EXEMPT` recorded that nothing reads it. Someone who set it to 1
+#: because they were worried about their tenant got no protection and
+#: no signal - switched-off and working rendered identically.
+#:
+#: So an exempt-as-unimplemented field owes a marker in every artefact
+#: below, and the rule runs BOTH WAYS: while the field is unread the
+#: marker must be PRESENT, and the moment it gains a reader the marker
+#: must be GONE. **The second direction is the one that matters.**
+#: Without it the throttle ships and these two files keep telling
+#: operators it does not work - the same defect pointing the other way,
+#: which is exactly how the first one survived a split review.
+#:
+#: The variable name and the marker must share a LINE, so this cannot
+#: pass on a sentence about something else that happens to contain the
+#: phrase.
+UNIMPLEMENTED_MARKER: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "outbound_rate_limit": (
+        "JOBVITE_OUTBOUND_RATE_LIMIT",
+        "NOT YET IMPLEMENTED",
+        ("README.md", ".env.example"),
+    ),
+}
+
+
+def marker_lines(variable: str, marker: str, name: str) -> list[int]:
+    """Lines of `name` carrying BOTH `variable` and `marker`.
+
+    Refuses a path that does not resolve rather than reporting zero
+    hits: a search at a missing file exits clean-empty, which is
+    indistinguishable from a real absence and would make the
+    "marker present" arm pass by never looking.
+    """
+    path = ROOT / name
+    if not path.is_file():
+        message = f"{name} does not exist, so this check would pass vacuously"
+        raise SystemExit(message)
+    body = path.read_text(encoding="utf-8").splitlines()
+    return [n for n, line in enumerate(body, 1) if variable in line and marker in line]
+
 
 def settings_fields() -> dict[str, int]:
     """Every annotated `Settings` field, mapped to its own line."""
@@ -129,6 +172,24 @@ def main() -> int:
     bad = [f for f in unread if f not in EXEMPT]
     stale = [f for f in EXEMPT if f not in unread]
 
+    # The operator-facing half (R11-M2), in both directions.
+    missing: list[str] = []
+    lingering: list[str] = []
+    for field, (variable, marker, artefacts) in UNIMPLEMENTED_MARKER.items():
+        for name in artefacts:
+            found = marker_lines(variable, marker, name)
+            if field in unread and not found:
+                missing.append(
+                    f"{name} does not say {variable} is {marker!r}, but nothing "
+                    "reads it - an operator setting it gets no protection and "
+                    "no signal"
+                )
+            if field not in unread and found:
+                lingering.append(
+                    f"{name}:{found[0]} still says {variable} is {marker!r}, but "
+                    "it has a reader now - the marker is the stale half"
+                )
+
     for field in sorted(unread):
         if field in EXEMPT:
             print(f"  EXEMPT   {field}\n           {EXEMPT[field]}")
@@ -138,11 +199,21 @@ def main() -> int:
     for field in sorted(stale):
         print(f"  STALE EXEMPTION  {field} is read now; drop its EXEMPT entry")
 
-    if bad or stale:
-        print(f"\n{len(bad)} unread field(s), {len(stale)} stale exemption(s).")
+    for problem in missing + lingering:
+        print(f"  MARKER   {problem}")
+
+    if bad or stale or missing or lingering:
+        print(
+            f"\n{len(bad)} unread field(s), {len(stale)} stale exemption(s), "
+            f"{len(missing) + len(lingering)} marker problem(s)."
+        )
         print("A declared-and-unread setting ships in .env.example and does nothing.")
         return 1
 
+    print(
+        "Unimplemented-marker artefacts checked: "
+        f"{sum(len(v[2]) for v in UNIMPLEMENTED_MARKER.values())}"
+    )
     print("\nEvery Settings field is referenced somewhere but its own declaration,")
     print("or exempt with a reason. NOTE: this proves the NAME is referenced, not")
     print("that the value changes behaviour - a field read into an unused variable")

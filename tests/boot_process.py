@@ -171,7 +171,7 @@ def _load_libc() -> ctypes.CDLL | None:
 _LIBC = _load_libc()
 
 
-def _die_with_parent(parent_pid: int) -> None:
+def _die_with_parent(parent_pid: int, option: int = _PR_SET_PDEATHSIG) -> None:
     """Ask the kernel to SIGKILL this child when `parent_pid` dies.
 
     **A `try: ... finally: proc.kill()` cannot do this.** No Python
@@ -190,16 +190,28 @@ def _die_with_parent(parent_pid: int) -> None:
     subreaper rather than to 1, so the check never fires. Comparing
     against the actual parent is right in both.
 
+    **`option` EXISTS SO THE FAILURE BRANCH CAN BE REACHED, and that is
+    its only purpose.** R11-H2 amputated the return check below and the
+    whole 868-test suite stayed green: the case that shipped with this
+    function asserts only that the guards do NOT fire, which passes
+    just as happily against a guard that has been deleted. With the
+    option a parameter, a test passes a bogus one, `prctl` returns `-1`
+    with `EINVAL`, and the branch is observable. Production callers
+    pass `parent_pid` alone and get `PR_SET_PDEATHSIG`; the seam is one
+    default argument rather than a knob invented to be mocked.
+
     Runs between `fork` and `exec` in the child.
 
     Args:
         parent_pid: `os.getpid()` read in the PARENT, before the fork.
+        option: The `prctl(2)` option. Defaults to `PR_SET_PDEATHSIG`,
+            which is the only value any caller outside a test passes.
     """
     if _LIBC is None:
         os._exit(_EXIT_NO_LIBC)
     # The return is CHECKED. A silently failed install leaves the child
     # unprotected, which is the whole defect wearing the fix's name.
-    if _LIBC.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL) != 0:
+    if _LIBC.prctl(option, signal.SIGKILL) != 0:
         os._exit(_EXIT_PRCTL_FAILED)
     # The race prctl cannot close by itself: if the parent died in the
     # window between `fork` and this call, the signal has already been
@@ -246,10 +258,28 @@ def spawn_marker_server(
         if proc.poll() is not None:
             break
         time.sleep(0.05)
+    rc = proc.poll()
     proc.kill()
     proc.wait()
+    # THE THREE BAIL-OUT CODES ARE READ HERE, AND UNTIL R11-L1 THEY
+    # WERE NOT (they had exactly one reader, `test_spawn_orphan.py`).
+    # They exist because `os._exit(1)` from a `preexec_fn` is
+    # indistinguishable from the entry script failing to import - and
+    # this function, which spawns every server in the suite, then
+    # rendered all three identically: the child dies before `exec`, so
+    # `output` is EMPTY and the message below says only that the
+    # lifespan never opened. Three distinct diagnoses collapsed into
+    # one blank body, one call frame away from the codes added to keep
+    # them apart.
+    diagnosis = {
+        _EXIT_NO_LIBC: "libc.so.6 could not be loaded, so PDEATHSIG was never set",
+        _EXIT_PRCTL_FAILED: "prctl(PR_SET_PDEATHSIG) returned non-zero",
+        _EXIT_PARENT_ALREADY_GONE: "the parent died between fork and the race check",
+    }.get(rc if rc is not None else -1)
+    named = f" ({diagnosis})" if diagnosis else ""
     raise AssertionError(
-        f"the server never opened its lifespan. output:\n{output.read_text()}"
+        f"the server never opened its lifespan. exit={rc}{named}. "
+        f"output:\n{output.read_text()}"
     )
 
 
