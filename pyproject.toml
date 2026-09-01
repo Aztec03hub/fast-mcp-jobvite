@@ -319,7 +319,22 @@ convention = "google"       # python.md:97 (B50 docstring half)
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests", "docs/reviews"]
+# R12-M2: `scripts` was in NEITHER the old list nor the docs-lint one. That
+# commit's stated purpose was to let the type and lint gates read the wired
+# checkers, and it brought in `docs/reviews` while leaving the other half of
+# them out - scripts/check-harness-anchors.py (the 458-anchor floor),
+# check_advisories.py (the dependency-audit flag source),
+# check-committed-file-types.py, four probes and the two adr-batch one-shots.
+# ruff already covered them (its exclusion is only `**/*.md`); the type gate
+# did not.
+#
+# MEASURED BOTH WAYS, because a nine-file addition reporting ZERO errors under
+# `strict = true` is a suspiciously clean number. The file count moves 96 -> 105
+# and there are exactly 9 `scripts/*.py`; an identical deliberate error appended
+# to check-harness-anchors.py exits 0 before this line and 1 after it, and the
+# same in probe-scan-bounds.py, so two separate files in the new population are
+# demonstrably read. The zero is real: these were written annotated.
+files = ["src", "tests", "docs/reviews", "scripts"]
 
 # defusedxml ships no type information (no py.typed, no bundled stubs), so under
 # `strict = true` its three imports in services/jobvite_client.py are hard errors.
