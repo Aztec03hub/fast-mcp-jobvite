@@ -263,7 +263,7 @@ No `ci.yml` step is proposed beyond the floor ratchet above, which I ran.
 someone to attribute to this work:
 
 - `check-design-citations.py` exit 1, both problems in `docs/reviews/REVIEW-R10.md:353` and
-  `:416` (`DESIGN.md:99999 is past the end`).
+  `:416` (`DESIGN.md:99999 is past the end`).  <!-- REPOINT-EXEMPT: quotes the planted citation as evidence -->
 - `check-design-citation-shape.py` exit 1, 47 ranges ending on a blank line - the population
   #126 was working through. **Zero of its findings name `AUDIT-SURVIVORS-REPORT.md` or
   `tests/test_audit_phase_sites.py`** (`grep -c` over its output: 0), and my test module cites

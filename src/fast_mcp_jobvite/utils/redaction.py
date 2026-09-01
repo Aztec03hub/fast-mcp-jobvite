@@ -153,8 +153,9 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         # mandates showing to the approver cannot coherently be a secret
         # in the record of what was approved.
         #
-        # **There is no tension with DESIGN.md:1145, and reading half of
-        # it manufactured one.** That line says `send_email` "is also an
+        # **There is no tension with DESIGN.md:1145-1146, and reading
+        # half of it manufactured one.** That line says `send_email` "is
+        # also an
         # argument like any other AND IS SUBJECT TO §2.1's SCHEMA RULES;
         # it defaults to `false` (§2.2)". It is scoped to schema and
         # defaulting - it says this field gets no special treatment from

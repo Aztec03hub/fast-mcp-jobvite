@@ -1090,7 +1090,7 @@ async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:
 
 
 async def test_every_breaker_transition_is_logged_with_direction_and_counter() -> None:
-    """DESIGN.md:674-676 and `backend/resilience.md:224-226`.
+    """DESIGN.md:674-677 and `backend/resilience.md:224-226`.
 
     All three directions are driven in one case, because the `open ->
     half_open` line is the one that only exists at all because

@@ -1119,7 +1119,7 @@ def _report_breaker_state() -> None:
 
     The line carries the direction, the triggering counter and
     `request_id`, which is what `backend/resilience.md:224-226` and
-    DESIGN.md:674-676 require. **It carries no URL**, for the same
+    DESIGN.md:674-677 require. **It carries no URL**, for the same
     reason a retry line does not: the v1 `jobFeed` URL is itself a
     secret.
     """
