@@ -82,12 +82,33 @@ Tier-1 brief must name the absolute repo path and say to `cd` there and
 create its own worktree if the one it is given is wrong.** The agent
 worked this out unaided and said so; the next one should not have to.
 
-**A Tier-1 agent has no task tools.** `TaskCreate/TaskGet/TaskUpdate`
-resolve to nothing in a subagent session, so a sub-orchestrator cannot
-claim its own task or file findings on the board. **`SendMessage` to
-`team-lead` IS its board**, and Tier 0 owns every task row on its behalf.
-Say this in the brief; otherwise the agent reports, correctly, that the
-task was never claimed and cannot tell whether that matters.
+**A Tier-1 agent's task tools are DEFERRED, NOT ABSENT — and this
+paragraph asserted the opposite as measured fact until a sixth run
+checked it.** It said `TaskCreate/TaskGet/TaskUpdate` "resolve to
+nothing in a subagent session". That is false. `PREAMBLE.md` already
+said the right thing — *"the shared task-list tools are DEFERRED, not
+absent"* — so two canon documents contradicted each other and the wrong
+one was the one being pasted into briefs.
+
+**What is actually verified**, stated at the width it was tested:
+`ToolSearch select:TaskGet,TaskList` returns both schemas from a Tier-1
+session, and `TaskGet <id>` returns the live row. **`TaskUpdate` and
+`TaskCreate` have NOT been tested from Tier 1** — the agent that found
+this declined to test them, correctly, because writing to a board it
+does not own is not its call. Do not widen this sentence until someone
+with a write mandate measures it.
+
+**A TIER-1 AGENT MUST `TaskGet` ITS OWN TASK BEFORE ACTING ON ANY
+ASSIGNMENT.** That is the check the false claim suppressed, and it is
+exactly what catches a stale assignment echo: the sixth run received an
+echo carrying a SUPERSEDED description, dated later than the work it
+hid, and identified it only by comparing against the live row.
+
+**The operative rule is unchanged: `SendMessage` to `team-lead` IS the
+reporting channel**, and Tier 0 owns every task row on its behalf. That
+was always right. What was wrong was the mechanism given for it — and a
+wrong mechanism in a canon document is the exact class this repo keeps
+finding, because no gate reads a claim about how a tool behaves.
 
 ### The process list is SHARED. It is other people's data.
 
