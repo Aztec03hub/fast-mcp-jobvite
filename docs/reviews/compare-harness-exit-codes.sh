@@ -85,6 +85,34 @@ echo "measured on the after side        : $(printf '%s\n' "$a_names" | grep -c .
 echo "COMPARED (measured on both sides) : $n_both of $total"
 echo "exit codes that MOVED             : $moved"
 
+# WHICH ROWS ARE MISSING, BY NAME, PER SIDE. A reader given only "17 of 36"
+# has to infer WHICH seventeen, and the inference is usually "the boring ones" -
+# whereas the rows most likely to be absent are the SLOWEST, which are also the
+# ones that exercise the most behaviour. Naming them turns a number a reader
+# discounts into a list a reader can act on, and it makes an asymmetric per-script
+# budget between the two arms visible as a longer list on one side.
+missing_b=$(comm -23 <(cd "$REPO/scripts" && ls -1 ./*.sh | sed 's|^\./||' | sort) \
+                     <(printf '%s\n' "$b_names"))
+missing_a=$(comm -23 <(cd "$REPO/scripts" && ls -1 ./*.sh | sed 's|^\./||' | sort) \
+                     <(printf '%s\n' "$a_names"))
+if [ -n "$missing_b" ]; then
+  echo
+  echo "NOT MEASURED on the before side ($(printf '%s\n' "$missing_b" | grep -c .)):"
+  printf '  %s\n' $missing_b
+fi
+if [ -n "$missing_a" ]; then
+  echo
+  echo "NOT MEASURED on the after side ($(printf '%s\n' "$missing_a" | grep -c .)):"
+  printf '  %s\n' $missing_a
+fi
+if [ -n "$missing_b$missing_a" ]; then
+  echo
+  echo "A row absent from ONE side only is the tell for the two arms having been"
+  echo "run under different per-script budgets. It cannot produce a false"
+  echo "difference - a timeout is never recorded - but it shrinks coverage, and"
+  echo "coverage is the denominator every number above is divided by."
+fi
+
 if [ "$n_both" -eq 0 ]; then
   echo "::error::the intersection is EMPTY. This is an instrument failure, not a"
   echo "         clean result - a zero that explains itself is the bug."
