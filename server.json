@@ -105,7 +105,7 @@
         },
         {
           "name": "JOBVITE_OUTBOUND_RATE_LIMIT",
-          "description": "Outbound self-throttle against Jobvite, requests per minute. A conservative guess, not a vendor figure: Jobvite documents no numeric rate limit.",
+          "description": "JOBVITE_OUTBOUND_RATE_LIMIT IS NOT YET IMPLEMENTED (ADR-0025): it is declared and validated, and no code reads it, so setting it changes nothing today. Intended as an outbound self-throttle against Jobvite, requests per minute. A conservative guess, not a vendor figure: Jobvite documents no numeric rate limit.",
           "isSecret": false,
           "isRequired": false,
           "default": "6"

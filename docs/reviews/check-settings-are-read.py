@@ -49,10 +49,12 @@ already uses for the committed-file-type gate.
 from __future__ import annotations
 
 import ast
+import json
 import pathlib
 import subprocess
 import sys
 import tokenize
+from collections.abc import Iterator
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
@@ -89,14 +91,37 @@ EXEMPT: dict[str, str] = {
 #: operators it does not work - the same defect pointing the other way,
 #: which is exactly how the first one survived a split review.
 #:
-#: The variable name and the marker must share a LINE, so this cannot
-#: pass on a sentence about something else that happens to contain the
-#: phrase.
+#: In a TEXT artefact the variable name and the marker must share a
+#: LINE, so this cannot pass on a sentence about something else that
+#: happens to contain the phrase. In a JSON artefact that rule is
+#: structurally unsatisfiable - `"name"` and `"description"` are always
+#: on different lines - so the entry is looked up by name and its
+#: description is what must carry the marker. Same question, asked in
+#: the form each file can actually answer.
+#:
+#: **`server.json` WAS MISSING FROM THIS TUPLE FOR ITS WHOLE LIFE, AND
+#: THE DOCSTRING ABOVE NAMES IT AS THE HARM** (R14-H1). The paragraph
+#: that argues this arm into existence ends *"and `server.json`
+#: advertises it to registry consumers as a knob that works"* - then the
+#: enforced list held `README.md` and `.env.example` and stopped. The
+#: omitted artefact is the ONLY one of the three that leaves this
+#: repository: `.env.example` and `README.md` are read by someone who
+#: has already cloned us, while `server.json` is the PUBLISHED MCP
+#: manifest a registry consumer reads without ever seeing the other two.
+#: The check covered the two audiences that could recover, and skipped
+#: the one that could not.
+#:
+#: This is the hand-kept-list failure in its usual form: a list written
+#: beside its container is blind to the member nobody added. The three
+#: artefacts here are the same three `check-env-vars-are-declared.py`
+#: names in its own docstring; if a fourth operator-facing artefact ever
+#: appears, it must be added HERE TOO, and nothing but review enforces
+#: that.
 UNIMPLEMENTED_MARKER: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "outbound_rate_limit": (
         "JOBVITE_OUTBOUND_RATE_LIMIT",
         "NOT YET IMPLEMENTED",
-        ("README.md", ".env.example"),
+        ("README.md", ".env.example", "server.json"),
     ),
 }
 
@@ -108,13 +133,61 @@ def marker_lines(variable: str, marker: str, name: str) -> list[int]:
     hits: a search at a missing file exits clean-empty, which is
     indistinguishable from a real absence and would make the
     "marker present" arm pass by never looking.
+
+    **JSON IS READ STRUCTURALLY, NOT BY LINE.** The same-line rule is
+    what stops this passing on an unrelated sentence, but a JSON object
+    puts `"name"` and `"description"` on DIFFERENT lines by
+    construction - so applied to `server.json` the line rule would
+    report a clean zero no matter what the manifest said, and the arm
+    would pass by never being able to match. Parsing instead asks the
+    question the line rule was approximating: does the entry FOR THIS
+    VARIABLE carry the marker in the text a consumer reads?
     """
     path = ROOT / name
     if not path.is_file():
         message = f"{name} does not exist, so this check would pass vacuously"
         raise SystemExit(message)
+    if path.suffix == ".json":
+        return _json_marker_lines(path, variable, marker)
     body = path.read_text(encoding="utf-8").splitlines()
     return [n for n, line in enumerate(body, 1) if variable in line and marker in line]
+
+
+def _json_marker_lines(path: pathlib.Path, variable: str, marker: str) -> list[int]:
+    """The line of `variable`'s entry, when its description carries `marker`.
+
+    Returns the line the NAME sits on so the "lingering marker" message
+    can cite a real place to go and delete it, exactly as the line-based
+    arm does. An empty list means the entry exists without the marker,
+    or does not exist at all - and those are the same failure to a
+    consumer reading the manifest.
+    """
+    text = path.read_text(encoding="utf-8")
+    entries = [
+        node
+        for node in _walk_json(json.loads(text))
+        if isinstance(node, dict) and node.get("name") == variable
+    ]
+    if not entries:
+        message = f"{path.name} declares no {variable} entry, so this cannot match"
+        raise SystemExit(message)
+    if not any(marker in str(entry.get("description", "")) for entry in entries):
+        return []
+    quoted = f'"{variable}"'
+    return [
+        n for n, line in enumerate(text.splitlines(), 1) if quoted in line
+    ]
+
+
+def _walk_json(node: object) -> Iterator[object]:
+    """Every dict and list member reachable in a parsed JSON document."""
+    yield node
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from _walk_json(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _walk_json(value)
 
 
 def settings_fields() -> dict[str, int]:
