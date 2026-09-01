@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import subprocess
 import sys
 import tokenize
 
@@ -155,10 +156,44 @@ def _code_lines(path: pathlib.Path) -> list[str]:
     return body
 
 
+def _tracked_sources() -> list[pathlib.Path]:
+    """Every tracked `.py` under `src/`, selected by KIND not by PATH.
+
+    `git ls-files` enumerates the container and the suffix is the
+    filter. The previous form, `(ROOT / "src").rglob("*.py")`, selected
+    by PATH: it admitted any UNTRACKED `.py` left under `src/`. Here
+    that direction is a FALSE NEGATIVE and so the worse one - a field
+    referenced only from an uncommitted scratch file would be reported
+    READ, and the gap this checker exists to find would go unreported.
+
+    MEASURED WHEN THIS CHANGED, and the honest reading is the weaker
+    one: both forms yielded the same 23 files, so this closes a defect
+    that has not yet happened rather than one that has.
+    `check-design-citations.py` is the shape this copies; if the two
+    ever disagree, that is the bug.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "--", "src"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=True,
+    ).stdout
+    files = sorted(
+        ROOT / name
+        for name in out.split("\0")
+        if name and pathlib.Path(name).suffix == ".py"
+    )
+    if not files:
+        message = "no tracked `.py` under src/ - the selector is broken"
+        raise SystemExit(message)
+    return files
+
+
 def references(field: str, declaration_line: int) -> list[str]:
     """Every reference to `field` that is not its declaration."""
     hits = []
-    for path in sorted((ROOT / "src").rglob("*.py")):
+    for path in _tracked_sources():
         for num, code in enumerate(_code_lines(path), 1):
             if path == CONFIG and num == declaration_line:
                 continue

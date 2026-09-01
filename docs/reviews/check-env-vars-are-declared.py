@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import pathlib
 import re
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -85,10 +86,43 @@ def declared() -> set[str]:
     raise SystemExit(message)
 
 
+def _tracked_sources() -> list[pathlib.Path]:
+    """Every tracked `.py` under `src/`, selected by KIND not by PATH.
+
+    `git ls-files` enumerates the container and the suffix is the
+    filter. The previous form, `(ROOT / "src").rglob("*.py")`, selected
+    by PATH: it admitted any UNTRACKED `.py` left under `src/`, so a
+    scratch file could supply a `JOBVITE_*` literal and manufacture an
+    undeclared-name finding that no committed source contains.
+
+    MEASURED WHEN THIS CHANGED, and the honest reading is the weaker
+    one: both forms yielded the same 23 files, so this closes a defect
+    that has not yet happened rather than one that has.
+    `check-design-citations.py` is the shape this copies; if the two
+    ever disagree, that is the bug.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "--", "src"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=True,
+    ).stdout
+    files = sorted(
+        ROOT / name
+        for name in out.split("\0")
+        if name and pathlib.Path(name).suffix == ".py"
+    )
+    if not files:
+        message = "no tracked `.py` under src/ - the selector is broken"
+        raise SystemExit(message)
+    return files
+
+
 def mentioned() -> dict[str, list[str]]:
     """Every `JOBVITE_*` literal in `src/`, mapped to where it is."""
     found: dict[str, list[str]] = {}
-    for path in sorted((ROOT / "src").rglob("*.py")):
+    for path in _tracked_sources():
         for num, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for name in NAME.findall(line):
                 found.setdefault(name, []).append(f"{path.relative_to(ROOT)}:{num}")
