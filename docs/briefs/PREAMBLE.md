@@ -140,3 +140,22 @@ remedy costs the author the whole diagnosis a second time.
 
 **End with what you did NOT verify.** That section is where I decide what to check myself, so it is
 for what you could not settle - not for a cheap item you simply did not try.
+
+**IF YOUR REPORT IS A CODE REVIEW, DECLARE THE RANGE YOU COVERED**, as an HTML comment directly
+under the heading, so it renders as nothing:
+
+    <!-- REVIEW-COVERS: <base>..<head> -->
+
+`docs/reviews/check-review-coverage.py` enumerates every commit on the trunk and reports the ones
+inside no round's declared range. **It exists because 45 consecutive commits were once reviewed by
+nobody and it took an accident to notice** - no review document had ever recorded what it covered,
+so no gap could be detected.
+
+That checker **refuses to infer** a range from whatever SHAs your document happens to mention.
+Inferring would manufacture coverage for code nobody read and certify it forever, which is worse
+than the gap: an absence you can see beats a false presence you cannot. So the declaration must
+come from you, or your round leaves no machine-readable trace.
+
+**Declare the range you were responsible for, and make it true.** If a scope filter meant you did
+not examine every commit in the span, say so in prose - but still declare the span. A wrong
+declaration is worse than none, because the next reader will trust it.
