@@ -375,9 +375,35 @@ the machinery gets right.
 
 ## 4. The new NONE count
 
-With this document's declaration in place, re-measured:
+With this document's declaration in place, re-measured at `10ac6cf`:
 
-    (recorded at commit time - see §5)
+    python3 docs/reviews/check-review-coverage.py
+      DECLARED  REVIEW-R15.md: 8695101..0b149b9
+                239 commits, paths: docs/reviews scripts .github
+      Trunk commits on main since 8695101: 239
+      Fully covered - range AND every path: 200
+      PARTIALLY covered - some files claimed by nobody: 39
+      COVERED BY NOTHING: 0
+      Record files skipped: 35
+                                                         EXIT=1
+
+**`COVERED BY NOTHING` goes 131 -> 0.** `Fully covered` goes 108 -> 200.
+`PARTIALLY covered` goes 0 -> **39**, exactly the number §1c predicted
+before this document was written, which is the check on that prediction.
+
+**The gate still exits 1, so it must still NOT be wired.** That is the
+point of §1c: the brief expected this round to clear the backlog, and it
+clears only the `NONE` half. Two things must land before
+`check-review-coverage.py` can be wired green:
+
+1. the complementary path round of §1c, taking PARTIAL 39 -> 0, and
+2. **R15-H1**, without which the wired step exits 3 on every PR
+   regardless of the counts.
+
+`records_skipped` rises 17 -> 35 as a side effect: a record file is only
+counted once some round claims its commit, so extending coverage makes
+previously-invisible record files visible to the counter. The number
+going up is the exemption reporting itself correctly, not a regression.
 
 ---
 
