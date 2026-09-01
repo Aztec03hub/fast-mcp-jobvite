@@ -50,8 +50,15 @@ def git(*args: str) -> str:
         ["git", "-C", str(ROOT), *args], capture_output=True, text=True
     )
     if done.returncode != 0:
-        message = f"git {' '.join(args)} failed: {done.stderr.strip()}"
-        raise SystemExit(message)
+        detail = done.stderr.strip()
+        print(f"git {' '.join(args)} failed: {detail}")
+        if "invalid object name" in detail or "bad object" in detail:
+            print("THE FROZEN SHA IS NOT IN THIS CLONE. That is almost always a")
+            print("SHALLOW checkout - `actions/checkout` defaults to depth 1 and")
+            print("cannot see the commit DESIGN-FREEZE.txt names. Set")
+            print("`fetch-depth: 0` on the job. It is NOT evidence the design moved.")
+        print("This is a BROKEN INSTRUMENT, not a finding. Exit 3.")
+        raise SystemExit(3)
     return done.stdout.strip()
 
 

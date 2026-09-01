@@ -144,9 +144,20 @@ proc = subprocess.run(
     text=True,
     check=False,
 )
+# rc 2 is the gate's SANCTIONED "corpus absent" state, not a failure -
+# `ci.yml` turns it into a warning by design, because the standards
+# corpus is a private repo needing STANDARDS_TOKEN (#106). Asserting
+# rc == 0 encoded a LOCAL-ONLY precondition: this row passed on a
+# machine that has the corpus checked out beside the repo, and failed
+# on every runner that does not. It went red the first time CI ran it,
+# and its failure then contaminated the A3/A4 amputation rows, which
+# compare which rows die.
+#
+# What this row actually wants is "the wired gate did not CRASH".
+# rc 1 would be a real finding and still fails here.
 row(
-    "D. happy path unchanged, and the wired gate still exits 0",
-    isinstance(got, pathlib.Path) and proc.returncode == 0,
+    "D. happy path unchanged, and the wired gate did not crash",
+    isinstance(got, pathlib.Path) and proc.returncode in (0, 2),
     f"_corpus()={got} gate_rc={proc.returncode}",
 )
 

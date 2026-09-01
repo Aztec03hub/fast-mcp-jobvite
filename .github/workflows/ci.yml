@@ -104,7 +104,15 @@ jobs:
     name: Design coupling gates
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth 0: the freeze gate resolves the SHA in docs/DESIGN-FREEZE.txt,
+      # which a SHALLOW clone does not contain - it failed in CI with 'invalid
+      # object name' while passing locally, because a local clone has history and
+      # actions/checkout defaults to depth 1. The Supply-chain job already carries
+      # this reasoning for TruffleHog; I did not apply it to a gate that needs the
+      # same thing.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
