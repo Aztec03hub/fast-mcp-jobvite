@@ -25,7 +25,49 @@ own docstring says it proves a commit falls inside a declared range and never th
 Two things I noticed inside `review-r12`'s half and deliberately did not chase are listed under
 **What I did NOT verify**, at the end.
 
-## Gates, each read from its own exit code
+## Outcome: all eight fixed on this branch
+
+Every finding was accepted and worked in the order the orchestrator set. Commit per row, and the
+gate numbers below are the REVIEW's; the fixes' own numbers are at the bottom of this section.
+
+| Finding | Commit | What proves it |
+|---|---|---|
+| R11-H1 | `5e45709` | 4 amputations red, incl. ADR-0030's own "change the fake's number" |
+| R11-H2 | `afd2937` | both guards re-amputated, one arm each, no collateral |
+| R11-M1 | `ece3dbd` | source-level guard; retyping the literal goes red |
+| R11-M2 | `40aca53` | 4 arms on the marker rule, both directions |
+| R11-M3 | `ece3dbd` | the new range contains the sentence the docstring quotes |
+| R11-M4 | `105a979` | fixed independently by the orchestrator; see that row |
+| R11-L1 | `ece3dbd` | reverting the fix turns its case red |
+| R11-N1 | `ece3dbd` | reflowed in place |
+
+**Gates after the fixes**, each from its own exit code: `pytest` 0 - **873 passed**, 6 deselected,
+**0 skipped**; `mypy` 0 - 96 files; `ruff check .` 0; `ruff format --check .` 0;
+`check-harness-anchors.py --self-check --floor 458` 0; `check-settings-are-read.py` 0.
+
+**The suite floor moves 868 -> 873** and `ci.yml`'s `check-suite-floor.sh 868` is the orchestrator's
+to advance.
+
+### Three things went wrong while fixing, and each is the finding's own shape pointing at me
+
+- **A vacuous amputation I nearly recorded as a survivor** (H1). I mutated `retry_after`'s default in
+  `JobviteUpstreamError.__init__`; `public_error()` assigns that field *after* construction, so my
+  own fix overwrote the mutation and the suite stayed green for a reason unrelated to the test.
+  Moving the mutation to the assigning line turned it red. **A mutation that never reaches the
+  behaviour is indistinguishable from a test that cannot see it** - which is precisely H2.
+- **A guard that could not fail** (M1). My first was `HTTPX_LOGGER_NAME is _httpx2_logger.name`. It
+  SURVIVED: CPython interns short identifier-shaped literals, so `"httpx2" is logger.name` is `True`
+  and the check passes against the exact code it was written to refuse. Replaced with an `ast`
+  assertion over the module's own source, because **a claim about what the source SAYS has to read
+  the source**.
+- **I destroyed an uncommitted change with `git checkout -- <path>`** (M2). Restoring a mutation that
+  way discards the whole edit when the file is not staged - there is nothing to restore *to*. Caught
+  by grepping for the symbol afterwards rather than by trusting the restore. Every other arm in this
+  round used `cp` against a backup taken first.
+
+---
+
+## Gates at the time of REVIEW, each read from its own exit code
 
 ```
 uv run --frozen pytest         -> 0    868 passed, 6 deselected, 0 SKIPPED   (ci.yml floor 868)
@@ -41,7 +83,7 @@ Both floors were grepped out of `.github/workflows/ci.yml` at run time, not rety
 
 ---
 
-## R11-H1 (High) - ADR-0030 has no code half, and its tests manufacture the evidence
+## R11-H1 (High) - FIXED at 5e45709 - ADR-0030 has no code half, and its tests manufacture the evidence
 
 **The frozen design states the behaviour in the present tense and nothing implements it.**
 `docs/DESIGN.md:376-382`, applied by `8a9d63c` in this range:
@@ -80,9 +122,26 @@ does the same with a literal 30, under a docstring claiming *"DESIGN.md:370 atta
 hint to the 503"*. Both test `build_problem`'s `**extensions` plumbing, which works; neither tests
 the claim in its own docstring.
 
-**This is also an asymmetry inside the same batch.** `8a9d63c` applied ADR-0025 with an explicit
-`**That outbound throttle IS NOT IMPLEMENTED**` marker (`docs/DESIGN.md:448`) and applied ADR-0030
-with no such marker, when both were unimplemented.
+### The asymmetry inside `8a9d63c`, which is the transferable part
+
+The same commit applied two ADRs for mechanisms that did not exist, and marked only one of them.
+ADR-0025's paragraph opens `**That outbound throttle IS NOT IMPLEMENTED. The two rules below
+constrain whoever builds it; they do not describe what runs today**` (`docs/DESIGN.md:448`).
+ADR-0030's paragraph, eighty lines earlier, is written in the plain present tense and reads as a
+description of behaviour.
+
+**Nothing about the two rulings justifies the difference.** Neither had an implementation when it
+was applied. What differed was that ADR-0025's own ruling ends by saying the throttle is still
+unimplemented and the design should say so, and ADR-0030's does not - so the marker was inherited
+from the ADR's closing paragraph rather than decided by the applier. A design that states an
+unbuilt mechanism in the present tense has no reader who can tell it apart from one that runs, and
+that is exactly what happened here: three review rounds and a machine gate read `DESIGN.md:376-382`
+and none of them asked whether any code did it.
+
+**The rule that generalises**: when an ADR is applied to the frozen design ahead of its
+implementation, the applied paragraph says so in its own first sentence. `ADR-0025`'s form is the
+model. This is cheaper than a checker and it is the thing a checker cannot do, because "is this
+paragraph describing code that exists?" is not decidable from the text.
 
 **Suggested fix - at the rule, not the six call sites** (task #66's lesson). In
 `errors.problem_from_exception`, merge the exception's own hint before delegating, with an explicit
@@ -108,7 +167,7 @@ the arm goes red. A test that passes the value in cannot fail.
 
 ---
 
-## R11-H2 (High) - two of R9's three PDEATHSIG fixes are amputation survivors
+## R11-H2 (High) - FIXED at afd2937 - two of R9's three PDEATHSIG fixes are amputation survivors
 
 `449968f` landed three fixes in `tests/boot_process.py`. One of them (the dlopen-after-fork move to
 import time) is structural. The other two are guards, and **deleting either leaves the whole
@@ -158,7 +217,7 @@ real rather than hypothetical.
 
 ---
 
-## R11-M1 (Medium) - ADR-0026 requires the logger name DERIVED; the code retypes it
+## R11-M1 (Medium) - FIXED at ece3dbd - ADR-0026 requires the logger name DERIVED; the code retypes it
 
 ADR-0026, `docs/adr/0026-...md:161-163`, under *"Two things follow for anything built on this ADR"*:
 
@@ -200,7 +259,7 @@ needs a numbered ADR, and is the worse trade for the same outcome.
 
 ---
 
-## R11-M2 (Medium) - the design says the throttle is not implemented; README and `.env.example` say it works
+## R11-M2 (Medium) - FIXED at 40aca53 - the design says the throttle is not implemented; README and `.env.example` say it works
 
 `8a9d63c` added to the frozen design, `docs/DESIGN.md:448-451`:
 
@@ -235,7 +294,7 @@ same commit that makes it false.
 
 ---
 
-## R11-M3 (Medium) - a citation that resolves and names the wrong sentence, in live code, of the class #114 closed at `dad014e`
+## R11-M3 (Medium) - FIXED at ece3dbd - a citation that resolves and names the wrong sentence, in live code, of the class #114 closed at `dad014e`
 
 `src/fast_mcp_jobvite/approval.py:192-193`:
 
@@ -285,7 +344,7 @@ mechanically and finds the next one; "resolves to a non-blank line" cannot.
 
 ---
 
-## R11-M4 (Medium) - nothing in the repo records the current freeze SHA, and the design's own header still names the first one
+## R11-M4 (Medium) - FIXED INDEPENDENTLY at `105a979` - nothing in the repo records the current freeze SHA, and the design's own header still names the first one
 
 `docs/DESIGN.md:3` is unchanged through both re-freezes:
 
@@ -315,7 +374,7 @@ it alone.
 
 ---
 
-## R11-L1 (Low) - the three bail-out exit codes are inoperative on the path that spawns every server
+## R11-L1 (Low) - FIXED at ece3dbd - the three bail-out exit codes are inoperative on the path that spawns every server
 
 `449968f` introduced `_EXIT_NO_LIBC = 100`, `_EXIT_PRCTL_FAILED = 101` and
 `_EXIT_PARENT_ALREADY_GONE = 102` at `tests/boot_process.py:137-140`, with the comment:
@@ -363,7 +422,7 @@ to prevent, one call frame away from the codes themselves.
 
 ---
 
-## R11-N1 (nit) - a mechanical rewrap left a two-word orphan line
+## R11-N1 (nit) - FIXED at ece3dbd - a mechanical rewrap left a two-word orphan line
 
 `aca9397` rewrapped the comment at `src/fast_mcp_jobvite/__main__.py:461-464` by splitting rather
 than reflowing:
@@ -418,6 +477,43 @@ checked.
   `DESIGN.md:<n>` to a placeholder and diffing collapses the change to comment reflow plus exactly one
   behavioural line, `mechanism=ApprovalMechanism.MRTR`.
 - **445 citation repoints in `src` and `tests` are content-preserving** (method in R11-M3).
+
+---
+
+## The residual hole in the freeze fix, which the orchestrator asked me to look for
+
+`105a979` is a better fix than the one M4 proposed, and it caught drift I had not found: `86ab20e`
+edited `DESIGN.md` and no pointer moved, which `check-design-freeze.py` now detects by BLOB IDENTITY
+rather than by line count. Both halves of M4 are closed - `docs/DESIGN-FREEZE.txt` is the single
+record, and `check-design-citation-shape.py` reads it instead of carrying its own `--sha` default.
+
+**One hole remains, and it is the half a blob comparison cannot reach.** The gate answers *"has
+`DESIGN.md` moved away from the declared freeze?"* It cannot answer *"is the SHA in front of this
+reader the current one?"* - and that second question is where the decay actually happened. Measured
+on `main`:
+
+```
+$ git grep -ln "DESIGN-FREEZE" main
+  .github/workflows/ci.yml   docs/README.md   docs/briefs/AUDIT-SHAPES.md
+  docs/reviews/check-design-citation-shape.py   docs/reviews/check-design-citations.py
+  docs/reviews/check-design-freeze.py
+```
+
+`docs/briefs/PREAMBLE.md` is not in that list. Its rule still reads:
+
+> **`docs/DESIGN.md` is FROZEN.** Read it as `git show <SHA>:docs/DESIGN.md`, never from the working
+> tree.
+
+**The SHA is still the dispatcher's to type**, so every future brief re-enters the decay by hand, and
+a brief naming a stale-but-valid SHA resolves cleanly and passes every gate - which is exactly what
+`docs/briefs/ADR-0025.md:9` does today with `8a9d63c`. Fourteen briefs on `main` name `c15b138`; those
+are records and correct as records. The live risk is the fifteenth.
+
+**Suggested fix, one line in `PREAMBLE.md`:** replace `<SHA>` with
+`` `git show "$(cat docs/DESIGN-FREEZE.txt)":docs/DESIGN.md` ``. Then the file is read rather than
+retyped by everyone who follows the preamble, which is everyone, and it costs nothing. This is
+`PREAMBLE.md`'s own thesis - *"a retyped constant decays"* - applied to the constant it retypes. It
+is your file, so I have not touched it.
 
 ---
 
