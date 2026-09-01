@@ -196,6 +196,12 @@ def main() -> int:
         # line. Without this arm the whole branch is an amputation
         # survivor - deleting it changes nothing, because every
         # description here happens to begin with its own variable name.
+        # The manifest is still UNMARKED from the POSITIVE arm, so
+        # restore it before planting a different wording - otherwise
+        # this arm's anchor is missing and `substitute` refuses.
+        subprocess.run(
+            ["git", "-C", str(ROOT), "checkout", "--", str(MANIFEST)], check=False
+        )
         prose = "Not implemented yet. NOT YET IMPLEMENTED: no code reads it."
         substitute(MANIFEST, PUBLISHED, prose)
         code, out = run_checker()
