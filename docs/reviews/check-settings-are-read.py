@@ -4,8 +4,8 @@
     python3 docs/reviews/check-settings-are-read.py
 
 **This exists because the question it asks has produced two findings in
-one day and no gate here asked it.** `DESIGN.md:373-375` promised a
-total outbound budget and nothing implemented one until U7.
+one day and no gate here asked it.** §4.3's "a total outbound budget,
+configured" was promised and nothing implemented one until U7.
 §10.1's variable list specifies a self-throttle and
 **`outbound_rate_limit` is still read by nothing** - it is declared,
 typed, defaulted, documented in `.env.example` and covered by config
