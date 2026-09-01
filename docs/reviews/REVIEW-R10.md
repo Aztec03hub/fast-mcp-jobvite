@@ -350,7 +350,7 @@ The zero is **real**. I proved the scan can fire, on the real tree, by planting 
 
 ```
 blank range     scripts/r9-plant.sh:2  DESIGN.md:2       -> "the entire range is blank"       exit 1
-past the end    scripts/r9-plant.sh:2  DESIGN.md:99999   -> "past the end of DESIGN.md"       exit 1
+past the end    scripts/r9-plant.sh:2  DESIGN.md:99999   -> "past the end of DESIGN.md"       exit 1   # REPOINT-EXEMPT (quoted probe output)
 blank START     scripts/r9-plant.sh:2  DESIGN.md:2-4     -> "starts on a BLANK line"          exit 1
 ```
 

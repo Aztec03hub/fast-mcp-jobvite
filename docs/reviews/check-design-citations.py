@@ -110,15 +110,38 @@ def _tracked_files() -> list[pathlib.Path]:
     return files
 
 
+#: A line carrying this marker is an EXAMPLE of a citation, not a
+#: citation OF anything - the repoint tool and
+#: `check-design-citation-shape.py` both honour it, and this file's own
+#: docstring uses it. THIS CHECKER DID NOT, which is the asymmetry:
+#: `REVIEW-R10.md` quotes the deliberately-out-of-bounds citations its
+#: probe planted, as EVIDENCE, and one of those lines already carried
+#: the marker and was flagged anyway. A wired gate went red on a report
+#: describing the very defect the gate looks for - the sixth time in one
+#: day a checker has found the document that documents it.
+EXEMPT_MARKER = "REPOINT-EXEMPT"
+EXEMPT_SKIPPED = 0
+
+
 def citations() -> list[tuple[pathlib.Path, int, int, int]]:
-    """Every citation as (file, line-it-appears-on, start, end)."""
+    """Every citation as (file, line-it-appears-on, start, end).
+
+    Lines marked `REPOINT-EXEMPT` are skipped and COUNTED, so the
+    exemption can never be silent - a skip nobody reports is how a
+    population shrinks without anyone noticing.
+    """
     found: list[tuple[pathlib.Path, int, int, int]] = []
+    global EXEMPT_SKIPPED
+    EXEMPT_SKIPPED = 0
     for path in _tracked_files():
         try:
             text = path.read_text()
         except UnicodeDecodeError:
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
+            if EXEMPT_MARKER in line:
+                EXEMPT_SKIPPED += 1
+                continue
             for m in _CITATION.finditer(line):
                 start = int(m.group(1))
                 end = int(m.group(2)) if m.group(2) else start
