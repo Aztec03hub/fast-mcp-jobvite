@@ -399,3 +399,48 @@ none of them can see the tally change - which is precisely why an unmoved
 ledger is the expected result and not the evidence. The evidence that the
 new gate arms work is the control rows; the ledger only shows I broke
 nothing on the way.
+
+## The three steps that GAINED a flag, run end to end
+
+The preamble requires running any `ci.yml` step a report hands over, and
+these three are the whole of Q2 as an executable claim. Run as `ci.yml`
+runs them, on the branch, after the change:
+
+```
+########## ci.yml step: check-u7-resilience-amputation.sh --amputation --anchors-applied --min-rows 22 --row-re ^########## A[0-9]+ 
+exit=0
+HARNESS-RESULT name=check-u7-resilience-amputation.sh rows=22 floor=0 applied=22/22 status=ok
+HARNESS-RESULT name=ci-harness-gate.sh rows=1 floor=0 status=ok
+tree: CLEAN
+
+########## ci.yml step: check-u9-http-amputation.sh --amputation --anchors-applied --min-rows 14 --row-re ^########## A[0-9]+ 
+exit=0
+HARNESS-RESULT name=check-u9-http-amputation.sh rows=14 floor=0 applied=14/14 status=ok
+HARNESS-RESULT name=ci-harness-gate.sh rows=1 floor=0 status=ok
+tree: CLEAN
+
+########## ci.yml step: check-u10-write-amputation.sh --amputation --anchors-applied --min-rows 10 --row-re ^########## A[0-9]+ 
+exit=0
+HARNESS-RESULT name=check-u10-write-amputation.sh rows=10 floor=0 applied=10/10 status=ok
+HARNESS-RESULT name=ci-harness-gate.sh rows=1 floor=0 status=ok
+tree: CLEAN
+
+GATE STEPS DONE
+```
+
+All three exit 0, all three publish `applied=N/N`, and each restored the
+tree. Before the change these steps carried no tally assertion at all, so
+the field they now publish is read by a gate that previously read nothing.
+
+Note the `floor=0` on all three: none of them declares a `ROW_FLOOR`, and
+0 reads as absent rather than as a floor anything can breach. That is
+unchanged by this task and is not a finding.
+
+### And the fourth harness, wired after its exemption was refuted
+
+```
+bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
+exit 0
+HARNESS-RESULT name=check-harness-anchors-controls.sh rows=9 floor=9 fired=9/9 status=ok
+tree: 0 dirty paths
+```
