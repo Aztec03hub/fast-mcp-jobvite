@@ -26,6 +26,17 @@ usage() {
 OUT="$1"
 BUDGET="${2:-900}"
 
+# AN OVERALL DEADLINE, CHECKED ONLY BETWEEN SCRIPTS. A caller that has to bound
+# this probe from outside - a CI step limit, a tool timeout - would kill it
+# MID-HARNESS, and a mutation harness killed mid-row strands its mutation in the
+# working tree. That is a measured failure here, not a hypothetical.
+#
+# So the bound is given TO the probe instead: before each script it asks whether
+# a full per-script budget still fits, and if not it stops cleanly and says how
+# many rows remain. Combined with the resume above, repeated bounded calls walk
+# the whole container without any of them ever being killed.
+DEADLINE="${3:-0}"
+
 # A dirty tree means someone is mid-edit, and these harnesses mutate `src/` and
 # restore it. Measuring here would measure them.
 if ! git -C "$REPO" diff --quiet; then
@@ -58,6 +69,12 @@ for s in "${SCRIPTS[@]}"; do
     echo "skipped (already in $OUT): $s"
     continue
   fi
+  if [ "$DEADLINE" -gt 0 ] && [ "$((SECONDS + BUDGET))" -gt "$DEADLINE" ]; then
+    echo "STOPPING CLEANLY at the overall deadline: ${SECONDS}s used, a further"
+    echo "${BUDGET}s would exceed ${DEADLINE}s. Re-run to resume; nothing was"
+    echo "interrupted mid-harness."
+    break
+  fi
   start=$SECONDS
   log=$(mktemp)
   timeout --signal=TERM --kill-after=30 "$BUDGET" bash "$REPO/scripts/$s" >"$log" 2>&1
@@ -85,4 +102,8 @@ for s in "${SCRIPTS[@]}"; do
 done
 
 echo
-echo "ledger written to $OUT"
+measured=$(cut -d' ' -f1 "$OUT" | sed '/^$/d' | sort -u | grep -c .)
+echo "ledger $OUT holds $measured of ${#SCRIPTS[@]} rows"
+[ "$measured" -eq "${#SCRIPTS[@]}" ] \
+  && echo "COMPLETE: every script in the container has been measured." \
+  || echo "INCOMPLETE: $(( ${#SCRIPTS[@]} - measured )) still to measure. Re-run to resume."
