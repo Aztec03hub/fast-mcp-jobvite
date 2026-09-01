@@ -55,7 +55,25 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # STATICALLY that each floor equals its harness's row count. THIS script
 # reads all five and WATCHES the floor fire by removing real rows.
 #
-# The exactness claim now covers all 23 rows below. The firing claim covers
+# R12-M1: check-u15-gate-amputation.sh WAS MISSING FROM THIS TABLE. The
+# container held 24 harnesses carrying a literal ROW_FLOOR and the table named
+# 23, so that one harness's floor was never compared to a live row count. It
+# was TIGHT (5 rows, ROW_FLOOR=5), so the gap was latent rather than live.
+#
+# It was left out on the argument that `check-row-floor-control.sh` - singular -
+# already watches it fire. That argument is CORRECT and it is about the FIRING
+# claim; the exactness claim is a different question about a different number,
+# and evidence for one is not coverage for the other. So it is a row here rather
+# than an exemption, and it costs one line instead of an exemption register that
+# a reader would have to follow to a second file to learn the harness is covered
+# at all. The two controls overlapping on one harness is not a defect.
+#
+# check-row-floor-exactness.py now enumerates scripts/*.sh for a literal
+# ROW_FLOOR and FAILS unless that set EQUALS this table's, in both directions -
+# so the next harness cannot be added without being covered, which is the only
+# form of this fix that does not need someone to remember.
+#
+# The exactness claim now covers all 24 rows below. The firing claim covers
 # only the first NINE - the ones #91 actually ran - plus
 # `check-u15-gate-amputation.sh` in the singular
 # `check-row-floor-control.sh`. **The fourteen added afterwards have been
@@ -107,6 +125,7 @@ check-u6-paging-controls.sh|^mutate \"|0|1|cmd
 check-u8-candidates-amputation.sh|^amputate \"|0|1|cmd
 check-u8-candidates-controls.sh|^mutate \"|0|1|cmd
 check-u9-http-controls.sh|^mutate \"|0|1|cmd
+check-u15-gate-amputation.sh|^report \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }

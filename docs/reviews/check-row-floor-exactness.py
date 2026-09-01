@@ -192,6 +192,49 @@ def _live_rows(text: str, row_re: str) -> int | str:
     return matched
 
 
+def _container_gap(table: list[tuple[str, str, int]]) -> list[str]:
+    """Harnesses carrying a `ROW_FLOOR` that the table does not name.
+
+    R12-M1. The table is not a copy of any number - that much the
+    docstring already got right - but it IS a hand-kept LIST beside a
+    container it never compared itself to, and the container had a
+    member it did not: `check-u15-gate-amputation.sh`, `ROW_FLOOR=5`,
+    exact but unchecked. Enumerating `scripts/*.sh` and requiring the
+    two sets to be EQUAL is what stops the next harness being added
+    without being covered, which is the only durable form of this.
+
+    Both directions are reported. A table row with no `ROW_FLOOR` on
+    disk is just as wrong as a floor with no table row, and the
+    existing per-row check would call it "not on disk" only if the
+    whole file were missing.
+    """
+    on_disk = {
+        p.name
+        for p in sorted(SCRIPTS.glob("*.sh"))
+        if FLOOR_RE.search(p.read_text(encoding="utf-8"))
+    }
+    if not on_disk:
+        return [
+            "NO harness in scripts/ carries a literal ROW_FLOOR. An empty "
+            "container and a fully-covered one are the same green, so this "
+            "is a finding rather than a pass."
+        ]
+    named = {name for name, _, _ in table}
+    gap = []
+    for missing in sorted(on_disk - named):
+        gap.append(
+            f"{missing}: carries a ROW_FLOOR but the control table does not "
+            "name it, so its floor is never compared to a live row count. "
+            "Add it to TABLE in check-row-floor-controls.sh."
+        )
+    for extra in sorted(named - on_disk):
+        gap.append(
+            f"{extra}: named by the control table but carries no literal "
+            "ROW_FLOOR. One of the two is wrong."
+        )
+    return gap
+
+
 def main() -> int:
     table = _table()
     if not table:
@@ -200,7 +243,7 @@ def main() -> int:
         print("this is exit 2 rather than a pass.")
         return 2
 
-    bad: list[str] = []
+    bad: list[str] = _container_gap(table)
     for name, ere, extra in table:
         path = SCRIPTS / name
         if not path.exists():
