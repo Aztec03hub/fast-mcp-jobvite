@@ -38,6 +38,14 @@
 # is EXPECTED to fail. See docs/adr/0023-harnesses-drop-e-from-strict-mode.md
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,7 +56,7 @@ SUITE="tests/test_resilience.py"
 OUT=/tmp/u7-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
 cp "$CLIENT" "$PRISTINE_DIR/client.py" ||
   { echo "COULD NOT TAKE PRISTINE COPY of $CLIENT"; exit 3; }
@@ -371,6 +379,10 @@ amputate "A22 neither bound makes the result incomplete" \
   '            or False
         )'
 
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$ROWS" 0
 echo "ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
 echo "VACUOUS ROWS: $VACUOUS"
 echo "TOTAL SURVIVING ASSERTIONS ACROSS ALL ROWS: $TOTAL_SURVIVORS"

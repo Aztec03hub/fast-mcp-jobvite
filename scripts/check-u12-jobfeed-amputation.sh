@@ -29,6 +29,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,7 +49,7 @@ SUITE="tests/test_tools_job_feed.py"
 OUT=/tmp/u12-amp.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
 for f in "$TOOLS" "$MODELS" "$REDACTION"; do
   cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||
@@ -337,6 +345,10 @@ amputate "A10 the reported cap is a constant, not derived" "$MODELS" \
 # gating on the vacuous count is how a row that deletes a behaviour and
 # kills nothing passes CI.
 # ---------------------------------------------------------------------------
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$ROWS" 0
 echo "########## ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
 echo "########## TOTAL SURVIVING ASSERTIONS: $TOTAL_SURVIVORS"
 echo "########## VACUOUS ROWS: $VACUOUS"

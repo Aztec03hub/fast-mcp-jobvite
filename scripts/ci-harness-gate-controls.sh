@@ -17,9 +17,17 @@
 # defect this whole change exists to remove.
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'harness_result_emit; rm -rf "$WORK"' EXIT
 
 mkdir -p "$WORK/scripts"
 cp "$REPO/scripts/ci-harness-gate.sh" "$WORK/scripts/"
@@ -192,6 +200,10 @@ row "C23 a harness that does not exist is refused" 2 no-such-harness.sh --result
 echo
 echo "$FIRED/$TOTAL controls fired."
 
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$TOTAL" 0
 if [ "$TOTAL" -eq 0 ]; then
   echo "::error::the harness holds zero rows; a green from it means nothing"
   exit 1

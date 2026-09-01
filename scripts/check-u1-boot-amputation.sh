@@ -30,6 +30,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 3
 
@@ -39,7 +47,7 @@ SERVER="src/fast_mcp_jobvite/server.py"
 SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py tests/test_logging_process.py"
 
 WORK="$(mktemp -d)"
-trap 'cp "$WORK/config.py" "$CONFIG"; cp "$WORK/__main__.py" "$MAIN"; \
+trap 'harness_result_emit; cp "$WORK/config.py" "$CONFIG"; cp "$WORK/__main__.py" "$MAIN"; \
       cp "$WORK/server.py" "$SERVER"; rm -rf "$WORK"' EXIT
 cp "$CONFIG" "$WORK/config.py"
 cp "$MAIN" "$WORK/__main__.py"
@@ -84,7 +92,14 @@ restore() {
 
 UNEXPECTED=0
 
+# A ROW COUNTER, added by task #107. This harness had none, so the
+# canonical result line could only ever report rows=0 - and rows=0
+# beside a green is exactly the shape a row floor exists to catch.
+# The increment is at the TOP of the row function so that a row
+# which aborts on a missing anchor still counts as having run.
+HR_COUNTED_ROWS=0
 report() {  # $1 = label, $2.. = the test ids this row MUST kill
+  HR_COUNTED_ROWS=$((HR_COUNTED_ROWS + 1))
   local label="$1"; shift
   local must_die=("$@")
   echo "########## $label"
@@ -472,6 +487,10 @@ end = s.index("    )\n", start) + len("    )\n")
 p.write_text(s[:start] + "    return\n" + s[end:])
 PY
 report "M. stdlib logging is never bridged into loguru" "${MUST_M[@]}"
+# The canonical result line's row count, from the harness's own
+# counter. This harness declares no ROW_FLOOR, so the floor is 0:
+# 0 is not a floor anything can breach, and it reads as absent.
+harness_result_ran "$HR_COUNTED_ROWS" 0
 echo "########## END"
 if [ "$UNEXPECTED" -ne 0 ]; then
   echo "FAILED: at least one assertion that exists to notice an amputation"

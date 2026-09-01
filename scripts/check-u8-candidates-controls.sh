@@ -32,6 +32,14 @@
 
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,7 +53,7 @@ SUITE="tests/test_tools_candidates.py"
 OUT=/tmp/u8-mut.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
 # THE PRISTINE COPIES, TAKEN ONCE BEFORE ROW 1 (R4-N1). Comparing a
 # restore against "$backup" is equal BY CONSTRUCTION after the copy: it
@@ -503,6 +511,10 @@ mutate "M25 the page output schema is built in validation mode" \
 # all deleted - or all skipped - reports fully green. Lowering this
 # number is a visible diff that has to be defended.
 ROW_FLOOR=25
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "########## $TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "A harness with fewer rows than its floor is green for the wrong reason."

@@ -35,6 +35,14 @@
 # parse on the property N == M and M > 0, never on a literal count.
 
 set -uo pipefail
+
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,7 +59,7 @@ fi
 GATE_REL="scripts/check_advisories.py"
 SUITE_REL="tests/test_advisory_gate.py"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'harness_result_emit; rm -rf "$WORK"' EXIT
 
 TREE="$WORK/tree"
 mkdir -p "$TREE/scripts" "$TREE/tests"
@@ -236,6 +244,10 @@ echo "$FIRED/$HELD controls fired."
 # printed "15/15 controls fired." at 71774e2. Lowering this number is a
 # visible diff that has to be defended.
 ROW_FLOOR=15
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$HELD" "$ROW_FLOOR"
 if [ "$HELD" -lt "$ROW_FLOOR" ]; then
   echo "ABORT: $HELD/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "A harness with fewer rows than its floor is green for the wrong reason."

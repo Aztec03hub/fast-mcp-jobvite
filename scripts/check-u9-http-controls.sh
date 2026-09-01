@@ -38,6 +38,14 @@
 # is EXPECTED to fail. See docs/adr/0023-harnesses-drop-e-from-strict-mode.md
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
+# `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
+# abort cannot render identically to a pass. `harness_result_ran` below upgrades
+# it to ok/breach from the real exit code. The format lives in the sourced file
+# and nowhere else - the shape lists it replaces are why.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,7 +56,7 @@ SUITE="tests/test_http_hardening.py"
 OUT=/tmp/u9-mut.txt
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
 
 # THE PRISTINE COPY, TAKEN ONCE BEFORE ROW 1. `cp backup file; cmp file
 # backup` compares equal BY CONSTRUCTION and can detect only a failed
@@ -340,6 +348,10 @@ mutate "M14 the inbound id is bound without being validated" \
 # counted from the log. A floor copied from a report or a task record
 # would be a second copy of a number that is measured in one place.
 ROW_FLOOR=14
+# The canonical result line's numbers, taken from the harness's own
+# counter and its own floor - never a second copy. Called BEFORE the
+# comparison below, because that branch exits.
+harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "########## $TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
   echo "A harness with fewer rows than its floor is green for the wrong reason."

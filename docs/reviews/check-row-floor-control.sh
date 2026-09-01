@@ -55,8 +55,52 @@ echo "deletion landed: $(( $(wc -l < "$B") - $(wc -l < "$S") )) line(s) removed"
 echo "--- running the harness with 4 of its 5 rows ---"
 PYTHONDONTWRITEBYTECODE=1 bash "$S" > "$B.out" 2>&1
 rc=$?
-grep -E '^########## [0-9]+/[0-9]+ ROWS|LOST ROWS' "$B.out"
+# THE CANONICAL LINE, PARSED AND ASSERTED ON. Task #107.
+#
+# WHAT USED TO BE HERE, and why it was worse than its sibling:
+#
+#     grep -E '^########## [0-9]+/[0-9]+ ROWS|LOST ROWS' "$B.out"
+#
+# Two hand-kept prose shapes - the defect #107 exists to delete - and, unlike
+# the same list in `check-row-floor-controls.sh`, NOTHING ASSERTED ON IT. Its
+# output was displayed and then discarded; the verdict below rested on `rc`
+# alone. So a harness that reworded its floor message, or printed no floor
+# message at all, produced a BLANK line here and still reached
+# "CONTROL FIRED" - the exact shape task #102 caught in the plural file,
+# standing unfixed in the singular one because the fix was applied to the
+# instance that was reported rather than to its sibling.
+#
+# It now reads the one canonical line and asserts on its fields, so the
+# evidence and the verdict come from the same source.
+RESULT=$(grep -E "^HARNESS-RESULT name=check-u15-gate-amputation\.sh " "$B.out" | tail -1)
+echo "${RESULT:-<the harness printed no canonical line at all>}"
 echo "exit with a deleted row: $rc (must be 1)"
+
+field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
+FLOOR=$(grep -oE '^[[:space:]]*ROW_FLOOR=[0-9]+[[:space:]]*$' "$B" | grep -oE '[0-9]+')
+bad=0
+if [ -z "$RESULT" ]; then
+  echo "::error::the harness printed NO canonical result line. A missing verdict"
+  echo "         is not a passing one - nothing here can say the floor fired."
+  bad=1
+else
+  [ "$(field "$RESULT" status)" = "breach" ] || {
+    echo "::error::status=$(field "$RESULT" status), wanted breach - the floor"
+    echo "         comparison did not fire, or the harness never reached it."
+    bad=1; }
+  [ "$(field "$RESULT" floor)" = "$FLOOR" ] || {
+    echo "::error::the harness reported floor=$(field "$RESULT" floor) but its"
+    echo "         source declares ROW_FLOOR=$FLOOR."
+    bad=1; }
+  # ONE row was deleted, so the reported count must be one BELOW the floor.
+  # This is the claim an impossible-floor run cannot reach: it says the counter
+  # tracks rows, not merely that some comparison went off.
+  [ "$(field "$RESULT" rows)" = "$((FLOOR - 1))" ] || {
+    echo "::error::the harness reported rows=$(field "$RESULT" rows) after one row"
+    echo "         was deleted; with floor $FLOOR it must report $((FLOOR - 1))."
+    echo "         The counter does not track rows."
+    bad=1; }
+fi
 
 cp "$B" "$S"
 if cmp -s "$S" "$B"; then echo "restored: byte-identical to the backup"; fi
@@ -65,5 +109,7 @@ git -C "$REPO" diff --quiet -- "$S" \
   || { echo "::error::RESTORE FAILED - $S still differs from HEAD"; exit 9; }
 
 rm -f "$B.out"
-[ "$rc" -eq 1 ] || { echo "::error::CONTROL DID NOT FIRE - the floor let a lost row through"; exit 1; }
-echo "CONTROL FIRED: a deleted row is caught by the floor and exits 1."
+[ "$rc" -eq 1 ] || { echo "::error::CONTROL DID NOT FIRE - the floor let a lost row through"; bad=1; }
+[ "$bad" -eq 0 ] || exit 1
+echo "CONTROL FIRED: a deleted row is caught by the floor, which reported"
+echo "               rows=$((FLOOR - 1)) floor=$FLOOR status=breach and exited $rc."
