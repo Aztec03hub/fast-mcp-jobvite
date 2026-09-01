@@ -59,7 +59,15 @@ PY
   local row_rc=$?
   if [ "$row_rc" -eq 124 ]; then
     echo "  TIMED OUT after 300s - this row NEVER FINISHED. Not a kill and"
-    echo "  not a survivor: the verdict below is not a measurement of it."
+    echo "  not a survivor: no verdict is emitted for it."
+    # RETURN, do not fall through. This branch used to print the warning
+    # and then continue into the verdict, where `$out` contains no
+    # "failed" and the row was announced as SURVIVED and counted as one.
+    # ci-harness-gate.sh caught it by grepping for TIMED OUT, but anyone
+    # running this harness by hand read a survivor that never ran. The
+    # non-zero return carries the fact into the harness's own exit code
+    # rather than leaving it to the gate alone.
+    return 1
   fi
   # `grep -q` exits on its FIRST match; if the writer is still
   # writing it takes SIGPIPE, and `pipefail` promotes that 141 to

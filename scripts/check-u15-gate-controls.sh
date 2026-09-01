@@ -56,9 +56,22 @@ fi
 PRISTINE="$WORK/pristine.py"
 cp "$REPO_ROOT/$GATE_REL" "$PRISTINE"
 
+# BOUNDED HERE, NOT AT THE CALL SITES. All three callers route through this
+# one function, so the bound and the hang report live in one place instead of
+# being retyped. This matters most at the control call site, which does not
+# capture the exit code at all - it greps the report. A hung run writes no
+# FAILED line, so it reads as "DID NOT FIRE" and is counted as HELD unless it
+# announces itself. `TIMED OUT` is the phrase ci-harness-gate.sh greps for.
 run_suite() {  # -> writes report to $WORK/out.txt, returns pytest's exit code
-  ( cd "$TREE" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
-      -o addopts="" >"$WORK/out.txt" 2>&1 )
+  local rc
+  ( cd "$TREE" && timeout -k 30 900 "${PY[@]}" -m pytest "$SUITE_REL" \
+      -p no:cacheprovider -q -o addopts="" >"$WORK/out.txt" 2>&1 )
+  rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  TIMED OUT after 900s - the suite NEVER FINISHED, so this run"
+    echo "  measured nothing. Not a fire and not a hold."
+  fi
+  return "$rc"
 }
 
 echo "BASELINE: the unmutated copy must be green before anything is measured"

@@ -87,9 +87,19 @@ PY
   APPLIED=$((APPLIED + 1))
 
   local out rc
-  out=$(uv run --frozen pytest -q -p no:cacheprovider 2>&1)
+  out=$(timeout -k 30 900 uv run --frozen pytest -q -p no:cacheprovider 2>&1)
   rc=$?
   cp "$backup" "$file"
+
+  # A HANG WOULD READ AS "NOT VACUOUS". The verdict below is `rc -eq 0` ->
+  # VACUOUS, so a timeout (124) silently scores as the reassuring outcome:
+  # the mutation looks caught by a test when nothing ran at all. Named and
+  # refused rather than counted.
+  if [ "$rc" -eq 124 ]; then
+    printf '%-40s TIMED OUT after 900s - NEVER FINISHED\n' "$label"
+    echo "    no verdict: a hang is not evidence the failure is recorded"
+    return 1
+  fi
 
   printf '%-40s exit %s  %s\n' "$label" "$rc" "$(printf '%s\n' "$out" | tail -1)"
   if [ "$rc" -eq 0 ]; then

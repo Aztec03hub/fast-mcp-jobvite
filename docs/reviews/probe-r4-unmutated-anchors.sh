@@ -29,7 +29,15 @@ cp "$F" "$PRISTINE_DIR/tools_jobs.py"
 cp "$M" "$PRISTINE_DIR/models_jobs.py"
 
 echo "########## BASELINE"
-if ! uv run --frozen pytest tests/ -q -p no:cacheprovider >/tmp/r4-base.txt 2>&1; then
+timeout -k 30 900 uv run --frozen pytest tests/ -q -p no:cacheprovider \
+  >/tmp/r4-base.txt 2>&1
+BASE_RC=$?
+if [ "$BASE_RC" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "TIMED OUT. Every row below would have measured the hang."
+  exit 4
+fi
+if [ "$BASE_RC" -ne 0 ]; then
   echo "ABORT: intact suite is red"
   tail -20 /tmp/r4-base.txt
   exit 3
@@ -73,10 +81,20 @@ PY
     return
   fi
 
-  uv run --frozen pytest tests/ -q -p no:cacheprovider >/tmp/r4-out.txt 2>&1
+  timeout -k 30 900 uv run --frozen pytest tests/ -q -p no:cacheprovider \
+    >/tmp/r4-out.txt 2>&1
   local rc=$?
   cp "$pristine" "$file"
 
+  # A HANG WOULD READ AS A KILL. The verdict below is `rc -ne 0` -> KILLED,
+  # and a timeout is non-zero, so an unbounded hang scores as this probe's
+  # GOOD outcome. That is the silent direction, so it is named and the row
+  # is refused rather than counted.
+  if [ "$rc" -eq 124 ]; then
+    echo "  TIMED OUT after 900s - this row NEVER FINISHED, so it is neither"
+    echo "  a kill nor a survivor. No verdict is emitted for it."
+    return 1
+  fi
   if [ "$rc" -ne 0 ]; then
     echo "  KILLED   $(tail -1 /tmp/r4-out.txt)"
   else

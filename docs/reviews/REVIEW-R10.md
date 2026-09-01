@@ -71,6 +71,41 @@ SC2034 and SC2154 at **exit 1**. A green from this binary is a green that read s
 
 ---
 
+## Disposition - all findings fixed on this branch
+
+Every finding below was accepted and fixed on `review/r9` after the review was delivered. The
+findings are left as written rather than rewritten into the past tense, because the measurement
+that produced each one is the evidence for the fix. What changed:
+
+| Finding | Fix | Proof it works |
+|---|---|---|
+| R10-H1 | nine sites bounded with `timeout -k 30 900`; new `scripts/check-pytest-bounded.sh`, **wired** in `ci.yml` | 73/73; guard watched red on both spellings, green when bounded |
+| R10-M2 | `classify()` lifted out; four detector controls added | all four amputations now killed, 6/6 controls |
+| R10-L1 | exempt count printed | `20 line(s) skipped as REPOINT-EXEMPT` |
+| R10-L2 | `return 1` in the 124 branch | no verdict emitted for a hung row |
+| R10-N1 | `tokenize` replaces `split("#", 1)` | a read after a `#` inside a string is now seen |
+| R10-N2 | `-k 30` folded into every bounded site | - |
+| R10-N3 | recorded; the durable fix is #116 | - |
+| R10-M1 | **NOT MINE.** Taken by the orchestrator - the freeze pointer and `AUDIT-SHAPES.md` are untouched here | - |
+
+**Bounding was not enough on its own, and that is the part worth keeping.** Six of the nine sites
+would have MISREAD a timeout rather than merely tolerated one, and in five of those the misreading
+was in the *reassuring* direction:
+
+- `check-u15-gate-amputation.sh` parses survivors from `^PASSED` lines. A hung run prints none, so
+  a timeout reported `survivors: NONE` - this harness's **best possible result**.
+- `probe-audit-row-container.sh` judges `rc == 0` to mean VACUOUS. A timeout is non-zero, so a hang
+  scored as "the failure is recorded by a test" when nothing ran.
+- `probe-r4-unmutated-anchors.sh` judges `rc != 0` to mean KILLED, so a hang scored as a kill.
+- `check-u15-gate-controls.sh`'s control site does not capture the exit code at all; it greps the
+  report. A hung run reads as `DID NOT FIRE` and is counted as HELD.
+
+So every one of those sites now names the hang with the literal phrase `TIMED OUT`, which is what
+`ci-harness-gate.sh` greps for, and refuses to emit a verdict for the row. A bound that stops a
+hang but lets it be scored is half a fix.
+
+---
+
 # Findings
 
 ## R10-H1 - #108's "64 of 64" is true for its selector, and the selector is blind to 9 more pytest invocations, every one of them unbounded

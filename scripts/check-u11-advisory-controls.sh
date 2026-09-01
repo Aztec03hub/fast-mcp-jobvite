@@ -63,9 +63,22 @@ cp "$REPO_ROOT/pyproject.toml" "$TREE/"
 PRISTINE="$WORK/pristine.py"
 cp "$REPO_ROOT/$GATE_REL" "$PRISTINE"
 
+# BOUNDED HERE, NOT AT THE CALL SITES. Every caller goes through this one
+# function, so the timeout and the hang report live in one place rather than
+# being retyped three times - a retyped bound is a bound that drifts.
+# `TIMED OUT` is the phrase ci-harness-gate.sh greps for: a row that never
+# finished produces no FAILED lines, and reads as "did not fire" to every
+# caller below unless it says so out loud.
 run_suite() {
-  ( cd "$TREE" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
-      -o addopts="" >"$WORK/out.txt" 2>&1 )
+  local rc
+  ( cd "$TREE" && timeout -k 30 900 "${PY[@]}" -m pytest "$SUITE_REL" \
+      -p no:cacheprovider -q -o addopts="" >"$WORK/out.txt" 2>&1 )
+  rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  TIMED OUT after 900s - the suite NEVER FINISHED, so this run"
+    echo "  measured nothing. Not a fire and not a hold."
+  fi
+  return "$rc"
 }
 
 echo "BASELINE: the unmutated copy must be green before anything is measured"
