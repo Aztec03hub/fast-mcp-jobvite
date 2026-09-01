@@ -1,3 +1,17 @@
+# AUDIT-SHAPES sweep, run 1 - the KILLED run's raw output
+
+Raw harness output from run 1 of the #104 audit-shapes sweep, killed by
+the harness at row 16 of 34. Kept verbatim as the evidence behind
+`AUDIT-SHAPES-REPORT.md` section 6.
+
+**This was committed as `.log` and turned the trunk RED for 127
+commits.** `.log` is not on `.file-type-allowlist`, and the gate is
+allowlist-first by design: a confidential vendor PDF reached a public
+remote on this project once already. Renamed rather than allowlisted -
+a log extension is the class the gate most needs to keep refusing.
+The bytes below are unchanged.
+
+```text
 THE DERIVED POPULATION - every site must appear as a row below:
 
   [emit]  13 sites
@@ -113,3 +127,4 @@ THE DERIVED POPULATION - every site must appear as a row below:
 and each restored normally; the kill left a live is_error amputation in candidates.py,
 which was restored by git before anything else ran. See AUDIT-SHAPES-REPORT.md section 6.
 The remaining 19 rows were run in chunks and are quoted in section 3.)
+```

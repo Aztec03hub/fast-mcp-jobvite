@@ -300,7 +300,25 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
-    print(f"committed-file-type gate: {len(paths)} file(s) checked, none refused.")
+    scope = "whole tree" if check_all else "staged set"
+    print(
+        f"committed-file-type gate [{scope}]: {len(paths)} file(s) checked, "
+        "none refused."
+    )
+    # A STAGED RUN THAT CHECKED NOTHING MUST NOT LOOK LIKE THE CI
+    # GATE PASSING. Run bare on a clean tree this prints a green
+    # having opened zero files, and at the exit code that is
+    # indistinguishable from `--all` passing over the whole repo.
+    # It is how a `.log` committed at e4f568d kept the trunk red for
+    # 127 commits while every local check said 0: the gate was never
+    # asked the question CI asks.
+    if not check_all and not paths:
+        print("")
+        print("NOTHING WAS STAGED, so this gate examined NO files and this")
+        print("green means nothing about the repository. CI runs the whole-")
+        print("tree form and it is the one that can fail:")
+        print("")
+        print("    scripts/check-committed-file-types.py --all")
     return 0
 
 

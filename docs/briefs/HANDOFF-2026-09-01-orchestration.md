@@ -1,90 +1,146 @@
-# HANDOFF — 2026-09-01, written against compaction
+# HANDOFF — 2026-09-01 05:50 PM CDT, written against compaction
 
-Everything below was verified by running it, not recalled. Main is
-`5c391d9`, pushed to both remotes.
+Everything below was verified by running it at `be13055`, not recalled.
+Main is `be13055`, pushed to both remotes.
 
-## Main is GREEN locally, on every gate
+## READ THIS FIRST: the previous version of this document was wrong
 
-    ruff check .                    0
-    mypy                            0
-    check-design-citations          0
-    check-design-citation-shape     0
-    check-design-freeze             0
-    check-checkers-are-wired        0
+It said **"Main is GREEN locally, on every gate"** and listed six gates,
+all 0. Every one of those six numbers was true. **The claim was still
+false**, because `check-committed-file-types` was not on the list — and
+that gate had been refusing the tree for 127 commits.
 
-CI has still **never** produced a green run on this trunk. One run has
-ever CONCLUDED (`0606ea5`, 4 of 5 jobs green, failing on a defect since
-fixed). Everything since is `cancelled` — my own pushes evicting the
-single queued slot. See #105 for the corrected rule: a RUNNING run on main
-is protected and a PENDING one has consumed nothing, so check
-`gh run view <id> --json jobs --jq '.jobs|length'` before deciding whether
-a push costs anything.
+**A universal claim ("every gate") evidenced by an enumeration is only
+as good as the enumeration**, and the member that is missing is never
+the one you thought of. This is the same defect as R14-H1 and #139,
+found three times in one evening in three different artefacts, and the
+third instance was this handoff. See the gate table below: it now lists
+**every** gate including the ones that fail, because a handoff that
+lists only passing gates teaches the next reader the same mistake.
+
+## Gates at `be13055`, all of them, exit codes read one per line
+
+    scripts/check-committed-file-types.py --all      0
+    check-design-citations                           0
+    check-design-citation-shape                      0
+    check-design-freeze                              0
+    check-checkers-are-wired                         0
+    check-settings-are-read                          0
+    check-env-vars-are-declared                      0
+    check-no-errexit                                 0
+    check-obligations                                0
+    check-cross-references                           0
+    check-row-floors                                 0
+    check-row-floor-exactness                        0
+    check-no-sigpipe-pipelines                       0
+    ruff check .                                     0
+    ruff format --check .                            0
+    mypy                                             0
+    check-review-coverage                            1   <-- EXPECTED
+    pytest                          887 passed, 0 skipped, 6 deselected
+
+**`check-review-coverage` exits 1 by design and is NOT wired.** 15 trunk
+commits past R13's range are covered by no round. That is #119's
+blocker, and the number only falls when a round declares them.
+
+**RUN THE INVOCATION CI RUNS, ARGUMENTS AND ALL.** `check-committed-file-
+types.py` bare selects the STAGED set; on a clean tree that is zero
+files and it exits 0 having opened nothing. The `--all` above is not
+decoration. The gate now prints `[staged set]` or `[whole tree]` and
+shouts when a staged run examined nothing, so this specific trap is
+closed — but the habit is the fix, not the message.
+
+## CI
+
+`be13055` is the first push after the trunk-red fix and a run was still
+in progress when this was written. **CI has never produced a green run
+on this trunk.** Before that fix it could not: the whole-tree file-type
+gate refused every commit from `e4f568d` onward.
+
+Per #105: a RUNNING run on main is protected by
+`cancel-in-progress: github.ref != 'refs/heads/main'`; a PENDING one has
+consumed nothing. Check `gh run view <id> --json jobs --jq '.jobs|length'`
+before deciding whether a push costs anything. Note there are TWO
+workflows per SHA — read the one you mean.
 
 ## Three agents live, and what each owes
 
-**`suborch-142`** — Tier-1, opus, worktree `fmj-worktrees/t142-exempt-scope`,
-branch `fix/142-exempt-scope`.
-**RULED: Option 2, the keyed register.** Its own argument decided it — four
-committed records legitimately cite the same out-of-bounds address as the
-plant, so only IDENTITY separates them and no inline form can meet the
-brief's positive arm. My refinements: the key must NOT be a line number
-(#6 — anchors carry none so they cannot drift), key on `(path, citation)`
-with a required non-blank reason, and the register's size must print with
-its reasons every run. It chose `.tsv` because that suffix is in neither
-gate's scan set, which solves the recursion structurally — keep it, and
-say WHY in the register header or someone will convert it to JSON.
-**Owes**: the apply pass, four controls, gate exit codes.
+**`review-r14`** — opus, read-only on `review/r14-config`, started
+17:42. A fresh adversarial reviewer on the R14 branch, dispatched
+BEFORE that branch merges. Owes `docs/reviews/REVIEW-R14-R1.md`
+committed on that branch, plus a `SendMessage` with re-measured numbers.
+Its brief hands it my figures as HYPOTHESES and tells it to attack the
+probe's vacuity, the JSON edge cases, and whether the REVIEW-COVERS
+declaration is honest.
 
 **`suborch-144`** — Tier-1, opus, worktree `fmj-worktrees/t144-145`,
-branch `fix/144-145-detectors`. #144 + #145 as one piece: two detectors I
-wrote today that cannot see the failure each was written for. Regex
-widening is FORBIDDEN; shlex token walk required. #145's disposition is
-deliberately NOT pre-ruled.
-**Owes**: spellings measured, what each control proved, its #145 decision.
+branch `fix/144-145-detectors`, 3 commits ahead. #144 + #145 as one
+piece: two detectors that cannot see the failure each was written for.
+Regex widening FORBIDDEN, shlex token walk required. #145's disposition
+deliberately not pre-ruled. Owes spellings measured, controls, its #145
+decision.
 
-**`tally-shapes`** — #120, worktrees `tally-shapes` (probe running) and
-`tally-rebuild` (`dbad618`, the committed work). **DO NOT prune either.**
-**Owes**: the before/after exit-code ledger.
+**`tally-shapes`** — #120, worktrees `tally-shapes` and `tally-rebuild`.
+**DO NOT PRUNE EITHER.** Owes the per-harness before/after exit-code
+ledger, which is what unblocks #116.
 
-## Unmerged branches, and why each is still out
+## Unmerged branches
 
-    fix/142-exempt-scope        in flight
-    fix/144-145-detectors       in flight
-    fix/tally-shapes-work       dbad618, committed, ledger outstanding
-    fix/kind-not-path           SUPERSEDED by kind-not-path-2 (merged); the
-                                WIP is 104 commits stale, keep as a record
-    rescue/adr-0024-scan-bound  pre-existing, unexamined today
-    rescue/r6-probe-half-open   pre-existing, unexamined today
-
-## The one number that keeps moving
-
-`REPOINT-EXEMPT` marked lines: **47 → 51 → 60 → 61**, in a day. Every
-increment was prose *about* the marker, not an exemption of anything —
-two briefs discussing it, then the review that found the defect. 36 of the
-first 51 carried no citation at all. This is the live argument for #142
-and it will keep growing until that lands.
-
-Ten times today a document was flagged by a gate for QUOTING the defect it
-was reporting. The tenth was `REVIEW-R13.md`, the report that found the
-mechanism.
+    review/r14-config          6 ahead  DONE, green, awaiting review-r14
+    fix/144-145-detectors      3 ahead  in flight
+    fix/tally-shapes-work      2 ahead  committed, ledger outstanding
+    fix/tally-shapes           1 ahead  the probe's worktree
+    fix/kind-not-path          1 ahead  SUPERSEDED by kind-not-path-2
+                                        (merged); kept as a record
+    rescue/adr-0024-scan-bound 1 ahead  pre-existing, unexamined
+    rescue/r6-probe-half-open  1 ahead  pre-existing, unexamined
 
 ## Ruled today, so nobody re-opens them
 
-- **Records vs load-bearing** (`a1773e8`): `CHANGELOG.md`, `docs/worklogs`,
-  `docs/plans` are RECORDS and out of review-coverage scope, each with a
-  stated reason. `docs/briefs` is deliberately IN scope — a brief
-  instructs an agent, so a wrong one produces wrong work. Residual: 7
-  commits touching genuinely unreviewed config (#140).
-- **Every job capped** (`b1c4376`): all seven were inheriting 6 hours.
-  Sized from 40 runs; the `test` job has legitimately run 125 minutes.
-- **Three-tier orchestration** (`PROTOCOL-sub-orchestrators.md`): what only
-  Tier 0 may do, the pane budget, and the three environment traps the
-  first two runs measured.
+- **The exemption register** (`#142`, merged `76bc497`): a citation is
+  exempt only if the line carries the marker AND the `(path, address)`
+  pair has a row with a non-blank reason. **Neither half alone** — the
+  sub-orchestrator measured that 3 marked pairs also appear on UNMARKED
+  lines, so my pair-keyed ruling would have widened three files.
+- **Records vs load-bearing** (`a1773e8`): `CHANGELOG.md`,
+  `docs/worklogs`, `docs/plans` are RECORDS, out of review-coverage
+  scope, each with a stated reason. `docs/briefs` is deliberately IN
+  scope — a brief instructs an agent, so a wrong one produces wrong work.
+- **#139, re-ruled tonight**: the cross-reference gap is **27 live
+  specifications, not 130**. Subtract the records and 106 of the 136
+  disappear. 18 of the 27 are ADRs, which are live decisions whose §N
+  citations nothing resolves today. Derive the population; do not
+  hand-add two files.
+- **Never green a safety gate by widening it.** The `.log` that turned
+  the trunk red was renamed, not allowlisted. That gate is
+  allowlist-first because a confidential vendor PDF and an unlicensed
+  RAML reached public remotes on this project once already.
+
+## The instrument lessons this evening produced
+
+Recorded because each one cost real time and all three are the same
+shape — **a partial instrument whose exclusion rule shares a cause with
+the defect**:
+
+1. **`probe-ci-checker-steps.py` ran 12 of 78 steps** and skipped 36
+   "multi-line blocks". A step is a multi-line block precisely because
+   it carries a flag, and a flag is what makes CI's invocation differ
+   from the bare local one. The sample was anti-correlated with the bug.
+   → **#147**.
+2. **`A..B` is not two `is-ancestor` tests.** It means reachable-from-B-
+   not-from-A and includes side branches that never descend from A. I
+   published a false finding on this. The `&&` also hid which half
+   failed.
+3. **A hand-kept list is blind to the member nobody added** — and in
+   R14-H1 the checker's own docstring NAMED the omitted member one
+   screen above the list that omitted it.
 
 ## What I would pick up first
 
-1. Collect the two Tier-1 reports and merge what they deliver.
-2. `tally-shapes`'s ledger, which unblocks #116.
-3. #140 — seven commits of unreviewed `pyproject.toml`, `.env.example`,
-   `server.json`, `README.md`, `docs/briefs`. It is a small round and it
-   is the last thing standing between #119 and a wireable coverage gate.
+1. **Collect `review-r14`'s findings, fix, merge `review/r14-config`.**
+   It is green and complete; only the round stands between it and main.
+2. **`tally-shapes`'s ledger**, which unblocks #116.
+3. **#119** — now that #140 has taken PARTIAL to 0, the only thing
+   between here and a wireable coverage gate is the 15 NONE commits.
+4. **#147** — the probe blind spot, because it is what let #140's
+   defect hide, and it will hide the next one.
