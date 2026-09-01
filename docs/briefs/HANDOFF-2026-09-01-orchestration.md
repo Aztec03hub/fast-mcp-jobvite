@@ -39,9 +39,16 @@ lists only passing gates teaches the next reader the same mistake.
     check-review-coverage                            1   <-- EXPECTED
     pytest                          887 passed, 0 skipped, 6 deselected
 
-**`check-review-coverage` exits 1 by design and is NOT wired.** 15 trunk
-commits past R13's range are covered by no round. That is #119's
-blocker, and the number only falls when a round declares them.
+**`check-review-coverage` exits 1 by design and is NOT wired.** **115**
+trunk commits are covered by no round - **not 15**. I reported 15 here
+and in a commit message. 15 is `check-review-coverage.py:298`'s DISPLAY
+CAP (`untouched[:15]`); the population prints one line above it. **I
+read the rows the instrument chose to show and called it the
+population** - the same defect this document opens by describing,
+committed while describing it. Found by R14-R1. The caps are not even
+consistent: `:298` shows 15, `:300` shows 10, and neither says how many
+it hid. That is #119's blocker, and the number only falls when a round
+declares those commits.
 
 **RUN THE INVOCATION CI RUNS, ARGUMENTS AND ALL.** `check-committed-file-
 types.py` bare selects the STAGED set; on a clean tree that is zero
