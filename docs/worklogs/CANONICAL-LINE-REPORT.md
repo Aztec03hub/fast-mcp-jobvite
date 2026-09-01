@@ -108,7 +108,7 @@ and disarmed looks exactly like passing.** `docs/reviews/check-harness-result.sh
 
 ---
 
-## 3. The container: 36 emitting, 36 existing, EQUAL
+## 3. The container: every script emitting, every script existing, EQUAL
 
 The population is the glob `scripts/*.sh`. There is no table, no allowlist, and **no partition into
 "harness" and "not a harness"** - `ci-harness-gate.sh` is a gate rather than a harness and it emits
@@ -146,6 +146,44 @@ source scripts/lib/harness-result.sh : 35
 ARM B EXIT=1
 restored: byte-identical to the backup
 ```
+
+### The container grew under the branch, and the no-partition choice was tested
+
+`review/r9` merged before this branch and brought a new script, `scripts/check-pytest-bounded.sh`,
+taking `scripts/*.sh` from 36 to **37**. The container gate fired on the merged tree and named it
+precisely: not sourcing the lib, 0 of 1 EXIT traps chaining the emitter, never calling
+`harness_result_ran`. **That is the gate doing its job on a tree neither the orchestrator nor I had
+when it was written**, and it is the equality in §3 earning its keep - a checklist would simply not
+have mentioned the new file.
+
+**It is a CHECKER, not a harness** - it mutates nothing, has no rows in the mutation sense, and its
+own exit code is its measurement. So it is the first member to test §3's choice to make the
+population the bare glob, and the choice holds: it emits like everything else. The alternative was an
+exemption with a stated reason, and there is no reason available here beyond *"it is a different kind
+of script"* - which is precisely the partition being refused.
+
+**`floor=0`, deliberately, and NOT `floor=$total`.** The orchestrator suggested `rows=73 floor=73`.
+That would be wrong in a way worth naming: this check's pass condition is an EQUALITY - every site
+bounded, `count == 0` - not a minimum. Rendering an equality as a tight floor invites a reader
+comparing `rows` against `floor` to draw a conclusion the script never made. `0` is what this task
+documents for a script with no floor: not a floor anything can breach, and it reads as absent.
+
+All three statuses measured on the merged tree rather than reasoned about:
+
+| run | line | exit |
+|---|---|---|
+| normal, all bounded | `rows=73 floor=0 status=ok` | 0 |
+| one unbounded call planted | `rows=74 floor=0 status=breach` | 1 |
+| `--self-test` | `rows=0 floor=0 status=refused` | 0 |
+
+The last is the useful one and was not designed for: a CI step that accidentally ran `--self-test`
+instead of the real check now reports `refused` rather than a green `ok` over a population of zero.
+
+The fix is one commit, `f298cbc`, on `fix/pytest-bounded-canonical-line` off `main` - **not on this
+branch**, because the file does not exist here and adding it would be an add/add conflict at merge.
+**It must be merged AFTER `chore/canonical-line`**, since it sources a file that branch introduces;
+merged first it fails loudly with "No such file", which is the right direction but not optional.
+Verified on the combined tree: no conflicts, and the gate reports 37 of 37, EQUAL, exit 0.
 
 ### Where the numbers come from, per script
 
