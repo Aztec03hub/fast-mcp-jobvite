@@ -66,7 +66,35 @@ SRC = REPO_ROOT / "src"
 
 PYTEST_CMD = ["uv", "run", "--frozen", "pytest", "-q", "-p", "no:cacheprovider"]
 
-AUDIT_PHASES = ("READ", "BEFORE_SIDE_EFFECT", "AFTER_WRITE")
+def _audit_phases() -> tuple[str, ...]:
+    """The `AuditPhase` members, READ FROM THE ENUM.
+
+    THIS WAS A HAND-KEPT LIST OF THREE, sitting beside the container it
+    describes - the exact shape this probe exists to refuse. It happened
+    to be correct, which is how such a list reads right up until someone
+    adds a fourth phase: the new member would then be silently excluded
+    from `_matches`, its call sites would never enter the population, and
+    the sweep would report a clean zero over a set that had quietly
+    shrunk. Derived instead, and empty is a hard failure rather than a
+    quiet one.
+    """
+    tree = ast.parse((SRC / "fast_mcp_jobvite" / "audit.py").read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "AuditPhase":
+            members = tuple(
+                t.id
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign)
+                for t in stmt.targets
+                if isinstance(t, ast.Name)
+            )
+            if not members:
+                raise SystemExit("AuditPhase has no members - the derivation broke")
+            return members
+    raise SystemExit("AuditPhase not found in audit.py - the derivation broke")
+
+
+AUDIT_PHASES = _audit_phases()
 
 
 @dataclass(frozen=True)
