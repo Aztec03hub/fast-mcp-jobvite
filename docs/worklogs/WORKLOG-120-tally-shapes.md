@@ -342,3 +342,50 @@ I dropped the row, restored the stranded mutation, and re-measured on a
 clean tree: **rc=0 status=ok, 42s**. The pre-drop file is kept at
 `/tmp/tally-ledgers/before-with-poisoned-row.txt` for anyone who wants it.
 The probe defect that produced this is filed as task #146.
+
+## The AFTER ledger, and the comparison: 37 of 37, ZERO moved
+
+Committed at `docs/reviews/ledgers/LEDGER-120-after.txt`. Measured on
+`fix/tally-shapes` at dbad618 - the same tree, WITH this change.
+
+Compared with `docs/reviews/compare-harness-exit-codes.sh`, which is the
+instrument the probe itself names, and NOT with `diff` - the two ledgers
+may legitimately hold different SETS of rows and `diff` reports every such
+row as a difference.
+
+```
+ci-harness-gate.sh                         rc=2      rc=2     
+
+container (scripts/*.sh)          : 37
+measured on the before side       : 37
+measured on the after side        : 37
+COMPARED (measured on both sides) : 37 of 37
+exit codes that MOVED             : 0
+EVERY harness in the container was measured on both sides, and none moved.
+```
+
+So the answer to "which exit codes moved" is NONE, and every one of the 37
+was measured on both sides rather than assumed. The two rc=2 rows
+(`check-suite-floor.sh` with no argument, `ci-harness-gate.sh` naming no
+harness) are unchanged refusals by design; had either turned rc=0 THAT
+would have been the finding, because it would mean a refusal stopped
+refusing.
+
+### Why a zero here is not vacuous
+
+A ledger of 37 unchanged exit codes is exactly what a change that touched
+nothing would also produce, so the zero is only worth something because
+the same tree demonstrably behaves DIFFERENTLY where it should:
+
+- `ci-harness-gate-controls.sh` went 24 rows to 28, and the four new rows
+  FAIL against the old gate by construction - they assert a field the old
+  gate never read.
+- `check-harness-result.sh` gained an equality that was not being checked
+  at all before, and it caught two real cases on its first run.
+- Three ci.yml steps carry a flag they did not carry before.
+
+The probe measures HARNESSES RUN BARE. None of them takes a gate flag, so
+none of them can see the tally change - which is precisely why an unmoved
+ledger is the expected result and not the evidence. The evidence that the
+new gate arms work is the control rows; the ledger only shows I broke
+nothing on the way.
