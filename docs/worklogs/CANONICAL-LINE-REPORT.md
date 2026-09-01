@@ -327,6 +327,21 @@ by construction, so this cannot be mistaken for a result at a glance.
    refactor having moved a harness's exit code. Timeouts are now not recorded at all, so the row
    drops out of the comparison instead of poisoning it.
 
+4. **Every background retry was killed within seconds, and the cause was my own leftover monitors.**
+   Three watcher loops from earlier attempts were still alive, occupying background slots, so each
+   new ledger pass was killed on arrival - while the FIRST attempt, started when no watchers
+   existed, had run for eleven minutes. The symptom looked like an external policy killing my work;
+   it was resource exhaustion I had caused and not cleaned up. Stopping the three watchers made the
+   next attempt start immediately and stay up. **A retry that fails differently from the original is
+   evidence about the environment, not about the thing being retried** - and I spent two rounds
+   treating it as the latter.
+
+   One of those watchers was itself defective in the way this report keeps finding: its liveness
+   check was `pgrep -f "ledger-before"`, and the watcher's own command line contains that string, so
+   it matched ITSELF and could never have reported the ledger as stopped. That is the third instance
+   here of an instrument inside its own population, after the container gate matching its own prose
+   and my `pkill` killing its own shell.
+
 **Defect 3 was found by the orchestrator reviewing my `ps` output, not by me.** The guard already
 existed when he raised it - which is why no 124 has ever entered either ledger, and why
 `check-u0-test-controls.sh` is absent from BOTH sides rather than present on one - but the
