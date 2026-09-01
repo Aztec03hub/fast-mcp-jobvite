@@ -40,8 +40,24 @@ mapfile -t SCRIPTS < <(cd "$REPO/scripts" && ls -1 ./*.sh | sed 's|^\./||' | sor
 echo "population: ${#SCRIPTS[@]} scripts under scripts/*.sh (by glob)"
 [ "${#SCRIPTS[@]}" -gt 0 ] || { echo "ABORT: the glob matched nothing - prove the path resolves" >&2; exit 3; }
 
-: > "$OUT"
+# RESUMABLE, BY MEASUREMENT AND NOT BY DESIGN TASTE. A full pass over this
+# container is hours long, and this probe was killed twice mid-run - once by a
+# tracked file changing under it (correctly: the guard below), once from
+# outside. A pass that has to start over each time never finishes, and the
+# temptation at that point is to report the partial as if it were whole.
+#
+# So an existing ledger is APPENDED TO, not truncated: any script already
+# named in it is skipped. Delete the file to force a clean pass. The rows are
+# keyed by script name in column 1, which is the same key the comparison uses.
+touch "$OUT"
+already=$(cut -d' ' -f1 "$OUT" | sed '/^$/d' | sort -u)
+[ -z "$already" ] || echo "resuming: $(printf '%s\n' "$already" | grep -c .) row(s) already measured"
+
 for s in "${SCRIPTS[@]}"; do
+  if printf '%s\n' "$already" | grep -qxF "$s"; then
+    echo "skipped (already in $OUT): $s"
+    continue
+  fi
   start=$SECONDS
   log=$(mktemp)
   timeout --signal=TERM --kill-after=30 "$BUDGET" bash "$REPO/scripts/$s" >"$log" 2>&1
