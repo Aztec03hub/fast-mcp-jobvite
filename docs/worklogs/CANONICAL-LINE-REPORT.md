@@ -283,9 +283,66 @@ rows" and "the comparison never fired" into one message.
 
 ---
 
-## 5. Before and after: every exit code in the container
+## 5. Before and after: INCOMPLETE, and the denominator is the point
 
-TO BE FILLED IN
+**This section does not yet support the claim the task asks it to support, and it says so rather
+than reporting the part that is finished as though it were the whole.**
+
+    $ docs/reviews/compare-harness-exit-codes.sh <before> <after>
+    harness                                    before    after
+    ---------------------------------------------------------
+    check-body-cap-amputation.sh               rc=0      rc=0
+    check-body-cap-controls.sh                 rc=0      rc=0
+    check-critical-coverage-amputation.sh      rc=0      rc=0
+    check-harness-anchors-controls.sh          rc=0      rc=0
+    check-log-redaction-amputation.sh          rc=0      rc=0
+    check-suite-floor-amputation.sh            rc=0      rc=0
+    check-suite-floor.sh                       rc=2      rc=2
+
+    container (scripts/*.sh)          : 36
+    COMPARED (measured on both sides) : 7 of 36
+    exit codes that MOVED             : 0
+    ::error::no exit code moved across the 7 compared, and that is NOT
+             a statement about the other 29.
+    COMPARE EXIT=1
+
+**Nothing is known about the other 29.** The comparison step exits NON-ZERO on that incompleteness
+by construction, so this cannot be mistaken for a result at a glance.
+
+### The three instrument defects this measurement went through, all recorded in the probe
+
+1. **My own edit dirtied the tree mid-pass.** I changed a tracked file in the worktree the baseline
+   was running in, and `probe-harness-exit-codes.sh` correctly aborted with *"LEFT THE TREE DIRTY.
+   Stopping: every later row would measure its mutation rather than its own subject."* The guard was
+   right and I was wrong; the baseline now runs in its own detached worktree at the pre-migration
+   commit, where nothing I do can reach it.
+2. **Two background passes were killed from outside**, at row 7 of 36, losing the whole pass. The
+   probe is now RESUMABLE - an existing ledger is appended to, not truncated - so a kill costs
+   progress rather than the pass, and it takes its OWN deadline so an external bound never lands
+   mid-harness. A mutation harness killed mid-row strands its mutation in the working tree; all
+   three worktrees were verified clean after every kill.
+3. **A timed-out row was being recorded as if it were an exit code.** `timeout` returns 124, which
+   would have been written into a file whose entire purpose is to be compared against another run.
+   Two runs with different budgets would then differ *on the budget*, and it would read as the
+   refactor having moved a harness's exit code. Timeouts are now not recorded at all, so the row
+   drops out of the comparison instead of poisoning it.
+
+**Defect 3 was found by the orchestrator reviewing my `ps` output, not by me.** The guard already
+existed when he raised it - which is why no 124 has ever entered either ledger, and why
+`check-u0-test-controls.sh` is absent from BOTH sides rather than present on one - but the
+underlying inconsistency was real: I had run the two sides at different per-script budgets (900 and
+500) after lowering one to fit a foreground tool limit. **A before/after comparison whose two arms
+use different instruments measures the instruments.** That it was caught downstream is luck of a
+kind worth not relying on, so `compare-harness-exit-codes.sh` now refuses outright, exit 3, if a
+timeout code ever appears in a ledger.
+
+### Why the comparison is on the INTERSECTION and not a `diff`
+
+`diff` answers "are these two files identical", which is not the question, and it reports every
+legitimately-absent row (resumed pass, deadline, unrecorded timeout) as a difference - training the
+reader to skim past real ones. The comparison therefore reports two claims that fail differently:
+AGREEMENT over the harnesses measured on both sides, and COVERAGE of how much of the container that
+intersection is. A perfect agreement over seven rows is not evidence about thirty-six.
 
 ---
 
