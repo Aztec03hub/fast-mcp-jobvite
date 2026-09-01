@@ -1,4 +1,4 @@
-# CODE-REVIEW-R9 - `dad014e..3e0c8ae`
+# REVIEW-R10 - `dad014e..3e0c8ae`
 
 **Reviewer:** `review-r9`, fresh. Nothing here was reconstructed from the author's task records or
 commit messages; every claim below was re-derived from the code, from `git`, or from a probe run in
@@ -8,6 +8,28 @@ this worktree.
 branch `review/r9`.
 
 **Scope:** 13 commits, 33 files, +641/-116. This range was merged and pushed without a review round.
+
+**On the round number.** I was dispatched as "R9" and this document was first written under that
+name; the orchestrator corrected it mid-round. `docs/reviews/CODE-REVIEW-R9.md` already exists,
+written 2026-08-29 by a different agent also called `review-r9`, covering `8695101..f699f74`. This
+is **R10**, findings are numbered `R10-*`, and the file follows the directory's dominant
+`REVIEW-R<n>.md` convention. The branch is `review/r9`, left as created rather than churned.
+
+**A 45-commit hole between the two rounds - reported, not reviewed.** The existing R9 ends at
+`f699f74`; this round starts at `dad014e`. Measured:
+
+```
+$ git merge-base --is-ancestor f699f74 dad014e && echo "clean linear range"
+clean linear range
+$ git log --oneline f699f74..dad014e | wc -l
+45
+```
+
+**45 commits have never been covered by any review round.** They are not a merge artifact - the
+range is linear. It runs from `b0e2e19` ("An unreadable file was silently treated as NOT exempt,
+and repointed") through `dad014e`, and includes `46f401d`, the ADR-0025 merge that **re-froze
+`docs/DESIGN.md`** - which is the same artifact R10-M1 finds has since drifted. I did not expand
+scope to review them; this is the count, for dispatch.
 
 ---
 
@@ -33,7 +55,7 @@ SC2034 and SC2154 at **exit 1**. A green from this binary is a green that read s
 
 # Findings
 
-## HIGH-1 - #108's "64 of 64" is true for its selector, and the selector is blind to 9 more pytest invocations, every one of them unbounded
+## R10-H1 - #108's "64 of 64" is true for its selector, and the selector is blind to 9 more pytest invocations, every one of them unbounded
 
 This is the finding the task was about, one level up. The selector
 `grep -nE 'uv run --frozen pytest' scripts/*.sh` is narrow in **two independent ways**, and each
@@ -110,8 +132,8 @@ can still hang without bound.
    out=$(cd "$work" && timeout 900 "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
    ```
 
-   The bare-command-then-capture form is safe here for the reason established below in VERIFIED-1
-   and VERIFIED-2.
+   The bare-command-then-capture form is safe here for the reason established below in R10-V1
+   and R10-V2.
 
 2. Replace the spelling-shaped selector with a container-shaped one, and assert the two sets are
    equal, so the next harness that invents an eighth way to say "pytest" is caught the day it lands:
@@ -133,7 +155,7 @@ can still hang without bound.
 
 ---
 
-## MEDIUM-1 - `docs/DESIGN.md` no longer matches the SHA every reader is told is its freeze, and nothing detects that
+## R10-M1 - `docs/DESIGN.md` no longer matches the SHA every reader is told is its freeze, and nothing detects that
 
 `86ab20e` edited `docs/DESIGN.md` (the C2-T2 disposition cell). The edit itself is defensible and
 the commit message reasons about it carefully. **The freeze pointer was not moved with it.**
@@ -192,7 +214,7 @@ once by hand; it is not wired.
 
 ---
 
-## MEDIUM-2 - #115's `--controls` license the POPULATION and nothing else; the detector they exist to protect can be deleted with all controls still green
+## R10-M2 - #115's `--controls` license the POPULATION and nothing else; the detector they exist to protect can be deleted with all controls still green
 
 The zero is **real**. I proved the scan can fire, on the real tree, by planting a tracked file:
 
@@ -256,7 +278,7 @@ except by scanning the whole tree, which is exactly why they cannot be tested.
 
 ---
 
-## LOW-1 - `REPOINT-EXEMPT` silences a genuine finding on the same line, and the scan never says how many lines it skipped
+## R10-L1 - `REPOINT-EXEMPT` silences a genuine finding on the same line, and the scan never says how many lines it skipped
 
 Measured. A tracked plant reading
 
@@ -294,7 +316,7 @@ defect was should still not be allowed to point past the end of the file.
 
 ---
 
-## LOW-2 - a timed-out row in `check-suite-floor-amputation.sh` prints its warning and then reports SURVIVED anyway
+## R10-L2 - a timed-out row in `check-suite-floor-amputation.sh` prints its warning and then reports SURVIVED anyway
 
 `scripts/check-suite-floor-amputation.sh:58-75`. The timeout arm added in this range is correct
 about detecting 124:
@@ -332,12 +354,12 @@ not measured, instead of relying solely on the gate's grep.
 
 ---
 
-## nit-1 - `_code_lines` strips comments by splitting on the first `#`, which also truncates a `#` inside a string
+## R10-N1 - `_code_lines` strips comments by splitting on the first `#`, which also truncates a `#` inside a string
 
 `docs/reviews/check-settings-are-read.py:99` (`return [line.split("#", 1)[0] for line in body]`).
 
 The intent - a comment mentioning a name is not a read - is right, and I confirmed it works (see
-VERIFIED-4). But the implementation truncates any line at its first `#` regardless of context, so a
+R10-V4). But the implementation truncates any line at its first `#` regardless of context, so a
 genuine read positioned after a `#` inside a string literal becomes invisible and the field reports
 as UNREAD. No such line exists in `src/` today; I checked. This is a latent false positive, not a
 current one.
@@ -361,7 +383,7 @@ valuable part.
 
 ---
 
-## nit-2 - `timeout` without `--kill-after`: the bound holds only for a child that honours SIGTERM
+## R10-N2 - `timeout` without `--kill-after`: the bound holds only for a child that honours SIGTERM
 
 All 64 bounded sites use plain `timeout N`. `timeout` sends SIGTERM and then waits indefinitely; a
 child that blocks or ignores it makes the bound advisory. Since the command is `uv run ... pytest`,
@@ -377,10 +399,34 @@ pytest processes before: 5    2s after: 5    -> no orphan
 So this is prophylactic, not a live defect - which is why it is a nit and not a finding.
 
 **Suggested fix.** `timeout -k 30 900 uv run ...` at the bounded sites, so a wedged child gets
-SIGKILL 30s after the SIGTERM it ignored. Worth folding into the same pass as HIGH-1 so all
+SIGKILL 30s after the SIGTERM it ignored. Worth folding into the same pass as R10-H1 so all
 invocations end up in one shape. Task #116 already tracks the related problem that these abort
 messages retype the number one line above them; a single pass that introduces `-k` **and** derives
 the message's number from one variable would close both.
+
+---
+
+## R10-N3 - the dispatching brief describes the row arm as 300s; the amputation harnesses use 900s
+
+The brief for this round summarises #108's three arms as "baseline 900s -> exit 4, row 300s,
+selector probe 120s". Measured against the tree, the row arm is **not** uniformly 300s: the
+amputation harnesses run their rows at 900s.
+
+```
+$ grep -nE 'timeout [0-9]+ .*pytest' scripts/*amputation*.sh | grep -oE 'timeout [0-9]+' | sort | uniq -c
+      4 timeout 300
+     26 timeout 900
+```
+
+The code is internally self-consistent - every abort message names the same number as the `timeout`
+above it - so this is a defect in the summary, not in the harnesses. It is recorded because a
+summary is what the next agent reads, and "row 300s" is the kind of retyped constant `PREAMBLE.md`
+exists to warn about.
+
+**Suggested fix.** State the arms by role rather than by value in future briefs - "baseline, row,
+selector probe, each bounded, values in the harness" - so the brief cannot go stale against the
+tree. Task #116 already tracks making those values derivable rather than retyped, which would let a
+brief cite one name instead of three numbers.
 
 ---
 
@@ -388,7 +434,7 @@ the message's number from one variable would close both.
 
 These are recorded because "I attacked this and it held" is a result.
 
-**VERIFIED-1. The `set -e` reasoning is sound, and the population is larger than claimed.** The
+**R10-V1. The `set -e` reasoning is sound, and the population is larger than claimed.** The
 author verified 22 scripts. I enumerated the container instead: **43 tracked `.sh` files**, and
 every one carries `set -uo pipefail` with no `-e`.
 
@@ -416,7 +462,7 @@ grep -ln '^set -e' $(git ls-files '*.sh') | grep . && { echo "::error::a harness
 I am not raising that as a finding because it is ADR-0023's stated business rather than this range's,
 but it is the answer to the question asked.
 
-**VERIFIED-2. `local row_rc=$?` is correct, and the famous masking form is a different shape.**
+**R10-V2. `local row_rc=$?` is correct, and the famous masking form is a different shape.**
 Measured on bash 5.2.21:
 
 ```
@@ -430,7 +476,7 @@ ARM4 timeout FIRED, bare + local          rc=124
 substitution to be *inside* the `local` declaration, which no site in this range does. The author's
 reasoning was right for the right reason.
 
-**VERIFIED-3. `pipefail` does propagate 124 through `tail`.** Measured, with a negative control so
+**R10-V3. `pipefail` does propagate 124 through `tail`.** Measured, with a negative control so
 the positive result means something:
 
 ```
@@ -439,10 +485,10 @@ ARM6 same, pipefail OFF                              rc=0     (the bug pipefail 
 ARM7 out=$(cd ... && timeout 1 ... | tail -1)        rc=124   (the real site's exact shape)
 ```
 
-The real site is `check-suite-floor-amputation.sh:58`. Its 124 detection works. See LOW-2 for what
+The real site is `check-suite-floor-amputation.sh:58`. Its 124 detection works. See R10-L2 for what
 it does *after* detecting.
 
-**VERIFIED-4. The #113 exemption fires, and the prose is actionable rather than merely nicer.**
+**R10-V4. The #113 exemption fires, and the prose is actionable rather than merely nicer.**
 Both arms, by planting into `src/` and restoring against `git diff --quiet`:
 
 ```
@@ -462,13 +508,13 @@ implemented, really does say **"The throttle is PER-PROCESS"** (`:454`), and rea
 **"Time spent waiting on the throttle SPENDS §4.3's outbound budget"** (`:459`). The exemption's
 three claims are each true at the cited section, and it tells the implementer what to do and when to
 delete the entry. It also cites **§4.4 by section rather than by line**, which survives the drift
-that MEDIUM-1 describes. That is a better citation than the one it replaced.
+that R10-M1 describes. That is a better citation than the one it replaced.
 
-**VERIFIED-5. #115's zero is real** - see MEDIUM-2 for the three positive controls that fire and the
+**R10-V5. #115's zero is real** - see R10-M2 for the three positive controls that fire and the
 one amputation that does not.
 
-**VERIFIED-6. The 64 are all genuinely bounded**, with `timeout N` governing the command and not
-merely present on the line. The defect is the denominator, not the 64. See HIGH-1.
+**R10-V6. The 64 are all genuinely bounded**, with `timeout N` governing the command and not
+merely present on the line. The defect is the denominator, not the 64. See R10-H1.
 
 ---
 
@@ -478,7 +524,7 @@ Short, and every item here is something I tried and failed to resolve, not somet
 
 1. **I did not run the 13 harnesses.** Each is minutes and several mutate `src/`; two other agents
    are live in adjacent worktrees and the standing rule is not to gate a tree someone is on. So
-   HIGH-1's nine sites are proved **unbounded by reading and by `grep` over the whole container**,
+   R10-H1's nine sites are proved **unbounded by reading and by `grep` over the whole container**,
    and proved **reachable from `ci.yml` by line**, but I have not watched one of them hang. The
    claim "these can hang unbounded" is structural, not observed.
 
@@ -486,7 +532,7 @@ Short, and every item here is something I tried and failed to resolve, not somet
    documents.** ADR-0032 rules the row into existence but says nothing about the disposition
    column's closed vocabulary, which is precisely the incompleteness `86ab20e` describes. Whether
    completing your own ruling counts as "a numbered ADR changing the design" for `PREAMBLE.md`'s
-   purposes is your call, not mine. **MEDIUM-1 does not depend on it either way** - the freeze
+   purposes is your call, not mine. **R10-M1 does not depend on it either way** - the freeze
    pointer is stale whichever way that goes.
 
 3. **I did not audit the other nine `rc=$?` sites ADR-0023 lists as un-audited.** ADR-0023 says
