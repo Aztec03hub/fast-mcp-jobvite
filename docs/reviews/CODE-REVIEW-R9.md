@@ -1,7 +1,18 @@
 # CODE-REVIEW-R9 - everything merged between 8695101 (exclusive) and f699f74
 
-Reviewer: `review-r9`. Subject: `git diff 8695101..f699f74`, 17 commits, 17 files,
-+2612/-38. Most of it was written and merged by the orchestrator with no review round.
+<!-- REVIEW-COVERS: 8695101..f699f74 -->
+
+Reviewer: `review-r9`. Subject: `git diff 8695101..f699f74`, **23 commits** (16 excluding
+merges), 17 files, +2612/-38. Most of it was written and merged by the orchestrator with no
+review round.
+
+*This line originally read "17 commits, 17 files". The file count was right and the commit
+count was not - 17 is the number of FILES, copied into the commit slot. Re-measured at R10:
+`git log --oneline 8695101..f699f74 | wc -l` is 23, `--no-merges` is 16, `git diff --shortstat`
+is 17 files / +2612 / -38, and `git merge-base --is-ancestor 8695101 f699f74` confirms the range
+is linear. Corrected in place rather than annotated, so a reader is not left choosing between two
+figures; the range itself was always right, which is why this document can carry the
+`REVIEW-COVERS` declaration above. A record may go stale. It may not be wrong.*
 
 Read first: `docs/briefs/PREAMBLE.md` in full; `docs/standards/` **does not exist in this
 repo** (`ls docs/standards/` -> `No such file or directory`), so the brief's "then
