@@ -18,8 +18,21 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # itself. Its own name never appears in a HARNESS-RESULT line.
 
 usage() {
-  echo "usage: $0 <ledger-out> [per-script-timeout-seconds]" >&2
-  echo "  then: diff <before-ledger> <after-ledger>" >&2
+  echo "usage: $0 <ledger-out> [per-script-seconds] [overall-deadline-seconds]" >&2
+  echo "  per-script-seconds  timeout for ONE harness (default 900). A run that" >&2
+  echo "                      exceeds it is NOT recorded - a timeout is not a" >&2
+  echo "                      measurement - so a later, larger budget retries it." >&2
+  echo "  overall-deadline    0 (default) means run to completion. Otherwise the" >&2
+  echo "                      probe stops CLEANLY between harnesses once a further" >&2
+  echo "                      per-script budget would not fit, so an outside" >&2
+  echo "                      bound never lands mid-harness. Combined with the" >&2
+  echo "                      resume, repeated bounded calls walk the container." >&2
+  echo "                      A harness slower than the caller's own limit can" >&2
+  echo "                      therefore never be measured this way; it needs one" >&2
+  echo "                      unbounded run." >&2
+  echo "  then: docs/reviews/compare-harness-exit-codes.sh <before> <after>" >&2
+  echo "        NOT \`diff\` - the two ledgers may legitimately hold different" >&2
+  echo "        SETS of rows, and diff reports every such row as a difference." >&2
 }
 
 [ "$#" -ge 1 ] || { usage; exit 2; }
