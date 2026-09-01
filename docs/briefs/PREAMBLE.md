@@ -29,9 +29,13 @@ already `completed`, say so and stop.**
   /tmp/<agent-name>-work <sha>`. **Do NOT check anything out in the shared checkout** - I am working
   in it, and a tree moving under an agent has cost reviewers whole mutation batches.
 - Run `git worktree list` before moving any ref.
-- **`docs/DESIGN.md` is FROZEN.** Read it as `git show <SHA>:docs/DESIGN.md`, never from the working
-  tree. Only a numbered ADR may change it, and a defect you find in it is a **Proposed** ADR plus a
-  report - not an edit.
+- **`docs/DESIGN.md` is FROZEN.** Read it as
+  `git show "$(cat docs/DESIGN-FREEZE.txt)":docs/DESIGN.md` - **derive the SHA, never retype it and
+  never accept one typed into a brief.** A brief naming a stale-but-VALID SHA resolves cleanly and
+  passes every gate, which is exactly what `docs/briefs/ADR-0025.md` does today with `8a9d63c`. The
+  blob gate catches the design moving away from its declared freeze; it cannot catch the SHA in
+  front of YOU being an old one. **Never read the design from the working tree.** Only a numbered ADR
+  may change it, and a defect you find in it is a **Proposed** ADR plus a report - not an edit.
 - **Commit as you go.** A restart destroyed a task that had done hours of work and committed none of
   it. **I merge and push; you never do.**
 - **`docs/OBLIGATIONS.md` is not yours to hand-edit.** If your change moves an anchor, run
