@@ -197,6 +197,24 @@ jobs:
       - name: No harness enables errexit
         run: python3 docs/reviews/check-no-errexit.py
 
+      # WIRED 2026-09-01, both green when wired, both measured first. They had
+      # been sitting UNWIRED while appearing in this file only inside comments,
+      # which is why a naive `grep basename ci.yml` reported them as wired -
+      # mine did, and so did a reviewer's. The population is now derived by
+      # parsing jobs.*.steps[].run out of the YAML.
+      #
+      # NEITHER PROMISES MORE THAN IT CHECKS, and each says so in its own
+      # output: the clause checker proves a citation RESOLVES, not that it
+      # names the right subject - nine wrong-subject citations have been found
+      # on this project, four inside the ADR documenting the defect - and the
+      # env-var checker matches LITERALS, so a name built by composition is
+      # invisible to it.
+      - name: Standard clause citations resolve
+        run: python3 docs/reviews/check-clause-citations.py
+
+      - name: Every env var is declared
+        run: python3 docs/reviews/check-env-vars-are-declared.py
+
       # Wired the day it went green, and not one commit before. It exited 1 on
       # exactly one finding - DESIGN.md §5.3's `SS5.4`, a section that does not
       # exist - and was deliberately left unwired, because a knowingly red gate
