@@ -110,7 +110,13 @@ with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
 #    really names, make it unreadable, and run the real tool. It must
 #    refuse (exit 1, says UNREADABLE) and must NOT report repointing
 #    anything.
-SHA = "28be78adcca7f81e98307743640490f061fae3a9"
+# A COMMIT SHA, not a credential. detect-secrets reads 40 hex
+# characters as a "Hex High Entropy String" and cannot tell a git
+# object from a key, so the mitigation the tool itself prints is
+# used here. Marked INLINE rather than baselined: a baseline entry
+# is invisible at the call site, and this repo has already watched
+# the baseline be rewritten by the hook and then fail as unstaged.
+SHA = "28be78adcca7f81e98307743640490f061fae3a9"  # pragma: allowlist secret
 report_text = repoint.report(SHA)
 cited = [
     m.group("file")
