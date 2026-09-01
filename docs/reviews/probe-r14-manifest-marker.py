@@ -65,7 +65,7 @@ def run_checker() -> tuple[int, str]:
 
 
 def substitute(path: pathlib.Path, old: str, new: str) -> None:
-    """Replace `old` with `new`, refusing unless it appears exactly once.
+    """Replace `old` with `new`, unless it appears other than once.
 
     An anchor that matches twice would edit a site this probe never
     reasoned about; an anchor that matches zero times would make the arm
@@ -129,9 +129,9 @@ def main() -> int:
         )
         substitute(CHECKER, NARROW, WIDE)
 
-        # VACUITY: a manifest whose entry is missing entirely must RAISE,
-        # not report a clean zero. A checker that cannot find its subject
-        # and says nothing is the failure mode this whole file exists for.
+        # VACUITY: a manifest whose entry is missing must RAISE, not
+        # report a clean zero. A checker that cannot find its subject
+        # and says nothing is the failure this whole file exists for.
         body = MANIFEST.read_text(encoding="utf-8")
         substitute(MANIFEST, '"JOBVITE_OUTBOUND_RATE_LIMIT"', '"JOBVITE_GONE"')
         code, out = run_checker()

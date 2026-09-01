@@ -154,7 +154,7 @@ def marker_lines(variable: str, marker: str, name: str) -> list[int]:
 
 
 def _json_marker_lines(path: pathlib.Path, variable: str, marker: str) -> list[int]:
-    """The line of `variable`'s entry, when its description carries `marker`.
+    """The line of `variable`'s entry, if its description is marked.
 
     Returns the line the NAME sits on so the "lingering marker" message
     can cite a real place to go and delete it, exactly as the line-based
@@ -174,13 +174,11 @@ def _json_marker_lines(path: pathlib.Path, variable: str, marker: str) -> list[i
     if not any(marker in str(entry.get("description", "")) for entry in entries):
         return []
     quoted = f'"{variable}"'
-    return [
-        n for n, line in enumerate(text.splitlines(), 1) if quoted in line
-    ]
+    return [n for n, line in enumerate(text.splitlines(), 1) if quoted in line]
 
 
 def _walk_json(node: object) -> Iterator[object]:
-    """Every dict and list member reachable in a parsed JSON document."""
+    """Every dict and list member reachable in parsed JSON."""
     yield node
     if isinstance(node, dict):
         for value in node.values():
