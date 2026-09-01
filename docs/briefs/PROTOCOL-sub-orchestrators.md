@@ -200,3 +200,77 @@ one day: 47 marked lines, 51 after two briefs *discussing* the marker, 60
 after merging the review that *found* the defect, 61 now. Every increment
 was prose, not an exemption. A bare-substring marker makes writing about
 it load-bearing — so **the most careful writers expand the hole fastest.**
+
+---
+
+## Runs 3 to 5, and the pattern that only shows up with five
+
+Three more Tier-1 dispatches (`suborch-144` on two detector tasks, and
+two adversarial reviewers). Adding them changes two of the conclusions
+above and adds one a smaller sample could not support.
+
+**STILL ZERO TIER-2 WORKERS, ACROSS ALL FIVE RUNS.** Every agent judged
+that nothing warranted a pane; two said so unprompted, in nearly the
+same words - *every step was one or two tool calls*. **Stop budgeting
+for fan-out at this tier.** The permission costs nothing to grant and
+has now gone unused five times out of five; the value is the worktree,
+the isolation, and the obligation to bring back a measurement.
+
+**EVERY ONE OF THE FIVE CORRECTED ITS OWN BRIEF, AND EVERY CORRECTION
+HELD.** That is no longer a hopeful sign, it is the expected output:
+
+- one measured that my "still misses" list named two spellings that are
+  DETECTED today, so my conclusion survived on two of its four examples;
+- one rejected the option I framed because measurement falsified its
+  premise, and settled a question I had deliberately left open;
+- one found that a fix of mine was an AMPUTATION SURVIVOR whose own
+  stated justification was false;
+- one found a number of mine was a DISPLAY CAP I had read as a
+  population.
+
+**A REPORT WITH NO CORRECTION IN IT IS NOW THE ANOMALY.** If one
+arrives, suspect the brief contained nothing checkable rather than that
+the work was flawless.
+
+### THE NEW RULE, and it is the strongest thing five runs taught
+
+**DISPATCH THE REVIEWER BEFORE THE MERGE, NOT AFTER THE PUSH.** Both
+review dispatches found HIGH findings in work that was already green on
+every gate - one of them in a fix I had written an hour earlier and
+argued for in three places. Green gates and a passing probe caught
+neither, because both defects were in what the code CLAIMED about
+itself, and no gate reads claims.
+
+The corollary is uncomfortable and worth stating: **my own work needs
+the same fresh-reviewer treatment as an agent's, and it is the work I am
+least likely to send.** The R14 round found two of my defects; its
+reviewer then found two more IN MY FIX for the first two.
+
+### What a reviewer must be told, learned the hard way
+
+- **Hand it the numbers as HYPOTHESES and say so.** Both reviewers
+  re-measured, and both found a wrong one. A brief with no checkable
+  number in it cannot produce that.
+- **Name the thing you did not chase.** I gave one reviewer a
+  discrepancy I had noticed and skipped - two instruments reporting two
+  counts of one container - and flagged it as its highest-value item.
+  Handing over a known loose end beats hoping it gets noticed.
+- **Tell it to amputate DIFFERENTLY than the probe does.** The R14
+  reviewer deleted a whole dispatch branch in a scratch repo rather than
+  re-running the probe's own arm, and that is what exposed the survivor.
+  **A probe cannot amputate its own subject**: it refuses to run against
+  a modified checker, so its guard and its coverage are in tension.
+- **Say which worktrees are LIVE and must not be touched.** With three
+  agents running, "do not clean anything outside your own scope" stops
+  being boilerplate.
+
+### The trap that cost the most, twice in one evening
+
+**RUN THE INVOCATION CI RUNS, ARGUMENTS AND ALL.** A gate run bare when
+CI runs it with a flag is a different, weaker question. Measured twice:
+a whole-tree file-type gate run without `--all` selects the STAGED set,
+empty on a clean tree, so it exits 0 having opened nothing - that hid a
+red trunk for 127 commits. An hour after recording the lesson I did it
+again with `python3` where CI uses `uv run --frozen python`, and read a
+missing-dependency failure as a defect. **Copy the line out of the
+workflow file. Knowing the rule is not following it.**
