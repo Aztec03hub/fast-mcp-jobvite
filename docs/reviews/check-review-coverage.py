@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Report the commits on the trunk that NO review round has covered.
 
-    python3 docs/reviews/check-review-coverage.py
+    python3 docs/reviews/check-review-coverage.py [--ref origin/main]
 
 **WHY THIS EXISTS.** On 2026-09-01 I found 45 consecutive commits that
 no review round had examined - 133 files, +7787/-2561 - including nine
@@ -16,53 +16,65 @@ were never in any round's scope by construction. Of those 45 commits,
 zero mention a unit; all 18 merges are `fix/*` or `chore/*`. **The
 least-reviewed code here is the code that does the reviewing.**
 
-**WHY IT REFUSES TO GUESS.** The obvious implementation derives each
-round's coverage from the SHA its document cites. That is not sound: of
-the code-review documents, only `CODE-REVIEW-R9` states a range. The
-rest cite the tree state they read AT, and all but one are plain
-commits, so there is no `M^1..M` to expand. A checker that inferred
-would **manufacture coverage for code nobody read** and certify it
-forever - strictly worse than the gap, because an absence you can see
-beats a false presence you cannot.
+**WHY IT REFUSES TO GUESS.** Deriving a round's coverage from whatever
+SHA its document happens to cite would **manufacture coverage for code
+nobody read** and certify it forever - strictly worse than the gap,
+because an absence you can see beats a false presence you cannot.
 
-## Four defects review R12 found in this file, and the fix for each
+## PATHS, and why a range alone was not enough
 
-**THE CONTAINER BASE IS FIXED, NOT DERIVED (R12-H3).** It used to be
+Two reviewers found the same hole independently. A round is dispatched
+over a commit range AND a path filter: R11 took `src tests docs/adr
+docs/DESIGN.md`, R12 took `docs/reviews scripts .github`, over the SAME
+45 commits. Union the ranges and ignore the paths, and **either
+declaration alone makes all 45 read as covered** while half the files
+were never opened. That is manufactured coverage arriving from the
+AUTHOR's side rather than the inferrer's - the very thing the paragraph
+above refuses.
+
+So a declaration may name the paths it read:
+
+    <!-- REVIEW-COVERS: f699f74..dad014e PATHS: docs/reviews scripts -->
+    <!-- REVIEW-COVERS: 8695101..f699f74 -->        (no PATHS = all)
+
+A commit counts as covered only when **every file it touches** is
+claimed by some round whose range contains it. Two path-split rounds
+compose; either alone leaves the commit PARTIALLY covered, reported
+separately from untouched - a half-read commit and an unread one are
+different facts and must not print the same.
+
+Omitting PATHS still means the whole tree, so older declarations keep
+working and the broad claim stays the default.
+
+## Defects review R12 found in this file, and the fix for each
+
+**THE CONTAINER BASE IS FIXED, NOT DERIVED (R12-H3).** It was
 `min(declared bases)`, which made the metric MANIPULABLE IN THE WRONG
-DIRECTION: deleting a `REVIEW-COVERS` line moved the base forward and
-dropped `COVERED BY NOTHING` from 59 to 2. A gate whose number IMPROVES
-when you remove a declaration teaches exactly the behaviour it exists to
-prevent. `CONTAINER_BASE` is now a constant, so removing a declaration
-can only make the number worse.
+DIRECTION: deleting a declaration moved the base forward and dropped
+`COVERED BY NOTHING` from 59 to 2. A gate whose number IMPROVES when you
+remove a declaration teaches the behaviour it exists to prevent.
+
+**THE TRUNK IS A NAMED REF, NOT `HEAD` (R12-H3, second half).** Under
+`actions/checkout` HEAD is the PR's merge commit, so wiring it as-is
+would turn every pull request red for its own not-yet-trunk commits.
 
 **THE POPULATION IS A REGEX OVER EVERY `.md` HERE (R12-M4).** The glob
 `*REVIEW-R*.md` silently missed `REVIEW-CODE-R2.md` - a real round, in
-no bucket at all, neither declared nor exempt. That is the third time in
-one day a pattern-shaped population lost a member, and this file exists
-to enforce container thinking. The census is printed so the population
-is visible rather than assumed.
+no bucket at all. Third pattern-shaped population loss in one day, in
+the file written to enforce container thinking.
 
-**AN EXEMPTION NEEDS A NON-EMPTY REASON (R12-M5).** Membership and
-truthiness were tested separately, so a blank reason made a document
-exempt AND reported as unexplained at once.
+**AN EXEMPTION NEEDS A NON-EMPTY REASON (R12-M5), A GIT FAILURE EXITS 3
+(R12-L3), AND TWO DECLARATIONS REFUSE (R12-N2).**
 
-**A GIT FAILURE EXITS 3, NOT 1 (R12-L3).** A broken instrument and a
-real finding must not share an exit code.
-
-**ONLY ONE DECLARATION PER DOCUMENT (R12-N2).** A second was silently
-ignored; two now refuse.
-
-**WHAT IT STILL CANNOT DO.** It checks that a commit falls inside some
-round's declared range. It cannot check the round READ that commit. R12
-put it precisely: its own declaration credits 45 commits to a round that
-read 62 of 133 files, because two agents split that range by PATH. A
-`PATHS` field would let such rounds compose; until then a declaration is
-a claim about the range an author was RESPONSIBLE for, and this gate
-only makes the claim explicit and total.
+**WHAT IT STILL CANNOT DO.** It checks that a commit's files fall inside
+some round's declared range and paths. It cannot check the round READ
+them. A declaration is a claim by its author; this only makes the claim
+explicit, total, and composable.
 """
 
 from __future__ import annotations
 
+import argparse
 import pathlib
 import re
 import subprocess
@@ -72,31 +84,22 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 REVIEWS = ROOT / "docs" / "reviews"
 
 #: The commit from which review coverage is claimed. **A CONSTANT, never
-#: derived from the declarations** - see R12-H3 above. Moving it FORWARD
-#: hides commits, so it changes only with a recorded reason.
-#: `8695101` is the base `CODE-REVIEW-R9` states in its own heading, and
-#: the oldest point any round declares.
+#: derived from the declarations** - see R12-H3. Moving it FORWARD hides
+#: commits, so it changes only with a recorded reason.
 CONTAINER_BASE = "8695101"
 
-#: A code-review document: the word REVIEW plus a round number, anywhere
-#: in the name. Catches `REVIEW-R3`, `CODE-REVIEW-R9` and the
-#: `REVIEW-CODE-R2` spelling a glob missed.
 IS_REVIEW = re.compile(r"REVIEW.*-R\d+", re.IGNORECASE)
-
-#: Excluded, with the reason. `PLAN-REVIEW-*` review the plan and
-#: `DESIGN-*-REVIEW` the design: neither reviews merged commits, so a
-#: commit range is not a thing they could declare.
 NOT_A_COMMIT_REVIEW = re.compile(r"^PLAN-REVIEW|REVIEW$", re.IGNORECASE)
 
 DECLARATION = re.compile(
     r"^<!--\s*REVIEW-COVERS:\s*"
-    r"(?P<base>[0-9a-f]{7,40})\.\.(?P<head>[0-9a-f]{7,40})\s*-->\s*$",
+    r"(?P<base>[0-9a-f]{7,40})\.\.(?P<head>[0-9a-f]{7,40})"
+    r"(?:\s+PATHS:\s*(?P<paths>[^>]*?))?\s*-->\s*$",
     re.MULTILINE,
 )
 
 #: Rounds that reviewed a UNIT at a tree state and have no range to
-#: recover. Inventing one for them is the single thing this checker must
-#: never do. **A blank reason is not an exemption** (R12-M5).
+#: recover. **A blank reason is not an exemption** (R12-M5).
 UNDECLARED_BY_HISTORY: dict[str, str] = {
     "REVIEW-CODE-R2.md": "reviewed U1/U3/U4 at a pinned SHA, not a range",
     "REVIEW-R3.md": "reviewed 'the seven merged units', not a range",
@@ -106,13 +109,36 @@ UNDECLARED_BY_HISTORY: dict[str, str] = {
     "REVIEW-R7.md": "reviewed U8/U9/U12/U10 at bc0f958, a tree state",
     "REVIEW-R8.md": "reviewed U14 at 2c6ff19, a tree state, not a range",
 }
+assert all(v.strip() for v in UNDECLARED_BY_HISTORY.values()), (
+    "a blank reason is not an exemption"
+)
+
+
+class Round:
+    """One round's claim: which commits, and which paths it read."""
+
+    def __init__(self, name: str, commits: set[str], paths: list[str]) -> None:
+        """Empty `paths` means the whole tree - the broad default."""
+        self.name = name
+        self.commits = commits
+        #: Empty means the WHOLE TREE - the broad, honest default.
+        self.paths = paths
+
+    def claims(self, path: str) -> bool:
+        """Does this round's path filter cover `path`?"""
+        if not self.paths:
+            return True
+        return any(
+            path == claim or path.startswith(claim.rstrip("/") + "/")
+            for claim in self.paths
+        )
 
 
 def git(*args: str) -> str:
-    """Run git in the repo; return stdout, or exit 3 with its stderr.
+    """Run git; return stdout, or exit 3.
 
-    Exit 3, not 1: a broken instrument and a real finding must not share
-    an exit code (R12-L3).
+    A broken instrument is not a finding and must not share an exit
+    code with one (R12-L3).
     """
     done = subprocess.run(
         ["git", "-C", str(ROOT), *args], capture_output=True, text=True
@@ -138,7 +164,39 @@ def review_documents() -> tuple[list[pathlib.Path], list[str]]:
     return kept, skipped
 
 
+def declared_rounds(docs: list[pathlib.Path]) -> tuple[list[Round], list[str]]:
+    """Each document's claim, and the documents declaring none."""
+    rounds: list[Round] = []
+    undeclared: list[str] = []
+    for path in docs:
+        found = DECLARATION.findall(path.read_text(encoding="utf-8"))
+        if len(found) > 1:
+            print(f"\n{path.name} carries {len(found)} REVIEW-COVERS lines.")
+            print("Only the first would be read. Refusing rather than")
+            print("picking one. Exit 2.")
+            raise SystemExit(2)
+        if not found:
+            undeclared.append(path.name)
+            continue
+        base, head, raw_paths = found[0]
+        commits = set(git("rev-list", f"{base}..{head}").split())
+        paths = raw_paths.split()
+        rounds.append(Round(path.name, commits, paths))
+        claim = " ".join(paths) if paths else "(whole tree)"
+        print(f"  DECLARED  {path.name}: {base}..{head}")
+        print(f"            {len(commits)} commits, paths: {claim}")
+    return rounds, undeclared
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="review coverage")
+    parser.add_argument(
+        "--ref",
+        default="main",
+        help="trunk ref; never HEAD - under checkout that is a merge commit",
+    )
+    args = parser.parse_args()
+
     docs, skipped = review_documents()
     print(f"Review documents in the population: {len(docs)}")
     print(f"Excluded, with a reason: {len(skipped)}")
@@ -147,25 +205,7 @@ def main() -> int:
         print("full coverage, which would mean nothing. Exit 2.")
         return 2
 
-    ranges: dict[str, tuple[str, str]] = {}
-    undeclared: list[str] = []
-    for path in docs:
-        found = DECLARATION.findall(path.read_text(encoding="utf-8"))
-        if len(found) > 1:
-            print(f"\n{path.name} carries {len(found)} REVIEW-COVERS lines.")
-            print("Only the first would be read, so the rest are invisible.")
-            print("Refusing rather than picking one. Exit 2.")
-            return 2
-        if found:
-            ranges[path.name] = found[0]
-        else:
-            undeclared.append(path.name)
-
-    covered: set[str] = set()
-    for name, (base, head) in sorted(ranges.items()):
-        commits = git("rev-list", f"{base}..{head}").split()
-        covered.update(commits)
-        print(f"  DECLARED  {name}: {base}..{head} ({len(commits)} commits)")
+    rounds, undeclared = declared_rounds(docs)
 
     unexplained: list[str] = []
     for name in sorted(undeclared):
@@ -176,27 +216,44 @@ def main() -> int:
             unexplained.append(name)
             print(f"  UNDECLARED {name}: no REVIEW-COVERS, and no reason")
 
-    trunk = git("rev-list", f"{CONTAINER_BASE}..HEAD").split()
-    uncovered = [c for c in trunk if c not in covered]
+    if not rounds:
+        print("\nNo document declares a range, so nothing can be checked.")
+        return 2
 
-    print(f"\nTrunk commits since {CONTAINER_BASE} (a CONSTANT): {len(trunk)}")
-    print(f"Inside a declared review range: {len(trunk) - len(uncovered)}")
-    print(f"COVERED BY NOTHING: {len(uncovered)}")
+    trunk = git("rev-list", f"{CONTAINER_BASE}..{args.ref}").split()
+    untouched: list[str] = []
+    partial: list[tuple[str, list[str]]] = []
+    for sha in trunk:
+        claiming = [r for r in rounds if sha in r.commits]
+        if not claiming:
+            untouched.append(sha)
+            continue
+        files = git("show", "--name-only", "--pretty=format:", sha).split()
+        unread = [f for f in files if not any(r.claims(f) for r in claiming)]
+        if unread:
+            partial.append((sha, unread))
 
-    if uncovered:
-        print("\nThe most recent 25 with no review round:")
-        for sha in uncovered[:25]:
-            print(f"  {git('log', '-1', '--format=%h %s', sha)[:88]}")
+    covered = len(trunk) - len(untouched) - len(partial)
+    print(f"\nTrunk commits on {args.ref} since {CONTAINER_BASE}: {len(trunk)}")
+    print(f"Fully covered - range AND every path: {covered}")
+    print(f"PARTIALLY covered - some files claimed by nobody: {len(partial)}")
+    print(f"COVERED BY NOTHING: {len(untouched)}")
 
-    if uncovered or unexplained:
+    for sha in untouched[:15]:
+        print(f"  NONE     {git('log', '-1', '--format=%h %s', sha)[:78]}")
+    for sha, unread in partial[:10]:
+        print(f"  PARTIAL  {git('log', '-1', '--format=%h %s', sha)[:62]}")
+        print(f"           {len(unread)} file(s) unclaimed, e.g. {unread[0]}")
+
+    if untouched or partial or unexplained:
         print(
-            "\nA commit inside no round's declared range has been read by\n"
-            "nobody. NOTE: this proves a commit falls in a declared range,\n"
-            "NOT that the round read it - a declaration is a claim."
+            "\nNOTE: this proves a commit's files fall inside some round's\n"
+            "declared range and paths, NOT that the round read them - a\n"
+            "declaration is a claim by its author."
         )
         return 1
 
-    print("\nEvery trunk commit falls inside some round's declared range.")
+    print("\nEvery trunk commit is fully covered by a declared round.")
     return 0
 
 
