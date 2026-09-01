@@ -642,6 +642,26 @@ jobs:
       - name: The README's Quickstart still works
         run: uv run --frozen python docs/reviews/check-quickstart.py
 
+      # WIRED BY R12-H1, AND THE REASON IS THE POINT. This harness had been
+      # DEAD since 449968f: a `ruff format` pass reflowed the two-line
+      # f-string its A1 anchor quoted, the anchor stopped matching, and the
+      # `assert` behind it took rows A2, A3, A4 and the A5 NEGATIVE CONTROL
+      # down with it. Measured against the blobs - the anchor occurs once at
+      # d5340b7 and zero times at 449968f and dad014e. Nothing noticed for 45
+      # commits BECAUSE NOTHING RAN IT.
+      #
+      # A probe that nothing runs cannot tell you it has stopped working, and
+      # this one is the only amputation evidence for four behaviour fixes -
+      # the fail-closed REPOINT-EXEMPT read, the checker's stderr health
+      # check, and two narrowed `except` clauses. So it is a step now.
+      #
+      # `uv run --frozen python`, NOT `python3`: row A4 mutates
+      # probe-r6-breaker-reset.py, which imports httpx2. Under a bare
+      # interpreter that row reports "could not import" and the harness
+      # correctly refuses a partial run.
+      - name: Docs-lint amputations, every row caught
+        run: uv run --frozen python docs/reviews/probe-docs-lint-amputation.py
+
       - name: Collect the credentialed suite
         run: |
           set -uo pipefail
