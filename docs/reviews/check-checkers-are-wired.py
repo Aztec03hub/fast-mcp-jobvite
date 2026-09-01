@@ -94,15 +94,15 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "so it cannot share a job with it. Run by hand when the canonical "
         "line changes; 8/8 controls fire as of 2026-09-01."
     ),
-    "check-design-citation-shape.py": (
-        "green on every rule but one: it finds 47 citations whose range "
-        "ends on a blank line, being swept under task #126. Wiring it "
-        "before that sweep lands a red gate on arrival, and this repo has "
-        "twice proved a gate that starts red is one people learn to "
-        "ignore. DELETE THIS ENTRY when the sweep lands - the check above "
-        "will then refuse it as a stale exemption."
-    ),
 }
+
+#: `check-design-citation-shape.py` was here, exempted while #126's 47
+#: blank-END citations were swept. The sweep landed, it went green, it
+#: was wired, and this entry was deleted in the same commit. That is the
+#: exemption working as designed: a reason with a stated end condition,
+#: removed when the condition ended rather than left to rot. Had it been
+#: left, the stale-exemption check below would have failed the build -
+#: which is the point of checking the reverse direction.
 
 
 def _reasons_are_non_empty() -> None:

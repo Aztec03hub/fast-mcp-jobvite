@@ -231,6 +231,26 @@ jobs:
       - name: Every checker is wired, or says why it is not
         run: python3 docs/reviews/check-checkers-are-wired.py
 
+      # WIRED THE MOMENT IT WENT GREEN, which is the whole discipline: it
+      # was held back by a stated exemption while the 47 blank-END
+      # citations were swept (#126), and wired in the commit after that
+      # sweep landed. A gate that arrives red is one people learn to
+      # ignore - this repo has proved that twice.
+      #
+      # ITS ZERO IS NOT VACUOUS, and `--controls` is how you know: 7/7
+      # controls fire, including the blank-END detector that found the 47.
+      # A green from a detector nobody has watched fire is a green that
+      # tested nothing.
+      #
+      # IT DOES NOT PROMISE MORE THAN IT CHECKS, and says so in its own
+      # output: it finds citations pointing at something that CANNOT be
+      # their subject. A citation landing on real prose can still name the
+      # wrong sentence - five have been found here by reading (#114), and
+      # the sweep above caught a sixth that a mechanical trim would have
+      # created.
+      - name: Design citations have a plausible shape
+        run: python3 docs/reviews/check-design-citation-shape.py
+
       # WIRED 2026-09-01, both green when wired, both measured first. They had
       # been sitting UNWIRED while appearing in this file only inside comments,
       # which is why a naive `grep basename ci.yml` reported them as wired -
