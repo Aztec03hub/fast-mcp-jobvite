@@ -1057,6 +1057,27 @@ jobs:
       # developer machine, which means they can be skipped with --no-verify or
       # simply not installed. These steps are the backstop that notices.
 
+      # WIRED GREEN, AND WATCHED GOING RED FIRST. The nine unbounded pytest
+      # calls this guard exists to catch were fixed in the same commit, so it
+      # lands at 73/73 rather than landing red - a gate that arrives failing
+      # is a gate people learn to scroll past, and this repo has scars from
+      # exactly that. Before wiring, it was watched failing on a planted
+      # unbounded call in BOTH spellings, and passing on the same call once
+      # bounded; `--self-test` carries that positive control permanently.
+      #
+      # It is cheap - one grep over `git ls-files '*.sh'`, no suite run - so
+      # it sits here with the other static gates rather than among the
+      # harnesses, and it fails in seconds instead of after a hung 2.5-hour
+      # job, which is the failure it exists to prevent.
+      - name: Every pytest invocation is bounded by a timeout
+        run: |
+          set -uo pipefail
+          bash scripts/check-pytest-bounded.sh --self-test || {
+            echo "::error::the bounded-pytest guard cannot detect its own"
+            echo "         planted unbounded call; its green means nothing"; exit 1; }
+          bash scripts/check-pytest-bounded.sh || {
+            echo "::error::a pytest invocation runs unbounded; see #108"; exit 1; }
+
       - name: Committed file types, whole tree
         # --all, not the staged set: in CI there is no index to diff, and the
         # question here is different from the hook's. The hook asks "is this

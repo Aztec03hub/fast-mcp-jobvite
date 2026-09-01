@@ -51,6 +51,7 @@ from __future__ import annotations
 import ast
 import pathlib
 import sys
+import tokenize
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
@@ -137,9 +138,21 @@ def _code_lines(path: pathlib.Path) -> list[str]:
     A COMMENT MENTIONING THE NAME IS NOT A READ, and that is exactly why
     the `outbound_rate_limit` gap was invisible: `jobvite_client.py`
     names it once, in a comment, to say what it is NOT.
+
+    TOKENIZED, NOT SPLIT ON THE FIRST `#`. The split form truncated any
+    line at its first hash regardless of context, so a genuine read
+    sitting after a `#` inside a string literal - a URL fragment, a
+    format template - vanished and its field reported UNREAD. No line in
+    `src/` does that today; this closes it before one does, because the
+    failure would look exactly like a real finding.
     """
     body = path.read_text(encoding="utf-8").splitlines()
-    return [line.split("#", 1)[0] for line in body]
+    with path.open("rb") as handle:
+        for token in tokenize.tokenize(handle.readline):
+            if token.type == tokenize.COMMENT:
+                row = token.start[0] - 1
+                body[row] = body[row][: token.start[1]]
+    return body
 
 
 def references(field: str, declaration_line: int) -> list[str]:

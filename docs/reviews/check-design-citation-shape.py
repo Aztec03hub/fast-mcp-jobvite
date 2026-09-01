@@ -108,13 +108,81 @@ def design_lines(sha: str) -> list[str]:
     return out.stdout.splitlines()
 
 
-def controls() -> int:
-    """Prove the population is chosen by KIND, on the real tree.
+def classify(start: int, end: int, lines: list[str]) -> str | None:
+    """Why this citation cannot be its subject, or None if it can be.
+
+    LIFTED OUT OF `main`'s LOOP so it can be exercised directly. While
+    this logic lived inline, the only way to reach it was to scan the
+    whole tree, which meant nothing tested it - and R10 measured the
+    consequence: deleting the blank-start branch outright left the
+    scan's output byte-identical at 148 files / 875 citations / 0
+    findings, with both population controls still printing FIRED. A
+    detector no test can reach is a detector whose absence is invisible.
+    """
+    if end > len(lines):
+        return "past the end of DESIGN.md"
+    body = lines[start - 1 : end]
+    if not "".join(body).strip():
+        return "the entire range is blank"
+    if all(line.strip().startswith(STRUCTURAL) for line in body if line.strip()):
+        return "only a fence or table separator"
+    if not body[0].strip():
+        return "starts on a BLANK line (the off-by-one shape)"
+    return None
+
+
+def detector_controls(lines: list[str]) -> tuple[int, int]:
+    """Each detector must FIRE on a citation built to trip it.
+
+    Built from the frozen design in memory, so this costs nothing and
+    writes no files. These are the controls whose absence R10-M2
+    recorded: the two below prove the POPULATION is right and say
+    nothing about whether anything is still being detected in it.
+    """
+    blank = next(i for i, t in enumerate(lines, 1) if not t.strip())
+    starts_blank = next(
+        i
+        for i, t in enumerate(lines, 1)
+        if not t.strip()
+        and i < len(lines)
+        and lines[i].strip()
+        and not lines[i].strip().startswith(STRUCTURAL)
+    )
+    solid = next(
+        i
+        for i, t in enumerate(lines, 1)
+        if t.strip() and not t.strip().startswith(STRUCTURAL)
+    )
+
+    cases: list[tuple[str, int, int, str | None]] = [
+        ("past the end", len(lines) + 1000, len(lines) + 1000, "past the end"),
+        ("entirely blank", blank, blank, "entire range is blank"),
+        ("starts on a blank line", starts_blank, starts_blank + 2, "starts on a BLANK"),
+        # THE NEGATIVE CONTROL. Without it every arm above passes on a
+        # `classify` that simply returns a finding for everything.
+        ("a citation that RESOLVES", solid, solid, None),
+    ]
+
+    fired = 0
+    for label, start, end, expect in cases:
+        got = classify(start, end, lines)
+        ok = (got is None) if expect is None else (got is not None and expect in got)
+        if ok:
+            fired += 1
+            print(f"  DETECTOR {label} -> FIRED ({got or 'no finding, as required'})")
+        else:
+            print(f"  DETECTOR {label} -> DID NOT FIRE; the branch is dead (got {got})")
+    return fired, len(cases)
+
+
+def controls(lines: list[str]) -> int:
+    """Prove the population is by KIND, and that it is still scanned.
 
     A narrowed exclusion that STILL misses `docs/reviews/` looks exactly
-    like one that was removed - both print a clean run. These two say
-    which it is, and they go red if the selector is re-narrowed to a
-    directory list.
+    like one that was removed - both print a clean run. These say which
+    it is, and they go red if the selector is re-narrowed to a directory
+    list. The detector arm answers the other half: a right population
+    that nothing examines also prints a clean run.
     """
     names = {p.relative_to(ROOT).as_posix() for p in code_files()}
     fired = total = 0
@@ -134,6 +202,10 @@ def controls() -> int:
         print("  CONTROL prose (.md) stays OUT -> FIRED")
     else:
         print(f"  CONTROL prose (.md) stays OUT -> DID NOT FIRE ({len(prose)} in)")
+
+    det_fired, det_total = detector_controls(lines)
+    fired += det_fired
+    total += det_total
 
     print(f"\n{fired}/{total} controls fired.")
     return 0 if fired == total else 1
@@ -158,12 +230,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.controls:
-        return controls()
-
     lines = design_lines(args.sha)
+
+    if args.controls:
+        return controls(lines)
+
     findings: dict[str, list[str]] = collections.defaultdict(list)
     seen = 0
+    exempted = 0
 
     paths = code_files()
     for path in paths:
@@ -174,34 +248,28 @@ def main() -> int:
             # not be repointed, and must not be reported as one
             # either. Kept narrow - it skips the line, not the file.
             if EXEMPT in text:
+                exempted += 1
                 continue
             for match in CITE.finditer(text):
                 seen += 1
                 start = int(match.group(1))
                 end = int(match.group(2) or match.group(1))
                 where = f"{path.relative_to(ROOT)}:{num}  {match.group(0)}"
-
-                if end > len(lines):
-                    findings["past the end of DESIGN.md"].append(where)
-                    continue
-                body = lines[start - 1 : end]
-                if not "".join(body).strip():
-                    findings["the entire range is blank"].append(where)
-                elif all(
-                    line.strip().startswith(STRUCTURAL) for line in body if line.strip()
-                ):
-                    findings["only a fence or table separator"].append(where)
-                elif not body[0].strip():
-                    findings["starts on a BLANK line (the off-by-one shape)"].append(
-                        where
-                    )
+                verdict = classify(start, end, lines)
+                if verdict is not None:
+                    findings[verdict].append(where)
 
     if seen == 0:
         print("PARSED ZERO CITATIONS. The selector is broken; a green means nothing.")
         return 1
 
     print(f"DESIGN.md citations in {len(paths)} tracked .py/.sh files: {seen}")
-    print(f"Checked against {args.sha}, {len(lines)} lines.\n")
+    print(f"Checked against {args.sha}, {len(lines)} lines.")
+    # THE EXEMPTION SET IS PART OF THE RESULT. Any line can opt out of
+    # this checker with a comment marker, and a growing exemption set
+    # would otherwise be invisible in the very report that depends on
+    # it - including from a genuinely wrong citation sharing the line.
+    print(f"{exempted} line(s) skipped as {EXEMPT}.\n")
 
     total = sum(len(v) for v in findings.values())
     for reason, rows in sorted(findings.items()):

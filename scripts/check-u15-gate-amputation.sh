@@ -51,9 +51,21 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   local label="$1" tree="$2" pathenv="${3:-$PATH}"
   ROWS=$((ROWS + 1))
   echo "########## $label"
-  ( cd "$tree" && env PATH="$pathenv" "${PY[@]}" -m pytest "$SUITE_REL" \
-      -p no:cacheprovider -q -o addopts="" -rA >"$WORK/out.txt" 2>&1 )
+  ( cd "$tree" && env PATH="$pathenv" timeout -k 30 900 "${PY[@]}" -m pytest \
+      "$SUITE_REL" -p no:cacheprovider -q -o addopts="" -rA \
+      >"$WORK/out.txt" 2>&1 )
+  local row_rc=$?
   tail -1 "$WORK/out.txt"
+  # A HANG READS AS A PERFECT ROW. Survivors are parsed from `^PASSED` lines,
+  # and a run that never finished prints none - so a timeout would report
+  # "survivors: NONE", which is this harness's BEST possible result. That is
+  # the silent direction, so it gets named rather than inferred.
+  if [ "$row_rc" -eq 124 ]; then
+    echo "  TIMED OUT after 900s - this row NEVER FINISHED. It produced no"
+    echo "  PASSED lines, so 'survivors: NONE' below would be an artifact of"
+    echo "  the hang and not a measurement. No verdict is emitted for it."
+    return 1
+  fi
   local survivors
   survivors=$(grep -E '^PASSED ' "$WORK/out.txt" | sed 's/^PASSED //' || true)
   if [ -z "$survivors" ]; then
@@ -68,10 +80,15 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
 # --- baseline: the intact tree, so a red here invalidates every row below ----
 build_tree "$WORK/intact"
 echo "########## BASELINE - the intact tree"
-( cd "$WORK/intact" && "${PY[@]}" -m pytest "$SUITE_REL" -p no:cacheprovider -q \
-    -o addopts="" >"$WORK/out.txt" 2>&1 )
+( cd "$WORK/intact" && timeout -k 30 900 "${PY[@]}" -m pytest "$SUITE_REL" \
+    -p no:cacheprovider -q -o addopts="" >"$WORK/out.txt" 2>&1 )
 BASE_RC=$?
 tail -1 "$WORK/out.txt"
+if [ "$BASE_RC" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "TIMED OUT. Every row below would have measured the hang, not the code."
+  exit 4
+fi
 if [ "$BASE_RC" -ne 0 ]; then
   echo "ABORT: the intact tree is red; amputation results would be meaningless."
   cat "$WORK/out.txt"

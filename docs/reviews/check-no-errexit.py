@@ -70,6 +70,30 @@ ERREXIT = re.compile(
     re.MULTILINE,
 )
 
+#: Scripts that may enable errexit, each with the reason. **A bare name
+#: is refused: the reason IS the exemption**, the same shape
+#: `check-settings-are-read.py` uses.
+#:
+#: THIS DICT EXISTS BECAUSE MY FIRST VERSION WAS TOO BROAD. It refused
+#: `-e` in every tracked `.sh`, conflating two different kinds of file.
+#: A HARNESS runs commands that are EXPECTED to fail and then reads
+#: their status - errexit makes that unreachable. A CHECKER's own exit
+#: code IS the measurement, and it guards each fallible call with
+#: `|| true`, so errexit is correct there and protects it from a typo
+#: silently continuing.
+#:
+#: The merge is what surfaced this: the rule and the script it refuses
+#: were written on different branches by different authors, each
+#: correct alone.
+EXEMPT: dict[str, str] = {
+    "scripts/check-pytest-bounded.sh": (
+        "a CHECKER, not a harness. Its own line 24 states the deviation "
+        "by purpose, every fallible call is guarded with `|| true`, and "
+        "its exit code is the measurement rather than something it reads."
+    ),
+}
+assert all(v.strip() for v in EXEMPT.values()), "a blank reason is not an exemption"
+
 
 def tracked_shell_scripts() -> list[pathlib.Path]:
     """Every tracked `.sh`, from git - NOT a path glob.
@@ -96,14 +120,20 @@ def main() -> int:
         return 2
 
     offenders: list[str] = []
+    exempted: list[str] = []
     for path in scripts:
         text = path.read_text(encoding="utf-8", errors="replace")
         for number, line in enumerate(text.splitlines(), 1):
             if ERREXIT.match(line):
-                rel = path.relative_to(ROOT)
+                rel = str(path.relative_to(ROOT))
+                if EXEMPT.get(rel, "").strip():
+                    exempted.append(f"{rel}: {EXEMPT[rel]}")
+                    continue
                 offenders.append(f"{rel}:{number}  {line.strip()}")
 
     print(f"Tracked shell scripts checked: {len(scripts)}")
+    for entry in exempted:
+        print(f"  EXEMPT   {entry}")
     if not offenders:
         print("None enables errexit. The `cmd; rc=$?` form is reachable.")
         return 0

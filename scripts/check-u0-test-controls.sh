@@ -111,7 +111,17 @@ run_control () {
   fi
 
   local out rc
-  out=$(cd "$work" && "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
+  out=$(cd "$work" && timeout -k 30 900 "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
+  # A HANG IS NOT A RESULT. Without this branch a 124 falls through to the
+  # `$expect` test below, where `$out` is empty, and the row reports "WRONG
+  # TEST FIRED" - a real failure with a misleading cause. `TIMED OUT` is the
+  # phrase ci-harness-gate.sh greps for, so naming it here is what makes CI
+  # fail for the right reason.
+  if [ "$rc" -eq 124 ]; then
+    echo "    TIMED OUT after 900s - this control NEVER FINISHED, so it"
+    echo "    measured nothing. Not a fire and not a miss."
+    BAD=$((BAD + 1)); rm -rf "$work"; return
+  fi
   if [ "$rc" -eq 0 ]; then
     echo "    DID NOT FIRE: the suite is still green after the mutation"
     BAD=$((BAD + 1))
@@ -137,9 +147,15 @@ run_control () {
 # control below "fires" for a reason that has nothing to do with its mutation.
 echo "BASELINE: the unmutated copy"
 BASE=$(mktemp -d); stage "$BASE"
-base_out=$(cd "$BASE" && "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); base_rc=$?
+base_out=$(cd "$BASE" && timeout -k 30 900 "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1)
+base_rc=$?
 printf '%s\n' "$base_out" | tail -2
 rm -rf "$BASE"
+if [ "$base_rc" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT copy."
+  echo "TIMED OUT. Nothing below would have measured anything."
+  exit 4
+fi
 if [ "$base_rc" -ne 0 ]; then
   echo "ABORT: the unmutated copy is already red. Fix that before running controls."
   exit 1
