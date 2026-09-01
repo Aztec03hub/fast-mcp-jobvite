@@ -29,6 +29,19 @@
 # matches nothing, and here that is the GOOD case.
 set -euo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). Sourced BEFORE the `cd` below,
+# because `dirname "${BASH_SOURCE[0]}"` has to be read relative to how this
+# script was invoked and not to a directory it has already moved to.
+#
+# THIS FILE IS A CHECKER, NOT A HARNESS, AND IT EMITS ANYWAY. #107 chose the
+# glob `scripts/*.sh` as the population with no exceptions, because a partition
+# into "harness" and "not a harness" is the same hand-kept list the canonical
+# line exists to delete - one level up. This script is the first member to test
+# that choice, and the choice holds: it counts something real, its exit code is
+# a verdict, and both belong in the line.
+# shellcheck source=lib/harness-result.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+
 cd "$(dirname "$0")/.."
 
 # Both spellings, comment lines excluded. Kept as one pattern so the two
@@ -67,7 +80,7 @@ if [ "${1:-}" = "--self-test" ]; then
   # green means nothing - this one's whole job is to notice an unbounded
   # call, so it must be watched noticing one.
   work=$(mktemp -d)
-  trap 'rm -rf "$work"' EXIT
+  trap 'harness_result_emit; rm -rf "$work"' EXIT
   printf '#!/usr/bin/env bash\nuv run --frozen pytest -q\n' > "$work/unbounded.sh"
   found=$(grep -cnE "$PATTERN" "$work/unbounded.sh") || found=0
   bounded=$(grep -nE "$PATTERN" "$work/unbounded.sh" | grep -c 'timeout ') || bounded=0
@@ -93,6 +106,32 @@ total=$(printf '%s\n' "$all" | wc -l)
 unbounded=$(printf '%s\n' "$all" | grep -v 'timeout ') || true
 count=0
 [ -n "$unbounded" ] && count=$(printf '%s\n' "$unbounded" | wc -l)
+
+# THE CANONICAL RESULT LINE'S NUMBERS (task #107), from this script's own
+# counters and never a second copy.
+#
+# `rows` is the number of pytest invocation sites the selector actually saw -
+# the population this run examined, which is exactly what `rows` means
+# everywhere else.
+#
+# `floor` IS ZERO, AND DELIBERATELY NOT `$total`. This check's pass condition is
+# an EQUALITY - every site bounded, `count == 0` - not a minimum. Reporting
+# `floor=$total` would render an equality as a tight floor, and a reader
+# comparing `rows` against `floor` would draw a conclusion this script never
+# made. Zero is what #107 documents for a script with no floor: it is not a
+# floor anything can breach, and it reads as absent.
+#
+# The three statuses fall out of the exit codes already here, without a branch:
+#   exit 0  every site bounded                  -> ok
+#   exit 1  unbounded site(s) found             -> breach
+#   exit 2  the selector matched NOTHING        -> refused, and it never
+#           reaches this line, so `refused` is the default rather than a
+#           claim - which is right, because that run measured nothing.
+#   --self-test also never reaches here, so a run that exercised the selector
+#           instead of the repository reports `refused` too. That is the useful
+#           answer: a CI step that accidentally ran --self-test would show
+#           `status=refused`, not a green `ok` over a population of zero.
+harness_result_ran "$total" 0
 
 echo "pytest invocations in tracked .sh: $total"
 echo "bounded by a timeout:              $((total - count))"
