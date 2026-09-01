@@ -60,6 +60,17 @@ A Tier-1 brief must carry:
   guess at dispatch time.
 - **Report what you could NOT settle**, separately from what you did not
   attempt.
+- **CLOSE EVERY WORKER YOU SPAWN, THE MOMENT IT IS DONE.** `TaskStop` it
+  as soon as you have its result and that result is committed on your
+  branch. A finished agent holds a pane forever otherwise, and panes are
+  the binding constraint (below) - an idle worker of yours is a Tier-1
+  dispatch somewhere else that silently never starts.
+
+  **Before stopping any worker, check what would die with it.** Stopping
+  an agent does not delete its commits, but it does destroy anything it
+  has not committed and not reported. So: take the report, confirm the
+  work is committed, THEN stop. Never stop a worker to tidy up while it
+  is still running.
 
 ## Tier 2: workers (sonnet), trivial workers (haiku)
 
