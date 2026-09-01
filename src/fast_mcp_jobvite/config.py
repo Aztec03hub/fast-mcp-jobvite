@@ -64,7 +64,7 @@ READ_TOOLS: Final[frozenset[str]] = frozenset(
 )
 
 #: The one write. It is the only destructive tool and the only one
-#: gated by `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-212).
+#: gated by `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-229).
 WRITE_TOOLS: Final[frozenset[str]] = frozenset({CREATE_CANDIDATE})
 
 KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS
