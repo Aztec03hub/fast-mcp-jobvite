@@ -27,6 +27,7 @@ from tests.boot_process import (
     _EXIT_NO_LIBC,
     _EXIT_PARENT_ALREADY_GONE,
     _EXIT_PRCTL_FAILED,
+    _LIBC,
     _die_with_parent,
 )
 
@@ -173,3 +174,88 @@ def test_a_healthy_child_takes_none_of_the_bail_out_exits() -> None:
         "whose prctl should have succeeded."
     )
     assert rc == 0, f"expected a clean child exit, got {rc}"
+
+
+# ======================================================================
+# THE TWO POSITIVE ARMS (R11-H2).
+#
+# The case above is NEGATIVE-ONLY: it asserts the guards do not fire.
+# That is a real property and it is not coverage, because a deleted
+# guard satisfies it perfectly. Measured on `dad014e`: amputating the
+# `prctl` return check, and separately amputating the whole re-parenting
+# check, each left all 868 tests passing. Both arms below were measured
+# to fire BEFORE being written as tests - rc 102, and `prctl` returning
+# -1/EINVAL on a bogus option - so neither is a guess about what the
+# kernel would do.
+#
+# Amputate either guard in `boot_process._die_with_parent` and the
+# matching case here goes red. That is the whole point of the pair.
+# ======================================================================
+
+
+def test_the_race_check_fires_when_the_parent_is_not_ours() -> None:
+    """`os.getppid() != parent_pid` must be able to FIRE.
+
+    The check exists for the window `prctl` cannot close: if the parent
+    died between `fork` and the call, `PR_SET_PDEATHSIG` was armed
+    against a parent that is already gone and the signal was delivered
+    to nobody. Re-parenting is the only observable, so the child asks
+    whether its parent is still the one that forked it.
+
+    **Reproducing that race directly would be flaky** - it needs the
+    parent to die inside a window measured in microseconds. The
+    property under test is not the race; it is that the comparison
+    fires when it is false. Handing it a pid that is provably not our
+    parent tests exactly that, deterministically, through the same
+    `preexec_fn` path production uses.
+    """
+    not_our_parent = 999_999
+    assert not_our_parent != os.getpid(), "the sentinel must not be this process"
+
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "raise SystemExit(0)"],
+        preexec_fn=functools.partial(_die_with_parent, not_our_parent),  # noqa: PLW1509
+    )
+    rc = proc.wait(timeout=30)
+
+    assert rc == _EXIT_PARENT_ALREADY_GONE, (
+        f"the child exited {rc}, not {_EXIT_PARENT_ALREADY_GONE}. The "
+        "re-parenting check did not fire against a parent pid that is not "
+        "ours, so nothing detects it being deleted."
+    )
+
+
+def test_an_unchecked_prctl_would_leave_the_child_unprotected() -> None:
+    """The `prctl` return check must be able to FIRE.
+
+    `prctl` reports failure by returning `-1` and setting `errno`; a
+    call whose return nobody reads leaves the child with no
+    `PR_SET_PDEATHSIG` installed and no sign that anything went wrong -
+    the orphan defect wearing the fix's name. `_die_with_parent` takes
+    the option as a parameter precisely so this branch is reachable.
+
+    **The control is checked first**, on this machine's own libc,
+    because a test asserting `_EXIT_PRCTL_FAILED` would also pass if
+    the child had died for some unrelated reason before `exec`.
+    """
+    bogus_option = 0xFFFF
+    assert _LIBC is not None, "no libc, so this case cannot measure its subject"
+    assert _LIBC.prctl(bogus_option, 0) != 0, (
+        f"prctl({bogus_option:#x}) succeeded on this kernel, so the option is "
+        "not bogus here and this case would assert against a branch it never "
+        "reached. Pick an option this kernel rejects."
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "raise SystemExit(0)"],
+        preexec_fn=functools.partial(  # noqa: PLW1509
+            _die_with_parent, os.getpid(), bogus_option
+        ),
+    )
+    rc = proc.wait(timeout=30)
+
+    assert rc == _EXIT_PRCTL_FAILED, (
+        f"the child exited {rc}, not {_EXIT_PRCTL_FAILED}. A failing prctl "
+        "did not stop the child, so a silently unprotected child is "
+        "indistinguishable from a protected one."
+    )
