@@ -58,6 +58,13 @@ def plant(path: pathlib.Path, text: str) -> None:
 
 
 def restored(rel: str) -> bool:
+    """Does `rel` match the INDEX?
+
+    Index-relative on purpose. The restore is `write_text(original)`
+    with text captured at start, so "restored" means "back to what it
+    was" - which is exactly what this asks. Right for the in-loop uses,
+    WRONG for a pre-flight: see `clean_at_head`.
+    """
     return (
         subprocess.run(
             ["git", "diff", "--quiet", "--", rel], cwd=ROOT, check=False
@@ -66,9 +73,30 @@ def restored(rel: str) -> bool:
     )
 
 
+def clean_at_head(rel: str) -> bool:
+    """Does `rel` have NO uncommitted change of any kind?
+
+    The pre-flight needs THIS, not `restored()`. `git diff` compares the
+    worktree to the INDEX, so a file edited and then `git add`-ed reads
+    clean - and the probe would then mutate it, restore it to the STAGED
+    text, and report on code nobody committed as if it were HEAD.
+    """
+    done = subprocess.run(
+        ["git", "status", "--porcelain", "--", rel],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return not done.stdout.strip()
+
+
 def main() -> int:
     victim_rel = VICTIM.relative_to(ROOT).as_posix()
-    assert restored(victim_rel), f"{victim_rel} is dirty before the probe starts"
+    assert clean_at_head(victim_rel), (
+        f"{victim_rel} has uncommitted changes (staged, unstaged or "
+        "untracked) before the probe starts"
+    )
     original = VICTIM.read_text()
     register_original = REGISTER.read_text()
 

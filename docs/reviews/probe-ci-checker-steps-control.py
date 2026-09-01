@@ -82,14 +82,34 @@ def load() -> types.ModuleType:
 
 
 def ci_is_dirty() -> bool:
-    """Whether git sees a diff in `ci.yml`.
+    """Whether git sees ANY uncommitted change to `ci.yml`.
 
     Against git, never against a string compare: a `replace` that
     matched nothing succeeds silently, and the arm then passes for a
     reason unrelated to the code.
+
+    **`git status --porcelain`, NOT `git diff`.** `git diff` compares
+    the worktree to the INDEX, so a `ci.yml` that was edited and then
+    `git add`-ed reads CLEAN - and the pre-flight guard below, whose
+    whole job is to refuse to measure on top of somebody's edit, would
+    wave it through. Measured: modify + `git add` gives `git diff
+    --quiet` exit 0 and `git status --porcelain` a non-empty `M `.
+
+    `--porcelain` covers staged, unstaged and untracked in one call,
+    which is why it beats `git diff --quiet HEAD` here. This is the
+    SECOND instance of the `git diff` mistake in this directory; the
+    first was `probe-r14-manifest-marker.py`.
+
+    One predicate serves three questions - is the tree clean before we
+    start, did the mutation land, is it restored - and that is sound
+    only because the first question is asked FIRST and returns False.
+    Once `ci.yml` matches HEAD, index and worktree agree, so all three
+    readings coincide.
     """
     done = subprocess.run(  # noqa: S603
-        ["git", "-C", str(ROOT), "diff", "--name-only", "--", str(CI)],  # noqa: S607
+        # fmt: off
+        ["git", "-C", str(ROOT), "status", "--porcelain", "--", str(CI)],  # noqa: S607
+        # fmt: on
         capture_output=True,
         text=True,
         check=True,
@@ -147,6 +167,24 @@ def main() -> int:
         print("on top of them - the restore would not be provable. Exit 2.")
         return 2
 
+    # SAY HOW TO RECOVER BEFORE THERE IS ANYTHING TO RECOVER FROM.
+    # `finally` covers an exception and SIGINT. It does NOT cover
+    # SIGTERM, SIGKILL, or the process being reaped with its worktree -
+    # and what those leave on disk is a `ci.yml` holding the BAD line,
+    # looking like an ordinary edit. That is the exact shape that kept
+    # the trunk red for 127 commits. Printed FIRST because a message
+    # written after the mutation is a message the kill never reaches.
+    print("MUTATING ci.yml. If this process is KILLED (SIGTERM/SIGKILL,")
+    print("or the worktree is removed under it) the tree is left holding")
+    print("the BAD line and nothing will say so. Recover with:")
+    # `CI` verbatim, NOT `CI.relative_to(ROOT)`: `relative_to` RAISES
+    # when the two are unrelated, so the warning about a killed process
+    # would itself crash the process. Found by
+    # `probe-control-restore-guard.py`, which repoints `CI` at a copy -
+    # the recovery notice was the first thing to blow up.
+    print(f"    git -C {ROOT} checkout -- {CI}")
+    print()
+
     failures: list[str] = []
     try:
         code, seen = arm("A. clean ci.yml, swap ACTIVE", substitute=True)
@@ -175,7 +213,18 @@ def main() -> int:
                 "take, and C1 proves nothing."
             )
     finally:
-        mutate(BAD, GOOD)
+        # RESTORE ONLY WHAT ACTUALLY LANDED. Arm A runs inside this
+        # `try`, BEFORE the mutation. If arm A raises - or if
+        # `mutate(GOOD, BAD)` itself refuses because someone reflowed
+        # the workflow - an unconditional `mutate(BAD, GOOD)` runs
+        # against a CLEAN file, finds the BAD anchor zero times, and
+        # raises `anchor occurs 0 times`. The operator is then told the
+        # tree is damaged, which it is not, and the real diagnosis is
+        # gone: the cleanup destroys the failure it was meant to
+        # survive. Reproduced by pointing `CI` at a copy and making arm
+        # A raise; no kill and no touch of the real workflow.
+        if BAD in CI.read_text(encoding="utf-8"):
+            mutate(BAD, GOOD)
 
     if ci_is_dirty():
         print("\nRESTORE FAILED: ci.yml is still dirty. Fix it by hand")

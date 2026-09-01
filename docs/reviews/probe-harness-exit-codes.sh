@@ -52,9 +52,14 @@ DEADLINE="${3:-0}"
 
 # A dirty tree means someone is mid-edit, and these harnesses mutate `src/` and
 # restore it. Measuring here would measure them.
-if ! git -C "$REPO" diff --quiet; then
-  echo "ABORT: the tree is dirty; a harness restoring src/ would take someone" >&2
-  echo "       else's edits with it. Commit or stash first." >&2
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
+# worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
+# and this guard waves it through. Measured: modify + `git add` gives
+# `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
+if [ -n "$(git -C "$REPO" status --porcelain)" ]; then
+  echo "ABORT: the tree is dirty (staged, unstaged or untracked); a harness" >&2
+  echo "       restoring src/ would take someone else's edits with it." >&2
+  echo "       Commit or stash first." >&2
   exit 3
 fi
 

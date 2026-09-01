@@ -49,9 +49,22 @@ REDACT="src/fast_mcp_jobvite/utils/redaction.py"
 SUITE="tests/test_audit.py tests/test_redaction.py tests/test_logging_process.py"
 OUT=/tmp/u3-amp.txt
 
-if ! git diff --quiet -- "$AUDIT" "$REDACT"; then
-  echo "ABORT: $AUDIT or $REDACT has uncommitted changes."
-  echo "This harness restores with 'git checkout --', which would DISCARD them."
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares
+# the worktree to the INDEX, so a file that was edited and then `git
+# add`-ed reads CLEAN and this guard waves it through - after which the
+# harness measures STAGED, unreviewed code and calls the result a
+# measurement of HEAD. Measured: modify + `git add` gives `git diff
+# --quiet` exit 0 and `--porcelain` a non-empty `M `.
+#
+# ONLY THE PRE-FLIGHT GUARD MOVES. The landing and restore checks below
+# stay on `git diff` ON PURPOSE: they are paired with `git checkout --`,
+# which restores from the INDEX, so an index-relative question is the
+# one that matches the restore. Widening those would report RESTORE
+# FAILED on a tree this guard has already refused to run against.
+if [ -n "$(git status --porcelain -- "$AUDIT" "$REDACT")" ]; then
+  echo "ABORT: $AUDIT or $REDACT has uncommitted changes (staged or not)."
+  echo "This harness mutates them and restores with 'git checkout --', so it"
+  echo "would measure your edit rather than HEAD. Commit or stash first."
   exit 3
 fi
 

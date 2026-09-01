@@ -194,6 +194,16 @@ _OPT_WITH_VALUE = frozenset({"-X", "-W", "--check-hash-based-pycs"})
 #: Options after which there is no script path to find at all.
 _OPT_NO_SCRIPT = ("-c", "-m")
 
+#: `-m` modules that RUN A SCRIPT GIVEN FURTHER RIGHT, so `-m` does NOT
+#: mean "no script path" for them.
+#:
+#: `python3 -m coverage run <checker>` executes the checker under a BARE
+#: interpreter and ships the identical `ModuleNotFoundError` this file
+#: exists to prevent - and it read SILENT until R14 measured it. It is
+#: the next spelling of the founding defect: not exotic, just one the
+#: rule had not been written against, exactly like the `-u` before it.
+_MODULE_RUNNERS = frozenset({"coverage", "trace", "cProfile", "profile", "pdb"})
+
 #: The script token must BE a checker, not merely contain the name.
 _CHECKER_NAME = re.compile(r"^check-[\w-]+\.py$")
 
@@ -248,6 +258,29 @@ def _commands(text: str) -> list[list[str]]:
     return out
 
 
+def _runner_script(rest: list[str]) -> str | None:
+    """The script a `-m` runner module executes, if there is one.
+
+    A runner takes its OWN sub-commands and options before the script,
+    and they are not interpreter options: `coverage run <checker>` puts
+    a bare `run` in the way. The interpreter walk in `_script_of` stops
+    at the first token not starting with `-`, so handing it `rest` after
+    the module name returns `run` - a plausible-looking answer that is
+    not a script, and the row would pass for the wrong reason.
+
+    R14's suggested fix did exactly that; it was measured before it was
+    applied. So scan right instead, past options and sub-commands, for
+    the first token that could BE a script. `.py` is the same suffix
+    `_CHECKER_NAME` demands, so this narrows nothing a caller could use.
+    """
+    for token in rest:
+        if token.startswith("-"):
+            continue
+        if pathlib.PurePath(token).suffix == ".py":
+            return token
+    return None
+
+
 def _script_of(tokens: list[str]) -> str | None:
     """The script a BARE interpreter in `tokens` runs, if there is one.
 
@@ -264,12 +297,18 @@ def _script_of(tokens: list[str]) -> str | None:
         j = 0
         while j < len(rest):
             opt = rest[j]
-            if opt == "--":
-                j += 1
-                break
+            # `--` NEEDS NO BRANCH OF ITS OWN, and it used to have one.
+            # The branch could only change the answer for a token
+            # starting with `-`, and `_CHECKER_NAME` rejects exactly
+            # those - so no input existed for which it moved
+            # `bare_python_steps`'s output, and deleting it killed no
+            # control. The generic break below reaches the same token.
             if not opt.startswith("-") or opt == "-":
                 break
             if opt.startswith(_OPT_NO_SCRIPT):
+                after = rest[j + 1 : j + 2]
+                if opt == "-m" and after and after[0] in _MODULE_RUNNERS:
+                    return _runner_script(rest[j + 2 :])
                 return None
             j += 2 if opt in _OPT_WITH_VALUE else 1
         return rest[j] if j < len(rest) else None
@@ -364,6 +403,34 @@ def _control_subjects() -> tuple[str, str]:
     return f"docs/reviews/{needs[0]}", f"docs/reviews/{stdlib[0]}"
 
 
+def _non_checker_subject() -> str:
+    """A `docs/reviews/` script needing a third party, not a checker.
+
+    This is the subject of the `_CHECKER_NAME` control, and it has to be
+    a file that EXISTS: `third_party_imports` returns `[]` for a path
+    that does not resolve, so a fabricated name stays silent whatever
+    `_CHECKER_NAME` does and the row would kill nothing. (R14 suggested
+    a fabricated `notacheck-...py`; measured, it kills nothing.)
+
+    **The test is `startswith("check-")`, deliberately NOT
+    `_CHECKER_NAME`.** A control that selects its own subject THROUGH
+    the construct it is testing is vacuous by construction: amputate
+    `_CHECKER_NAME` to `.*` and this would find no subject at all
+    rather than a failing row.
+    """
+    for path in sorted((ROOT / "docs" / "reviews").glob("*.py")):
+        if path.name.startswith("check-"):
+            continue
+        if third_party_imports(path.name):
+            return f"docs/reviews/{path.name}"
+    raise SystemExit(
+        "cannot build the `_CHECKER_NAME` control: no non-checker "
+        "script under docs/reviews/ imports a third-party module. "
+        "Without one, nothing separates 'the script token must BE a "
+        "checker' from 'any script token will do'."
+    )
+
+
 def _spelling_controls() -> list[tuple[str, bool]]:
     """One `(step body, must it fire?)` pair per interpreter spelling.
 
@@ -382,6 +449,7 @@ def _spelling_controls() -> list[tuple[str, bool]]:
     detector from a rubber stamp.
     """
     needs, stdlib = _control_subjects()
+    notachecker = _non_checker_subject()
     return [
         # Bare interpreters. All must fire.
         (f"python3 {needs}", True),
@@ -396,6 +464,19 @@ def _spelling_controls() -> list[tuple[str, bool]]:
         (f"python3 {needs} --self-test", True),
         (f"out=$(python3 {needs} 2>&1); rc=$?", True),
         (f"cd docs/reviews && python3 {pathlib.PurePath(needs).name}", True),
+        # THE OTHER TWO MEMBERS OF `_OPT_WITH_VALUE`. Only `-X` was
+        # covered, so the set could be reduced to `{"-X"}` and every
+        # control still passed. A set with an uncovered member is a
+        # list nobody is checking the rest of.
+        (f"python3 -W error {needs}", True),
+        (f"python3 --check-hash-based-pycs always {needs}", True),
+        # THE RUNNER IDIOM. `-m` normally means there is no script, but
+        # these run one, under a bare interpreter, with the third-party
+        # import unavailable. All three read SILENT until R14. This row
+        # is also the ONLY thing standing behind `_OPT_NO_SCRIPT`: see
+        # the `-m pytest` row below, which does not do that job.
+        (f"python3 -m coverage run {needs}", True),
+        (f"python3 -m cProfile -o /tmp/prof.out {needs}", True),
         # The project environment. None may fire.
         (f"uv run python {needs}", False),
         (f"uv run --frozen python {needs}", False),
@@ -404,11 +485,22 @@ def _spelling_controls() -> list[tuple[str, bool]]:
         (f"uv run --frozen -- python {needs}", False),
         # No interpreter at all, and no script to find.
         (f"{needs}", False),
+        # NOT A CONTROL FOR `_OPT_NO_SCRIPT`, THOUGH IT LOOKS LIKE ONE.
+        # Empty `_OPT_NO_SCRIPT` and the walk yields `pytest`, which
+        # `_CHECKER_NAME` rejects - so this row passes either way, for a
+        # reason that has nothing to do with the `-m` guard. It sat in
+        # the space where the real control belonged, which is worse
+        # than an empty space. `-m coverage run` above is the control.
         ("python3 -m pytest", False),
         # THE NEGATIVE ARM. A stdlib-only checker must stay silent.
         (f"python3 {stdlib}", False),
         (f"python3 -u {stdlib}", False),
         (f"/usr/bin/python3 -X faulthandler {stdlib}", False),
+        # A REAL SCRIPT THAT IS NOT A CHECKER. Without this the name
+        # test could be `.*` and nothing would notice: every other
+        # negative row is a file that is either stdlib-only or does not
+        # exist, so none of them can see the difference.
+        (f"python3 -u {notachecker}", False),
     ]
 
 

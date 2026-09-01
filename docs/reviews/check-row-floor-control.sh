@@ -25,8 +25,13 @@ B="$(mktemp)"
 
 # A dirty subject file means someone else is mid-edit; measuring it would
 # measure them, not the floor.
-if ! git -C "$REPO" diff --quiet -- "$S"; then
-  echo "ABORT: $S has uncommitted changes; refusing to measure someone else's tree"
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
+# worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
+# and this guard waves it through. Measured: modify + `git add` gives
+# `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
+if [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
+  echo "ABORT: $S has uncommitted changes (staged or not); refusing to"
+  echo "       measure someone else's tree"
   rm -f "$B"
   exit 3
 fi
