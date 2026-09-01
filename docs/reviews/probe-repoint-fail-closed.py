@@ -93,18 +93,66 @@ with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
         f"moves={moves!r} unreadable={unreadable!r}",
     )
 
-    # D. NEGATIVE CONTROL. The exemption itself must still work, and
-    #    must be distinguishable from the refusal: excluded from
-    #    moves AND absent from the unreadable list.
+    # D2. #142's RULE, THE REFUSING HALF. A line carrying the marker
+    #     but with NO row in the register is NOT exempt, so it must be
+    #     repointed like any other line. Before #142 the marker alone
+    #     suppressed the repoint, and this row asserted that; the rule
+    #     changed underneath it and the row is now the assertion that
+    #     the change actually took effect.
+    #
+    #     A temp path is the RIGHT fixture for this half precisely
+    #     because it can never be registered - the register is keyed on
+    #     (path, address) and this path does not exist until the run.
     marked = pathlib.Path(td) / "marked.txt"
     marked.write_text("DESIGN.md:100  # REPOINT" + "-EXEMPT\n")  # REPOINT-EXEMPT
     rel_marked = str(marked.relative_to(REPO_ROOT))
     moves, unreadable = repoint.parse(moved(rel_marked, 1))
     row(
-        "D. REPOINT-EXEMPT line is skipped and is NOT called unreadable",
-        moves == {} and unreadable == [],
+        "D2. marker WITHOUT a register row does NOT exempt (#142)",
+        moves == {(rel_marked, 1): {(100, 100): (200, 200)}} and unreadable == [],
         f"moves={moves!r} unreadable={unreadable!r}",
     )
+
+# D. NEGATIVE CONTROL, and it must stay a real one. The exemption
+#    itself must still work, and must be distinguishable from the
+#    refusal: excluded from moves AND absent from the unreadable list.
+#
+#    The fixture is THIS FILE, because after #142 an exemption needs
+#    BOTH the marker on the line AND a `(path, address)` row in
+#    docs/reviews/REPOINT-EXEMPT.txt - and this file genuinely has one
+#    for address 100-100. There is no way to write this arm against a
+#    throwaway file any more, which is the point of the register.
+#
+#    The line number is SEARCHED FOR, not written down: editing
+#    anything above it would otherwise move it and this row would
+#    quietly start testing a different line. The register key is the
+#    ADDRESS (100-100), never the line number, so only the lookup of
+#    the marker text depends on position.
+#
+#    THE SELECTOR REQUIRES THE CITATION TOO, NOT JUST THE MARKER.
+#    Searching for the marker alone picked line 2 - a sentence of
+#    DOCSTRING PROSE describing the mechanism, which carries the marker
+#    only because the marker is a bare substring. The row passed, and
+#    it was testing prose. That is this repo's oldest recurring defect
+#    wearing a new hat, so the fixture must be a line that actually
+#    carries the citation the register row is about.
+_SELF = "docs/reviews/probe-repoint-fail-closed.py"
+_MARKER = "REPOINT" + "-EXEMPT"
+_CITED = "DESIGN.md" + ":100"
+_self_lines = (REPO_ROOT / _SELF).read_text().splitlines()
+_marked_linenos = [
+    n for n, ln in enumerate(_self_lines, 1) if _MARKER in ln and _CITED in ln
+]
+assert _marked_linenos, (
+    f"{_SELF} has no line carrying BOTH {_MARKER} and {_CITED}; "
+    "row D would be testing prose rather than a registered citation"
+)
+moves, unreadable = repoint.parse(moved(_SELF, _marked_linenos[0]))
+row(
+    "D. marker AND a register row IS skipped, and is not called unreadable",
+    moves == {} and unreadable == [],
+    f"line={_marked_linenos[0]} moves={moves!r} unreadable={unreadable!r}",
+)
 
 # E. END TO END, the arm the brief asks for. Take a file the live report
 #    really names, make it unreadable, and run the real tool. It must
