@@ -461,7 +461,12 @@ def self_test() -> int:
             failures.append(f"spelling `{body}` should {wanted}, got fired={fired}")
 
     total = 4 + len(spellings)
-    print(f"run steps parsed: {steps}")
+    # NAME THE CONTAINER BESIDE THE COUNT (R14 review, L-1). This
+    # walks EVERY workflow; probe-ci-checker-steps.py pins ci.yml
+    # alone. Both were right and neither said so, so 80 vs 78 read
+    # as a contradiction and cost a reviewer a detour to settle.
+    parsed_from = ", ".join(sorted(w.name for w in WORKFLOWS.glob("*.yml")))
+    print(f"run steps parsed: {steps}  (across {parsed_from})")
     for line in failures:
         print(f"  CONTROL FAILED: {line}")
     if failures:

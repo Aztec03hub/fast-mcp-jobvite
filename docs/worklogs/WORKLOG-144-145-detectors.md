@@ -61,11 +61,22 @@ control that has never been watched failing proves nothing:
 | amputation | rows killed | which |
 |---|---|---|
 | A1 detector always silent | 12 of 22 | every positive row |
-| A2 R13's suggested rule | 2 of 22 | `-X faulthandler`, `python3.12` |
+| A2 R13's suggested rule | 1 of 22 | `-X faulthandler` |
 | A3 the original regex | 6 of 22 | the four flag forms, `--`, `uv --` |
 | A5 rubber stamp, always fires | 10 of 22 | every negative row |
 
 12 + 10 = 22: **no row is dead weight.**
+
+**A2 WAS RECORDED AS 2 AND IS 1** (R14 review). The row claimed
+`-X faulthandler` AND `python3.12`, but A2 as run replaced the option
+walk while leaving `_INTERPRETER` intact - and recognising `python3.12`
+is a property of `_INTERPRETER`, a DIFFERENT construct. Amputating that
+separately kills `python3.12` and only it. **A2 changed two things at
+once and its row credited both to one of them.** The conclusion survives
+undamaged on `-X faulthandler` alone: R13's suggested rule fails a case
+R13's own table names. Corrected in place rather than annotated, and the
+lesson is the general one - an amputation that touches two constructs
+cannot attribute what it kills.
 
 **The negative arm is what A5 exists to justify.** A1 - a detector that
 never fires - passes all ten negative rows. Without A5 those rows would

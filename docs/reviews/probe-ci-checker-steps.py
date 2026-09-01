@@ -154,6 +154,9 @@ def steps() -> list[tuple[str, str]]:
     return out
 
 
+_MULTILINE_REASON = "multi-line block, has its own setup"
+
+
 def classify(body: str) -> tuple[str, str]:
     """Return (verdict, command-or-reason) for one step body."""
     lines = [
@@ -162,7 +165,7 @@ def classify(body: str) -> tuple[str, str]:
         if line.strip() and not line.strip().startswith("#")
     ]
     if len(lines) != 1:
-        return "skip", "multi-line block, has its own setup"
+        return "skip", _MULTILINE_REASON
     command = lines[0]
     if not _CHECKER.search(command):
         return "skip", "not a checker invocation"
@@ -241,13 +244,28 @@ def main() -> int:
         print("the workflow. Exit 2.")
         return 2
 
+    # THE ACTIONLINT LINE IS LIFTED OUT OF A STEP THAT `classify()` HAS
+    # ALREADY COUNTED AS SKIPPED, so admitting it without adjusting that
+    # bucket counts one step TWICE (R14 review, H-1). It made
+    # `13 + 36 + 29 + 1 = 79` out of 78 steps, and the imbalance was the
+    # only visible symptom of a subtler thing: **lifting one LINE out of
+    # a multi-line block does not make that STEP covered.** Honest step
+    # coverage did not move from 12; a line inside step 13 is now run.
+    # So the lifted line gets its OWN category rather than being folded
+    # into the ran-count's justification.
     lint = actionlint_step()
+    lifted = 0
     if lint is None:
         reasons["actionlint: no invocation line found in the workflow"] += 1
     elif not pathlib.Path(lint[1][0]).exists():
         reasons[f"actionlint: {lint[1][0]} is not on this machine"] += 1
     else:
         runnable.append((*lint, "   [workflow's own env]"))
+        lifted = 1
+        reasons[_MULTILINE_REASON] -= 1
+        reasons[
+            "multi-line block, ONE LINE LIFTED and run (the step is not covered)"
+        ] += 1
 
     failures: list[tuple[str, int, str]] = []
     for command, argv, env, note in runnable:
@@ -268,7 +286,24 @@ def main() -> int:
             print(f"  EXIT={done.returncode:<4} {command}{note}")
             failures.append((command, done.returncode, done.stdout or done.stderr))
 
-    print(f"\nRan {len(runnable)} of {len(all_steps)} run steps.")
+    # THE IDENTITY CHECK THAT WOULD HAVE CAUGHT H-1. Every step is
+    # either run or accounted for by exactly one reason. If these
+    # disagree the categories overlap or leak, and every number
+    # printed below is untrustworthy - so refuse, do not print them.
+    accounted = len(runnable) - lifted + sum(reasons.values())
+    if accounted != len(all_steps):
+        print(
+            f"\nCATEGORIES DO NOT BALANCE: {len(runnable)} run"
+            f" (of which {lifted} lifted from a skipped step)"
+            f" + {sum(reasons.values())} skipped = {accounted},"
+            f" but there are {len(all_steps)} run steps."
+        )
+        print("A step is being counted twice or not at all. Exit 2.")
+        return 2
+
+    print(
+        f"\nRan {len(runnable)} of {len(all_steps)} run steps in {WORKFLOW.name} ONLY."
+    )
     print(
         f"{substituted} of them had a bare interpreter SUBSTITUTED for a "
         "stdlib-only\none, so the command is the workflow's and the "
