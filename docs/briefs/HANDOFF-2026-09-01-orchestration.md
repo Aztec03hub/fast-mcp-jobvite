@@ -1,153 +1,131 @@
-# HANDOFF — 2026-09-01 05:50 PM CDT, written against compaction
+# HANDOFF — 2026-09-01 06:40 PM CDT, written against compaction
 
-Everything below was verified by running it at `be13055`, not recalled.
-Main is `be13055`, pushed to both remotes.
+Verified by running it at `09477ee`, not recalled. Main is `09477ee`,
+pushed to both remotes.
 
-## READ THIS FIRST: the previous version of this document was wrong
+## READ THIS FIRST: this document has been wrong twice, the same way
 
-It said **"Main is GREEN locally, on every gate"** and listed six gates,
-all 0. Every one of those six numbers was true. **The claim was still
-false**, because `check-committed-file-types` was not on the list — and
-that gate had been refusing the tree for 127 commits.
+Version 1 said **"Main is GREEN locally, on every gate"** and listed six
+gates, all 0. Every number was true and the claim was false: the gate
+that had been refusing the tree for 127 commits was not on the list.
 
-**A universal claim ("every gate") evidenced by an enumeration is only
-as good as the enumeration**, and the member that is missing is never
-the one you thought of. This is the same defect as R14-H1 and #139,
-found three times in one evening in three different artefacts, and the
-third instance was this handoff. See the gate table below: it now lists
-**every** gate including the ones that fail, because a handoff that
-lists only passing gates teaches the next reader the same mistake.
+Version 2 said **"15 trunk commits are covered by no round"**. 15 was
+`check-review-coverage.py:298`'s DISPLAY CAP (`untouched[:15]`); the
+population printed one line above it. **I read the rows the instrument
+chose to show and called it the population** — while describing the
+first error.
 
-## Gates at `be13055`, all of them, exit codes read one per line
+Both are one defect: **a claim about a whole, evidenced by a sample the
+instrument chose.** So the table below lists every gate including the
+failing one, and every count carries its container.
 
-    scripts/check-committed-file-types.py --all      0
-    check-design-citations                           0
-    check-design-citation-shape                      0
-    check-design-freeze                              0
-    check-checkers-are-wired                         0
-    check-settings-are-read                          0
-    check-env-vars-are-declared                      0
-    check-no-errexit                                 0
-    check-obligations                                0
-    check-cross-references                           0
-    check-row-floors                                 0
-    check-row-floor-exactness                        0
-    check-no-sigpipe-pipelines                       0
-    ruff check .                                     0
-    ruff format --check .                            0
-    mypy                                             0
-    check-review-coverage                            1   <-- EXPECTED
-    pytest                          887 passed, 0 skipped, 6 deselected
+## Gates at `09477ee`
 
-**`check-review-coverage` exits 1 by design and is NOT wired.** **115**
-trunk commits are covered by no round - **not 15**. I reported 15 here
-and in a commit message. 15 is `check-review-coverage.py:298`'s DISPLAY
-CAP (`untouched[:15]`); the population prints one line above it. **I
-read the rows the instrument chose to show and called it the
-population** - the same defect this document opens by describing,
-committed while describing it. Found by R14-R1. The caps are not even
-consistent: `:298` shows 15, `:300` shows 10, and neither says how many
-it hid. That is #119's blocker, and the number only falls when a round
-declares those commits.
+    check-cross-references                       0   5 docs, was 3
+    check-cross-references --controls            0   3/3, was 2/3
+    check-design-citations                       0
+    check-design-citation-shape                  0
+    check-design-freeze                          0
+    check-checkers-are-wired                     0   80 steps, ALL workflows
+    check-checkers-are-wired --self-test         0   26/26, NOT WIRED (#149)
+    probe-ci-checker-steps                       0   13 of 78, ci.yml ONLY
+    probe-ci-checker-steps-control               0   4/4 arms
+    probe-r14-manifest-marker                    0   7/7 arms
+    probe-142-exempt-controls                    0   9/9 arms
+    scripts/check-committed-file-types.py --all  0   RUN IT WITH --all
+    ruff check . / format --check / mypy         0
+    pytest                        887 passed, 0 skipped, 6 deselected
+    check-review-coverage                        1   EXPECTED, see #119
 
-**RUN THE INVOCATION CI RUNS, ARGUMENTS AND ALL.** `check-committed-file-
-types.py` bare selects the STAGED set; on a clean tree that is zero
-files and it exits 0 having opened nothing. The `--all` above is not
-decoration. The gate now prints `[staged set]` or `[whole tree]` and
-shouts when a staged run examined nothing, so this specific trap is
-closed — but the habit is the fix, not the message.
+**Two counts, two containers, both right**: 80 is every workflow, 78 is
+ci.yml alone. They now say so on the line. A count without its container
+is not a measurement.
 
-## CI
+**RUN CI'S EXACT INVOCATION, FLAGS AND ALL.** `check-committed-file-
+types.py` run bare selects the STAGED set — zero files on a clean tree,
+exit 0, having opened nothing. That hid a red trunk for 127 commits. I
+repeated the mistake an hour after recording it, using `python3` where
+CI uses `uv run --frozen python`. Copy the line out of `ci.yml`.
 
-`be13055` is the first push after the trunk-red fix and a run was still
-in progress when this was written. **CI has never produced a green run
-on this trunk.** Before that fix it could not: the whole-tree file-type
-gate refused every commit from `e4f568d` onward.
+## CI, and the rule is now MEASURED under load
 
-Per #105: a RUNNING run on main is protected by
-`cancel-in-progress: github.ref != 'refs/heads/main'`; a PENDING one has
-consumed nothing. Check `gh run view <id> --json jobs --jq '.jobs|length'`
-before deciding whether a push costs anything. Note there are TWO
-workflows per SHA — read the one you mean.
+`46dafe0`'s run was still `in_progress` after FOUR later pushes. **The
+protection held**: `cancel-in-progress: github.ref != 'refs/heads/main'`
+does protect a running run on main. The four runs I evicted (`e119e75`,
+`3a8b239`, `cd7e211`, `d486c47`) each had **0 jobs, 0 started** —
+pending, consuming nothing. The push cadence was right, and this is the
+first time that rule has been tested with pushes stacked rather than
+reasoned about.
 
-## Three agents live, and what each owes
+**CI has still never produced a green run on this trunk.** Before
+tonight it could not: the whole-tree file-type gate refused every commit
+from `e4f568d` on. Two runs concluded as failures (`be13055`,
+`76bc497`). There are TWO workflows per SHA — read the one you mean, and
+a CONCLUDED run is not a GREEN run.
 
-**`review-r14`** — opus, read-only on `review/r14-config`, started
-17:42. A fresh adversarial reviewer on the R14 branch, dispatched
-BEFORE that branch merges. Owes `docs/reviews/REVIEW-R14-R1.md`
-committed on that branch, plus a `SendMessage` with re-measured numbers.
-Its brief hands it my figures as HYPOTHESES and tells it to attack the
-probe's vacuity, the JSON edge cases, and whether the REVIEW-COVERS
-declaration is honest.
+## Agents live
 
-**`suborch-144`** — Tier-1, opus, worktree `fmj-worktrees/t144-145`,
-branch `fix/144-145-detectors`, 3 commits ahead. #144 + #145 as one
-piece: two detectors that cannot see the failure each was written for.
-Regex widening FORBIDDEN, shlex token walk required. #145's disposition
-deliberately not pre-ruled. Owes spellings measured, controls, its #145
-decision.
+**`suborch-148`** — worktree `fmj-worktrees/w148`, branch
+`fix/148-150`. Closing #148 (four amputations survive all 22 controls)
+and #150 (the ci.yml-mutating control's restore path). Its highest-value
+item is a SWEEP: `git diff` used where `git diff HEAD` was meant, found
+independently in TWO files tonight — a shared-source bug, not a
+coincidence.
 
 **`tally-shapes`** — #120, worktrees `tally-shapes` and `tally-rebuild`.
-**DO NOT PRUNE EITHER.** Owes the per-harness before/after exit-code
-ledger, which is what unblocks #116.
+**DO NOT PRUNE OR CLEAN EITHER.** u9's harness legitimately takes 1040s,
+above the probe's 900s default (#146). It corrected itself tonight: it
+had exempted a harness by reading its SOURCE for phrases that never
+reach its OUTPUT — half a paired source, called an answer. Exemption is
+now one harness, not two.
 
 ## Unmerged branches
 
-    review/r14-config          6 ahead  DONE, green, awaiting review-r14
-    fix/144-145-detectors      3 ahead  in flight
-    fix/tally-shapes-work      2 ahead  committed, ledger outstanding
-    fix/tally-shapes           1 ahead  the probe's worktree
-    fix/kind-not-path          1 ahead  SUPERSEDED by kind-not-path-2
-                                        (merged); kept as a record
-    rescue/adr-0024-scan-bound 1 ahead  pre-existing, unexamined
-    rescue/r6-probe-half-open  1 ahead  pre-existing, unexamined
+    fix/tally-shapes-work        4 ahead   in flight, do not touch
+    fix/tally-shapes             1 ahead   the probe's worktree
+    fix/kind-not-path            1 ahead   SUPERSEDED, kept as a record
+    rescue/adr-0024-scan-bound   1 ahead   pre-existing, unexamined
+    rescue/r6-probe-half-open    1 ahead   pre-existing, unexamined
 
-## Ruled today, so nobody re-opens them
+## What tonight established
 
-- **The exemption register** (`#142`, merged `76bc497`): a citation is
-  exempt only if the line carries the marker AND the `(path, address)`
-  pair has a row with a non-blank reason. **Neither half alone** — the
-  sub-orchestrator measured that 3 marked pairs also appear on UNMARKED
-  lines, so my pair-keyed ruling would have widened three files.
-- **Records vs load-bearing** (`a1773e8`): `CHANGELOG.md`,
-  `docs/worklogs`, `docs/plans` are RECORDS, out of review-coverage
-  scope, each with a stated reason. `docs/briefs` is deliberately IN
-  scope — a brief instructs an agent, so a wrong one produces wrong work.
-- **#139, re-ruled tonight**: the cross-reference gap is **27 live
-  specifications, not 130**. Subtract the records and 106 of the 136
-  disappear. 18 of the 27 are ADRs, which are live decisions whose §N
-  citations nothing resolves today. Derive the population; do not
-  hand-add two files.
-- **Never green a safety gate by widening it.** The `.log` that turned
-  the trunk red was renamed, not allowlisted. That gate is
-  allowlist-first because a confidential vendor PDF and an unlicensed
-  RAML reached public remotes on this project once already.
+**DISPATCH THE REVIEWER BEFORE THE MERGE.** Both review dispatches found
+HIGH findings in work already green on every gate — one in a fix I had
+written an hour earlier and argued for in three places. **The defects
+were in what the code CLAIMED about itself, and no gate reads claims.**
 
-## The instrument lessons this evening produced
+**Five Tier-1 runs, ZERO Tier-2 workers.** The fan-out permission has
+never been used. The value is the worktree and the obligation to return
+a measurement. Stop budgeting for fan-out.
 
-Recorded because each one cost real time and all three are the same
-shape — **a partial instrument whose exclusion rule shares a cause with
-the defect**:
+**All five corrected their brief and every correction held.** A report
+with no correction is now the ANOMALY.
 
-1. **`probe-ci-checker-steps.py` ran 12 of 78 steps** and skipped 36
-   "multi-line blocks". A step is a multi-line block precisely because
-   it carries a flag, and a flag is what makes CI's invocation differ
-   from the bare local one. The sample was anti-correlated with the bug.
-   → **#147**.
-2. **`A..B` is not two `is-ancestor` tests.** It means reachable-from-B-
-   not-from-A and includes side branches that never descend from A. I
-   published a false finding on this. The `&&` also hid which half
-   failed.
-3. **A hand-kept list is blind to the member nobody added** — and in
-   R14-H1 the checker's own docstring NAMED the omitted member one
-   screen above the list that omitted it.
+**Three instrument disagreements, one shape**: `A..B` is not two
+ancestor tests; 80 vs 78 was every workflow vs ci.yml; 389 vs 115 was
+the wrong `CONTAINER_BASE`. The arithmetic was right every time and the
+POPULATIONS differed. When instruments disagree, do not re-count — find
+where each one's population starts and stops.
+
+**A probe cannot amputate its own subject.** Its tree-clean guard
+refuses to run against the modified checker, so guard and coverage are
+in tension. The R14 reviewer needed a scratch repo to find the survivor.
+
+**A referent says whose NUMBERING, not whose SUBJECT** (#139). That
+reframing closed 19 of 46 unresolved references and dissolved a doubt
+about whether a survey of an external corpus may cite our sections.
 
 ## What I would pick up first
 
-1. **Collect `review-r14`'s findings, fix, merge `review/r14-config`.**
-   It is green and complete; only the round stands between it and main.
-2. **`tally-shapes`'s ledger**, which unblocks #116.
-3. **#119** — now that #140 has taken PARTIAL to 0, the only thing
-   between here and a wireable coverage gate is the 15 NONE commits.
-4. **#147** — the probe blind spot, because it is what let #140's
-   defect hide, and it will hide the next one.
+1. **Collect `suborch-148`, merge, and finish the `git diff HEAD`
+   sweep** across `docs/reviews` and `scripts` — two instances found
+   means look for more.
+2. **`tally-shapes`'s u9 pass**, which unblocks #116.
+3. **#119** — 115 commits covered by no round, and they are mostly the
+   REVIEW MACHINERY: `docs/reviews` + `scripts` is 150 of 233 file
+   touches, `src/` + `tests/` is 17. That is ONE round declaring
+   `PATHS: docs/reviews scripts .github`, not fifteen. Read them: a
+   declaration is a claim by its author, and the checker says so on
+   every run.
+4. **#143** — job consolidation, held all evening because agents were
+   live on `ci.yml`. Do it when the tree is quiet.
