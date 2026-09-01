@@ -10,7 +10,7 @@ asked for by id.
 **`create_candidate` IS THE THIRD TOOL AND IT SHARES THIS FILE.** The
 two reads above may never call a non-GET method; the write does, and it
 is gated behind an explicit deploy-time opt-in **and** a per-invocation
-approval guard (`approval.py`, DESIGN.md:207-238).
+approval guard (`approval.py`, DESIGN.md:207-237).
 
 **THIS IS THE ONLY TOOL WHOSE FAILURE MODE EMAILS A LIVING PERSON.**
 Everything else in this file returns wrong data. `create_candidate`
@@ -230,7 +230,7 @@ class CreateCandidateInput(InboundModel):
     point** (DESIGN.md:239): it mails a live human, so the dangerous
     value is never the one reached by omission. It is also an argument
     like any other and is disclosed in the approval request by name
-    (DESIGN.md:1134-1144).
+    (DESIGN.md:1134-1143).
     """
 
     model_config = ConfigDict(extra="forbid", strict=True)

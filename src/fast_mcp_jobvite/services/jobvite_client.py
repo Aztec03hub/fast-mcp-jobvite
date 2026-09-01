@@ -621,7 +621,7 @@ class ScanResult:
 #
 # THE TOTAL OUTBOUND BUDGET EXISTS BECAUSE THE CLAUSE IT DISCHARGES HAS
 # NO REFERENT HERE. `backend/resilience.md:74-76` requires timeouts
-# "shorter than the inbound request's own deadline". DESIGN.md:386-391
+# "shorter than the inbound request's own deadline". DESIGN.md:386-390
 # records that MCP gives us no inbound deadline to be shorter than -
 # there is no HTTP request worker to hang and no caller-supplied
 # timeout - so DESIGN.md:392-394 supplies the deadline the transport
@@ -696,7 +696,7 @@ DEFAULT_RETRY_MAX_BACKOFF: Final = 5.0
 DEFAULT_BREAKER_FAILURE_THRESHOLD: Final = 5
 DEFAULT_BREAKER_RECOVERY_SECONDS: Final = 30.0
 
-#: Jobvite's rate-limit status. **Never observed** (DESIGN.md:373-383):
+#: Jobvite's rate-limit status. **Never observed** (DESIGN.md:373-382):
 #: "no 429 has ever been observed and no rate-limit header is returned,
 #: so this path is written defensively and is unexercised" - against
 #: Jobvite. It IS exercised by this project's tests.
@@ -906,7 +906,7 @@ class _RetryableUpstream(Exception):  # noqa: N818 - private, never surfaces
 
         Returns:
             A `JobviteRetryLaterError` (503) for a 429, honouring
-            `Retry-After` - DESIGN.md:373-383 says a 429 is "retried and
+            `Retry-After` - DESIGN.md:373-382 says a 429 is "retried and
             then mapped to 503, honouring `Retry-After` when present" -
             and the original `JobviteUpstreamError` (502) otherwise,
             now carrying the same hint when the upstream sent one.

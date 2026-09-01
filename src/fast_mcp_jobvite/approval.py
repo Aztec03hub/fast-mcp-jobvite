@@ -383,7 +383,7 @@ def build_approval_message(
 
     **IT MUST NAME THE EMAIL AND NOT ONLY THE RECORD**, and this is the
     one place the strongest gate can be satisfied honestly and still
-    produce the outcome it exists to prevent (DESIGN.md:1134-1144). An
+    produce the outcome it exists to prevent (DESIGN.md:1134-1143). An
     approver shown *"create candidate Jane Doe"* approves a database row
     and thereby authorises **an email to Jane Doe that nobody
     mentioned**. `ai/agent-guardrails.md:70-73` lists *"outbound message

@@ -182,7 +182,7 @@ def test_main_returns_the_refusal_status_without_serving(
 
 
 async def test_the_server_registers_exactly_the_enabled_tools() -> None:
-    """U1 owns the enable GATE, not the tools (DESIGN.md:992-1009).
+    """U1 owns the enable GATE, not the tools (DESIGN.md:992-1008).
 
     **Rewritten by U5, which is the unit that made the old assertion
     false.** It read `assert await client.list_tools() == []` under the

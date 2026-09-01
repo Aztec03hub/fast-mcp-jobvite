@@ -64,7 +64,7 @@ READ_TOOLS: Final[frozenset[str]] = frozenset(
 )
 
 #: The one write. It is the only destructive tool and the only one
-#: gated by `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-213).
+#: gated by `JOBVITE_ENABLE_WRITES` (DESIGN.md:207-212).
 WRITE_TOOLS: Final[frozenset[str]] = frozenset({CREATE_CANDIDATE})
 
 KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS
@@ -227,7 +227,7 @@ class Settings(BaseSettings):
     #: figure** - Jobvite documents no numeric limit at all. Checklist
     #: row 9 is what replaces it with an observation.
     outbound_rate_limit: int = Field(default=6, ge=1)
-    #: DESIGN.md:1663-1669 (ADR-0027). §4.3 requires the total outbound
+    #: DESIGN.md:1663-1668 (ADR-0027). §4.3 requires the total outbound
     #: budget to be **configured**, and until ADR-0027 named it the
     #: design demanded a variable no other section admitted existed.
     #: The default mirrors `DEFAULT_OUTBOUND_BUDGET_SECONDS` and is a

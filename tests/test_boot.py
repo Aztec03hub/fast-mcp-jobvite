@@ -97,7 +97,7 @@ def test_off_loopback_with_the_assertion_declared_starts(
 
     Binding the wildcard address is what an operator behind a
     terminating proxy actually does, so a refusal that fired here too
-    would be a guard that refuses everything (DESIGN.md:1451-1453).
+    would be a guard that refuses everything (DESIGN.md:1451-1452).
     """
     port = free_port()
     env = clean_env(
@@ -120,7 +120,7 @@ def test_off_loopback_with_the_assertion_declared_starts(
 def test_http_without_tokens_exits_rather_than_serving_openly(
     tmp_path: pathlib.Path,
 ) -> None:
-    """DESIGN.md:905-907, as a process arm.
+    """DESIGN.md:905-906, as a process arm.
 
     An open server is the alternative.
     """
@@ -166,7 +166,7 @@ def test_the_refusal_status_is_the_sysexits_ex_config_number() -> None:
 
 
 def test_an_unrecognised_tool_name_exits_naming_it(tmp_path: pathlib.Path) -> None:
-    """DESIGN.md:1004-1009, as a process arm.
+    """DESIGN.md:1004-1008, as a process arm.
 
     Rather than as a validator call.
     """

@@ -93,7 +93,7 @@ _USERINFO: Final = re.compile(
 )
 
 #: Query parameters on the `jobFeed` URL that carry a credential
-#: (DESIGN.md:312-319). Compared case-insensitively, because a URL a
+#: (DESIGN.md:312-318). Compared case-insensitively, because a URL a
 #: human assembled will not always match Jobvite's casing and a redactor
 #: that misses `SC=` has failed open.
 SECRET_QUERY_PARAMS: Final[frozenset[str]] = frozenset({"api", "sc", "companyid"})
@@ -146,7 +146,7 @@ NON_SENSITIVE_ARGUMENT_KEYS: Final[frozenset[str]] = frozenset(
         # question that row exists to make answerable.
         #
         # AND THE DESIGN ALREADY REQUIRES THE VALUE TO BE DISCLOSED.
-        # DESIGN.md:1143-1144: the elicitation payload "names the
+        # DESIGN.md:1142-1143: the elicitation payload "names the
         # candidate, the target job, and **whether `send_email` is
         # true**, in those terms" - so the value is shown to the
         # approver at the moment of approval. A value the design

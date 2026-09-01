@@ -1,8 +1,8 @@
-"""U1's configuration refusals (DESIGN.md:984-1030).
+"""U1's configuration refusals (DESIGN.md:984-1029).
 
 Every refusal case here is paired with a positive control, because a
 guard that refuses everything is not a guard and its refusals prove
-nothing (DESIGN.md:1451-1453).
+nothing (DESIGN.md:1451-1452).
 """
 
 from __future__ import annotations
@@ -141,7 +141,7 @@ def test_a_candidate_search_deployment_is_not_asked_for_a_company_id(
 
 
 # ----------------------------------------------------------------------
-# JOBVITE_TOOLS (DESIGN.md:992-1009).
+# JOBVITE_TOOLS (DESIGN.md:992-1008).
 # ----------------------------------------------------------------------
 
 
@@ -208,14 +208,14 @@ def test_both_together_do_register_the_write(clean_env: pytest.MonkeyPatch) -> N
 
 
 # ----------------------------------------------------------------------
-# The HTTP transport (DESIGN.md:901-907, :778-782).
+# The HTTP transport (DESIGN.md:901-906, :778-782).
 # ----------------------------------------------------------------------
 
 
 def test_http_without_tokens_is_a_startup_failure(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """DESIGN.md:905-907: an open server is the alternative.
+    """DESIGN.md:905-906: an open server is the alternative.
 
     So it refuses.
     """
@@ -372,7 +372,7 @@ def test_a_well_formed_token_map_still_boots(
 
 
 # ----------------------------------------------------------------------
-# The off-loopback TLS refusal (DESIGN.md:873-877). Three High rows rest
+# The off-loopback TLS refusal (DESIGN.md:873-876). Three High rows rest
 # on it. The end-to-end process arms are in test_boot.py; these are the
 # unit arms.
 # ----------------------------------------------------------------------
@@ -613,7 +613,7 @@ def test_settings_declares_exactly_the_template_variables() -> None:
 
 
 def test_server_json_declares_every_variable() -> None:
-    """DESIGN.md:1028-1030: `server.json` declares EVERY variable."""
+    """DESIGN.md:1028-1029: `server.json` declares EVERY variable."""
     assert _server_json_names() == _env_example_names()
 
 

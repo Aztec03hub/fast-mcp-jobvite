@@ -503,7 +503,7 @@ def test_the_totality_check_refuses_a_tool_with_no_data_class(
 
 
 def test_the_scopes_are_the_three_data_classes() -> None:
-    """DESIGN.md:906-907: candidate PII, public job data, job feed."""
+    """DESIGN.md:908-910: candidate PII, public job data, job feed."""
     assert set(TOOL_SCOPES.values()) == {SCOPE_CANDIDATES, SCOPE_JOBS, SCOPE_FEED}
 
 
@@ -707,7 +707,7 @@ async def test_a_well_formed_token_map_authenticates_and_the_tool_runs() -> None
 
     Four assertions above are refusals - no scope, no token, no
     variable. All four pass against a server that refuses EVERYTHING,
-    which is the guard-that-refuses-everything DESIGN.md:1451-1453
+    which is the guard-that-refuses-everything DESIGN.md:1451-1452
     names. This is the arm that says the door opens.
     """
     with serve_http(probe_server(http_settings())) as url:

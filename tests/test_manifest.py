@@ -149,7 +149,7 @@ def test_removing_fastmcp_slim_breaks_the_resolve(tmp_path: pathlib.Path) -> Non
     Marked `network` and deselected from the default offline suite: it
     performs a real resolve. CI runs it as its own step. It is excluded
     by SELECTION, never by skipif - a skip is a green that tested
-    nothing (DESIGN.md:1310-1313).
+    nothing (DESIGN.md:1310-1312).
     """
     manifest = PYPROJECT.read_text()
     mutated = "\n".join(
@@ -178,7 +178,7 @@ def test_the_unmutated_manifest_still_resolves(tmp_path: pathlib.Path) -> None:
     """Positive control for the arm above.
 
     A refusal-path test is not a guard unless the happy path still
-    succeeds (DESIGN.md:1451-1453). Without this, a `uv` that failed on
+    succeeds (DESIGN.md:1451-1452). Without this, a `uv` that failed on
     EVERYTHING - a broken binary, no network, a bad cache - would make
     the control above pass.
     """
