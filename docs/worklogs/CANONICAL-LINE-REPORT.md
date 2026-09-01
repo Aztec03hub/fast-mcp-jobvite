@@ -423,14 +423,53 @@ flag names. The `key=value` grammar tolerates absent fields and every consumer p
 lookup, so adding fields cannot break them. Filed as **task #120** with the blast radius (~20
 `ci.yml` steps) and the reason it was not smuggled into this task.
 
-**F2 - MEDIUM - the SINGULAR floor control could report success over an empty evidence block.**
+**F2 - MEDIUM - the SINGULAR floor control reports success over an empty evidence block.**
 `docs/reviews/check-row-floor-control.sh:58` displayed a two-shape grep and discarded the result;
-the verdict rested on `rc -eq 1` alone. A harness that reworded its floor message, or printed none,
-left a blank line under "CONTROL FIRED" and the control still passed. This is #102's defect standing
-unfixed in the sibling **because the fix was applied to the instance that got reported.**
-*Fixed* at `699863c`: it now parses the canonical line and asserts `status=breach`, reported floor
-== the source's `ROW_FLOOR`, and `rows == floor - 1` after one deletion. **UNVERIFIED - not yet
-run** (see §8).
+its verdict rested on `rc -eq 1` alone (`:68`). Both quoted from the artefact, not from memory.
+*Fixed* at `699863c`, and now VERIFIED four ways rather than claimed.
+
+**I overstated this finding first, and the correction is the interesting part.** The obvious plant -
+reword u15's floor breach message into shape B, which three harnesses here already use - did NOT
+produce a blank block. The predecessor passed *honestly*, with evidence:
+
+    === PREDECESSOR against the reworded harness ===
+      ########## 4/5 ROWS
+      CONTROL FIRED: a deleted row is caught by the floor and exits 1.
+      PREDECESSOR EXIT=0
+
+Because `check-u15-gate-amputation.sh` prints a SECOND, unconditional row line at `:183`
+(`echo "########## $ROWS/$ROW_FLOOR ROWS"`) that the old grep still matched. **I had inferred the
+consequence from the structure and would have reported it on that inference.** Rewording BOTH row
+lines is the real question - *"if this harness's prose changed, would the control notice"* - and it
+settles it:
+
+    === PREDECESSOR ===                        === REWRITTEN ===
+      --- running the harness ... ---            --- running the harness ... ---
+      exit with a deleted row: 1 (must be 1)     HARNESS-RESULT name=... rows=4 floor=5 status=breach
+      CONTROL FIRED: ... exits 1.                exit with a deleted row: 1 (must be 1)
+      PREDECESSOR EXIT=0                         CONTROL FIRED: ... rows=4 floor=5 status=breach
+                                                 REWRITTEN EXIT=0
+
+**Nothing between "running the harness" and "CONTROL FIRED".** The predecessor reports success with
+an empty evidence block, at exit 0, on a harness whose prose merely changed - which is #102's defect
+standing unfixed in the sibling because the fix was applied to the instance that got reported.
+
+The four verifications of the replacement: it FIRES on the healthy harness
+(`rows=4 floor=5 status=breach`, exit 1, control exit 0); it goes RED when `harness_result_ran` is
+amputated while the harness's exit code stays 1 (`status=refused, wanted breach`); it stays GREEN
+across the one-line reword that has nothing to do with its subject; and it stays GREEN across the
+two-line reword that blinds its predecessor entirely.
+
+*Two instrument errors of mine inside this measurement, both recorded because each nearly produced a
+confident wrong answer:* I first ran the predecessor from `/tmp`, so its
+`REPO="$(... /../.. )"` resolved to `/`, git said "Not a git repository", and its dirty-subject guard
+fired at **exit 3** - an abort I nearly reported as a result about the plant. **A control relocated
+out of its repository computes the wrong root and then refuses for a reason unrelated to its
+subject.** And my plant's own landing-guard used `grep -cE 'ROWS"|LOST ROWS'` over the whole source,
+which matched `harness_result_ran "$ROWS" "$ROW_FLOOR"` and the `if [ "$ROWS" -lt ...` line - neither
+of them output - and aborted a plant that had applied perfectly. **A guard that measures the wrong
+thing rejects a valid experiment, which is the same defect as one that accepts an invalid one and
+harder to notice, because it looks like caution.**
 
 **F3 - LOW - four harnesses counted no rows at all, and two of them are floored only externally.**
 `check-u1-boot-amputation.sh`, `check-u3-audit-amputation.sh`, `check-u4-client-amputation.sh` and
@@ -475,9 +514,8 @@ at the orchestrator's instruction so that `check-u0-test-controls.sh` - the slow
 can be measured solo for task #108 rather than under three-way contention. Resume order agreed:
 singular control, then before arm at budget 900, then after arm at 900, never two at once.
 
-**2. `docs/reviews/check-row-floor-control.sh` has been rewritten and NOT RUN.** `shellcheck` is 0
-and `bash -n` is clean; neither is "watched fire". A control rewritten and never watched fail is
-precisely what this task calls untested, and the label stays on until it has been run.
+**2. ~~`check-row-floor-control.sh` rewritten and NOT RUN~~ - SETTLED.** Run, watched fire, and
+watched fail on three separate plants (F2). The UNVERIFIED label is off.
 
 **3. The `rows` values reported by the four harnesses that gained a counter are unverified against a
 hand count.** The counter is incremented once per row function call and the ledger records only
