@@ -48,9 +48,19 @@ SUITE="tests/test_jobvite_client.py"
 PASS=0
 FAIL=0
 
-if ! git diff --quiet -- "$CLIENT"; then
-  echo "ABORT: $CLIENT has uncommitted changes."
-  echo "This harness restores with 'git checkout --', which would DISCARD them."
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
+# worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
+# and this guard waves it through. Measured: modify + `git add` gives
+# `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
+#
+# ONLY THIS GUARD MOVES. The landing and restore checks below stay on
+# `git diff` ON PURPOSE: they are paired with `git checkout --`, which
+# restores from the INDEX, so index-relative is the reading that matches
+# the restore.
+if [ -n "$(git status --porcelain -- "$CLIENT")" ]; then
+  echo "ABORT: $CLIENT has uncommitted changes (staged, unstaged or both)."
+  echo "This harness mutates it and restores with 'git checkout --', so it"
+  echo "would measure your edit rather than HEAD. Commit or stash first."
   exit 3
 fi
 

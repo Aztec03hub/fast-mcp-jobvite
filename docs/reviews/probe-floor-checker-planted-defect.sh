@@ -31,9 +31,19 @@ S="$REPO/scripts/$TARGET"
 FIRED=0
 TOTAL=0
 
-if ! git -C "$REPO" diff --quiet -- "$S"; then
-  echo "ABORT: $S is already modified. This probe stages edits to it and would"
-  echo "       take someone else's work with it on restore."
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
+# worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
+# and this guard waves it through. Measured: modify + `git add` gives
+# `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
+#
+# THIS SITE IS THE SEVERE ONE. `restore()` below runs `git reset HEAD --`
+# then `git checkout --`, which IS HEAD-relative - so a STAGED edit here is
+# not merely measured, it is DESTROYED. The abort message below has always
+# said so; the guard could not see the case it describes.
+if [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
+  echo "ABORT: $S is already modified (staged, unstaged or both). This probe"
+  echo "       stages edits to it and restores with 'reset HEAD' +"
+  echo "       'checkout --', which would DESTROY that work."
   exit 3
 fi
 

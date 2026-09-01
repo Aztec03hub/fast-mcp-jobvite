@@ -41,6 +41,18 @@ CANDIDATES="src/fast_mcp_jobvite/tools/candidates.py"
 BACKUP_DIR=$(mktemp -d)
 trap 'rm -rf "$BACKUP_DIR"' EXIT
 
+# THIS GUARD DID NOT EXIST. Every sibling harness refuses to run on a tree
+# somebody is mid-edit in; this one went straight to mutating `src/`. The
+# restore here is `cp` from a backup, so nothing was ever DESTROYED - but a
+# matrix run over an uncommitted edit reports on code nobody declared and
+# calls it a measurement of HEAD.
+if [ -n "$(git status --porcelain -- src/)" ]; then
+  echo "ABORT: src/ has uncommitted changes (staged, unstaged or untracked)."
+  echo "       This probe mutates src/; the rows would describe your edit,"
+  echo "       not HEAD. Commit or stash first."
+  exit 3
+fi
+
 ROWS=0
 APPLIED=0
 VACUOUS=0

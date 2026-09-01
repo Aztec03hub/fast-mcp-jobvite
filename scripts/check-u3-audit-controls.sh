@@ -49,9 +49,19 @@ SUITE="tests/test_audit.py tests/test_redaction.py tests/test_logging_process.py
 PASS=0
 FAIL=0
 
-if ! git diff --quiet -- "$AUDIT" "$REDACT"; then
-  echo "ABORT: $AUDIT or $REDACT has uncommitted changes."
-  echo "This harness restores with 'git checkout --', which would DISCARD them."
+# `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
+# worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
+# and this guard waves it through. Measured: modify + `git add` gives
+# `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
+#
+# ONLY THIS GUARD MOVES. The landing and restore checks below stay on
+# `git diff` ON PURPOSE: they are paired with `git checkout --`, which
+# restores from the INDEX, so index-relative is the reading that matches
+# the restore.
+if [ -n "$(git status --porcelain -- "$AUDIT" "$REDACT")" ]; then
+  echo "ABORT: $AUDIT or $REDACT has uncommitted changes (staged or not)."
+  echo "This harness mutates them and restores with 'git checkout --', so it"
+  echo "would measure your edit rather than HEAD. Commit or stash first."
   exit 3
 fi
 
@@ -102,8 +112,23 @@ PY
   # treats each line as a separate alternative - so a multi-line mutation whose
   # first line was an unchanged `if not meta:` matched the RESTORED file and
   # reported a restore failure that had not happened. The instrument was wrong,
-  # not the code. `git diff` compares the whole file against the commit and
-  # cannot be fooled that way.
+  # not the code. `git diff` compares the WHOLE FILE, so no multi-line
+  # pattern can be partially matched, which is the failure above.
+  #
+  # BUT NOT "against the commit" - THAT SENTENCE USED TO STAND HERE AND IT
+  # IS FALSE. `git diff` compares the worktree to the INDEX. So did the
+  # pre-flight guard at the top of this file, which is why a STAGED edit
+  # walked straight past it for months; that guard is now
+  # `git status --porcelain` and this check is the one that may stay
+  # index-relative. It may stay because the restore is `git checkout --`,
+  # which also reads the INDEX - the question has to match the answer the
+  # restore writes from. And once the pre-flight has refused every dirty
+  # tree, index and HEAD agree anyway.
+  #
+  # Do NOT "fix" this to `git diff HEAD`, and do NOT change the restore to
+  # `git checkout HEAD --`: measured, the latter rewrites the index too and
+  # SILENTLY DESTROYS the operator's staged work. Refuse at the door
+  # instead.
   if git diff --quiet -- "$file"; then
     echo "$id: MUTATION DID NOT LAND despite a successful write"
     FAIL=$((FAIL + 1))
