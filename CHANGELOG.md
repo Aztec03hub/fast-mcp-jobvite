@@ -235,6 +235,19 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Changed
 
+- **The tripwire for the unbuilt self-throttle already existed; what was missing was a reason that
+  pointed anywhere.** `outbound_rate_limit` is declared, typed, defaulted, documented in
+  `.env.example` and read by nothing, and `check-settings-are-read.py` already computes a STALE
+  EXEMPTION: the moment the setting gains its first reader it leaves the unread set and the checker
+  exits 1. Verified by planting a reader rather than assumed. So no new gate was needed - a second
+  checker asking the same question as the first would only have needed keeping in step with it
+  forever. The defect was the exemption's REASON, which said *"ADR-0025 (Proposed)"* after the ADR
+  had been accepted and applied, and never named the section it guards. It now tells whoever trips
+  it that the arm is deliberate, sends them to `DESIGN.md` §4.4's rules first - the throttle is
+  PER-PROCESS, and time spent waiting on it SPENDS §4.3's outbound budget - and says to drop the
+  entry in the same commit that implements them, not before. A gate that fires without saying what
+  to do is how a red step becomes one people learn to skip. (2026-09-01 01:43 PM CDT)
+
 - **The design-citation scan chooses its population by KIND now, not by PATH.** It excluded
   `docs/reviews/` on the reasoning - stated in its own docstring - that *a review cites the design as
   it stood*. That is right for a review DOCUMENT and wrong for the CHECKERS in the same directory,
@@ -361,6 +374,22 @@ server cannot tell a person from a handler - see the README's disclosures.
   (2026-08-27 02:45 PM CDT)
 
 ### Fixed
+
+- **Every pytest call in a harness is bounded now - 64 of 64 - and the five that were missed all
+  wore a prefix.** A previous sweep bounded 59 and reported itself finished. The five it left
+  behind share one property: **not one of them starts its line with `uv run`**. They are a command
+  substitution (`out=$(cd ... && uv run ... | tail -1)`), a subshell inside a test
+  (`if ! (cd ... && uv run ...)`), and three calls behind an environment assignment
+  (`PYTHONDONTWRITEBYTECODE=1 uv run ...`). All 59 the sweep did fix start the line, so a selector
+  keyed on line shape could not see the other five - the same failure as a path allowlist, arrived
+  at from a different direction. The honest count comes from enumerating the CONTAINER and
+  asserting `bounded == total`. Two collapsed branches were separated while there: the post-run
+  re-check used `if ! (...)`, which gives a hang and a red suite the SAME answer, though a red
+  suite is a measurement and a hang leaves whether the tree was restored UNKNOWN; and a row that
+  times out now says it never finished rather than letting a reader take 124 for a verdict. **Both
+  arms measured** - a planted `timeout 1` aborts at exit 4 in one second, and the unmodified
+  harness still exits 0 in 110s with 23/23 controls firing, which is the arm that matters, because
+  a bound that aborts a healthy run would be worse than no bound. (2026-09-01 01:43 PM CDT)
 
 - **Main was red on two gates, and one of them was a row I ruled into existence.** ADR-0032's new
   STRIDE row `C2-T2` carried a Test cell reading `§8: <a test function name>`. That prefix asserts a
