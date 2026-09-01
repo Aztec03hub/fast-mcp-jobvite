@@ -104,6 +104,34 @@ So every one of those sites now names the hang with the literal phrase `TIMED OU
 `ci-harness-gate.sh` greps for, and refuses to emit a verdict for the row. A bound that stops a
 hang but lets it be scored is half a fix.
 
+### The 900s bound, now measured against the harness it guards
+
+When these fixes landed, `900` was chosen to match the value already dominant in the tree (26 of
+30 amputation-row sites), **not** from evidence about any particular harness - and
+`check-u0-test-controls.sh`, the slowest of them, had never once completed for anyone to measure.
+It has now:
+
+```
+u0 SOLO on an idle machine:  exit 0, 11/11 controls fired, 711 seconds
+711s = 1 baseline + 11 controls = 12 full-suite runs -> mean 59s per run
+```
+
+So the bound carries roughly **15x headroom on the mean**. That is generous rather than marginal,
+which settles the open question honestly rather than by assertion.
+
+**Stated as a MEAN on purpose.** The harness prints no per-row timing, so a single slow control
+could sit well above 59s and nobody has measured that; the headroom is a property of the average,
+not a floor under every row. What the number does establish is that 900 is not a value quietly
+sitting near the real duration.
+
+**And the earlier kill was CONTENTION, not a defect.** An earlier attempt died at ~5 minutes with
+no exit code while `canonical-line-before` and `canonical-line-after` were each running their own
+copy of the same harness - three concurrent full-suite-per-control runs. Re-run alone it exits 0.
+That confirms the residual risk this fix creates and does not remove: **bounding converts "hangs
+forever" into "fails at N seconds", and contention can push a loaded machine across N.** A future
+`TIMED OUT` from u0 means LOAD first; re-run it alone before believing it. `-k 30` does not help
+there - it only covers a child that ignores SIGTERM.
+
 **The general shape, since it is not specific to timeouts.** Five of six misreading in the
 *reassuring* direction is not luck. A harness's default branch is the happy one, because harnesses
 are written expecting their subject to ANSWER - so any new way of *not answering* lands in whatever
@@ -624,11 +652,14 @@ merely present on the line. The defect is the denominator, not the 64. See R10-H
 
 Short, and every item here is something I tried and failed to resolve, not something I skipped.
 
-1. **I did not run the 13 harnesses.** Each is minutes and several mutate `src/`; two other agents
-   are live in adjacent worktrees and the standing rule is not to gate a tree someone is on. So
-   R10-H1's nine sites are proved **unbounded by reading and by `grep` over the whole container**,
-   and proved **reachable from `ci.yml` by line**, but I have not watched one of them hang. The
-   claim "these can hang unbounded" is structural, not observed.
+1. **I have still not watched one of these hang.** R10-H1's nine sites are proved **unbounded by
+   reading and by `grep` over the whole container**, and proved **reachable from `ci.yml` by
+   line** - and three of the four `scripts/` harnesses have since been re-run green after the fix
+   (`check-u15-gate-controls` 15/15, `check-u11-advisory-controls` 15/15,
+   `check-u0-test-controls` 11/11). But "unbounded means it CAN hang forever" remains a structural
+   claim: I never induced a hang and observed it. What was observed is the adjacent fact that
+   makes it credible - u0 was killed at ~5 minutes under three-way contention, and needed 711s to
+   finish once it had the machine to itself.
 
 2. **Whether the C2-T2 edit is inside ADR-0032's scope is a judgement I cannot make from the
    documents.** ADR-0032 rules the row into existence but says nothing about the disposition
