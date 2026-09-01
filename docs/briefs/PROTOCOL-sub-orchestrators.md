@@ -89,6 +89,25 @@ claim its own task or file findings on the board. **`SendMessage` to
 Say this in the brief; otherwise the agent reports, correctly, that the
 task was never claimed and cannot tell whether that matters.
 
+### The process list is SHARED. It is other people's data.
+
+With several agents live in different worktrees of one repo, `ps`, `pgrep`
+and shared `/tmp` paths stop being evidence about YOUR work.
+
+Measured, self-caught by a review agent on the same day: it backgrounded a
+suite run, then read "still running" four times. Its subshell had never
+survived, so the output file was **empty — and an empty file is
+byte-identical to a not-yet-flushed one**. The `pytest` processes it could
+see belonged to a *different agent*. The instrument confirmed a job that
+had never started, using a sibling's process as the proof.
+
+**So**: write a start marker into your output file before the work begins,
+so "empty" and "never started" are distinguishable. Capture the PID you
+actually spawned and check that. Prefer waiting on your own child over
+polling anything global. And never restore, clean, or kill on the strength
+of a shared process list — a harness owns its tree for the whole run, and
+the tree you are looking at may be someone else's.
+
 ## Tier 2: workers (sonnet), trivial workers (haiku)
 
 Spawned BY a Tier-1 agent, inside its worktree.
