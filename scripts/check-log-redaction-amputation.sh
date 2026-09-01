@@ -179,10 +179,19 @@ amputate "A2  JobviteClient.__init__ installs nothing" "$CLIENT" \
 # counted, idempotent - and inert, because the library writes somewhere
 # else. The row that says whether any other row is measuring the real
 # producer or only its own bookkeeping.
+#
+# THE ANCHOR MOVED WITH R11-M1, and it had to. ADR-0026 requires the
+# logger name DERIVED from the imported module rather than retyped, so
+# the literal this row used to anchor on no longer exists - and this
+# harness is what caught the change, by going stale rather than by
+# silently matching nothing. The mutation is unchanged in substance:
+# replace the derived name with a literal `httpx`, which is BOTH the
+# wrong logger AND the retyping ADR-0026 forbids, so the row is now
+# strictly stronger than it was.
 # ---------------------------------------------------------------------------
 amputate "A3  the filter is installed on the wrong logger" "$REDACTION" \
-  'HTTPX_LOGGER_NAME: Final = "httpx2"' \
-  'HTTPX_LOGGER_NAME: Final = "httpx"'
+  'HTTPX_LOGGER_NAME: Final[str] = _httpx2_logger.name' \
+  'HTTPX_LOGGER_NAME: Final[str] = "httpx"'
 
 # ---------------------------------------------------------------------------
 # A4 - THE FILTER DOES NOT REDACT. Installed, found, counted, and it

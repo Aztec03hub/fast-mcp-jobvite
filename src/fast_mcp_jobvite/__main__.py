@@ -460,8 +460,7 @@ def main(*, extra_lifespan: Lifespan | None = None) -> int:
         sys.stderr.flush()
         # DESIGN.md:1052-1054. Teardown has already completed by
         # here, and the call is unconditional so the stdio hang stays
-        # closed
-        # (ADR-0018).
+        # closed (ADR-0018).
         os._exit(status)
 
 

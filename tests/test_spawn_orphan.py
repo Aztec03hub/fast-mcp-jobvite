@@ -23,6 +23,9 @@ import sys
 import textwrap
 import time
 
+import pytest
+
+from tests import boot_process
 from tests.boot_process import (
     _EXIT_NO_LIBC,
     _EXIT_PARENT_ALREADY_GONE,
@@ -258,4 +261,42 @@ def test_an_unchecked_prctl_would_leave_the_child_unprotected() -> None:
         f"the child exited {rc}, not {_EXIT_PRCTL_FAILED}. A failing prctl "
         "did not stop the child, so a silently unprotected child is "
         "indistinguishable from a protected one."
+    )
+
+
+def test_a_bail_out_names_itself_in_the_spawn_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R11-L1: `spawn_marker_server` must READ the three exit codes.
+
+    They exist because `os._exit(1)` from a `preexec_fn` cannot be told
+    apart from the entry script failing to import. Until this case,
+    their only reader was this file: the function that spawns every
+    server in the suite discarded `returncode` and reported *"the
+    server never opened its lifespan"* with an EMPTY output body,
+    because the child dies before `exec` and never writes anything.
+    Three distinct diagnoses rendered identically, one call frame from
+    the codes added to keep them apart.
+
+    **`_LIBC` is patched to `None` rather than a bogus prctl option**,
+    because `spawn_marker_server` takes no `option` and inventing one
+    on the production spawner to make this testable would be a knob
+    that exists only for a test. The module attribute is read inside
+    the child, after `fork`, in its copy of this process's memory - so
+    monkeypatching here reaches it, and pytest restores it.
+    """
+    monkeypatch.setattr(boot_process, "_LIBC", None)
+
+    with pytest.raises(AssertionError) as raised:
+        boot_process.spawn_marker_server(
+            tmp_path, boot_process.clean_env(), stdio=False
+        )
+
+    message = str(raised.value)
+    assert f"exit={_EXIT_NO_LIBC}" in message, (
+        f"the failure did not name the exit code. Got: {message!r}"
+    )
+    assert "libc.so.6 could not be loaded" in message, (
+        f"the failure named the code but not what it means. Got: {message!r}"
     )

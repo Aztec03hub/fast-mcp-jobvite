@@ -258,10 +258,28 @@ def spawn_marker_server(
         if proc.poll() is not None:
             break
         time.sleep(0.05)
+    rc = proc.poll()
     proc.kill()
     proc.wait()
+    # THE THREE BAIL-OUT CODES ARE READ HERE, AND UNTIL R11-L1 THEY
+    # WERE NOT (they had exactly one reader, `test_spawn_orphan.py`).
+    # They exist because `os._exit(1)` from a `preexec_fn` is
+    # indistinguishable from the entry script failing to import - and
+    # this function, which spawns every server in the suite, then
+    # rendered all three identically: the child dies before `exec`, so
+    # `output` is EMPTY and the message below says only that the
+    # lifespan never opened. Three distinct diagnoses collapsed into
+    # one blank body, one call frame away from the codes added to keep
+    # them apart.
+    diagnosis = {
+        _EXIT_NO_LIBC: "libc.so.6 could not be loaded, so PDEATHSIG was never set",
+        _EXIT_PRCTL_FAILED: "prctl(PR_SET_PDEATHSIG) returned non-zero",
+        _EXIT_PARENT_ALREADY_GONE: "the parent died between fork and the race check",
+    }.get(rc if rc is not None else -1)
+    named = f" ({diagnosis})" if diagnosis else ""
     raise AssertionError(
-        f"the server never opened its lifespan. output:\n{output.read_text()}"
+        f"the server never opened its lifespan. exit={rc}{named}. "
+        f"output:\n{output.read_text()}"
     )
 
 
