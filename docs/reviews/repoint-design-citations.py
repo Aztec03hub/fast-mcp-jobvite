@@ -37,6 +37,8 @@ import re
 import subprocess
 import sys
 
+import repoint_exempt
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 CHECKER = REPO_ROOT / "docs" / "reviews" / "check-design-citations.py"
 
@@ -120,10 +122,17 @@ def parse(
                 f"  UNREADABLE: {m['file']}:{m['lineno']}: {type(exc).__name__}: {exc}"
             )
             continue
-        if "REPOINT-EXEMPT" in cited_line:
-            continue
         old_s = int(m["os"])
         old_e = int(m["oe"]) if m["oe"] else old_s
+        # #142. This test USED to be `"REPOINT-EXEMPT" in cited_line`,
+        # at LINE granularity. That was unreachable belt-and-braces
+        # while the checker skipped the whole line before emitting a
+        # MOVED row for it - and it becomes a live over-suppression the
+        # moment the checker skips only the exempt CITATION: a line
+        # with one registered citation and one ordinary one would emit
+        # a MOVED row that this test then silently refused to apply.
+        if repoint_exempt.is_exempt(cited_line, m["file"], old_s, old_e):
+            continue
         new_s = int(m["ns"])
         new_e = int(m["ne"]) if m["ne"] else new_s
         key = (m["file"], int(m["lineno"]))

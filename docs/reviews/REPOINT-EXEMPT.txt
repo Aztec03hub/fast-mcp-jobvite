@@ -1,0 +1,46 @@
+# THE REGISTER OF EXEMPTED DESIGN CITATIONS - the only thing that grants
+# an exemption. Three columns, TAB separated:
+#
+#     <tracked path>  <TAB>  <start>-<end>  <TAB>  <the reason>
+#
+# A citation is exempt from the two wired citation gates and from
+# repoint-design-citations.py if AND ONLY IF its line carries the
+# REPOINT-EXEMPT marker AND the (path, address) pair appears below with a
+# non-blank reason. The marker alone grants nothing - that is #142, and
+# it is why 36 lines that merely NAMED the marker were silently exempt
+# from two wired gates while exempting nothing.
+#
+# THIS FILE IS `.txt` ON PURPOSE AND MUST NOT BECOME .py, .json, .md OR
+# .yaml. Every one of those suffixes IS scanned by one of the gates this
+# register feeds - check-design-citations.py reads .py .toml .md .yml
+# .yaml .sh, check-design-citation-shape.py reads .py .sh - so a register
+# written in any of them would be scanned by the gate it governs, and
+# would have to exempt itself. That self-reference IS the defect this
+# file exists to close. `.txt` is in neither suffix set and is on
+# scripts/check-committed-file-types.py's allowlist. Converting it is not
+# a tidy-up; it reopens the hole.
+#
+# The key carries NO LINE NUMBER, per #6: a path:line key rots on the
+# first edit above the line and then silently re-exempts whatever moved
+# into the slot. The address is normalised `<start>-<end>` even when the
+# citation is written as a single line.
+#
+# ADDING A ROW IS THE POINT OF FRICTION. It is a visible diff in a file
+# whose length is reported on every run. A citation that cannot be
+# defended in one sentence here does not belong in the tree.
+
+docs/briefs/BRIEF-142-scope-the-exemption.md	373-383	R13's suggested scoped form, quoted verbatim by the brief that dispatched #142
+docs/briefs/BRIEF-142-scope-the-exemption.md	99999-99999	the plant that proved R13-H1, quoted as the defect; true when written (#111)
+docs/reviews/DESIGN-142-scoped-exemption.md	373-383	quotes R13's suggested form while weighing it against the register
+docs/reviews/DESIGN-142-scoped-exemption.md	99999-99999	quotes the plant and the gate output naming it, as the evidence for #142
+docs/reviews/REVIEW-R10.md	99999-99999	R10 planted this address to prove the bounds check fires, and quotes its own probe output as evidence
+docs/reviews/check-design-citation-shape.py	311-311	a record of where a defect WAS: 311 was blank and the sentence was at 312-313
+docs/reviews/check-design-citation-shape.py	373-383	one of the two ends-on-blank instances R12-N1 was raised from; a record of where the defect was
+docs/reviews/check-design-citations.py	603-603	example data for the citation pattern - what it MATCHES, not a citation of anything
+docs/reviews/check-design-citations.py	918-923	a record of the contracted range U1 found; repointing it would erase the evidence
+docs/reviews/check-design-citations.py	918-924	example data for the citation pattern - what it MATCHES, not a citation of anything
+docs/reviews/check-design-citations.py	99999-99999	the R13-H1 plant, quoted in the comment that records the defect
+docs/reviews/probe-midsentence-shape.py	906-906	a record of where a defect WAS, quoted in the probe's docstring
+docs/reviews/probe-repoint-fail-closed.py	100-100	an example citation this probe WRITES into a temp file; not a citation of the design
+docs/worklogs/AUDIT-SURVIVORS-REPORT.md	99999-99999	quotes the planted citation as evidence of a mutation survivor
+docs/worklogs/WORKLOG-115B-kind-not-path.md	99999-99999	quotes a checker failure verbatim as evidence

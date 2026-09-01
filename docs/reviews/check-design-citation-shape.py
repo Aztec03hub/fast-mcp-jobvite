@@ -63,6 +63,8 @@ import re
 import subprocess
 import sys
 
+import repoint_exempt
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CITE = re.compile(r"DESIGN\.md:(\d+)(?:-(\d+))?")
 
@@ -86,8 +88,9 @@ CODE_SUFFIXES = {".py", ".sh"}
 
 STRUCTURAL = ("```", "|---", "---", "|--", ":--")
 
-#: Split so this line is not itself exempt.
-EXEMPT = "REPOINT" + "-EXEMPT"
+#: Necessary, not sufficient, since #142: the marker selects the line
+#: and docs/reviews/REPOINT-EXEMPT.txt grants the citation.
+EXEMPT = repoint_exempt.MARKER
 
 
 def code_files() -> list[pathlib.Path]:
@@ -279,19 +282,21 @@ def main() -> int:
 
     paths = code_files()
     for path in paths:
+        rel = path.relative_to(ROOT).as_posix()
         body_lines = path.read_text(errors="replace").splitlines()
         for num, text in enumerate(body_lines, 1):
-            # The marker `repoint-design-citations.py` already
-            # honours: a line that RECORDS where a defect was must
-            # not be repointed, and must not be reported as one
-            # either. Kept narrow - it skips the line, not the file.
-            if EXEMPT in text:
-                exempted += 1
-                continue
             for match in CITE.finditer(text):
-                seen += 1
                 start = int(match.group(1))
                 end = int(match.group(2) or match.group(1))
+                # #142. A line that RECORDS where a defect was must not
+                # be repointed and must not be reported - but it must
+                # say WHICH citation it is recording, in the register,
+                # or the marker exempts whatever else lands on the line.
+                # Kept narrow: it skips the CITATION, not the line.
+                if repoint_exempt.is_exempt(text, rel, start, end):
+                    exempted += 1
+                    continue
+                seen += 1
                 where = f"{path.relative_to(ROOT)}:{num}  {match.group(0)}"
                 verdict = classify(start, end, lines)
                 if verdict is not None:
@@ -307,7 +312,8 @@ def main() -> int:
     # this checker with a comment marker, and a growing exemption set
     # would otherwise be invisible in the very report that depends on
     # it - including from a genuinely wrong citation sharing the line.
-    print(f"{exempted} line(s) skipped as {EXEMPT}.\n")
+    print(f"{exempted} citation(s) exempt (marked AND registered).")
+    print(repoint_exempt.report() + chr(10))
 
     total = sum(len(v) for v in findings.values())
     for reason, rows in sorted(findings.items()):

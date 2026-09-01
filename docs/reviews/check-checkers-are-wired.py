@@ -180,10 +180,13 @@ def third_party_imports(name: str) -> list[str]:
         return []
     text = path.read_text(encoding="utf-8", errors="replace")
     found = {m.group(1).split(".")[0] for m in _IMPORT.finditer(text)}
+    local = {p.stem for p in path.parent.glob("*.py")}
     return sorted(
         mod
         for mod in found
-        if mod not in sys.stdlib_module_names and mod != "__future__"
+        if mod not in sys.stdlib_module_names
+        and mod != "__future__"
+        and mod not in local
     )
 
 
