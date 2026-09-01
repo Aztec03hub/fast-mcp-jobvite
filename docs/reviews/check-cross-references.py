@@ -202,7 +202,7 @@ def controls() -> int:
     """Prove each check can go red, on real content not a toy."""
     design = REPO_ROOT / "docs" / "DESIGN.md"
     text = design.read_text()
-    DESIGN_NAME = "docs/DESIGN.md"
+    design_name = "docs/DESIGN.md"
     fired = 0
     total = 0
 
@@ -216,7 +216,7 @@ def controls() -> int:
     # `--controls`. A control that does not reproduce the gate's own
     # call is measuring its own construction.
     total += 1
-    if unresolved(text.replace("§8", "§99", 1), None, DESIGN_NAME):
+    if unresolved(text.replace("§8", "§99", 1), None, design_name):
         fired += 1
         print("  CONTROL a dangling reference is caught -> FIRED")
     else:
@@ -231,7 +231,7 @@ def controls() -> int:
         print("  CONTROL a file with no headings is a failure -> FIRED")
 
     total += 1
-    if not unresolved(text, None, DESIGN_NAME):
+    if not unresolved(text, None, design_name):
         fired += 1
         print("  CONTROL the unmutated document is clean -> FIRED")
     else:
