@@ -9,12 +9,21 @@
 # canonical line and requires the control to go red - and to go red for the
 # stated reason, not merely to be red.
 #
-# HOW THE PLANT IS STAGED, and why it is not committed. The control under test
-# refuses to run when its subject file is dirty, because a dirty subject means
-# someone else is mid-edit and measuring it would measure them. `git diff
-# --quiet -- <file>` compares the WORKING TREE TO THE INDEX, so `git add` on the
-# planted file satisfies that guard without writing history. The trap restores
-# from HEAD and clears the index entry on every exit path, including a kill.
+# HOW THE PLANT REACHES THE CONTROL, and why nothing is staged any more. The
+# control under test refuses to run on a dirty subject, because a dirty subject
+# means someone else is mid-edit and measuring it would measure them. This probe
+# needs the opposite, so it sets `ROW_FLOOR_CONTROL_ALLOW_PLANTED=1` - an opt-in
+# that control names, for this caller.
+#
+# IT USED TO `git add` THE PLANT INSTEAD, and that is worth recording. The guard
+# was `git diff --quiet`, which compares the WORKING TREE TO THE INDEX, so
+# staging made a modified file read CLEAN. The probe was not working around a
+# guard; it was relying on a DEFECT in one, and the header here described the
+# trick as a technique. When the guard was widened to `git status --porcelain`
+# every arm stopped firing at once - which is how the dependency was found, and
+# why it is now declared rather than smuggled. Staging is gone: the trap
+# restores with `git checkout --`, and with nothing ever staged that is the
+# same as restoring from HEAD.
 #
 # THE SUBJECT is the cheapest harness in the control's table (about one second),
 # chosen so this probe can be run often rather than admired.
@@ -48,6 +57,12 @@ if [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
 fi
 
 restore() {
+  # `reset` CLEARS THE INDEX ENTRY THIS PROBE ADDED, then `checkout` takes
+  # the worktree back. Together they are HEAD-relative, which WOULD destroy
+  # an operator's staged work in this file - so the pre-flight above must
+  # refuse any dirty subject, staged included, and now does. That guard is
+  # what makes this pair safe; it was `git diff --quiet` and could not see
+  # a staged file at all.
   git -C "$REPO" reset -q HEAD -- "$S" 2>/dev/null
   git -C "$REPO" checkout -- "$S" 2>/dev/null
 }
@@ -67,10 +82,17 @@ arm() {
     restore
     return
   fi
+  # STAGE THE PLANT. Not to defeat a guard any more - the opt-in below does
+  # that openly - but because the control's own post-restore check compares
+  # the worktree to the INDEX. With the plant staged, "restored" means "back
+  # to the planted state", which is the correct post-state while this probe
+  # is driving. Unstaged, that check fails every arm with exit 9, which is
+  # exactly what happened when the staging was first removed.
   git -C "$REPO" add -- "$S"
 
   local out rc
-  out=$(cd "$REPO" && bash "$CONTROL" "$TARGET" 2>&1); rc=$?
+  out=$(cd "$REPO" && ROW_FLOOR_CONTROL_ALLOW_PLANTED=1 \
+          bash "$CONTROL" "$TARGET" 2>&1); rc=$?
   restore
 
   if [ "$rc" -eq 0 ]; then
