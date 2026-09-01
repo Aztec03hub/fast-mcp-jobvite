@@ -1,5 +1,16 @@
 # CODE-REVIEW-R12 - the machinery, `f699f74..dad014e`
 
+<!-- REVIEW-COVERS: f699f74..dad014e -->
+
+**THE DECLARATION ABOVE IS PATH-FILTERED AND DOES NOT MEAN THE WHOLE RANGE WAS READ.** This round
+was responsible for `f699f74..dad014e` and examined 62 of its 133 files - `docs/reviews`, `scripts`
+and `.github` only. `src/`, `tests/`, `docs/adr/` and `docs/DESIGN.md` across the same span were
+`review-r11`'s, and this document is not evidence about them. `check-review-coverage.py` records
+coverage per COMMIT, so it will read this line as covering all 45; that is the declaration the
+orchestrator asked for, and this paragraph is the qualification that goes with it. See the note at
+the end of this file - a path-filtered round declaring a whole span is the same manufactured-coverage
+shape the checker exists to prevent, arriving from the author's side instead of the inferrer's.
+
 **Scope:** `git diff f699f74..dad014e -- docs/reviews scripts .github` - 62 files, +4289/-1405.
 `src/`, `tests/`, the ADRs and `docs/DESIGN.md` belong to `review-r11`; anything I found there is
 noted for the orchestrator rather than chased.
