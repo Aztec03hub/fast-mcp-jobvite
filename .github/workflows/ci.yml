@@ -686,6 +686,26 @@ jobs:
       - name: The README's Quickstart still works
         run: uv run --frozen python docs/reviews/check-quickstart.py
 
+      # WIRED BY R12-H1, AND THE REASON IS THE POINT. This harness had been
+      # DEAD since 449968f: a `ruff format` pass reflowed the two-line
+      # f-string its A1 anchor quoted, the anchor stopped matching, and the
+      # `assert` behind it took rows A2, A3, A4 and the A5 NEGATIVE CONTROL
+      # down with it. Measured against the blobs - the anchor occurs once at
+      # d5340b7 and zero times at 449968f and dad014e. Nothing noticed for 45
+      # commits BECAUSE NOTHING RAN IT.
+      #
+      # A probe that nothing runs cannot tell you it has stopped working, and
+      # this one is the only amputation evidence for four behaviour fixes -
+      # the fail-closed REPOINT-EXEMPT read, the checker's stderr health
+      # check, and two narrowed `except` clauses. So it is a step now.
+      #
+      # `uv run --frozen python`, NOT `python3`: row A4 mutates
+      # probe-r6-breaker-reset.py, which imports httpx2. Under a bare
+      # interpreter that row reports "could not import" and the harness
+      # correctly refuses a partial run.
+      - name: Docs-lint amputations, every row caught
+        run: uv run --frozen python docs/reviews/probe-docs-lint-amputation.py
+
       - name: Collect the credentialed suite
         run: |
           set -uo pipefail
@@ -784,8 +804,16 @@ jobs:
       # and #91 found the gap between them: u7 held 31 rows against a floor
       # of 26, so five rows could be deleted with this job green. Neither
       # branch was wrong - the MERGE produced the slack, which is the
-      # direction that never announces itself. Checks the harnesses the control
-      # table names - the program prints how many, and #102 is the remainder.
+      # direction that never announces itself.
+      #
+      # THREE CLAIMS NOW, and the program prints a population count for each
+      # rather than naming one here, because the counts that were named here
+      # went stale. It checks the harnesses the control table names AND asserts
+      # that table is EQUAL to the set of harnesses carrying a ROW_FLOOR
+      # (R12-M1, which found one missing), AND compares every `--min-rows` in
+      # this file to the rows its harness will actually print (R12-H2, which
+      # found u14 at 16 rows against 10 and u7's amputation at 22 against 19).
+      # The remainder is #107: one canonical machine line per harness.
       - name: Every checked row floor EQUALS its harness's live row count
         run: python3 docs/reviews/check-row-floor-exactness.py
 
@@ -871,17 +899,24 @@ jobs:
       # mechanisms NEVER EXECUTED - sitting among measured results and borrowing
       # their credibility. These two steps are what stops it drifting back there.
       #
-      # `--min-rows 16` and the row regex come from the harness's own shape, not
-      # from a preference: the amputation harness declines to amputate two
-      # behaviours whose deletion makes the scan loop forever, so its row count
-      # is not the number of behaviours it covers and the floor has to be stated.
+      # The row regex comes from the harness's own shape, not from a preference:
+      # the amputation harness declines to amputate two behaviours whose deletion
+      # makes the scan loop forever, so its row count is not the number of
+      # behaviours it covers and the floor has to be stated.
+      #
+      # R12-H2: `--min-rows` WAS 19 AGAINST 22 LIVE ROWS - three rows deletable
+      # with this step green. The harness grew from 19 to 22 after the step was
+      # wired, and `--min-rows` is a LOWER bound, so nothing said anything. 22 is
+      # READ OFF A RUN (`grep -cE '^########## A[0-9]+ '` over the harness's own
+      # output, exit 0), not 19 plus three. check-row-floor-exactness.py now
+      # compares every `--min-rows` to a live count, so this cannot drift again.
       - name: U7 resilience controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
 
       - name: U7 resilience amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
-            --amputation --min-rows 19 --row-re '^########## A[0-9]+ '
+            --amputation --min-rows 22 --row-re '^########## A[0-9]+ '
 
       # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
       # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
@@ -971,10 +1006,16 @@ jobs:
           bash scripts/ci-harness-gate.sh check-u14-arguments-controls.sh \
             --controls-fired --min-rows 20 --row-re '^########## M[0-9]+ '
 
+      # R12-H2: `--min-rows` WAS 10 AGAINST 16 LIVE ROWS - SIX rows deletable
+      # with this step green, the largest slack in the file. U14 shipped 10 rows
+      # at 8e5da82 and 481c682 added A11-A16 without touching this line, which is
+      # the same merge-produced slack that once put u7's CONTROLS at 26 v 31.
+      # 16 is READ OFF A RUN - the harness's own closing line says
+      # `########## ROWS: 16   ANCHORS APPLIED: 16` - not 10 plus six.
       - name: U14 argument sweep amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u14-arguments-amputation.sh \
-            --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 16 --row-re '^########## A[0-9]+ '
 
       # ----- ADR-0026: the embedder's log-redaction install -----
       # Row counts DERIVED: the harness declares ROW_FLOOR=6 internally and

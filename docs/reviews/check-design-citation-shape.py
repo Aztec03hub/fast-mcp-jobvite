@@ -38,6 +38,17 @@ sentence was at 312-313.
 nobody has finished counting, and wiring a gate whose backlog is unknown
 lands red - which this project has refused three times. Run it, fix what
 it names, then wire it.
+
+**R12-N1 ADDED A FOURTH SHAPE: a range that ENDS on a blank line**, i.e.
+one line longer than its subject. The start check had had no mirror
+since it was written. It was raised off TWO instances a reviewer had
+read (`DESIGN.md:373-383`, `:674-680`); the sweep found **46**, which is
+this docstring's own lesson arriving at the person writing the check.
+Harmless per instance and cumulative in the aggregate: a range that can
+grow a line at every repoint eventually spans the next section, and
+`check-design-citations.py` will keep calling it resolved the whole way.
+Those 46 are the backlog this file's last paragraph is about, and the
+number is printed by the run rather than trusted from here.
 """
 
 from __future__ import annotations
@@ -128,6 +139,19 @@ def classify(start: int, end: int, lines: list[str]) -> str | None:
         return "only a fence or table separator"
     if not body[0].strip():
         return "starts on a BLANK line (the off-by-one shape)"
+    # R12-N1, re-applied into `classify` rather than merged as its hunk:
+    # R12 wrote this against the inline chain R10 had already lifted out
+    # here, so the diff conflicted while the INTENT did not.
+    #
+    # `end > start` is LOAD-BEARING: it keeps single-line citations
+    # out, since a wholly blank one is caught by the branch above.
+    #
+    # R12 raised this off TWO instances it had read; the check it then
+    # wrote found FORTY-SIX. Its words: a finding raised from a partial
+    # read IS a partial check - this file's own opening lesson, landing
+    # on the reviewer writing the fix for it.
+    if end > start and not body[-1].strip():
+        return "ends on a BLANK line (one line too long)"
     return None
 
 
@@ -148,6 +172,16 @@ def detector_controls(lines: list[str]) -> tuple[int, int]:
         and lines[i].strip()
         and not lines[i].strip().startswith(STRUCTURAL)
     )
+    # The mirror of `starts_blank`, for the branch R12 added: a
+    # range whose LAST line is blank. Without this case the new
+    # detector would have NO control - the exact defect R10-M2
+    # recorded one branch above, which I nearly re-created here
+    # while merging the fix for it.
+    ends_blank = next(
+        i
+        for i, t in enumerate(lines, 1)
+        if not t.strip() and i > 1 and lines[i - 2].strip()
+    )
     solid = next(
         i
         for i, t in enumerate(lines, 1)
@@ -156,6 +190,7 @@ def detector_controls(lines: list[str]) -> tuple[int, int]:
 
     cases: list[tuple[str, int, int, str | None]] = [
         ("past the end", len(lines) + 1000, len(lines) + 1000, "past the end"),
+        ("ends on a blank line", ends_blank - 1, ends_blank, "ends on a BLANK"),
         ("entirely blank", blank, blank, "entire range is blank"),
         ("starts on a blank line", starts_blank, starts_blank + 2, "starts on a BLANK"),
         # THE NEGATIVE CONTROL. Without it every arm above passes on a

@@ -34,14 +34,33 @@ carried `ROW_FLOOR=18` against `--min-rows 15` for as long as both
 existed, and the external floor tolerated the loss of three rows the
 internal one would have caught.
 
-**WHAT THIS DOES NOT COVER, stated because a partial check selects for
-the form it cannot see.** Neither claim reaches every harness: the
-exactness claim reaches only those the control table names, and the
-agreement claim only those carrying BOTH floors. **The program prints
-both counts on every run** - read them there rather than here, because
-the three counts written into this docstring were already stale within
-hours of being typed. The remainder is task #102, and this file passing
-does not mean it is closed.
+**THE THIRD CLAIM: `--min-rows` MUST EQUAL THE LIVE ROW COUNT TOO
+(R12-H2).** The first two claims both read the INTERNAL floor, so the
+eight harnesses whose only floor is `--min-rows` in `ci.yml` were
+checked by neither - and `ci-harness-gate.sh` compares with `-lt`, a
+LOWER bound. Measured when this claim was added: u14's amputation
+printed 16 rows against `--min-rows 10` and u7's printed 22 against 19.
+Six and three rows deletable with CI green, in the two harnesses that
+GREW after their step was wired. That is the same defect the docstring
+opens with, on the layer the docstring's own fix could not see, which is
+why the population is now the whole of `ci.yml`'s `--min-rows` set.
+
+**HOW THE THIRD CLAIM COUNTS, and why it is not a fourth table.** It
+reads the harness's own `echo "########## $label"` row opener, takes the
+function that line sits in, collects that function's call sites, and
+tests the line each one WILL print against the gate's own `--row-re`.
+Nothing about any harness is listed here. A harness whose shape cannot
+be read that way is an ERROR, never a skip: skipping is exactly how
+those eight went unchecked.
+
+**WHAT THIS STILL DOES NOT COVER, stated because a partial check selects
+for the form it cannot see.** The exactness claim reaches only the
+harnesses the control table names, and the agreement claim only those
+carrying BOTH floors. **The program prints all three counts on every
+run** - read them there rather than here, because the counts once
+written into this docstring were stale within hours of being typed. It
+also cannot tell a floor DERIVED from a run from one that was typed and
+happens to be right; only running the harness answers that.
 """
 
 from __future__ import annotations
@@ -84,8 +103,8 @@ def _table() -> list[tuple[str, str, int]]:
     return rows
 
 
-def _external_floors() -> dict[str, int]:
-    """`--min-rows` per harness, read off its `ci-harness-gate.sh` line.
+def _external_floors() -> dict[str, tuple[int, str]]:
+    """`(--min-rows, --row-re)` per harness, off its gate line.
 
     Continuations are folded first: every one of these invocations wraps
     with a trailing backslash, so a line-at-a-time scan sees the harness
@@ -94,14 +113,26 @@ def _external_floors() -> dict[str, int]:
     The count is asserted against the number of `--min-rows` FLAGS, not
     every occurrence of the string - three sit inside comments, and
     counting those made a correct join look broken.
+
+    `--row-re` is captured too, because `ci-harness-gate.sh` refuses
+    `--min-rows` without it, and the third claim below cannot count rows
+    without knowing which printed lines the gate will accept.
     """
     raw = CI.read_text(encoding="utf-8")
     joined = re.sub(r"\\\n\s*", " ", raw)
-    found: dict[str, int] = {}
+    found: dict[str, tuple[int, str]] = {}
     for name, tail in re.findall(r"ci-harness-gate\.sh\s+(\S+)([^\n]*)", joined):
         flag = re.search(r"--min-rows\s+(\d+)", tail)
-        if flag:
-            found[name] = int(flag.group(1))
+        if not flag:
+            continue
+        row_re = re.search(r"--row-re\s+'([^']*)'", tail)
+        if row_re is None:
+            raise SystemExit(
+                f"{name}: --min-rows with no --row-re. ci-harness-gate.sh "
+                "refuses that pairing at run time, so finding it here means "
+                "ci.yml and the gate disagree."
+            )
+        found[name] = (int(flag.group(1)), row_re.group(1))
     flags = sum(
         1
         for line in raw.splitlines()
@@ -116,6 +147,94 @@ def _external_floors() -> dict[str, int]:
     return found
 
 
+#: The line every harness prints to open a row. DERIVED, not listed:
+#: the emitting function's NAME is read back out of the harness, so a
+#: harness that calls its row function something new is still counted.
+EMIT = re.compile(r'^\s*echo "##########\s*\$(?:label|1)"', re.M)
+
+#: A shell function definition, `name() {`.
+FUNC = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{", re.M)
+
+
+def _live_rows(text: str, row_re: str) -> int | str:
+    r"""Rows `--row-re <row_re>` will match when this harness runs.
+
+    Returns the count, or a string saying why it could not be derived.
+    **A harness whose shape cannot be read is an ERROR, never a skip** -
+    skipping is how the eight externally-floored harnesses went
+    unchecked in the first place.
+
+    The method: find the `echo "########## $label"` that opens a row,
+    take the function it sits in, collect that function's call sites at
+    column 0, and test the line each one WILL print against the gate's
+    own regex. Testing the printed line rather than the call site is
+    what makes `^########## A[0-9]+ ` and `^########## [A-N]\. ` both
+    work, and what keeps the harness's `BASELINE` banner out of the
+    count.
+    """
+    emit = EMIT.search(text)
+    if emit is None:
+        return 'no `echo "########## $label"` row opener'
+    enclosing = [m for m in FUNC.finditer(text) if m.start() < emit.start()]
+    if not enclosing:
+        return "the row opener is not inside a function"
+    fn = enclosing[-1].group(1)
+    calls = re.findall(rf'^{re.escape(fn)}\s+"([^"]*)"', text, re.M)
+    if not calls:
+        return f"row function {fn}() has no call sites at column 0"
+    matched = sum(1 for label in calls if re.search(row_re, f"########## {label}"))
+    if not matched:
+        return (
+            f"{fn}() has {len(calls)} call site(s) and the gate's row regex "
+            f"{row_re!r} matches NONE of the lines they print. A regex that "
+            "matches nothing looks identical to a harness that ran nothing."
+        )
+    return matched
+
+
+def _container_gap(table: list[tuple[str, str, int]]) -> list[str]:
+    """Harnesses carrying a `ROW_FLOOR` that the table does not name.
+
+    R12-M1. The table is not a copy of any number - that much the
+    docstring already got right - but it IS a hand-kept LIST beside a
+    container it never compared itself to, and the container had a
+    member it did not: `check-u15-gate-amputation.sh`, `ROW_FLOOR=5`,
+    exact but unchecked. Enumerating `scripts/*.sh` and requiring the
+    two sets to be EQUAL is what stops the next harness being added
+    without being covered, which is the only durable form of this.
+
+    Both directions are reported. A table row with no `ROW_FLOOR` on
+    disk is just as wrong as a floor with no table row, and the
+    existing per-row check would call it "not on disk" only if the
+    whole file were missing.
+    """
+    on_disk = {
+        p.name
+        for p in sorted(SCRIPTS.glob("*.sh"))
+        if FLOOR_RE.search(p.read_text(encoding="utf-8"))
+    }
+    if not on_disk:
+        return [
+            "NO harness in scripts/ carries a literal ROW_FLOOR. An empty "
+            "container and a fully-covered one are the same green, so this "
+            "is a finding rather than a pass."
+        ]
+    named = {name for name, _, _ in table}
+    gap = []
+    for missing in sorted(on_disk - named):
+        gap.append(
+            f"{missing}: carries a ROW_FLOOR but the control table does not "
+            "name it, so its floor is never compared to a live row count. "
+            "Add it to TABLE in check-row-floor-controls.sh."
+        )
+    for extra in sorted(named - on_disk):
+        gap.append(
+            f"{extra}: named by the control table but carries no literal "
+            "ROW_FLOOR. One of the two is wrong."
+        )
+    return gap
+
+
 def main() -> int:
     table = _table()
     if not table:
@@ -124,7 +243,7 @@ def main() -> int:
         print("this is exit 2 rather than a pass.")
         return 2
 
-    bad: list[str] = []
+    bad: list[str] = _container_gap(table)
     for name, ere, extra in table:
         path = SCRIPTS / name
         if not path.exists():
@@ -153,25 +272,59 @@ def main() -> int:
 
     external = _external_floors()
     paired = 0
+    derived = 0
+    print("\n  --min-rows, against the rows the harness will actually print:")
     for name in sorted(set(external)):
+        min_rows, row_re = external[name]
         path = SCRIPTS / name
         if not path.exists():
+            bad.append(f"{name}: ci.yml passes it --min-rows but it is not on disk")
             continue
-        found = FLOOR_RE.search(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+
+        # CLAIM 3, R12-H2. `--min-rows` is a LOWER bound and nothing
+        # compared it to a live count, so the eight harnesses with no
+        # internal floor were unchecked in both directions. Measured
+        # when this was written: u14's amputation held 16 rows against
+        # 10 and u7's held 22 against 19 - six and three rows deletable
+        # with CI green. Both grew AFTER their step was wired, which is
+        # the merge-produced slack that put u7's CONTROLS at 26 v 31.
+        live = _live_rows(text, row_re)
+        if isinstance(live, str):
+            bad.append(f"{name}: cannot derive a row count - {live}")
+        else:
+            derived += 1
+            print(f"  {name:42} --min-rows {min_rows:3}  rows {live:3}")
+            if live > min_rows:
+                bad.append(
+                    f"{name}: SLACK by {live - min_rows}. It prints {live} "
+                    f"rows and ci.yml passes --min-rows {min_rows}, so "
+                    f"{live - min_rows} row(s) can be deleted without the "
+                    "gate noticing. --min-rows is a LOWER bound; it must "
+                    "EQUAL the live count."
+                )
+            elif live < min_rows:
+                bad.append(
+                    f"{name}: --min-rows {min_rows} exceeds the {live} rows "
+                    "it prints, so this step cannot pass."
+                )
+
+        found = FLOOR_RE.search(text)
         if found is None:
             continue
         paired += 1
         internal = int(found.group(1))
-        if internal != external[name]:
+        if internal != min_rows:
             bad.append(
                 f"{name}: ROW_FLOOR={internal} but ci.yml passes "
-                f"--min-rows {external[name]}. Two independent opinions "
+                f"--min-rows {min_rows}. Two independent opinions "
                 "about one number, and the lower one tolerates losing "
-                f"{abs(internal - external[name])} row(s) the other catches."
+                f"{abs(internal - min_rows)} row(s) the other catches."
             )
 
     print(f"\nHarnesses checked for exactness: {len(table)}")
     print(f"Harnesses carrying BOTH floors, checked for agreement: {paired}")
+    print(f"Harnesses whose --min-rows was compared to a live count: {derived}")
     if not bad:
         print("Every floor equals its harness's live row count. OK.")
         return 0

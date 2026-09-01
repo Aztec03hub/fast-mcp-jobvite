@@ -55,13 +55,42 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # STATICALLY that each floor equals its harness's row count. THIS script
 # reads all five and WATCHES the floor fire by removing real rows.
 #
-# The exactness claim now covers all 23 rows below. The firing claim covers
-# only the first NINE - the ones #91 actually ran - plus
-# `check-u15-gate-amputation.sh` in the singular
-# `check-row-floor-control.sh`. **The fourteen added afterwards have been
-# checked but never watched.** `--list` prints the table, not the evidence;
-# a reader who takes a row here as proof the floor has been seen to fire is
-# reading more than this file says. Task #102 is the remainder.
+# R12-M1: check-u15-gate-amputation.sh WAS MISSING FROM THIS TABLE. The
+# container held 24 harnesses carrying a literal ROW_FLOOR and the table named
+# 23, so that one harness's floor was never compared to a live row count. It
+# was TIGHT (5 rows, ROW_FLOOR=5), so the gap was latent rather than live.
+#
+# It was left out on the argument that `check-row-floor-control.sh` - singular -
+# already watches it fire. That argument is CORRECT and it is about the FIRING
+# claim; the exactness claim is a different question about a different number,
+# and evidence for one is not coverage for the other. So it is a row here rather
+# than an exemption, and it costs one line instead of an exemption register that
+# a reader would have to follow to a second file to learn the harness is covered
+# at all. The two controls overlapping on one harness is not a defect.
+#
+# check-row-floor-exactness.py now enumerates scripts/*.sh for a literal
+# ROW_FLOOR and FAILS unless that set EQUALS this table's, in both directions -
+# so the next harness cannot be added without being covered, which is the only
+# form of this fix that does not need someone to remember.
+#
+# The exactness claim covers all 24 rows below, and SO DOES THE FIRING CLAIM
+# NOW. #91 watched the first nine; #102 watched the remaining fourteen at
+# `0c25ae3` and found all of them tight, with the evidence written up in
+# `docs/worklogs/FLOOR-FIRING-REPORT.md`; `check-u15-gate-amputation.sh` was
+# watched by the singular `check-row-floor-control.sh` and has been re-watched
+# through this script since it became row 24 (R12-M1). Every row here has been
+# seen to fire.
+#
+# R12-L1: THESE LINES SAID THE OPPOSITE UNTIL NOW, and the shape is worth
+# keeping. They read *"the fourteen added afterwards have been checked but never
+# watched ... Task #102 is the remainder"* for as long as #102 had been closed,
+# because `0c25ae3` added a worklog and touched no code - `git diff 0c25ae3^
+# 0c25ae3 --stat` is one file. A control that UNDERSTATES its own coverage and
+# points at a closed task is still a control nobody can read correctly, and the
+# fix is to rewrite the sentence rather than append a correction under it.
+#
+# What `--list` prints is still the table, not the evidence. The evidence is the
+# worklog and a run of this script.
 #
 # For those fourteen the ERE and the EXTRA were DERIVED per harness and
 # checked rather than assumed: each has exactly ONE counter increment and it
@@ -107,6 +136,7 @@ check-u6-paging-controls.sh|^mutate \"|0|1|cmd
 check-u8-candidates-amputation.sh|^amputate \"|0|1|cmd
 check-u8-candidates-controls.sh|^mutate \"|0|1|cmd
 check-u9-http-controls.sh|^mutate \"|0|1|cmd
+check-u15-gate-amputation.sh|^report \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }

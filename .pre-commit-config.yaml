@@ -93,9 +93,10 @@ repos:
   # never ran.
   #
   # WIRED ONLY NOW THAT IT IS GREEN, which is the whole sequencing argument.
-  # Measured against this exact image before the block was added: 22 tracked
-  # `.sh` files, `--severity=warning`, ZERO output, exit 0. It was 4 warnings
-  # this morning; three fixes and one dead declaration closed them. Landing it
+  # Measured against this exact image before the block was added, when the tree
+  # held 22 tracked `.sh` files: `--severity=warning`, ZERO output, exit 0.
+  # It was 4 warnings that morning; three fixes and one dead declaration
+  # closed them. Landing it
   # earlier would have reproduced D3 from U0-REPORT - a gate red on a clean
   # tree trains everyone to ignore it - and worse, ci.yml runs
   # `pre-commit run --all-files`, so a red hook is red CI, not just a red
@@ -103,7 +104,7 @@ repos:
   #
   # POSITIVE CONTROL, because a linter reporting nothing looks identical to a
   # linter that did not run: at the DEFAULT severity the same command over the
-  # same 22 files reports 17 findings, all `note`. The zero at
+  # same 22 files reported 17 findings, all `note`. The zero at
   # `--severity=warning` is a real threshold, not a no-op.
   #
   # `--severity=warning` is the threshold the clause's own CI form
@@ -112,10 +113,18 @@ repos:
   # SHELLCHECK_OPTS. One threshold, three call sites.
   #
   # SELECTION IS BY FILE, NOT BY DIRECTORY. `types: [shell]` is pre-commit's
-  # own identify pass over shebang and extension, so the population is the 22
-  # tracked `.sh` files - which includes four probes under docs/reviews/ and
-  # excludes ci.yml. Measuring `scripts/*.sh` (18) gives the wrong answer in
+  # own identify pass over shebang and extension, so the population is every
+  # tracked `.sh` file - which includes the probes under docs/reviews/ and
+  # excludes ci.yml. Measuring `scripts/*.sh` alone gives the wrong answer in
   # both directions.
+  #
+  # R12-L2: THIS SENTENCE USED TO SAY "the 22 tracked `.sh` files" IN THE
+  # PRESENT TENSE, and by dad014e `git ls-files '*.sh' | wc -l` was 43. The
+  # number is deleted rather than corrected: a count written beside a container
+  # that grows is the defect, and the sentence makes its point without one.
+  # `git ls-files '*.sh' | wc -l` answers it whenever anyone actually needs it.
+  # The two counts left above are DATED MEASUREMENTS of a past run, which is a
+  # different thing from a standing claim about today's population.
   #
   # ADOPTION CEILING, stated rather than discovered: this hook is
   # `language: docker_image`. It pulls koalaman/shellcheck:v0.10.0 and needs a
