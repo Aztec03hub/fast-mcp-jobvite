@@ -1,0 +1,58 @@
+marked lines in check-design-citations.py container: 51
+marked lines in check-design-citation-shape.py container: 25
+distinct marked lines (union): 51
+  carrying 0 citations: 36   (the marker exempts nothing on this line)
+  carrying 1 citation:  13
+  carrying 2+ citations: 2  (line granularity is live here)
+
+.github/workflows/ci.yml:802	[bounds]	cites=0	# the fail-closed REPOINT-EXEMPT read, the checker's stderr health
+CONTRIBUTING.md:202	[bounds]	cites=0	any line marked `REPOINT-EXEMPT`, which is how a script that WRITES an example citation says it is
+docs/briefs/BRIEF-142-scope-the-exemption.md:1	[bounds]	cites=0	# BRIEF #142 (TIER 1) — give `REPOINT-EXEMPT` a scope and a reason
+docs/briefs/BRIEF-142-scope-the-exemption.md:17	[bounds]	cites=0	`REPOINT-EXEMPT` is a bare substring. A line carrying it is skipped
+docs/briefs/BRIEF-142-scope-the-exemption.md:21	[bounds]	cites=1	# PLANT DESIGN.md:99999-99999 REPOINT-EXEMPT
+docs/briefs/BRIEF-142-scope-the-exemption.md:47	[bounds]	cites=1	`REPOINT-EXEMPT(DESIGN.md:373-383)`. That is a suggestion, not a ruling.
+docs/reviews/REPORT-135-midsentence-shape.md:591	[bounds]	cites=0	`REPOINT-EXEMPT` - it is a record of where a defect WAS, the same
+docs/reviews/REVIEW-R10.md:84	[bounds]	cites=0	| R10-L1 | exempt count printed | `20 line(s) skipped as REPOINT-EXEMPT` |
+docs/reviews/REVIEW-R10.md:353	[bounds]	cites=1	past the end    scripts/r9-plant.sh:2  DESIGN.md:99999   -> "past the end of DESIGN.md"       exit 1   # REPOINT-EXEMPT (quoted probe output)
+docs/reviews/REVIEW-R10.md:411	[bounds]	cites=0	## R10-L1 - `REPOINT-EXEMPT` silences a genuine finding on the same line, and the scan never says how many lines it skipped
+docs/reviews/REVIEW-R10.md:416	[bounds]	cites=1	# see DESIGN.md:99999 for the rule  REPOINT-EXEMPT
+docs/reviews/REVIEW-R12.md:77	[bounds]	cites=0	AssertionError: A1 fail-open REPOINT-EXEMPT read restored: anchor appears 0 times, not once
+docs/reviews/REVIEW-R12.md:82	[bounds]	cites=0	(`docs/reviews/probe-docs-lint-amputation.py:99-108`) quotes the fail-closed `REPOINT-EXEMPT` read
+docs/reviews/REVIEW-R12.md:105	[bounds]	cites=0	fail-closed `REPOINT-EXEMPT` read, the upstream checker's stderr health check, and the two narrowed
+docs/reviews/WORKLOG-126-blank-end-sweep.md:54	[bounds]	cites=0	about that fact. Marked `REPOINT-EXEMPT` on the line instead - the same
+docs/reviews/WORKLOG-126-blank-end-sweep.md:63	[bounds]	cites=0	`REPOINT-EXEMPT` lines went 22 -> 23, exactly the one line added.
+docs/reviews/check-design-citation-shape.py:33	[both]	cites=1	not move: `DESIGN.md:311` (REPOINT-EXEMPT) was cited for "a URL
+docs/reviews/check-design-citation-shape.py:45	[both]	cites=1	read - `DESIGN.md:373-383` and `:674-680`, REPOINT-EXEMPT because
+docs/reviews/check-design-citations.py:13	[both]	cites=0	REPOINT-EXEMPT
+docs/reviews/check-design-citations.py:14	[both]	cites=1	- `DESIGN.md:918-923` was contracted by one line. REPOINT-EXEMPT. It
+docs/reviews/check-design-citations.py:46	[both]	cites=0	REPOINT-EXEMPT for the addresses above. That edit shifts an unknown
+docs/reviews/check-design-citations.py:78	[both]	cites=2	# Examples, REPOINT-EXEMPT: `DESIGN.md:603`, `DESIGN.md:918-924` - these
+docs/reviews/check-design-citations.py:122	[both]	cites=0	EXEMPT_MARKER = "REPOINT-EXEMPT"
+docs/reviews/check-design-citations.py:129	[both]	cites=0	Lines marked `REPOINT-EXEMPT` are skipped and COUNTED, so the
+docs/reviews/check-design-citations.py:201	[both]	cites=1	# `DESIGN.md:99999-99999 REPOINT-EXEMPT` passes THIS gate and the
+docs/reviews/check-design-citations.py:319	[both]	cites=2	if _CITATION.findall("see DESIGN.md:918-924 and DESIGN.md:603"):  # REPOINT-EXEMPT
+docs/reviews/probe-docs-lint-amputation.py:11	[both]	cites=0	A1  the fail-closed REPOINT-EXEMPT read      -> kills rows A, B
+docs/reviews/probe-docs-lint-amputation.py:178	[both]	cites=0	"A1 fail-open REPOINT-EXEMPT read restored",
+docs/reviews/probe-docs-lint-amputation.py:182	[both]	cites=0	if "REPOINT-EXEMPT" in cited_line:""",
+docs/reviews/probe-docs-lint-amputation.py:185	[both]	cites=0	if "REPOINT-EXEMPT" in cited_line:""",
+docs/reviews/probe-midsentence-shape.py:32	[both]	cites=1	- `DESIGN.md:906` (REPOINT-EXEMPT: a record of where a defect WAS, and
+docs/reviews/probe-repoint-fail-closed.py:2	[both]	cites=0	"""The REPOINT-EXEMPT check in repoint-design-citations.py fails CLOSED.
+docs/reviews/probe-repoint-fail-closed.py:5	[both]	cites=0	it carries the `REPOINT-EXEMPT` marker. That read can fail - the
+docs/reviews/probe-repoint-fail-closed.py:57	[both]	cites=0	# REPOINT-EXEMPT: these are example citations the probe WRITES,
+docs/reviews/probe-repoint-fail-closed.py:87	[both]	cites=1	plain.write_text("a citation lives here: DESIGN.md:100\n")  # REPOINT-EXEMPT
+docs/reviews/probe-repoint-fail-closed.py:100	[both]	cites=1	marked.write_text("DESIGN.md:100  # REPOINT" + "-EXEMPT\n")  # REPOINT-EXEMPT
+docs/reviews/probe-repoint-fail-closed.py:104	[both]	cites=0	"D. REPOINT-EXEMPT line is skipped and is NOT called unreadable",
+docs/reviews/repoint-design-citations.py:14	[both]	cites=0	- It ignores any line carrying the marker `REPOINT-EXEMPT`. A script
+docs/reviews/repoint-design-citations.py:100	[both]	cites=0	The REPOINT-EXEMPT check FAILS CLOSED. If the cited file cannot be
+docs/reviews/repoint-design-citations.py:123	[both]	cites=0	if "REPOINT-EXEMPT" in cited_line:
+docs/reviews/repoint-design-citations.py:213	[both]	cites=0	"they carry REPOINT-EXEMPT is UNKNOWN. Refusing to repoint "
+docs/worklogs/ADR-0025-REPORT.md:340	[bounds]	cites=0	**Suggested fix:** mark them `REPOINT-EXEMPT`, which is the marker
+docs/worklogs/ADR-BATCH-8ADR-REPORT.md:216	[bounds]	cites=0	**`REPOINT-EXEMPT`**, five such lines are marked, the examples are restored to the addresses they
+docs/worklogs/AUDIT-SURVIVORS-REPORT.md:266	[bounds]	cites=1	`:416` (`DESIGN.md:99999 is past the end`).  <!-- REPOINT-EXEMPT: quotes the planted citation as evidence -->
+docs/worklogs/DOCS-LINT-REPORT.md:18	[bounds]	cites=0	`parse()` reads the cited line to see whether it carries `REPOINT-EXEMPT`.
+docs/worklogs/DOCS-LINT-REPORT.md:26	[bounds]	cites=0	N cited line(s) could not be read, so whether they carry REPOINT-EXEMPT
+docs/worklogs/DOCS-LINT-REPORT.md:50	[bounds]	cites=0	D.  REPOINT-EXEMPT line is skipped and is NOT called unreadable   PASS
+docs/worklogs/DOCS-LINT-REPORT.md:126	[bounds]	cites=0	A1 fail-open REPOINT-EXEMPT read restored     CAUGHT: rows killed {A, B}
+docs/worklogs/DOCS-LINT-REPORT.md:234	[bounds]	cites=0	1789 across one more file). They are marked `REPOINT-EXEMPT`, which is the
+docs/worklogs/WORKLOG-115B-kind-not-path.md:169	[bounds]	cites=1	DESIGN.md:99999 is past the end of DESIGN.md (2133 lines)  <!-- REPOINT-EXEMPT: quotes a checker failure as evidence -->
+docs/worklogs/WORKLOG-115B-kind-not-path.md:173	[bounds]	cites=0	citation with **no** `REPOINT-EXEMPT` marker. It was fixed on `main` at **`3411812`**
