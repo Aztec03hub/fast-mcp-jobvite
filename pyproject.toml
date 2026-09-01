@@ -90,6 +90,18 @@ dev = [
   "pytest-cov>=5",
   "ruff>=0.6",
   "mypy>=1.11",
+  # `docs/reviews/check-checkers-are-wired.py` parses the workflow YAML
+  # rather than grepping it, because a grep counts a name in a COMMENT as
+  # wired and that mislabelled four checkers here in one day.
+  #
+  # BOTH LINES ARE DELIBERATE. pyyaml was already resolvable as a
+  # TRANSITIVE dependency of three other packages, which is why the
+  # checker ran green locally and died in CI with ModuleNotFoundError:
+  # relying on someone else's dependency is relying on a fact nobody
+  # promised. types-PyYAML is what `mypy` needs; without it the Types job
+  # fails on the import even when the import works.
+  "pyyaml>=6",
+  "types-PyYAML>=6",
   # COMPLIANCE-SPEC.md:194 requires this in dev and it was absent. The licence gate
   # worked only via `uv run --with pip-licenses`, which resolves it UNPINNED on every
   # run, outside uv.lock - so the tool auditing the frozen resolve was itself unfrozen,

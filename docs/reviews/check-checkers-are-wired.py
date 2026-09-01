@@ -157,6 +157,58 @@ def strip_comments(body: str) -> str:
     return re.sub(r"(?m)(?<!\$)#.*$", "", body)
 
 
+#: A step body that invokes a checker with the interpreter that has only
+#: the standard library. `uv run ...` reaches the project environment;
+#: a bare `python3 docs/reviews/x.py` does not.
+_BARE_PYTHON = re.compile(
+    r"(?<!uv run )(?<!uv run --frozen )python3?\s+\S*?(?P<name>check-[\w-]+\.py)"
+)
+
+#: `import x` / `from x import ...` at the start of a line - top-level
+#: imports only, which is where an unavailable module kills the process.
+_IMPORT = re.compile(r"^(?:import|from)\s+([\w.]+)", re.MULTILINE)
+
+
+def third_party_imports(name: str) -> list[str]:
+    """Modules a checker imports that the stdlib does not ship.
+
+    Local-only names are excluded: this asks what a BARE interpreter
+    would fail to find, not what is merely unusual.
+    """
+    path = ROOT / "docs" / "reviews" / name
+    if not path.exists() or path.suffix != ".py":
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    found = {m.group(1).split(".")[0] for m in _IMPORT.finditer(text)}
+    return sorted(
+        mod
+        for mod in found
+        if mod not in sys.stdlib_module_names and mod != "__future__"
+    )
+
+
+def bare_python_steps(text: str) -> list[tuple[str, list[str]]]:
+    """Checkers run by a bare interpreter that need more than stdlib.
+
+    **THIS EXISTS BECAUSE I SHIPPED EXACTLY THIS AND TURNED main RED.**
+    Every other checker in `docs/reviews/` is stdlib-only, so the family
+    convention is `run: python3 ...`. This one imports `yaml`; I tested
+    it with `uv run`, wired it as `python3`, and my local `python3`
+    happened to have pyyaml while the runner's did not. It died with
+    `ModuleNotFoundError` on the commit that wired it.
+
+    A convention that is safe for every existing member is not safe for
+    the member that breaks the assumption the convention rests on.
+    """
+    problems: list[tuple[str, list[str]]] = []
+    for match in _BARE_PYTHON.finditer(text):
+        name = match.group("name")
+        needed = third_party_imports(name)
+        if needed:
+            problems.append((name, needed))
+    return problems
+
+
 def run_bodies() -> tuple[str, int]:
     """Every `jobs.*.steps[].run` in every workflow, comment-stripped.
 
@@ -279,6 +331,22 @@ def main() -> int:
         for name in stale:
             print(f"  {name}")
         print("The reason has outlived the condition. Delete the entry.")
+
+    bare = bare_python_steps(text)
+    if bare:
+        problems = True
+        print(f"\n{len(bare)} checker(s) run by a BARE interpreter but need")
+        print("more than the standard library:")
+        for name, needed in bare:
+            print(f"  {name}  needs {', '.join(needed)}")
+        print(
+            "\nA bare `python3` reaches only the standard library. The step\n"
+            "passes wherever the module happens to be installed and dies\n"
+            "with ModuleNotFoundError on a clean runner. Use\n"
+            "`uv run --frozen python ...`, and declare the module in\n"
+            "pyproject's dev group - a transitive dependency is a fact\n"
+            "nobody promised you."
+        )
 
     if unknown:
         problems = True
