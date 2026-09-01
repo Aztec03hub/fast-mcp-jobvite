@@ -522,6 +522,9 @@ if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
 fi
 
 echo "########## $FIRED/$TOTAL controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "$FIRED" "$TOTAL"
 if [ "$FIRED" -ne "$TOTAL" ]; then
   echo "A SURVIVING ROW IS A FINDING. Read it before trusting the suite."
   exit 1

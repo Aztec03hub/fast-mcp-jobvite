@@ -237,6 +237,9 @@ control AMP "the whole validator is short-circuited to accept everything" \
 
 echo
 echo "$FIRED/$HELD controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "$FIRED" "$HELD"
 # THE ROW FLOOR. `FIRED -eq HELD` is satisfied by 0 == 0. The zero test
 # this replaces caught only TOTAL deletion; the realistic shape is
 # PARTIAL - a refactor that drops rows, or an anchor that stops matching

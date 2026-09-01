@@ -536,6 +536,9 @@ mutate "M32 the record ceiling can never fire" \
   '            if len(items) >= MAX_SCAN_RECORDS * 10_000:'
 
 echo "$FIRED/$TOTAL controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "$FIRED" "$TOTAL"
 
 # THE ROW FLOOR. `TOTAL -gt 0` catches only TOTAL deletion; `FIRED -eq
 # TOTAL` is satisfied by 0 == 0. Neither sees PARTIAL deletion, which is

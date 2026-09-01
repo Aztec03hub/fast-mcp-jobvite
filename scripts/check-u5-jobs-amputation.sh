@@ -478,6 +478,9 @@ amputate "A14 _to_job silently stops mapping one admitted field" "$TOOLS" \
   '        sent_date=None,'
 
 echo "########## ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally applied "$APPLIED" "$ROWS"
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
 echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"
 

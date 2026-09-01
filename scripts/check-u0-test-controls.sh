@@ -222,6 +222,9 @@ run_control "make uv.lock disagree with the manifest" \
 
 echo "================================================================"
 echo "$((TOTAL - BAD))/$TOTAL controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "$((TOTAL - BAD))" "$TOTAL"
 
 # THE ROW FLOOR. `BAD -eq 0` is satisfied by a harness with no rows at all:
 # delete every `run_control` call and this prints "0/0 controls fired." and

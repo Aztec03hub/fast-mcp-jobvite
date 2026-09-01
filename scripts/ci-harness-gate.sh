@@ -39,9 +39,9 @@
 #
 # Usage:
 #   ci-harness-gate.sh <harness.sh> [options]
-#     --controls-fired        require an "N/M controls fired." line with N == M and M > 0
-#     --result-killed         require a "RESULT: N killed, M not killed" line, N > 0, M == 0
-#     --anchors-applied       require a "ROWS: N   ANCHORS APPLIED: M" line with N == M
+#     --controls-fired        require `fired=N/M` on the harness's canonical line, N == M, M > 0
+#     --result-killed         require `killed=N/M` on it, N == M, M > 0
+#     --anchors-applied       require `applied=N/M` on it, N == M, M > 0
 #     --min-rows N --row-re RE  require at least N lines matching RE
 #     --require RE            require at least one line matching RE
 #     --amputation            survivors are output, so exit 0 is not the only pass;
@@ -249,57 +249,105 @@ if [[ "$out" == *"TIMED OUT"* ]]; then
   fail=1
 fi
 
-# ---- "N/M controls fired." -------------------------------------------------
+# ---- THE TALLY, READ FROM THE CANONICAL LINE AND NOT FROM PROSE ------------
+# TASK #120, and this is the half #107 left open. These three flags used to
+# parse three hand-kept PROSE shapes out of the harness's log - `N/M controls
+# fired.`, `RESULT: N killed, M not killed`, and `ROWS: N   ANCHORS APPLIED: M`,
+# the last carrying three significant spaces. Three literals in THIS file that
+# had to stay byte-matched to one echo statement in each of twenty-six others:
+# the same hand-kept shape list #107 deleted from the floor half, still standing
+# in the tally half.
+#
+# THE HUMAN PROSE STAYS in the harnesses. What moved is the MACHINE's reading of
+# it: each harness now publishes `fired=`/`killed=`/`applied=` through
+# scripts/lib/harness-result.sh, where the format has one home, and this reads
+# that field by name. A harness rewording its sentence can no longer break a
+# gate, and a gate can no longer be quietly reworded away from its harness.
+#
+# THE MEANINGS ARE STILL FOUR AND ARE STILL KEPT APART. There is one field name
+# per meaning, this reads only the one its own flag names, and the three
+# diagnoses below are written separately on purpose - a message that
+# misdescribes what happened sends the next reader to the wrong place, which is
+# what this file says about the anchor vocabulary one section up.
+#
+# THE LINE IS SELECTED BY `name=`, NEVER BY POSITION. This gate sources the same
+# shared file and emits its OWN canonical line, so the step's log holds more than
+# one; and a harness that echoes an artifact it ran would put a second one inside
+# `$out` itself. `tail -1` over all of them would read the wrong harness's tally.
+# The prose shapes had no name field and could not make this distinction at all.
+tally_n=0
+tally_m=0
+
+# read_tally <field> <what>: sets tally_n/tally_m, or complains and returns 1.
+# The two STRUCTURAL failures - no canonical line, no such field on it - are one
+# defect with one meaning ("this harness published no tally"), so they share a
+# message. The numeric comparisons do NOT: those are per-flag, below.
+read_tally() {
+  local field="$1" what="$2" line
+  # A here-string, not a pipe: `grep -q`-style early exit under `pipefail`
+  # promotes SIGPIPE to 141 on long output, which this file has been bitten by
+  # twice. See the note above the anchor gate.
+  line=$(grep -E "^HARNESS-RESULT name=$harness " <<< "$out" | tail -1)
+  if [ -z "$line" ]; then
+    echo "::error::$harness printed no HARNESS-RESULT line naming itself, so its"
+    echo "         $what cannot be read. Every script under scripts/ emits one"
+    echo "         from scripts/lib/harness-result.sh; docs/reviews/"
+    echo "         check-harness-result.sh asserts that as a set equality."
+    return 1
+  fi
+  tally_n=$(tr ' ' '\n' <<< "$line" | sed -n "s|^$field=\([0-9][0-9]*\)/[0-9][0-9]*$|\1|p")
+  tally_m=$(tr ' ' '\n' <<< "$line" | sed -n "s|^$field=[0-9][0-9]*/\([0-9][0-9]*\)$|\1|p")
+  if [ -z "$tally_n" ] || [ -z "$tally_m" ]; then
+    echo "::error::$harness's canonical line carries no readable '$field=N/M'"
+    echo "         field, so its $what was never published:"
+    echo "           $line"
+    echo "         Call \`harness_result_tally $field <n> <m>\` beside the"
+    echo "         harness's own tally line. A gate reading a field nothing"
+    echo "         writes is INOPERATIVE and looks exactly like coverage."
+    return 1
+  fi
+  return 0
+}
+
 if [ "$want_controls_fired" -eq 1 ]; then
-  line=$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ controls fired\.' | tail -1)
-  if [ -z "$line" ]; then
-    echo "::error::$harness printed no 'N/M controls fired.' line"; fail=1
-  else
-    fired=${line%%/*}; rest=${line#*/}; total=${rest%% *}
-    if [ "$total" -eq 0 ]; then
+  if read_tally fired "controls tally"; then
+    if [ "$tally_m" -eq 0 ]; then
       echo "::error::$harness holds ZERO controls; a green from it means nothing"; fail=1
-    elif [ "$fired" -ne "$total" ]; then
-      echo "::error::$harness: only $fired of $total controls fired"; fail=1
+    elif [ "$tally_n" -ne "$tally_m" ]; then
+      echo "::error::$harness: only $tally_n of $tally_m controls fired"; fail=1
     fi
+  else
+    fail=1
   fi
 fi
 
-# ---- "RESULT: N killed, M not killed" --------------------------------------
 if [ "$want_result_killed" -eq 1 ]; then
-  line=$(printf '%s\n' "$out" | grep -oE 'RESULT: [0-9]+ killed, [0-9]+ not killed' | tail -1)
-  if [ -z "$line" ]; then
-    echo "::error::$harness printed no 'RESULT:' line"; fail=1
-  else
-    killed=$(printf '%s' "$line" | grep -oE '[0-9]+ killed' | grep -oE '[0-9]+')
-    not_killed=$(printf '%s' "$line" | grep -oE '[0-9]+ not killed' | grep -oE '[0-9]+')
-    if [ "$killed" -eq 0 ]; then
+  if read_tally killed "mutation tally"; then
+    # ZERO FIRST. `n -ne m` is FALSE at 0 == 0, so a harness that ran NO
+    # mutations would sail through the comparison below saying nothing survived.
+    if [ "$tally_m" -eq 0 ]; then
       echo "::error::$harness killed ZERO mutations - it ran nothing"; fail=1
+    elif [ "$tally_n" -ne "$tally_m" ]; then
+      echo "::error::$harness: $((tally_m - tally_n)) mutations survived"; fail=1
     fi
-    if [ "${not_killed:-1}" -ne 0 ]; then
-      echo "::error::$harness: $not_killed mutations survived"; fail=1
-    fi
+  else
+    fail=1
   fi
 fi
 
-# ---- "ROWS: N   ANCHORS APPLIED: M" ---------------------------------------
 if [ "$want_anchors_applied" -eq 1 ]; then
-  line=$(printf '%s\n' "$out" | grep -oE 'ROWS: [0-9]+   ANCHORS APPLIED: [0-9]+' | tail -1)
-  if [ -z "$line" ]; then
-    echo "::error::$harness printed no 'ROWS/ANCHORS APPLIED' line"; fail=1
-  else
-    rows=$(printf '%s\n' "$line" | grep -oE 'ROWS: [0-9]+' | grep -oE '[0-9]+')
-    applied=$(printf '%s\n' "$line" | grep -oE 'APPLIED: [0-9]+' | grep -oE '[0-9]+')
-    # ZERO FIRST, because `rows -ne applied` is FALSE at 0 == 0 and a harness
-    # that ran NOTHING would sail through the comparison below. The two sibling
-    # branches above already refuse their own zero - `total -eq 0` for
-    # --controls-fired, `killed -eq 0` for --result-killed - so without this the
+  if read_tally applied "anchor tally"; then
+    # ZERO FIRST, for the reason its two siblings above give: a harness that ran
+    # NOTHING reports 0/0 and every equality check passes. Without this the
     # script disagreed with ITSELF about whether an empty run is acceptable,
     # depending only on which flag you passed. The generic form of R4-M4.
-    if [ "$rows" -eq 0 ]; then
+    if [ "$tally_m" -eq 0 ]; then
       echo "::error::$harness ran ZERO rows; a green from it means nothing"; fail=1
-    elif [ "$rows" -ne "$applied" ]; then
-      echo "::error::$harness: only $applied of $rows anchors applied"; fail=1
+    elif [ "$tally_n" -ne "$tally_m" ]; then
+      echo "::error::$harness: only $tally_n of $tally_m anchors applied"; fail=1
     fi
+  else
+    fail=1
   fi
 fi
 

@@ -384,6 +384,9 @@ amputate "A22 neither bound makes the result incomplete" \
 # 0 is not a floor anything can breach, and it reads as absent.
 harness_result_ran "$ROWS" 0
 echo "ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally applied "$APPLIED" "$ROWS"
 echo "VACUOUS ROWS: $VACUOUS"
 echo "TOTAL SURVIVING ASSERTIONS ACROSS ALL ROWS: $TOTAL_SURVIVORS"
 if [ "$ROWS" -eq 0 ] || [ "$APPLIED" -ne "$ROWS" ]; then

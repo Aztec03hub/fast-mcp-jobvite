@@ -969,10 +969,20 @@ jobs:
       - name: U7 resilience controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
 
+      # `--anchors-applied` ADDED BY #120. Its census asked, of every harness
+      # printing a tally, whether any gate reads it. These three printed
+      # `ROWS: N   ANCHORS APPLIED: M` and no step read it, while their five
+      # siblings' steps did - a difference nothing had decided, produced by the
+      # steps being written at different times. The tally was never decorative:
+      # each harness gates on it internally and exits 3 or 1, and each prints a
+      # vocabulary phrase the gate already greps for. What was missing is the
+      # SECOND, INDEPENDENT layer the other five have, which is what catches a
+      # harness whose own comparison is deleted. It costs nothing to add and it
+      # is the answer #120's Q2 reached for these three.
       - name: U7 resilience amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
-            --amputation --min-rows 22 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 22 --row-re '^########## A[0-9]+ '
 
       # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
       # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
@@ -1009,7 +1019,7 @@ jobs:
       - name: U9 HTTP hardening amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u9-http-amputation.sh \
-            --amputation --min-rows 14 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
 
       # ----- U12, get_job_feed - the one route whose URL is a secret -----
       # WIRED IN THE MERGE COMMIT. C5-I1 is a High and its arms are the reason
@@ -1047,7 +1057,7 @@ jobs:
       - name: U10 write amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u10-write-amputation.sh \
-            --amputation --min-rows 10 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # ----- U14, the argument layer: the sweep over the input models -----
       # U14 MERGED WITH BOTH HARNESSES UNWIRED. They existed, they passed, and
