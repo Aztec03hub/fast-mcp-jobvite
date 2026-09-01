@@ -72,6 +72,23 @@ A Tier-1 brief must carry:
   work is committed, THEN stop. Never stop a worker to tidy up while it
   is still running.
 
+### Two environment traps, both measured on the FIRST Tier-1 dispatch
+
+**`isolation: "worktree"` cuts from the SESSION's outer repo, not from the
+one you mean.** The first sub-orchestrator was pinned to a worktree of a
+different repository entirely — no `docs/briefs`, nothing it had been sent
+to read — and the write guard refuses `git -C` back out of it. **So every
+Tier-1 brief must name the absolute repo path and say to `cd` there and
+create its own worktree if the one it is given is wrong.** The agent
+worked this out unaided and said so; the next one should not have to.
+
+**A Tier-1 agent has no task tools.** `TaskCreate/TaskGet/TaskUpdate`
+resolve to nothing in a subagent session, so a sub-orchestrator cannot
+claim its own task or file findings on the board. **`SendMessage` to
+`team-lead` IS its board**, and Tier 0 owns every task row on its behalf.
+Say this in the brief; otherwise the agent reports, correctly, that the
+task was never claimed and cannot tell whether that matters.
+
 ## Tier 2: workers (sonnet), trivial workers (haiku)
 
 Spawned BY a Tier-1 agent, inside its worktree.
