@@ -353,6 +353,17 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Fixed
 
+- **Main was red on two gates, and one of them was a row I ruled into existence.** ADR-0032's new
+  STRIDE row `C2-T2` carried a Test cell reading `§8: <a test function name>`. That prefix asserts a
+  §8 CASE, and the coupling gate requires the named case to exist in §8 - a test name is not one. My
+  ruling fixed the row's id and its Likelihood/Impact and said nothing about the disposition column,
+  so the row was added in a form the gate refuses. The Test cell now reads `not required (Low)`,
+  which is the vocabulary's own term for the exemption a Low row has, and the tripwire it was
+  pointing at is named in the MITIGATION column where it belongs - nothing is lost and nothing is
+  overclaimed. The second failure was a 40-character git SHA in a probe read as a "Hex High Entropy
+  String"; it is marked with the inline pragma the tool itself prints, in preference to a baseline
+  entry that would be invisible at the call site. (2026-09-01 01:07 PM CDT)
+
 - **A harness baseline could hang forever and CI would just sit there.** Five harnesses bound their
   ROW runs at 900s - with a comment saying why, *"a row that hangs anyway must report rather than
   stall the gate"* - and ran the BASELINE pytest above them with no bound at all. The protection had
