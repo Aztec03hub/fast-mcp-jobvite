@@ -58,7 +58,9 @@ for p in sorted(pop):
     # for everything outside docs/adr/, still counted their 19
     # references as unresolved. Two numbers for one question is the
     # defect this file exists to prevent.
-    ref = m.DEFAULT_TARGETS.get(p, "docs/DESIGN.md" if p.startswith("docs/adr/") else None)
+    ref = m.DEFAULT_TARGETS.get(
+        p, "docs/DESIGN.md" if p.startswith("docs/adr/") else None
+    )
     try:
         miss = m.unresolved(text, ref, p)
     except ValueError as e:
