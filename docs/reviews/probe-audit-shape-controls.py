@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 """CONTROLS FOR THE AUDIT-SHAPE CONTAINER PROBE (task #104).
 
-WHY THIS EXISTS AS A SEPARATE, RUNNABLE FILE. `probe-audit-shape-container.py`
-reports survivors, and a survivor is indistinguishable from a probe that
-mutated nothing: both print a clean suite. Prose asserting "the probe works"
-decays into a claim that it once did, so the controls are a script, run
-before any verdict from that probe is believed.
+WHY THIS EXISTS AS A SEPARATE, RUNNABLE FILE. The container probe
+reports survivors, and a survivor is indistinguishable from a probe
+that mutated nothing: both print a clean suite. Prose asserting "the
+probe works" decays into a claim that it once did, so the controls
+are a script, run before any verdict from that probe is believed.
 
 Four controls, each aimed at a different way the sweep could be vacuous:
 
-  A. THE POPULATION IS LIVE, NOT CACHED. Three `emit(...)` call sites are
-     planted in `src/` and the derivation must grow by exactly three and
-     name them. A derivation frozen into a literal would not move.
-  B. A PLANTED SITE THAT MUST BE KILLED IS KILLED. The plant is asserted by
-     a planted test, so deleting it MUST take the suite red. If this passes
-     green the probe's verdict channel is broken and every "VACUOUS" it has
-     ever printed is meaningless.
-  C. A PLANTED SITE THAT MUST SURVIVE SURVIVES. Identical shape, identical
-     operator, differing ONLY in that no test asserts it. This is the arm
-     that proves a survivor is a property of the SUITE and not an artefact
-     of the probe - B and C differ by one test file and nothing else.
+  A. THE POPULATION IS LIVE, NOT CACHED. Three `emit(...)` call
+     sites are planted in `src/` and the derivation must grow by
+     exactly three and name them. A derivation frozen into a
+     literal would not move.
+  B. A PLANTED SITE THAT MUST BE KILLED IS KILLED. The plant is
+     asserted by a planted test, so deleting it MUST take the suite
+     red. If this passes green the probe's verdict channel is broken
+     and every "VACUOUS" it has ever printed is meaningless.
+  C. A PLANTED SITE THAT MUST SURVIVE SURVIVES. Identical shape and
+     identical operator, differing ONLY in that no test asserts it.
+     This is the arm that proves a survivor is a property of the
+     SUITE and not an artefact of the probe - B and C differ by one
+     test file and nothing else.
   D. A ROW WHOSE MUTATION DOES NOT LAND IS REFUSED, NOT SCORED. Two
      independent ways for a row not to land, because they refuse at
      different lines:
@@ -33,8 +35,8 @@ Four controls, each aimed at a different way the sweep could be vacuous:
      A refused row must report `applied=False` and carry NO exit code. A
      refusal scored as a verdict would read as a survivor.
 
-Exits 0 only if all four hold. Removes its plants and asserts the tree is
-clean under BOTH src/ and tests/.
+Exits 0 only if all four hold. Removes its plants and asserts the
+tree is clean under BOTH src/ and tests/.
 """
 
 from __future__ import annotations
@@ -45,20 +47,23 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLANT_SRC = REPO_ROOT / "src" / "fast_mcp_jobvite" / "_probe_control.py"
 PLANT_TEST = REPO_ROOT / "tests" / "test_probe_control_plant.py"
 
-# The three plants live in one file so that B and C are the SAME shape under
-# the SAME operator. `asserted_site` and `unasserted_site` have byte-identical
-# bodies; the only difference in the whole experiment is that a test names one
-# of them.
-PLANT_SRC_TEXT = '''"""CONTROL PLANT - written and deleted by docs/reviews/probe-audit-shape-controls.py.
+# The three plants live in one file so that B and C are the SAME
+# shape under the SAME operator. `asserted_site` and `unasserted_site`
+# have byte-identical bodies; the only difference in the whole
+# experiment is that a test names one of them.
+PLANT_SRC_TEXT = '''"""CONTROL PLANT - probe-audit-shape-controls.py.
 
-If this file is present in a commit, the control script died without cleaning
-up and the tree is dirty. It is not part of the server.
+Written and deleted by that script. If this file is present in a
+commit, the control script died without cleaning up and the tree is
+dirty. It is not part of the server.
 """
 
 from fast_mcp_jobvite.audit import AuditEvent, AuditPhase, emit
@@ -81,7 +86,7 @@ def refused_site(event: AuditEvent, flag: bool) -> None:
         emit(event, AuditPhase.READ)
 '''
 
-PLANT_TEST_TEXT = '''"""CONTROL PLANT - written and deleted by docs/reviews/probe-audit-shape-controls.py."""
+PLANT_TEST_TEXT = '''"""CONTROL PLANT - written and deleted by the controls script."""
 
 from unittest.mock import patch
 
@@ -95,22 +100,23 @@ def test_asserted_site_emits_its_audit_row() -> None:
 '''
 
 
-def load_probe():
+def load_probe() -> ModuleType:
     path = REPO_ROOT / "docs" / "reviews" / "probe-audit-shape-container.py"
     if not path.exists():  # a search at a path that does not exist exits clean
         raise SystemExit(f"the probe under test is not at {path}")
     spec = importlib.util.spec_from_file_location("_shape_probe", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
-    # REGISTERED BEFORE EXECUTION: `@dataclass` resolves its annotations through
-    # `sys.modules[cls.__module__]`, so a module executed without being
-    # registered raises AttributeError on the first dataclass.
+    # REGISTERED BEFORE EXECUTION: `@dataclass` resolves its
+    # annotations through `sys.modules[cls.__module__]`, so a module
+    # executed without being registered raises AttributeError on the
+    # first dataclass.
     sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod
 
 
-def _fn_of(site) -> str:
+def _fn_of(site: Any) -> str:
     """Which planted function a site falls in, by reading the source."""
     lines = PLANT_SRC.read_text().splitlines()
     current = ""
@@ -122,7 +128,7 @@ def _fn_of(site) -> str:
     return ""
 
 
-def find(sites, name: str):
+def find(sites: list[Any], name: str) -> Any:
     hits = [s for s in sites if s.path == PLANT_SRC and _fn_of(s) == name]
     if len(hits) != 1:
         raise SystemExit(f"expected exactly 1 planted emit in {name}, got {len(hits)}")
@@ -186,7 +192,9 @@ def main() -> int:
                 "probe's verdict channel is broken; no VACUOUS it prints means "
                 "anything."
             )
-        elif not any("_probe_control" in k or "probe_control_plant" in k for k in v.killed):
+        elif not any(
+            "_probe_control" in k or "probe_control_plant" in k for k in v.killed
+        ):
             failures.append(
                 f"B: the suite went red but the planted test is not among the "
                 f"killed tests {v.killed} - it died for an unrelated reason"
@@ -220,8 +228,9 @@ def main() -> int:
             print(f"D1 PASS: refused, no verdict - {v.refused}")
 
         # ------------------------------------------------- CONTROL D2
-        # The write silently does nothing. This is the `str.replace` against a
-        # moved anchor failure, and it must be caught by the byte comparison.
+        # The write silently does nothing. This is the `str.replace`
+        # against a moved anchor failure, and it must be caught by the
+        # byte comparison.
         def _write_nothing(*_args: object, **_kwargs: object) -> int:
             return 0
 

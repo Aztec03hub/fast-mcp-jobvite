@@ -1,0 +1,110 @@
+THE DERIVED POPULATION - every site must appear as a row below:
+
+  [emit]  13 sites
+    src/fast_mcp_jobvite/tools/candidates.py:648:20  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:656:16  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:694:20  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:702:16  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:768:20  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:780:20  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:796:16  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:818:20  emit(...)
+    src/fast_mcp_jobvite/tools/candidates.py:832:27  emit(...)
+    src/fast_mcp_jobvite/tools/jobs.py:419:16  emit(...)
+    src/fast_mcp_jobvite/tools/jobs.py:426:12  emit(...)
+    src/fast_mcp_jobvite/tools/jobs.py:704:16  emit(...)
+    src/fast_mcp_jobvite/tools/jobs.py:711:12  emit(...)
+
+  [is_error]  6 sites
+    src/fast_mcp_jobvite/tools/candidates.py:654:24  is_error=True
+    src/fast_mcp_jobvite/tools/candidates.py:700:24  is_error=True
+    src/fast_mcp_jobvite/tools/candidates.py:790:24  is_error=True
+    src/fast_mcp_jobvite/tools/candidates.py:824:24  is_error=True
+    src/fast_mcp_jobvite/tools/jobs.py:424:20  is_error=True
+    src/fast_mcp_jobvite/tools/jobs.py:709:20  is_error=True
+
+  [audit_phase]  15 sites
+    src/fast_mcp_jobvite/audit.py:381:16  AuditPhase.BEFORE_SIDE_EFFECT
+    src/fast_mcp_jobvite/audit.py:403:16  AuditPhase.AFTER_WRITE
+    src/fast_mcp_jobvite/tools/candidates.py:648:32  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/candidates.py:656:28  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/candidates.py:694:32  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/candidates.py:702:28  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/candidates.py:768:32  AuditPhase.BEFORE_SIDE_EFFECT
+    src/fast_mcp_jobvite/tools/candidates.py:780:32  AuditPhase.BEFORE_SIDE_EFFECT
+    src/fast_mcp_jobvite/tools/candidates.py:796:28  AuditPhase.BEFORE_SIDE_EFFECT
+    src/fast_mcp_jobvite/tools/candidates.py:818:32  AuditPhase.AFTER_WRITE
+    src/fast_mcp_jobvite/tools/candidates.py:832:39  AuditPhase.AFTER_WRITE
+    src/fast_mcp_jobvite/tools/jobs.py:419:28  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/jobs.py:426:24  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/jobs.py:704:28  AuditPhase.READ
+    src/fast_mcp_jobvite/tools/jobs.py:711:24  AuditPhase.READ
+
+========== SHAPE: emit
+  src/fast_mcp_jobvite/tools/candidates.py:648 emit(...)         exit 1  ============ 1 failed, 867 passed, 6 deselected in 74.76s (0:01:14) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_candidates.py::test_a_candidate_read_error_is_a_problem_object_not_a_raise
+  src/fast_mcp_jobvite/tools/candidates.py:656 emit(...)         exit 0  ================= 868 passed, 6 deselected in 76.01s (0:01:16) =================
+      deleted the statement owning the emit(...) call
+      *** VACUOUS: nothing in the suite asserts this ***
+  src/fast_mcp_jobvite/tools/candidates.py:694 emit(...)         exit 1  ============ 1 failed, 867 passed, 6 deselected in 74.57s (0:01:14) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_candidates.py::test_a_get_candidate_read_error_is_a_problem_object_and_an_audit_row
+  src/fast_mcp_jobvite/tools/candidates.py:702 emit(...)         exit 1  ============ 3 failed, 865 passed, 6 deselected in 77.28s (0:01:17) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_candidates.py::test_case5_a_free_text_query_is_redacted_in_the_audit_record
+      killed: tests/test_tools_candidates.py::test_case5_candidate_pii_never_reaches_the_audit_record
+      killed: tests/test_tools_candidates.py::test_case5_the_audit_event_exists_for_a_candidate_read
+  src/fast_mcp_jobvite/tools/candidates.py:768 emit(...)         exit 0  ================= 868 passed, 6 deselected in 75.20s (0:01:15) =================
+      deleted the statement owning the emit(...) call
+      *** VACUOUS: nothing in the suite asserts this ***
+  src/fast_mcp_jobvite/tools/candidates.py:780 emit(...)         exit 1  ============ 1 failed, 867 passed, 6 deselected in 77.01s (0:01:17) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_approval_write.py::test_c4r1_a_refusal_is_audited_too_and_names_the_mechanism
+  src/fast_mcp_jobvite/tools/candidates.py:796 emit(...)         exit 1  ============ 2 failed, 866 passed, 6 deselected in 74.77s (0:01:14) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_approval_write.py::test_an_approved_write_that_times_out_is_attempted_exactly_once
+      killed: tests/test_approval_write.py::test_case16_the_audit_failure_warning_branch_carries_request_id
+  src/fast_mcp_jobvite/tools/candidates.py:818 emit(...)         exit 1  ============ 1 failed, 867 passed, 6 deselected in 76.94s (0:01:16) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_approval_write.py::test_an_approved_write_that_times_out_is_attempted_exactly_once
+  src/fast_mcp_jobvite/tools/candidates.py:832 emit(...)         exit 1  =========== 14 failed, 854 passed, 6 deselected in 78.34s (0:01:18) ============
+      deleted the statement owning the emit(...) call  [a NameError appears in the output - see the report]
+      killed: tests/test_approval_write.py::test_c4r1_the_audit_event_records_approval_state_and_its_mechanism[auto-mrtr]
+      killed: tests/test_approval_write.py::test_c4r1_the_audit_event_records_approval_state_and_its_mechanism[legacy-elicitation]
+      killed: tests/test_approval_write.py::test_case16_a_successful_write_carries_request_id_on_the_wire[auto]
+      killed: tests/test_approval_write.py::test_case16_a_successful_write_carries_request_id_on_the_wire[legacy]
+      killed: tests/test_approval_write.py::test_case16_the_audit_failure_warning_branch_carries_request_id
+      killed: tests/test_approval_write.py::test_positive_control_an_approved_write_moves_the_row_counter_by_one[auto]
+      killed: tests/test_approval_write.py::test_positive_control_an_approved_write_moves_the_row_counter_by_one[legacy]
+      killed: tests/test_approval_write.py::test_send_email_defaults_to_false_on_the_wire
+      killed: tests/test_approval_write.py::test_send_email_true_is_forwarded_and_not_quietly_dropped
+      killed: tests/test_approval_write.py::test_the_approval_message_reaches_the_host_with_the_email_named
+      killed: tests/test_approval_write.py::test_the_audit_arguments_carry_no_candidate_pii_in_the_clear
+      killed: tests/test_approval_write.py::test_the_audit_event_records_send_email_as_its_value[False]
+      killed: tests/test_approval_write.py::test_the_audit_event_records_send_email_as_its_value[True]
+      killed: tests/test_approval_write.py::test_the_body_reaches_the_wire_under_jobvites_own_keys
+  src/fast_mcp_jobvite/tools/jobs.py:419 emit(...)               exit 1  ============ 2 failed, 866 passed, 6 deselected in 76.89s (0:01:16) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_jobs.py::test_case16_error_arm_request_id_in_the_problem_object
+      killed: tests/test_tools_jobs.py::test_the_audit_event_records_an_error_as_an_error
+  src/fast_mcp_jobvite/tools/jobs.py:426 emit(...)               exit 1  ============ 4 failed, 864 passed, 6 deselected in 76.48s (0:01:16) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_jobs.py::test_case16_read_arm_request_id_on_the_wire_meta
+      killed: tests/test_tools_jobs.py::test_composition_risk3_the_live_context_meta_is_the_wire_meta
+      killed: tests/test_tools_jobs.py::test_the_audit_event_records_this_invocation
+      killed: tests/test_tools_jobs.py::test_trace_context_is_absent_when_the_caller_sends_none
+  src/fast_mcp_jobvite/tools/jobs.py:704 emit(...)               exit 1  ============ 1 failed, 867 passed, 6 deselected in 77.70s (0:01:17) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_job_feed.py::test_a_job_feed_read_error_is_a_problem_object_and_an_audit_row
+  src/fast_mcp_jobvite/tools/jobs.py:711 emit(...)               exit 1  ============ 2 failed, 866 passed, 6 deselected in 77.75s (0:01:17) ============
+      deleted the statement owning the emit(...) call
+      killed: tests/test_tools_job_feed.py::test_case2_the_call_emits_a_log_record_carrying_its_non_secret_attributes
+      killed: tests/test_tools_job_feed.py::test_request_id_reaches_the_caller_in_meta
+========== SHAPE: is_error
+  src/fast_mcp_jobvite/tools/candidates.py:654 is_error=True     exit 1  ============ 1 failed, 867 passed, 6 deselected in 75.51s (0:01:15) ============
+      removed the is_error=True keyword
+      killed: tests/test_tools_candidates.py::test_a_candidate_read_error_is_a_problem_object_not_a_raise
+  src/fast_mcp_jobvite/tools/candidates.py:700 is_error=True     exit 1  ============ 1 failed, 867 passed, 6 deselected in 76.02s (0:01:16) ============
+      removed the is_error=True keyword
+      killed: tests/test_tools_candidates.py::test_a_get_candidate_read_error_is_a_problem_object_and_an_audit_row

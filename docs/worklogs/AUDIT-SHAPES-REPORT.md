@@ -92,9 +92,74 @@ credentialed and not network"` is a SELECTION (DESIGN.md:1310-1313).
 
 ---
 
-## 3. THE SWEEP
+## 3. THE SWEEP - 34 rows, 34 applied, 0 refused, 14 SURVIVORS
 
-*(filled in when the run completes)*
+**Every verdict carries its population.** `POPULATION` is the derived set; `ROWS` is what was
+swept. They are equal for all three shapes, so nothing was measured against a shrunken set.
+
+| shape | POPULATION | ROWS | APPLIED | REFUSED | **SURVIVORS** |
+|---|---|---|---|---|---|
+| `emit(...)` | 13 | 13 | 13 | 0 | **2** |
+| `is_error=True` | 6 | 6 | 6 | 0 | **0** |
+| `AuditPhase.X` | 15 | 15 | 15 | 0 | **12** |
+| **total** | **34** | **34** | **34** | **0** | **14** |
+
+Every row that did NOT survive printed the tests that killed it, and every row measured a suite of
+868 passed / 6 deselected / 0 skipped in its unmutated form.
+
+### 3.1 `emit(...)` - population 13, 2 survivors
+
+```
+candidates.py:656  emit(...)  exit 0  868 passed, 6 deselected   *** VACUOUS ***
+candidates.py:768  emit(...)  exit 0  868 passed, 6 deselected   *** VACUOUS ***
+```
+
+- **`candidates.py:656`** is the SUCCESS path of `search_candidates`. Nothing asserts that a
+  successful search writes an audit row at all. Its ERROR sibling at 648 IS asserted, so the
+  failure path is covered and the ordinary path is not. **Task #127.**
+- **`candidates.py:768`** is the MRTR first leg of `create_candidate` - the `ApprovalPending`
+  branch, phase `BEFORE_SIDE_EFFECT`. A pending approval for a write that emails a live human can
+  be recorded nowhere and the suite stays green. Its sibling REFUSAL leg twelve lines below (780)
+  IS asserted. **Task #128.**
+
+The other eleven were killed, several by tests that name the audit row explicitly
+(`test_the_audit_event_records_this_invocation`,
+`test_a_job_feed_read_error_is_a_problem_object_and_an_audit_row`).
+
+### 3.2 `is_error=True` - population 6, 0 survivors
+
+All six killed. This shape needs nothing and should not be re-swept. Two of the six were measured
+before the run was killed and four after; the six verdicts are the union, and the tool NAMES the
+two it had not yet covered rather than reporting 4 of 4 (see §6).
+
+### 3.3 `AuditPhase.X` - population 15, **12 survivors**
+
+The operator is a ROTATION, not a deletion: deleting the argument would break the call's arity and
+every test would kill it for a reason unrelated to auditing.
+
+**Asserted (3):** `audit.py:381`, `audit.py:403` - the policy DISPATCHER, killed by 7 and 5 tests
+respectively - and `candidates.py:832`.
+
+**Survivors (12):** every remaining CALL SITE. `candidates.py` 648, 656, 694, 702, 768, 780, 796,
+818; `jobs.py` 419, 426, 704, 711. All twelve measured `868 passed, exit 0`.
+
+**The worst is `candidates.py:796`** - the emission its own comment labels *"NO AUDIT, NO WRITE
+(DESIGN.md:784-785)"*. Rotating it to `READ` converts "an audit failure fails the call" into "log
+to stderr and continue", so a failed audit write would let the `create_candidate` POST proceed
+UNAUDITED. That is the precise inversion DESIGN.md:784-785 exists to prevent, and 868 tests do
+not notice.
+
+**This reads as ONE defect, not twelve.** The dispatcher's three branches are well tested; what
+nothing tests is that a given call site passes the phase the design assigns it. **Task #129**,
+with all twelve sites enumerated - see §4 for why I grouped them against the brief's instruction.
+
+---
+
+## 3.4 The suite floor, and why the sweep never threatened it
+
+Baseline `868 passed, 6 deselected, 0 skipped`; `ci.yml` floor `868`, derived by grep, not
+retyped. Every mutation was restored by byte comparison against a backup and the tree was verified
+clean under BOTH `src/` and `tests/` at the end of every run.
 
 ---
 
@@ -113,6 +178,83 @@ That is the failure this probe was written to prevent, present in the probe.
 hard `SystemExit` rather than an empty sweep. Population unchanged (15), which is the evidence the
 fix is behaviour-preserving today.
 
+### F2 (High, NOT fixed - task #130) - one row's verdict is confounded and cannot be trusted
+
+`candidates.py:832` is `warnings = emit(event, AuditPhase.AFTER_WRITE)` - the only one of the 13
+emit sites whose value is BOUND. The operator deletes the whole statement, so `warnings` stops
+existing and the next line raises `NameError`. The row measured **14 failed**, and 12 of those 14
+tests have nothing to do with auditing (`test_send_email_defaults_to_false_on_the_wire`,
+`test_the_body_reaches_the_wire_under_jobvites_own_keys`).
+
+A non-zero exit is scored as "asserted", so this row is a FALSE NEGATIVE and may be concealing a
+third emit survivor. **The probe flagged the condition itself** - it prints
+`[a NameError appears in the output - see the report]` - which is how I found it; the inherited
+code was right to look for this and stopped one step short of acting on it.
+
+**Suggested fix (a hypothesis, NOT measured):** when the enclosing statement is an `ast.Assign`
+whose value IS the matched call, replace the CALL with a same-shaped literal (`warnings = []`,
+since `emit` returns `list[str]`) instead of deleting the statement. That removes the emission -
+the question the shape asks - and keeps the binding, which is the confound. Both existing
+assertions still apply, with `expect_stmt_delta` 0 for that branch. Failing that, REFUSE the row:
+the probe already has a refusal channel, and a refusal is honest where a wrong verdict is not.
+
+### F3 (Medium, FIXED here) - the inherited probe had never been linted or type-checked
+
+`ruff check .` and `uv run --frozen mypy` had never been run against `d1a07d0`. Running them:
+**31 ruff errors and 7 mypy errors in the inherited file** (W505 doc-line-too-long including five
+77-character dividers, D101/D102 missing docstrings, and seven `"AST" has no attribute "lineno"`
+/ `"col_offset"` / `"end_lineno"` / `"attr"` under `strict = true`). This is the most direct
+possible confirmation of the commit message's own warning that no gate was ever run against it.
+
+**Fix, applied:** all 38 resolved. The mypy fix is not a `cast`: `_pos()` and `_span()` read the
+position off the node and RAISE if it is absent, because a matched node without a position is a
+bug in `_matches` rather than something to silence.
+
+**These edits landed AFTER the sweep, so they were re-verified rather than assumed**: the
+population is unchanged at 13/6/15 and all four controls still pass against the gated file. A
+change to the instrument after the measurement is exactly the kind of thing that quietly
+invalidates a result, so it is measured rather than argued.
+
+### F4 (nit, FIXED here) - `--only`, so a 43-minute sweep survives being interrupted
+
+Added because the first full run was killed mid-row (§6). `--only` narrows what RUNS and never
+what the run is JUDGED against: the swept set is still compared to the full derived population and
+every unswept site prints as `NOT SWEPT (no verdict exists for this site)`. A partial sweep
+therefore cannot be mistaken for a complete one by reading the tally.
+
+---
+
+## 6. THE FIRST FULL RUN WAS KILLED, AND IT LEFT A LIVE MUTATION IN `src/`
+
+Worth recording because it is #100's lesson reproduced exactly. The 34-row run was killed by the
+harness at row 16 of 34, ~19 minutes in. **SIGKILL runs no `finally`**, so the probe's restore
+never executed and `src/fast_mcp_jobvite/tools/candidates.py` was left holding a live amputation:
+
+```
+@@ -787,7 +787,7 @@ def register(
+                         meta={REQUEST_ID_META_KEY: event.request_id},
+-                        is_error=True,
++
+                     )
+```
+
+I found it by `git status` immediately on being notified of the kill, restored by
+`git checkout --` and re-verified clean before doing anything else. **No verdict in this report
+was measured against that dirty tree** - the row it died on (`candidates.py:790`) was re-run from
+a clean tree afterwards and is one of the four in §3.2's second chunk.
+
+The remaining 19 rows were then run in foreground chunks small enough to finish inside a timeout,
+which is what `--only` (F4) exists for. Rows 1-15 were kept: they completed and restored normally
+before the kill, and every one of them printed its own restore-clean line.
+
+**Suggested fix for the next agent, not built here:** the probe restores in a `finally`, which a
+SIGKILL defeats. The durable answer is the one #100 landed for subprocesses - do not rely on the
+parent's cleanup. A `--restore-only` mode that byte-compares `src/` and `tests/` against `git` and
+repairs them would turn "I hope it cleaned up" into one command; the backup directory is already
+`mkdtemp`ed per run, so it would need to write its manifest somewhere durable first.
+
+---
+
 ---
 
 ## 5. THE BRIEF'S READING ORDER NAMES THE WRONG SECTION
@@ -130,3 +272,88 @@ disagreement, so recording it rather than silently reading something else.
 audit-write-failure policy at 784-800. Better, per the repo's own anchor lesson: cite the SUBJECT
 phrase ("Audit-write failure has a stated policy") rather than a section number, since section
 numbers drift exactly like line numbers.
+
+---
+
+## 6a. A DEVIATION FROM THE BRIEF, DECIDED AND FLAGGED
+
+The brief says **"File a task per survivor."** There are 14 survivors. I filed **four** tasks:
+#127 and #128 are one survivor each; **#129 carries all twelve `AuditPhase` survivors in one
+task, with every site enumerated as its own row**; #130 is the confounded row (F2), which is a
+probe defect rather than a survivor and would otherwise have lived only in this report.
+
+Why: the twelve are one defect applied twelve times - the policy dispatcher is well tested and
+what nothing tests is that a call site passes the phase the design assigns it. Twelve
+near-identical tasks on a 126-item board is noise, and the risk the brief guards against (a
+survivor silently dropped) is met by enumerating all twelve inside #129. **Split #129 if you
+prefer the literal reading** - every site, its current phase, its rotation and its exit code is
+in there.
+
+---
+
+## 7. WHAT I DID NOT VERIFY
+
+Short on purpose. This list is for what I could not settle, not for what I did not try.
+
+1. **Whether `candidates.py:832` is a third `emit` survivor.** F2 / #130. I could not settle it
+   without changing the operator, which would have changed the instrument mid-sweep after I had
+   already re-verified it once. The row is recorded as CONFOUNDED rather than as either verdict.
+   This is the one place where the sweep's "2 emit survivors" could become 3.
+2. **Either suggested fix in #129.** I wrote two and measured neither; they are hypotheses. The
+   brief is explicit that a survivor's fix is a test and not this task's work.
+3. **Whether the twelve `AuditPhase` survivors are reachable as a real defect in production.**
+   The sweep proves nothing ASSERTS the phase at those call sites. It does not prove the phases
+   are WRONG - I read all fifteen and they look correct today. The finding is the absence of a
+   guard, not a live bug.
+
+Things I explicitly DID settle that might look like candidates for this list:
+
+- ShellCheck: **v0.10.0, present** (`shellcheck --version`), so it is not silently checking
+  nothing. No shell file changed on this branch, so it had nothing of mine to check.
+- Gate scope: `mypy`'s `files = ["src", "tests", "docs/reviews"]` and `ruff`'s
+  `extend-exclude = ["**/*.md"]` both cover the two files I touched, so the green in §F3 is not a
+  green over a skipped path. I checked this BEFORE running them.
+- The suite floor: derived by grep at this SHA (`check-suite-floor.sh 868`), matched exactly by
+  the measured baseline, `0 skipped`.
+
+## 8. DELIVERY
+
+Committed on `fix/audit-shapes`. **Not merged and not pushed.** Worktree `/tmp/audit-shapes-work`
+removed. Tasks #127, #128, #129, #130 filed.
+
+**Gates, run with `ci.yml`'s own commands and CHAINED WITH `&&`** so a red one stops the line
+(never `cmd; echo "EXIT=$?"`, which is how a lint-red `main` got pushed on 2026-09-01):
+
+```
+uv run --frozen ruff check .        -> All checks passed!
+uv run --frozen ruff format --check .-> 107 files already formatted
+uv run --frozen mypy                -> Success: no issues found in 98 source files
+=== ALL THREE GATES PASSED (chained with &&) ===
+```
+
+Suite: `868 passed, 6 deselected in 74.77s`, **0 skipped**, against the `ci.yml` floor of 868
+derived by grep. ShellCheck is v0.10.0 and present; no shell file changed here.
+
+**`docs/OBLIGATIONS.md` was not hand-edited, and I ran the checker rather than assuming my line
+moves did not reach it** - verbatim:
+
+```
+Mappings: 31  |  anchors verified against their subject: 25  |  recorded as absent: 6
+Every mapped anchor still contains its subject. OK.
+```
+exit 0.
+
+**Harness anchors, floor DERIVED from `ci.yml` (458), not retyped** - verbatim tail:
+
+```
+harnesses scanned: 33
+anchors resolved: 458
+OK: all 458 anchors resolve to exactly one hit in their target file (floor 458).
+```
+exit 0. Neither new file is a shell harness, so that scan's population is unmoved by this branch.
+
+**No `ci.yml` step is proposed by this report.** The two probes are run by hand today. If you want
+them wired, `probe-audit-shape-controls.py` is the one that belongs in CI - it exits non-zero when
+the instrument is broken, whereas the container probe exits 0 by design even with 14 survivors and
+would gate nothing. I have run both from this worktree; the commands and their exit codes are
+above and in §2.

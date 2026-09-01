@@ -66,6 +66,7 @@ SRC = REPO_ROOT / "src"
 
 PYTEST_CMD = ["uv", "run", "--frozen", "pytest", "-q", "-p", "no:cacheprovider"]
 
+
 def _audit_phases() -> tuple[str, ...]:
     """The `AuditPhase` members, READ FROM THE ENUM.
 
@@ -73,10 +74,10 @@ def _audit_phases() -> tuple[str, ...]:
     describes - the exact shape this probe exists to refuse. It happened
     to be correct, which is how such a list reads right up until someone
     adds a fourth phase: the new member would then be silently excluded
-    from `_matches`, its call sites would never enter the population, and
-    the sweep would report a clean zero over a set that had quietly
-    shrunk. Derived instead, and empty is a hard failure rather than a
-    quiet one.
+    from `_matches`, its call sites would never enter the
+    population, and the sweep would report a clean zero over a set
+    that had quietly shrunk. Derived instead, and empty is a hard
+    failure rather than a quiet one.
     """
     tree = ast.parse((SRC / "fast_mcp_jobvite" / "audit.py").read_text())
     for node in ast.walk(tree):
@@ -109,12 +110,15 @@ class Site:
 
     @property
     def key(self) -> str:
+        """A stable identity for one site: shape, file, line, col."""
         rel = self.path.relative_to(REPO_ROOT)
         return f"{self.shape}|{rel}:{self.lineno}:{self.col}"
 
 
 @dataclass
 class Verdict:
+    """What one row measured, or why it refused to measure."""
+
     site: Site
     applied: bool = False
     refused: str = ""
@@ -124,13 +128,39 @@ class Verdict:
     note: str = ""
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # POPULATION DERIVATION. Every shape is derived by walking the parsed
 # module, never by a text match: a grep for `emit(` also finds the two
 # `def emit(` DEFINITIONS and would count them as call sites, and a grep
 # for `is_error=True` finds it inside two docstrings. Both are recorded
 # in the report as the reason the raw grep counts are supersets.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+
+
+def _pos(node: ast.AST) -> tuple[int, int]:
+    """(line, col) of a matched node.
+
+    Every shape this probe matches is a `Call`, a `keyword` or an
+    `Attribute`, and all three carry position - but `ast.AST` does not
+    declare it, so reading it off the base class is an untyped access.
+    Asserted rather than assumed: a node without position is a bug in
+    `_matches`, not something to paper over with `getattr`.
+    """
+    line = getattr(node, "lineno", None)
+    col = getattr(node, "col_offset", None)
+    if line is None or col is None:
+        raise AssertionError(f"{type(node).__name__} carries no position")
+    return line, col
+
+
+def _span(node: ast.AST) -> tuple[int, int, int, int]:
+    """(line, col, end_line, end_col), asserted the same way."""
+    line, col = _pos(node)
+    end_line = getattr(node, "end_lineno", None)
+    end_col = getattr(node, "end_col_offset", None)
+    if end_line is None or end_col is None:
+        raise AssertionError(f"{type(node).__name__} carries no end position")
+    return line, col, end_line, end_col
 
 
 def _source_files() -> list[Path]:
@@ -172,7 +202,8 @@ def derive(shape: str) -> list[Site]:
         for node in ast.walk(tree):
             if not _matches(node, shape):
                 continue
-            sites.append(Site(shape, path, node.lineno, node.col_offset, _label(node)))
+            line, col = _pos(node)
+            sites.append(Site(shape, path, line, col, _label(node)))
     return sorted(sites, key=lambda s: (str(s.path), s.lineno, s.col))
 
 
@@ -234,8 +265,9 @@ def _offsets(source: str, node: ast.AST) -> tuple[int, int]:
     starts = [0]
     for line in lines:
         starts.append(starts[-1] + len(line))
-    begin = starts[node.lineno - 1] + node.col_offset
-    end = starts[node.end_lineno - 1] + node.end_col_offset
+    lineno, col, end_lineno, end_col = _span(node)
+    begin = starts[lineno - 1] + col
+    end = starts[end_lineno - 1] + end_col
     return begin, end
 
 
@@ -247,10 +279,10 @@ def _stmts(tree: ast.AST) -> int:
     return sum(1 for n in ast.walk(tree) if isinstance(n, ast.stmt))
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # THE OPERATORS. One per shape, each chosen so the question it asks is
 # the question the shape carries.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def mutate(source: str, site: Site) -> tuple[str, str]:
@@ -298,6 +330,8 @@ def mutate(source: str, site: Site) -> tuple[str, str]:
         # reason that has nothing to do with auditing. Rotating the
         # member asks the question the shape actually carries - is this
         # row's FAILURE POLICY asserted by anything?
+        if not isinstance(node, ast.Attribute):
+            raise AssertionError(f"{site.key}: audit_phase node is not an Attribute")
         current = node.attr
         nxt = (AUDIT_PHASES.index(current) + 1) % len(AUDIT_PHASES)
         replacement = AUDIT_PHASES[nxt]
@@ -339,7 +373,7 @@ def mutate(source: str, site: Site) -> tuple[str, str]:
     return mutated, what
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 def run_suite() -> tuple[int, str]:
@@ -461,9 +495,10 @@ def main() -> int:
     os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
     population: dict[str, list[Site]] = {s: derive(s) for s in shapes}
-    # THE SELECTION IS SEPARATE FROM THE POPULATION, always. `--only` narrows
-    # what is RUN; it never narrows what the run is JUDGED against, so a
-    # chunked sweep cannot report a clean zero over a set it quietly shrank.
+    # THE SELECTION IS SEPARATE FROM THE POPULATION, always.
+    # `--only` narrows what is RUN; it never narrows what the run is
+    # JUDGED against, so a chunked sweep cannot report a clean zero
+    # over a set it quietly shrank.
     selected: dict[str, list[Site]] = {
         s: [
             site
@@ -531,10 +566,10 @@ def main() -> int:
         )
         # THE SWEPT SET MUST EQUAL THE DERIVED POPULATION. Not a count -
         # the SETS, so a row that silently probed the wrong site is a
-        # failure rather than an arithmetic coincidence. Under `--only` the
-        # shortfall is NAMED rather than tolerated: an unswept site is
-        # printed every run, so a partial sweep can never be mistaken for a
-        # complete one by reading the tally.
+        # failure rather than an arithmetic coincidence. Under
+        # `--only` the shortfall is NAMED rather than tolerated: an
+        # unswept site is printed every run, so a partial sweep can
+        # never be mistaken for a complete one by reading the tally.
         swept = {v.site.key for v in rows}
         derived = {s.key for s in population[shape]}
         if swept != derived:
