@@ -764,7 +764,7 @@ $ uv run --frozen python docs/reviews/check-design-citations.py
   highest line cited: 99999 of 2133
 
 1 problem(s):
-  FAIL: docs/worklogs/AUDIT-SURVIVORS-REPORT.md:266: DESIGN.md:99999 is past the end of DESIGN.md (2133 lines)
+  FAIL: docs/worklogs/AUDIT-SURVIVORS-REPORT.md:266: DESIGN.md:99999 is past the end of DESIGN.md (2133 lines)  <!-- REPOINT-EXEMPT: H1's plant, quoted as its own evidence -->
 ```
 
 Exit 1. `check-design-citations.py` is wired and gating in the `test` job.
