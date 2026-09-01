@@ -49,7 +49,15 @@ for f in "$TOOLS" "$MODELS" "$REDACTION"; do
 done
 
 echo "########## BASELINE - the intact tree"
-if ! uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1; then
+timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+baseline_rc=$?
+if [ "$baseline_rc" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "       This is NOT a red suite: it never finished. Nothing below ran."
+  echo "       Rationale for the bound: scripts/check-u9-http-amputation.sh."
+  exit 4
+fi
+if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact suite is red; every row below would be meaningless."
   tail -20 "$OUT"
   exit 3
@@ -101,8 +109,12 @@ PY
   fi
   APPLIED=$((APPLIED + 1))
 
-  uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
+  timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  TIMED OUT after 900s - this row NEVER FINISHED. Not a kill,"
+    echo "  not a survivor: no verdict below is a measurement of this row."
+  fi
 
   cp "$backup" "$file"
   local pristine

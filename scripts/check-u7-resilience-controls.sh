@@ -108,8 +108,14 @@ mutate() {
   # kill - so a renamed or misspelled test would report KILLED on every
   # run, forever, while running nothing. TOTAL is already incremented,
   # so returning here makes fired != total and the run exits 1.
-  if ! uv run --frozen pytest "$selector" --collect-only -q \
-       -p no:cacheprovider >/dev/null 2>&1; then
+  timeout 120 uv run --frozen pytest "$selector" --collect-only -q \
+       -p no:cacheprovider >/dev/null 2>&1
+  local probe_rc=$?
+  if [ "$probe_rc" -ne 0 ]; then
+    if [ "$probe_rc" -eq 124 ]; then
+      echo "  SELECTOR PROBE TIMED OUT after 120s - collection NEVER FINISHED."
+      echo "  Read this, not the lines below: a hang, not a rename."
+    fi
     echo "  SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
     echo "  This row has been reporting KILLED without running. Fix the harness."
     echo

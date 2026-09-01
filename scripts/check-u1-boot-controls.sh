@@ -49,8 +49,16 @@ restore() {
 
 # baseline: a red intact tree makes every row below meaningless.
 echo "########## BASELINE - the intact tree"
-if ! PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE -q \
-     -p no:cacheprovider >/tmp/u1-base.txt 2>&1; then
+PYTHONDONTWRITEBYTECODE=1 timeout 900 uv run --frozen pytest $SUITE -q \
+     -p no:cacheprovider >/tmp/u1-base.txt 2>&1
+baseline_rc=$?
+if [ "$baseline_rc" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "       This is NOT a red suite: it never finished. Nothing below ran."
+  echo "       Rationale for the bound: scripts/check-u9-http-amputation.sh."
+  exit 4
+fi
+if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact tree is red; mutation results would be meaningless."
   tail -20 /tmp/u1-base.txt
   exit 3
@@ -78,8 +86,14 @@ control() {
   #
   # The row is NOT counted as fired, so FIRED < TOTAL and the run exits 1: a
   # harness that cannot aim must fail rather than report.
-  if ! uv run --frozen pytest "$named" --collect-only -q \
-       -p no:cacheprovider >/dev/null 2>&1; then
+  timeout 120 uv run --frozen pytest "$named" --collect-only -q \
+       -p no:cacheprovider >/dev/null 2>&1
+  local probe_rc=$?
+  if [ "$probe_rc" -ne 0 ]; then
+    if [ "$probe_rc" -eq 124 ]; then
+      echo "  SELECTOR PROBE TIMED OUT after 120s - collection NEVER FINISHED."
+      echo "  Read this, not the lines below: a hang, not a rename."
+    fi
     echo "  [$label] SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
     echo "  -> this row has been reporting FIRED without running. Fix the harness."
     return
@@ -92,9 +106,13 @@ control() {
     return
   fi
   local out rc
-  out=$(PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $named -q \
+  out=$(PYTHONDONTWRITEBYTECODE=1 timeout 300 uv run --frozen pytest $named -q \
         -p no:cacheprovider 2>&1)
   rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  [$label] TIMED OUT after 300s - this row NEVER FINISHED, so the"
+    echo "  verdict below is not a measurement of it."
+  fi
   restore
   if grep -qF -- "$landed" "$file"; then
     echo "  [$label] RESTORE FAILED - the mutation is still in the tree"

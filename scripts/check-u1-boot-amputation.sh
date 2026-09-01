@@ -239,8 +239,16 @@ MUST_M=(
 )
 
 echo "########## BASELINE - the intact tree"
-if ! PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE -q -rA \
-     -p no:cacheprovider >"$WORK/base.txt" 2>&1; then
+PYTHONDONTWRITEBYTECODE=1 timeout 900 uv run --frozen pytest $SUITE -q -rA \
+     -p no:cacheprovider >"$WORK/base.txt" 2>&1
+baseline_rc=$?
+if [ "$baseline_rc" -eq 124 ]; then
+  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "       This is NOT a red suite: it never finished. Nothing below ran."
+  echo "       Rationale for the bound: scripts/check-u9-http-amputation.sh."
+  exit 4
+fi
+if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact tree is red; amputation results would be meaningless."
   tail -20 "$WORK/base.txt"
   exit 3

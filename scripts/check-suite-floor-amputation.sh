@@ -55,7 +55,12 @@ PY
   fi
 
   local out
-  out=$(cd "$REPO" && uv run --frozen pytest "$TESTS" -q 2>&1 | tail -1)
+  out=$(cd "$REPO" && timeout 300 uv run --frozen pytest "$TESTS" -q 2>&1 | tail -1)
+  local row_rc=$?
+  if [ "$row_rc" -eq 124 ]; then
+    echo "  TIMED OUT after 300s - this row NEVER FINISHED. Not a kill and"
+    echo "  not a survivor: the verdict below is not a measurement of it."
+  fi
   # `grep -q` exits on its FIRST match; if the writer is still
   # writing it takes SIGPIPE, and `pipefail` promotes that 141 to
   # the pipeline's status - so a string that IS present reports as
@@ -89,7 +94,14 @@ echo "$fired/$total amputations killed a test."
 
 # Post-run re-check of the real script, the same requirement the coupling
 # harness carries: a harness that leaves the tree mutated is worse than none.
-if ! (cd "$REPO" && uv run --frozen pytest "$TESTS" -q >/dev/null 2>&1); then
+(cd "$REPO" && timeout 900 uv run --frozen pytest "$TESTS" -q >/dev/null 2>&1)
+recheck_rc=$?
+if [ "$recheck_rc" -eq 124 ]; then
+  echo "::error::post-run re-check HUNG - 900s with no result. This is NOT a"
+  echo "::error::pass and NOT a fail: whether the tree was restored is UNKNOWN."
+  exit 4
+fi
+if [ "$recheck_rc" -ne 0 ]; then
   echo "::error::post-run re-check FAILED - the harness did not restore the script"
   exit 1
 fi
