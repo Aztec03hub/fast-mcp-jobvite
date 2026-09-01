@@ -76,8 +76,13 @@ ORIGINAL: dict[pathlib.Path, str] = {p: p.read_text() for p in (REPOINT, STANDAR
 PROBLEMS: list[str] = []
 
 
-def run_probe(probe: pathlib.Path) -> tuple[int, list[str]]:
-    """Run one probe; return its exit code and the rows that FAILED."""
+def run_probe(probe: pathlib.Path) -> tuple[int, list[str], str]:
+    """Run one probe; return exit code, FAILED rows, and its stdout.
+
+    The stdout is returned rather than discarded because a caller that
+    reports `exit=1 failed=none` has thrown away the only thing that
+    could explain the exit.
+    """
     proc = subprocess.run(
         [sys.executable, str(probe)],
         cwd=REPO_ROOT,
@@ -90,7 +95,7 @@ def run_probe(probe: pathlib.Path) -> tuple[int, list[str]]:
         for line in proc.stdout.splitlines()
         if " FAIL:" in line
     ]
-    return proc.returncode, failed
+    return proc.returncode, failed, proc.stdout
 
 
 def amputate(
@@ -123,7 +128,7 @@ def amputate(
             print(f"########## {name} DEAD ROW: the mutation DID NOT LAND")
             PROBLEMS.append(f"did-not-land:{name}")
             return
-        rc, failed = run_probe(probe)
+        rc, failed, _ = run_probe(probe)
         killed = set(failed)
         ok = killed == expect and (rc != 0 if expect else rc == 0)
         print(
@@ -222,10 +227,25 @@ for path, text in ORIGINAL.items():
         PROBLEMS.append(f"restore:{path.name}")
 
 for probe in (PROBE_FAILCLOSED, PROBE_SWALLOW):
-    rc, failed = run_probe(probe)
+    rc, failed, detail = run_probe(probe)
     print(f"  post-run re-check of {probe.name}: exit={rc} failed={failed or 'none'}")
     if rc != 0:
         PROBLEMS.append(f"post-run:{probe.name}")
+        # `exit=1 failed=none` IS THE WORST THING THIS CAN PRINT, and it
+        # printed it. A non-zero exit with no row named says only that
+        # something went wrong somewhere, and the output that would say
+        # WHAT was captured and thrown away one line above.
+        #
+        # PROBE_FAILCLOSED's own source already calls this out - a
+        # runner produced `exit=1 failed=none` once before and it was
+        # fixed for the AssertionError path. It came back through a
+        # different path, and cost a whole CI round to see, because the
+        # harness reports a verdict it will not evidence.
+        #
+        # So on failure the probe's own words are printed. Diagnosing
+        # from a summary is diagnosing from a paraphrase.
+        for line in detail.strip().splitlines()[-12:]:
+            print(f"      | {line}")
 
 print()
 if PROBLEMS:
