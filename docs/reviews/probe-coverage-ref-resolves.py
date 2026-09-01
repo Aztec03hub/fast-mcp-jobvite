@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove `check-review-coverage.py`'s default ref survives a PR checkout.
+"""Prove the coverage checker's default ref survives a PR checkout.
 
     python3 docs/reviews/probe-coverage-ref-resolves.py
 

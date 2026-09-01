@@ -233,16 +233,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="review coverage")
     parser.add_argument(
         "--ref",
-        # origin/main, NOT main (R15-H1). R12-H3 moved this off HEAD for
-        # the right reason - under actions/checkout HEAD is the PR's merge
-        # commit - and stopped one step short: actions/checkout leaves a
-        # DETACHED HEAD and creates NO local `main`. Reproduced in an
-        # init+fetch+detach clone, which is the shape the action actually
-        # leaves: `main` does not resolve, `origin/main` does, and this
-        # checker then exits 3 - the code it reserves for a BROKEN
-        # INSTRUMENT. Wiring it with the old default would have failed
-        # every PR with "broken instrument" and taught nobody anything.
-        # The docstring at the top has said origin/main all along.
+        # origin/main, NOT main (R15-H1). R12-H3 moved this off HEAD
+        # for the right reason - under actions/checkout, HEAD is the
+        # PR's merge commit - and stopped one step short. That action
+        # also leaves a DETACHED HEAD and creates NO local `main`.
+        #
+        # Reproduced in an init+fetch+detach clone, the shape the
+        # action actually leaves: `main` does not resolve, `origin/main`
+        # does, and this checker then exits 3, the code it reserves for
+        # a BROKEN INSTRUMENT. Wiring the gate with the old default
+        # would have failed every PR with "broken instrument" and
+        # taught nobody anything. The docstring has said origin/main
+        # since this file was written; only the default disagreed.
+        #
+        # Pinned by docs/reviews/probe-coverage-ref-resolves.py, whose
+        # first version was VACUOUS - it ran the source tree's copy
+        # with cwd set to the clone, and this checker derives its repo
+        # from __file__, not the working directory.
         default="origin/main",
         help="trunk ref; never HEAD - under checkout that is a merge commit",
     )
