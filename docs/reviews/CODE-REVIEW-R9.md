@@ -1,5 +1,7 @@
 # CODE-REVIEW-R9 - everything merged between 8695101 (exclusive) and f699f74
 
+<!-- REVIEW-COVERS: 8695101..f699f74 -->
+
 Reviewer: `review-r9`. Subject: `git diff 8695101..f699f74`, 17 commits, 17 files,
 +2612/-38. Most of it was written and merged by the orchestrator with no review round.
 
