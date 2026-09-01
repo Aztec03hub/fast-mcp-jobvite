@@ -437,6 +437,20 @@ def main() -> int:
     )
     ap.add_argument("--list", action="store_true", help="print the population and stop")
     ap.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        metavar="SUBSTRING",
+        help=(
+            "repeatable; sweep only sites whose key contains SUBSTRING. THE "
+            "SWEPT SET IS STILL COMPARED TO THE FULL DERIVED POPULATION, so a "
+            "chunked run prints the sites it did not cover instead of "
+            "reporting a clean sweep of a set it quietly shrank. Exists "
+            "because a 34-row run takes ~43 minutes and a harness killed "
+            "mid-row leaves its mutation in the tree."
+        ),
+    )
+    ap.add_argument(
         "--dry-run",
         action="store_true",
         help="apply and restore every mutation without running the suite",
@@ -447,13 +461,32 @@ def main() -> int:
     os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
     population: dict[str, list[Site]] = {s: derive(s) for s in shapes}
+    # THE SELECTION IS SEPARATE FROM THE POPULATION, always. `--only` narrows
+    # what is RUN; it never narrows what the run is JUDGED against, so a
+    # chunked sweep cannot report a clean zero over a set it quietly shrank.
+    selected: dict[str, list[Site]] = {
+        s: [
+            site
+            for site in population[s]
+            if not args.only or any(frag in site.key for frag in args.only)
+        ]
+        for s in shapes
+    }
 
     print("THE DERIVED POPULATION - every site must appear as a row below:")
     for shape in shapes:
         print(f"\n  [{shape}]  {len(population[shape])} sites")
         for site in population[shape]:
             rel = site.path.relative_to(REPO_ROOT)
-            print(f"    {rel}:{site.lineno}:{site.col}  {site.label}")
+            mark = "   " if site in selected[shape] else "  (not selected)"
+            print(f"    {rel}:{site.lineno}:{site.col}  {site.label}{mark}")
+    if args.only:
+        total_sel = sum(len(selected[s]) for s in shapes)
+        total_pop = sum(len(population[s]) for s in shapes)
+        print(
+            f"\n  --only IS IN FORCE: {total_sel} of {total_pop} sites selected. "
+            "THIS IS A PARTIAL RUN and says so in the tally below."
+        )
     print(flush=True)
     if args.list:
         return 0
@@ -463,7 +496,7 @@ def main() -> int:
     try:
         for shape in shapes:
             print(f"========== SHAPE: {shape}", flush=True)
-            for site in population[shape]:
+            for site in selected[shape]:
                 verdict = probe(site, backup_dir, args.dry_run)
                 verdicts.append(verdict)
                 rel = site.path.relative_to(REPO_ROOT)
@@ -498,12 +531,19 @@ def main() -> int:
         )
         # THE SWEPT SET MUST EQUAL THE DERIVED POPULATION. Not a count -
         # the SETS, so a row that silently probed the wrong site is a
-        # failure rather than an arithmetic coincidence.
+        # failure rather than an arithmetic coincidence. Under `--only` the
+        # shortfall is NAMED rather than tolerated: an unswept site is
+        # printed every run, so a partial sweep can never be mistaken for a
+        # complete one by reading the tally.
         swept = {v.site.key for v in rows}
         derived = {s.key for s in population[shape]}
         if swept != derived:
-            print(f"  SWEPT SET != DERIVED POPULATION: {swept ^ derived}")
-            rc = 3
+            for key in sorted(derived - swept):
+                print(f"  NOT SWEPT (no verdict exists for this site): {key}")
+            for key in sorted(swept - derived):
+                print(f"  SWEPT BUT NOT IN THE POPULATION: {key}")
+            if not args.only:
+                rc = 3
         if len(applied) != len(rows):
             print("  A ROW DID NOT APPLY. It measured nothing and said so.")
             rc = 3
