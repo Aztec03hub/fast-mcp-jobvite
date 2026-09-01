@@ -1,6 +1,6 @@
 # CODE-REVIEW-R12 - the machinery, `f699f74..dad014e`
 
-<!-- REVIEW-COVERS: f699f74..dad014e -->
+<!-- REVIEW-COVERS: f699f74..dad014e PATHS: docs/reviews scripts .github -->
 
 **THE DECLARATION ABOVE IS PATH-FILTERED AND DOES NOT MEAN THE WHOLE RANGE WAS READ.** This round
 was responsible for `f699f74..dad014e` and examined 62 of its 133 files - `docs/reviews`, `scripts`

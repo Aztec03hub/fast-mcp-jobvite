@@ -1,6 +1,6 @@
 # CODE-REVIEW-R11 - the 45-commit hole, code and design half
 
-<!-- REVIEW-COVERS: f699f74..dad014e -->
+<!-- REVIEW-COVERS: f699f74..dad014e PATHS: src tests docs/adr docs/DESIGN.md -->
 
 **Range:** `git diff f699f74..dad014e -- src tests docs/adr docs/DESIGN.md`, 56 files, +1052/-727.
 **Worktree:** `/home/plafayette/claude_projects/fmj-worktrees/r11-code`, branch `review/r11`, detached
