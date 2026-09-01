@@ -44,6 +44,8 @@ permissions:
 jobs:
   mirror:
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - a push to one remote; unmeasured here, sized small on purpose.
+    timeout-minutes: 10
     # Job-level `env` MAY read secrets, and the `env` context IS available in a
     # step-level `if:`. That is the whole fix: the guard moves from a context
     # that cannot see secrets to one that can.

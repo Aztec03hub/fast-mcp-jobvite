@@ -46,6 +46,8 @@ jobs:
   semantic-title:
     name: Semantic PR title
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - a title regex; unmeasured here, sized small on purpose.
+    timeout-minutes: 5
     permissions:
       pull-requests: read
     steps:

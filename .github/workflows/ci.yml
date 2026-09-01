@@ -103,6 +103,8 @@ jobs:
   design-gates:
     name: Design coupling gates
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 34s. 26x headroom; these are static checkers.
+    timeout-minutes: 15
     steps:
       # fetch-depth 0: the freeze gate resolves the SHA in docs/DESIGN-FREEZE.txt,
       # which a SHALLOW clone does not contain - it failed in CI with 'invalid
@@ -634,6 +636,10 @@ jobs:
   test:
     name: Lint, types, tests
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 125.4 min across the 6 runs that reached the
+    # harness matrix. 43% headroom - the matrix is legitimately long, so
+    # a tight cap here would turn a slow run into a false red.
+    timeout-minutes: 180
     steps:
       # FULL HISTORY, and this job genuinely needs it. `actions/checkout`
       # defaults to fetch-depth 1, so the clone holds ONE commit.
@@ -1452,6 +1458,8 @@ jobs:
   supply-chain:
     name: Supply chain
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 35s.
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
@@ -1540,6 +1548,8 @@ jobs:
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 80s; CodeQL scales with the tree, so more headroom.
+    timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
@@ -1594,6 +1604,8 @@ jobs:
   links:
     name: Link check
     runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 9s.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 
