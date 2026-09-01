@@ -59,7 +59,7 @@ legitimate.
 **4. CONTROL IT, and this is yours alone.** The new form must:
    - still skip what it legitimately exempts (negative arm),
    - **refuse the plant above** (positive arm) — a scoped marker must not
-     exempt `DESIGN.md:99999-99999`,
+     exempt `DESIGN.md:99999-99999`,  <!-- REPOINT-EXEMPT: the plant, quoted as the defect -->
    - refuse a marker whose scope does not match the citation on the line,
    - keep the printed count non-vacuous (plant one, watch it move).
 
