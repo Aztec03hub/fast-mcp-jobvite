@@ -156,6 +156,22 @@ Inferring would manufacture coverage for code nobody read and certify it forever
 than the gap: an absence you can see beats a false presence you cannot. So the declaration must
 come from you, or your round leaves no machine-readable trace.
 
-**Declare the range you were responsible for, and make it true.** If a scope filter meant you did
-not examine every commit in the span, say so in prose - but still declare the span. A wrong
-declaration is worse than none, because the next reader will trust it.
+**IF YOUR BRIEF GAVE YOU A PATH FILTER, NAME IT** - this is not optional, and it is the half that
+was missing when two rounds first split one range:
+
+    <!-- REVIEW-COVERS: f699f74..dad014e PATHS: docs/reviews scripts .github -->
+
+Without it your declaration claims the WHOLE TREE over that span. When a range is split between two
+reviewers by path, either one's bare declaration alone makes every commit read as fully covered
+while half the files were never opened - a false presence, which is worse than the visible absence
+this gate exists to produce. With `PATHS` the two declarations COMPOSE: a commit counts as covered
+only when every file it touches is claimed by some round, and one round alone leaves it PARTIAL.
+
+Measured when the field landed: one half declared gives 8 fully covered and 15 partial; adding the
+complementary half gives 23 and 0.
+
+**Omit `PATHS` only if you really did read the whole tree over that span.** The bare form is the
+broad claim, not the modest one.
+
+**Declare the range you were responsible for, and make it true.** A wrong declaration is worse than
+none, because the next reader will trust it.
