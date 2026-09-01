@@ -4,7 +4,7 @@
 file whose tests are ALL marker-excluded. CI never runs these and never
 skips them: they are excluded by *selection* - the `credentialed` marker
 deselected by the `-m` in `addopts` - because a skip counts as a failure
-(DESIGN.md:1310-1313).
+(DESIGN.md:1310-1312).
 
 **CI does `--collect-only` against this file** (DESIGN.md:1325-1330). A
 suite that is excluded and never collected rots silently: an import

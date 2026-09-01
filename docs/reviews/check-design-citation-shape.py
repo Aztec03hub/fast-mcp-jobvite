@@ -42,13 +42,16 @@ it names, then wire it.
 **R12-N1 ADDED A FOURTH SHAPE: a range that ENDS on a blank line**, i.e.
 one line longer than its subject. The start check had had no mirror
 since it was written. It was raised off TWO instances a reviewer had
-read (`DESIGN.md:373-383`, `:674-680`); the sweep found **46**, which is
-this docstring's own lesson arriving at the person writing the check.
-Harmless per instance and cumulative in the aggregate: a range that can
-grow a line at every repoint eventually spans the next section, and
-`check-design-citations.py` will keep calling it resolved the whole way.
-Those 46 are the backlog this file's last paragraph is about, and the
-number is printed by the run rather than trusted from here.
+read - `DESIGN.md:373-383` and `:674-680`, REPOINT-EXEMPT because
+this line RECORDS where the defect was - and the check then found
+FORTY-SIX, which is this docstring's own lesson arriving at the
+person writing the check. Harmless per instance and cumulative in
+the aggregate: a range that can grow a line at every repoint
+eventually spans the next section, and `check-design-citations.py`
+will keep calling it resolved the whole way. Re-measured on the
+merged trunk the population was FORTY-SEVEN, not forty-six, and
+#126 swept it: the backlog this paragraph is about is now zero, and
+the number is printed by the run rather than trusted from here.
 """
 
 from __future__ import annotations

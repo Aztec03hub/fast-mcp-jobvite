@@ -300,7 +300,7 @@ mutate "M10 the send_email argument never reaches the body" \
   '            "sendEmail": params.send_email,' \
   '            "sendEmail": False,'
 
-# The approval request stops naming the email. DESIGN.md:1134-1144: an
+# The approval request stops naming the email. DESIGN.md:1134-1143: an
 # approver shown "create candidate Jane Doe" approves a database row and
 # thereby authorises an email nobody mentioned.
 mutate "M11 the approval request no longer discloses the email" \

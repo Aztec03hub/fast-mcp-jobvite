@@ -226,7 +226,7 @@ amputate "A4  an unrecognised era falls through instead of refusing" "$APPROVAL"
 # ---------------------------------------------------------------------------
 # A5 - THE APPROVAL REQUEST DESCRIBES NOTHING. The host is asked to
 # authorise "this write" with no candidate, no job and no mention of the
-# email. DESIGN.md:1134-1144: an approver shown a database row
+# email. DESIGN.md:1134-1143: an approver shown a database row
 # authorises an email nobody named.
 # ---------------------------------------------------------------------------
 amputate "A5  the approval request names neither the person nor the email" "$APPROVAL" \

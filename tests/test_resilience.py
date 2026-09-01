@@ -1,4 +1,4 @@
-"""U7 - resilience: DESIGN.md:354-383, :373-375, :601-620.
+"""U7 - resilience: DESIGN.md:354-382, :373-375, :601-620.
 
 §8 #13, #21 and #23.
 
@@ -567,13 +567,13 @@ def test_the_exclusion_is_a_method_set_and_not_a_tool_name_list() -> None:
 
 
 # ======================================================================
-# 429 (DESIGN.md:373-383). Retried, then mapped to 503, honouring
+# 429 (DESIGN.md:373-382). Retried, then mapped to 503, honouring
 # `Retry-After`. NEVER OBSERVED against Jobvite - see the report.
 # ======================================================================
 
 
 async def test_a_429_is_retried_and_then_mapped_to_503() -> None:
-    """DESIGN.md:373-383, and the type change is the point.
+    """DESIGN.md:373-382, and the type change is the point.
 
     A 429 that surfaced as `/problems/external-service-error` 502 would
     tell a caller the upstream errored when it asked us to slow down.
@@ -1231,7 +1231,7 @@ async def test_two_concurrent_invocations_each_log_their_own_request_id() -> Non
 async def test_no_retry_line_carries_a_url() -> None:
     """The same §8 case's second half, on the route that matters.
 
-    DESIGN.md:678-680: "a retry line is exactly where an unredacted URL
+    DESIGN.md:678-679: "a retry line is exactly where an unredacted URL
     would otherwise reach a log", because the v1 `jobFeed` URL carries
     `sc=` in its query string.
     """

@@ -991,7 +991,7 @@ async def test_the_write_declares_all_three_annotations() -> None:
 
 # ======================================================================
 # 8. THE ELICITATION PAYLOAD NAMES THE CANDIDATE, THE JOB, AND WHETHER
-#    `send_email` IS TRUE (DESIGN.md:1134-1144).
+#    `send_email` IS TRUE (DESIGN.md:1134-1143).
 #
 #    **THIS IS THE ONE PLACE THE STRONGEST GATE CAN BE SATISFIED
 #    HONESTLY AND STILL PRODUCE THE OUTCOME IT EXISTS TO PREVENT.** An

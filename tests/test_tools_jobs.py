@@ -309,7 +309,7 @@ async def test_the_recorded_200_with_401_body_is_a_502_problem() -> None:
 # ======================================================================
 # SS8 #16 - request_id, on the WIRE, matched against the audit event.
 # The two arms travel by DIFFERENT channels and are different
-# assertions rather than a repetition (DESIGN.md:692-698).
+# assertions rather than a repetition (DESIGN.md:692-697).
 # ======================================================================
 
 
@@ -377,7 +377,7 @@ async def test_case16_error_arm_request_id_in_the_problem_object(
     """Error: the id travels in the problem's own `request_id` member.
 
     A different channel from the read arm's `_meta`, and therefore a
-    different assertion (DESIGN.md:692-698). The `instance` URN is
+    different assertion (DESIGN.md:692-697). The `instance` URN is
     built from the same id, so a mismatch between them would mean the
     problem was assembled from two invocations.
     """

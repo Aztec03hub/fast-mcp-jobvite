@@ -213,7 +213,7 @@ mutate "M2  a 5xx stops being retryable" \
         return False
     return status >= 600'
 
-# DESIGN.md:373-383: a 429 is "retried and then mapped to 503". Dropping
+# DESIGN.md:373-382: a 429 is "retried and then mapped to 503". Dropping
 # the mapping tells a caller the upstream ERRORED when it asked us to
 # slow down, and 502 is not a status a client backs off on.
 mutate "M3  a 429 surfaces as 502 instead of 503" \
@@ -427,7 +427,7 @@ mutate "M23b a 429's counts_toward_breaker is ignored" \
   '        return False'
 
 # ===========================================================================
-# CORRELATED LOGGING (DESIGN.md:674-680, §8 #13)
+# CORRELATED LOGGING (DESIGN.md:674-679, §8 #13)
 # ===========================================================================
 
 # The direction is reported backwards. Every line still looks
@@ -458,7 +458,7 @@ mutate "M20 the retry line reports a constant attempt number" \
   '        attempt=state.attempt_number,' \
   '        attempt=1,'
 
-# THE URL REACHES A RETRY LINE. DESIGN.md:678-680: "a retry line is
+# THE URL REACHES A RETRY LINE. DESIGN.md:678-679: "a retry line is
 # exactly where an unredacted URL would otherwise reach a log", because
 # the v1 jobFeed URL carries `sc=` in its query string.
 mutate "M21 the retry line carries the exception's full text" \

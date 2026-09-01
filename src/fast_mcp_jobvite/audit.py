@@ -3,7 +3,7 @@
 `ai/agent-guardrails.md:40` mandates audit logging of every tool
 invocation and `ai/tool-calling.md:171-173` names the fields. **We emit
 this ourselves rather than assuming middleware provides it**
-(DESIGN.md:649-654): `StructuredLoggingMiddleware` runs with
+(DESIGN.md:649-653): `StructuredLoggingMiddleware` runs with
 `include_payloads=False`, which emits *no* arguments where the mandated
 field is *redacted* arguments, so the framework's default is wrong for
 this project in the one way that matters.

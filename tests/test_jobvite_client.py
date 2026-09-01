@@ -149,7 +149,7 @@ async def test_positive_control_a_200_with_status_code_200_SUCCEEDS() -> None:
     """The paired positive control for the case above.
 
     A guard that refuses everything is not a guard
-    (DESIGN.md:1451-1453). Without this, an `evaluate_response` that
+    (DESIGN.md:1451-1452). Without this, an `evaluate_response` that
     raised on every input would pass the C5-S1 case. This body is
     SYNTHETIC - no success body has ever been observed
     (`JOBVITE-CONTRACT.md` §3.2) - so it is a hypothesis and carries no
@@ -575,7 +575,7 @@ async def test_the_jobfeed_url_never_reaches_a_log_record_whole() -> None:
 
     The absence assertion has a paired positive below: against a silent
     logger every "the secret is not in the log" test passes vacuously,
-    which is the failure mode DESIGN.md:1451-1453 pairs controls to
+    which is the failure mode DESIGN.md:1451-1452 pairs controls to
     prevent.
     """
     records: list[str] = []

@@ -541,7 +541,7 @@ async def test_the_registration_factory_uses_the_FEED_credential_class() -> None
 async def test_the_feed_credentials_travel_as_query_parameters() -> None:
     """`api`, `sc` and `companyId` in the query string - the exception.
 
-    DESIGN.md:312-314 forbids building a URL containing a credential
+    DESIGN.md:312-313 forbids building a URL containing a credential
     **everywhere else**; DESIGN.md:315 makes this route the one
     structural exception. A test asserting only that the call
     succeeded would pass against a client that sent the v2 headers and
