@@ -44,3 +44,4 @@ docs/reviews/probe-midsentence-shape.py	906-906	a record of where a defect WAS, 
 docs/reviews/probe-repoint-fail-closed.py	100-100	an example citation this probe WRITES into a temp file; not a citation of the design
 docs/worklogs/AUDIT-SURVIVORS-REPORT.md	99999-99999	quotes the planted citation as evidence of a mutation survivor
 docs/worklogs/WORKLOG-115B-kind-not-path.md	99999-99999	quotes a checker failure verbatim as evidence
+docs/reviews/REVIEW-R13.md	99999-99999	R13-H1's plant, quoted twice as its own evidence: the review that FOUND this defect was caught by it
