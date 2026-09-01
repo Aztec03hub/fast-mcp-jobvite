@@ -184,6 +184,19 @@ jobs:
       - name: The design at its declared freeze is the design on main
         run: python3 docs/reviews/check-design-freeze.py
 
+      # WIRED THE DAY IT WENT GREEN. 43 tracked .sh, none enabling errexit;
+      # a planted `set -euo pipefail` in a tracked script exits 1, and the
+      # one dynamic `set` in probe-set-e-vs-harness.sh is correctly NOT
+      # flagged.
+      #
+      # It exists because this invariant had been hand-measured three times
+      # (2d20ed6, 5eb64b0, review R10) and recorded nowhere a machine could
+      # check. Every harness timeout arm is `cmd; rc=$?`, which errexit
+      # makes unreachable - the same defect as the sixteen dead CI branches
+      # at 3ee39e5.
+      - name: No harness enables errexit
+        run: python3 docs/reviews/check-no-errexit.py
+
       # Wired the day it went green, and not one commit before. It exited 1 on
       # exactly one finding - DESIGN.md §5.3's `SS5.4`, a section that does not
       # exist - and was deliberately left unwired, because a knowingly red gate
