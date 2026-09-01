@@ -27,8 +27,8 @@ unmapped one does not.
 **The deeper issue (D2), and it is why this is not a one-character fix.**
 `architecture/error-contract.md:115` scopes the fallback precisely:
 
-> *"**`about:blank` fallback**: For unmapped **HTTP** errors, use `about:blank` as the type (per RFC
-> 9457 §4.2.1)"*
+> *"**`about:blank` fallback**: For unmapped **HTTP** errors, use `about:blank` as the type
+> (per RFC 9457 §4.2.1)"*
 
 That is about an unmapped **HTTP status received from somewhere**. It is not about an unhandled
 exception inside our own tool body — and the same registry, at `error-contract.md:106`, already has

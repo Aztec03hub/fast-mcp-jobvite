@@ -28,7 +28,7 @@ Cookie header sent on 2nd:   AWSALBAPP-0=_remove_; AWSALBAPP-1=_remove_
 A bare `httpx2.AsyncClient` **has** a cookie jar, stores what Jobvite sets, and
 sends it back on every subsequent request for the life of the client. This is
 `httpx`'s documented behaviour and `httpx2` inherits it. So the implementer who
-correctly follows §2.3 as written ships a client that carries a session Jobvite
+correctly follows `JOBVITE-CONTRACT.md` §2.3 as written ships a client that carries a session Jobvite
 told us not to carry.
 
 This is the same failure shape the design already names elsewhere and is worth
@@ -77,7 +77,7 @@ revisit them. Only the instruction derived from them changes.
 ## What this does NOT settle
 
 - **Whether any Jobvite route requires a cookie.** Nothing observed suggests one
-  does, and §2.3 says there is no session to carry, but every response captured
+  does, and `JOBVITE-CONTRACT.md` §2.3 says there is no session to carry, but every response captured
   in `JOBVITE-CONTRACT.md` §10 is an **error** response captured without a
   credential. No success response has ever been observed
   (`JOBVITE-CONTRACT.md` §1), so "no route needs a cookie" remains an inference
@@ -88,9 +88,9 @@ revisit them. Only the instruction derived from them changes.
   clearing is what is available today. If a later version offers one, preferring
   it would remove a line of per-request work; that is a refinement, not a
   correction, and it needs its own decision.
-- **Anything about the other four response headers** §2.3 records
+- **Anything about the other four response headers** `JOBVITE-CONTRACT.md` §2.3 records
   (`Server`, `X-JOBVITE-PROXY`, `Pragma`, `Cache-Control`). None is acted on by
   U4 and none is examined here.
-- **The rate-limit finding in the same section.** §2.3's "there is no rate-limit
+- **The rate-limit finding in the same section.** `JOBVITE-CONTRACT.md` §2.3's "there is no rate-limit
   header of any kind" drives client-side throttling, which is U7's, and this ADR
   takes no position on it.

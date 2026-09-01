@@ -140,7 +140,7 @@ def parse_jobvite_response(http_status: int, body_bytes: bytes) -> dict:
 
 **The invariant, stated for the test that must enforce it:** *a response is successful only if the body carries no `status.code >= 400` **and** the HTTP status is < 400.* Both conditions, every time.
 
-`[ASSUMED]` I have never seen a success body, so **I do not know whether success responses include a `status` block at all.** The code above tolerates both (a `status` block with a code under 400 falls through to success). Checklist row §13.1 settles it.
+`[ASSUMED]` I have never seen a success body, so **I do not know whether success responses include a `status` block at all.** The code above tolerates both (a `status` block with a code under 400 falls through to success). Checklist §13 row 1 settles it.
 
 ### 3.3 Error shapes to handle
 
@@ -158,7 +158,7 @@ def parse_jobvite_response(http_status: int, body_bytes: bytes) -> dict:
 `[RECORDED]` `401` = `"Invalid api/secret. Try again with a valid api/secret"` - bad or missing credentials.
 `[RECORDED]` `404` = `"Invalid URL Cannot find API."` - the route does not exist. Note this is **route-level**, not record-level: it does not mean "candidate not found".
 `[INFERRED]` `400`, `404`, `409` are handled on the candidate-create path by a production integration; `409` is presumably a duplicate candidate.
-`[ASSUMED]` **A record-level "not found" shape is unknown.** We do not know what `GET /api/v2/candidate?candidateId=<nonexistent>` returns - an empty `candidates` array, a 404 body, or something else. Checklist row §13.4.
+`[ASSUMED]` **A record-level "not found" shape is unknown.** We do not know what `GET /api/v2/candidate?candidateId=<nonexistent>` returns - an empty `candidates` array, a 404 body, or something else. Checklist §13 row 4.
 
 Full v1 numeric catalogue (100-108, 201-208) is in `JOBVITE-API.md` §15.2. `[ABSENT]` There is no v2 equivalent.
 
@@ -186,7 +186,7 @@ Full v1 numeric catalogue (100-108, 201-208) is in `JOBVITE-API.md` §15.2. `[AB
 
 **Failure mode either way:** if the API is 1-based and we send 0, the first page may return the first record twice or the server may reject it; if it is 0-based and we send 1, we silently skip record one. **A silently skipped record is the worse outcome and would not surface in any test built on §11 fixtures.**
 
-`[ASSUMED]` **Recommended interim:** follow the official v1 documentation and use **1-based** `start`, because it is the only statement from Jobvite itself, and the two clients that use 0 are both consistent with a server that clamps `0 → 1`. Gate on checklist row §13.2 before trusting any full-catalogue sync.
+`[ASSUMED]` **Recommended interim:** follow the official v1 documentation and use **1-based** `start`, because it is the only statement from Jobvite itself, and the two clients that use 0 are both consistent with a server that clamps `0 → 1`. Gate on checklist §13 row 2 before trusting any full-catalogue sync.
 
 ### 4.2 Termination
 

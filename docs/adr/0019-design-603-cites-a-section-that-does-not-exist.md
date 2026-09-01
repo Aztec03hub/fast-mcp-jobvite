@@ -1,4 +1,4 @@
-# ADR-0019: `DESIGN.md:605` cites `§5.4`, and there is no §5.4
+# ADR-0019: `DESIGN.md:603` cites `§5.4`, and there is no §5.4
 
 **Status:** Accepted
 **Type:** Design change
@@ -10,7 +10,7 @@
 
 ## Context
 
-Found by **building U3**, not by reading. `DESIGN.md:605` reads:
+Found by **building U3**, not by reading. `DESIGN.md:603` reads:
 
 > *"line carries the URL, because the v1 `jobFeed` URL is itself a secret (**§5.4**) and a retry
 > line is..."*
@@ -37,7 +37,7 @@ is stated in **§4.1 Authentication, and three credential classes** (`## 4` at `
 
 ## Decision
 
-**`DESIGN.md:605`'s `(§5.4)` becomes `(§4.1)`.**
+**`DESIGN.md:603`'s `(§5.4)` becomes `(§4.1)`.**
 
 Nothing else changes. No behaviour, no threat row, no verification case.
 
@@ -56,7 +56,7 @@ correcting it quickly.
 
 - **The section list was read from the frozen object**, not from the working tree.
 - **The target was verified by SUBJECT**, not by line arithmetic: `:306-310` was read and it makes
-  the claim `:603` attributes to `§5.4`.
+  the claim `DESIGN.md:603` attributes to `§5.4`.
 - **Siblings were swept.** `grep -n '5\.4'` over the frozen `DESIGN.md` returns **one** hit, the one
   above. So this is a single instance, not a pattern in that document.
 - **A near-miss was excluded.** `docs/research/COMPLIANCE-SPEC.md` refers to *"§5.4"* three times
