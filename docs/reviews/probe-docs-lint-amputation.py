@@ -95,7 +95,16 @@ def run_probe(probe: pathlib.Path) -> tuple[int, list[str], str]:
         for line in proc.stdout.splitlines()
         if " FAIL:" in line
     ]
-    return proc.returncode, failed, proc.stdout
+    # BOTH STREAMS, and that is the point. The first version of this
+    # returned stdout only. CI then printed four PASS rows and stopped -
+    # the probe had died after row D and the traceback explaining it
+    # went to STDERR, which was captured here and thrown away. Reading
+    # half of a paired source is a confident false absence: the output
+    # LOOKED complete because every line present was a pass.
+    detail = proc.stdout
+    if proc.stderr.strip():
+        detail = f"{detail}\n--- stderr ---\n{proc.stderr}"
+    return proc.returncode, failed, detail
 
 
 def amputate(
@@ -244,7 +253,7 @@ for probe in (PROBE_FAILCLOSED, PROBE_SWALLOW):
         #
         # So on failure the probe's own words are printed. Diagnosing
         # from a summary is diagnosing from a paraphrase.
-        for line in detail.strip().splitlines()[-12:]:
+        for line in detail.strip().splitlines()[-24:]:
             print(f"      | {line}")
 
 print()
