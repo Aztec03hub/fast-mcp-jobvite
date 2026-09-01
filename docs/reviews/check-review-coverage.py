@@ -114,6 +114,47 @@ assert all(v.strip() for v in UNDECLARED_BY_HISTORY.values()), (
 )
 
 
+#: Paths that are RECORDS OF WORK rather than the work, each with the
+#: reason. A record is an account of something that already happened;
+#: the thing it accounts for is reviewed where it lives. **A bare path
+#: is refused: the reason IS the exemption**, the same shape every other
+#: exemption in `docs/reviews/` uses.
+#:
+#: THIS IS A RULING, NOT A CONVENIENCE, and the line it draws is
+#: narrow. `docs/briefs/` is deliberately NOT here: a brief INSTRUCTS an
+#: agent and has carried substantive rulings (ADR-BATCH.md), so a wrong
+#: brief produces wrong work rather than merely misdescribing it. Nor
+#: are `pyproject.toml`, `.env.example`, `.pre-commit-config.yaml`,
+#: `server.json` or `README.md` - dependencies, secret-class values,
+#: hook config and the published manifest are load-bearing and stay in
+#: scope.
+RECORD_PATHS: dict[str, str] = {
+    "CHANGELOG.md": (
+        "a dated account of changes that are themselves reviewed where "
+        "they live. Reviewing it means re-reading a summary of reviewed "
+        "code, which is coverage theatre rather than coverage."
+    ),
+    "docs/worklogs": (
+        "reports of measurements already made. The measurement's SUBJECT "
+        "is in src/, tests/ or scripts/ and is covered there; the report "
+        "is the record that it happened."
+    ),
+    "docs/plans": (
+        "ruled a RECORD at 0ec4c85 (task #111) - not repointed, not "
+        "rewritten, and the SHA that makes that safe is guarded. A record "
+        "that must not change cannot meaningfully be re-reviewed."
+    ),
+}
+assert all(v.strip() for v in RECORD_PATHS.values()), (
+    "a blank reason is not an exemption"
+)
+
+
+def is_record(path: str) -> bool:
+    """Is this path a record of work rather than the work itself?"""
+    return any(path == p or path.startswith(p.rstrip("/") + "/") for p in RECORD_PATHS)
+
+
 class Round:
     """One round's claim: which commits, and which paths it read."""
 
@@ -223,13 +264,21 @@ def main() -> int:
     trunk = git("rev-list", f"{CONTAINER_BASE}..{args.ref}").split()
     untouched: list[str] = []
     partial: list[tuple[str, list[str]]] = []
+    records_skipped = 0
     for sha in trunk:
         claiming = [r for r in rounds if sha in r.commits]
         if not claiming:
             untouched.append(sha)
             continue
         files = git("show", "--name-only", "--pretty=format:", sha).split()
-        unread = [f for f in files if not any(r.claims(f) for r in claiming)]
+        unread = [
+            f
+            for f in files
+            if not any(r.claims(f) for r in claiming) and not is_record(f)
+        ]
+        records_skipped += sum(
+            1 for f in files if not any(r.claims(f) for r in claiming) and is_record(f)
+        )
         if unread:
             partial.append((sha, unread))
 
@@ -238,6 +287,13 @@ def main() -> int:
     print(f"Fully covered - range AND every path: {covered}")
     print(f"PARTIALLY covered - some files claimed by nobody: {len(partial)}")
     print(f"COVERED BY NOTHING: {len(untouched)}")
+    # COUNTED, NEVER SILENT. An exemption nobody reports is how a
+    # population shrinks without anyone noticing, and this one was added
+    # in the same session that found 22 commits reading as fully covered
+    # because a path filter went undeclared.
+    print(f"Record files skipped (not the work, an account of it): {records_skipped}")
+    for name, why in sorted(RECORD_PATHS.items()):
+        print(f"  RECORD   {name}: {why}")
 
     for sha in untouched[:15]:
         print(f"  NONE     {git('log', '-1', '--format=%h %s', sha)[:78]}")
