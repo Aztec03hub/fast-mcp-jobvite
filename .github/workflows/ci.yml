@@ -205,6 +205,32 @@ jobs:
       - name: No harness enables errexit
         run: python3 docs/reviews/check-no-errexit.py
 
+      # WIRED 2026-09-01, GREEN WHEN WIRED: 37/37 scripts in the container
+      # source the emitter, chain it from their EXIT trap, and call
+      # harness_result_ran. Its controls sibling fires 8/8.
+      #
+      # IT HAD NEVER RUN IN CI. #107 landed "37 of 37 emit one canonical
+      # line" and the checker that verifies that claim was invoked only by
+      # hand - named in a worklog and one comment, nowhere a job could
+      # reach. Found by check-checkers-are-wired.py below, on its first run.
+      - name: Every harness emits the canonical HARNESS-RESULT line
+        run: bash docs/reviews/check-harness-result.sh
+
+      # THE DURABLE FIX for a defect that recurred with the same wrong
+      # instrument. Three checkers here were written, measured, committed
+      # and never wired; nothing said so, and they were cited as gates.
+      #
+      # `grep basename ci.yml` counts a name in a COMMENT as wired - a
+      # reviewer mislabelled three files with it and I mislabelled a fourth
+      # the same day. So this parses jobs.*.steps[].run out of the YAML and
+      # strips shell comments before matching.
+      #
+      # Unwired is allowed; unwired AND unrecorded is not. It also refuses
+      # an exemption naming a checker that IS wired, because a reason that
+      # outlives its condition is how a list stops describing its subject.
+      - name: Every checker is wired, or says why it is not
+        run: python3 docs/reviews/check-checkers-are-wired.py
+
       # WIRED 2026-09-01, both green when wired, both measured first. They had
       # been sitting UNWIRED while appearing in this file only inside comments,
       # which is why a naive `grep basename ci.yml` reported them as wired -
