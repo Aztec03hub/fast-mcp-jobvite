@@ -137,7 +137,7 @@ def amputate(
             print(f"########## {name} DEAD ROW: the mutation DID NOT LAND")
             PROBLEMS.append(f"did-not-land:{name}")
             return
-        rc, failed, _ = run_probe(probe)
+        rc, failed, detail = run_probe(probe)
         killed = set(failed)
         ok = killed == expect and (rc != 0 if expect else rc == 0)
         print(
@@ -146,6 +146,14 @@ def amputate(
             f"(expected {sorted(expect) or 'NONE'})"
         )
         if not ok:
+            # R13-M2. THE COMMIT THAT ADDED `detail` IS TITLED "I fixed
+            # half of a paired source" AND FIXED ONE OF TWO CALL SITES.
+            # This one - the main body, once per amputation row - still
+            # discarded it into `_`, so a misbehaving row printed a
+            # verdict with no evidence, which is the exact defect the
+            # other site's comment describes at length.
+            for line in detail.strip().splitlines()[-24:]:
+                print(f"      | {line}")
             PROBLEMS.append(name)
     finally:
         path.write_text(before)

@@ -190,6 +190,18 @@ def _report_bounds(total_lines: int) -> int:
         f"{len({p for p, _, _, _ in found})} files"
     )
     print(f"  highest line cited: {max(e for _, _, _, e in found)} of {total_lines}")
+    # R13-H1: THIS LINE DID NOT EXIST AND THE DOCSTRING SAID IT DID.
+    # `citations()` says skips are "COUNTED, so the exemption can never
+    # be silent - a skip nobody reports is how a population shrinks
+    # without anyone noticing." EXEMPT_SKIPPED was assigned, reset and
+    # incremented - and READ NOWHERE. I wrote both the counter and the
+    # claim, on the same day, and never ran the check it describes.
+    #
+    # The review proved the consequence with a plant: a line reading
+    # `DESIGN.md:99999-99999 REPOINT-EXEMPT` passes THIS gate and the
+    # shape gate, both exit 0, nothing printed - a citation 97,866
+    # lines past the end of a 2133-line file.
+    print(f"  lines skipped as {EXEMPT_MARKER}: {EXEMPT_SKIPPED}")
     if bad:
         print(f"\n{len(bad)} problem(s):")
         for b in bad:
