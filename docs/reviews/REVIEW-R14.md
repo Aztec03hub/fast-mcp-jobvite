@@ -44,7 +44,8 @@ down before being checked.
 
 `docs/reviews/check-settings-are-read.py`
 
-**FIXED.** `UNIMPLEMENTED_MARKER` requires a declared-but-unread setting
+**FIXED, then FIXED AGAIN after R14-R1 found two Highs in the fix.**
+`UNIMPLEMENTED_MARKER` requires a declared-but-unread setting
 to carry `NOT YET IMPLEMENTED` in the artefacts an operator reads. The
 docstring that argues the arm into existence ends by naming the harm:
 
@@ -70,25 +71,69 @@ At the time of this round the manifest read:
 with no indication that no code reads it - while `EXEMPT` in the same
 checker recorded that the throttle does not exist.
 
-**Widening the tuple alone would have shipped an arm that cannot fire.**
-The text rule requires the variable name and the marker on ONE line, and
-a JSON object puts `"name"` and `"description"` on different lines by
-construction. Adding `server.json` to the list and nothing else would
-have produced a third artefact that reports a clean zero whatever the
-manifest said. So JSON is read structurally: the entry is looked up by
-name and its description must carry the marker, and an entry that is
-absent RAISES rather than returning an empty list.
+**WHY THE JSON BRANCH EXISTS - AND THIS PARAGRAPH WAS WRONG THE FIRST
+TIME (R14-R1 H1).** It said a widened line rule "reports a clean zero
+whatever the manifest said". **False on this tree**, and R14-R1 proved
+it by deleting the whole JSON dispatch: exit 0, a SURVIVOR. The cause
+is the wording this round itself chose - `server.json`'s description
+BEGINS with the variable name, so name and marker share a line and the
+plain rule matches. I argued a structural fix was necessary while
+writing the very fixture that made it unnecessary.
 
-**Proved by `docs/reviews/probe-r14-manifest-marker.py`, 4/4 arms:**
+Re-measured, all four cells:
+
+    manifest as shipped, JSON branch present ....... exit 0
+    manifest as shipped, JSON branch DELETED ....... exit 0   SURVIVOR
+    manifest reworded,   JSON branch present ....... exit 0
+    manifest reworded,   JSON branch DELETED ....... exit 1   load-bearing
+
+"Reworded" means the description carries the marker WITHOUT repeating
+the variable name - a correctly marked manifest that the line rule
+calls unmarked. **That false POSITIVE is what the branch prevents**, not
+the false pass I claimed. The probe's LINE-RULE arm asserts it. The
+amputation above is a recorded measurement, not an automated arm: the
+probe refuses to run against a modified checker, so it cannot amputate
+its own subject.
+
+**Proved by `docs/reviews/probe-r14-manifest-marker.py`, 7/7 arms** -
+four as first written, three added by R14-R1:
 
     BASELINE   the tree as committed passes                     exit 0
     POSITIVE   an unmarked manifest is REFUSED, and named       exit 1
     AMPUTATE   the OLD two-artefact tuple passes the same lie   exit 0
+    LINE-RULE  a marker WITHOUT the name beside it is ACCEPTED   exit 0
+    SCOPE-DUP  a DUPLICATE declaration is refused, not laundered exit 1
+    SCOPE-OUT  a look-alike outside environmentVariables fails   exit 1
     VACUITY    a manifest with no such entry REFUSES            exit 1
 
-The AMPUTATE arm is the load-bearing one: it restores the previous
-tuple and shows the old checker going green on a manifest that lies,
-which is the defect reproduced rather than merely described.
+AMPUTATE reproduces the original defect: it restores the previous tuple
+and shows the old checker going green on a manifest that lies.
+LINE-RULE is what stops the JSON branch being decorative, and
+SCOPE-DUP/SCOPE-OUT are R14-R1 H2's two plants, both of which passed
+against the first version of this fix.
+
+## R14-R1-H2 (High, found by the review) - the fix laundered an unmarked entry
+
+`docs/reviews/check-settings-are-read.py`
+
+**FIXED.** The first `_json_marker_lines` walked the WHOLE document and
+accepted the entry if ANY node with a matching name carried the marker.
+Two plants passed against a lying manifest, both now probe arms:
+
+- a **DUPLICATE** `JOBVITE_OUTBOUND_RATE_LIMIT`, one marked and one not,
+  both inside `environmentVariables` - exit 0;
+- the real entry **stripped** and a marked look-alike planted OUTSIDE
+  `environmentVariables` - exit 0, on a manifest with no real
+  declaration at all.
+
+The manifest's ROOT object also carries `name` and `description`, so
+the walk was searching places that are not variable declarations.
+
+**This is R14-H1's own defect surviving inside R14-H1's fix**: a check
+that looks in a wider place than the one that matters. The lookup is
+now scoped to `packages[*].environmentVariables`, a duplicate name is
+REFUSED rather than resolved (which one an operator reads is
+undefined), and `_walk_json` is deleted for want of a caller.
 
 ## R14-M1 (Medium) - a bare continuation citation, wrong at BOTH freezes
 
@@ -110,13 +155,23 @@ within the history I read. The repoint left a wrong citation wrong; it
 did not make a right one wrong. Corrected to `:1497-1506`, the fenced
 toml block from `dependencies` through `[tool.uv]`, read before writing.
 
-**Scope, measured rather than assumed.** 115 bare continuations of a
-`DESIGN.md` citation exist across all tracked files. **All 115 are in
-bounds**, so none is detectably stale by address alone. 114 sit in
-records - worklogs, reviews, plans - which the `a1773e8` ruling
-deliberately does not repoint. **Exactly one was in live config**, and
-this is it. The class is real but its live population was a single site,
-and saying so is more useful than the raw 115.
+**Scope - and the second half of this was WRONG (R14-R1 M3, M4).** I
+reported "115 bare continuations, 114 of them in records". **The 115 is
+not reproducible**: I recorded no command, and R14-R1 tried five
+reasonable definitions and got 0, 64, 77, 910 and 957 - none of them
+115. A number nobody can re-derive is not a measurement, and it should
+have been pasted as a command the way the Gates section pastes exit
+codes.
+
+**"114 sit in records" is refuted.** Bare continuations of a `DESIGN.md`
+citation also sit in `src/fast_mcp_jobvite/config.py`,
+`services/jobvite_client.py` (twice), `tests/test_config.py`,
+`tests/test_resilience.py` and three `docs/adr/` files. `src/`, `tests/`
+and `docs/adr/` are NOT records and `a1773e8` does not exempt them -
+they are R11's declared paths, which is a different thing. **The half
+that carries the argument survives**: exactly one bare continuation sat
+in live CONFIG, and it is M1. The half that told the next reader the
+class was closed does not.
 
 ## What I read and found NOTHING wrong with
 
@@ -160,10 +215,11 @@ invisible.
 
 ## What this round could NOT settle
 
-- **Whether the other 114 bare continuations are semantically right.**
-  They are all in bounds, and in-bounds is not correct - M1 proves that
-  precisely, since it was in bounds and wrong. They are records and out
-  of repoint scope by ruling, so this is recorded rather than swept.
+- **How many bare continuations there are, and whether they resolve.**
+  My 115 is unreproducible (R14-R1 M3) and the records claim is refuted
+  (M4). What holds: in-bounds is not correct - M1 was in bounds and
+  wrong - and the `src/` and `tests/` sites are neither records nor
+  swept. Filed rather than guessed at again.
 - **Whether a fourth operator-facing artefact exists.** The three here
   are the three `check-env-vars-are-declared.py` names in its own
   docstring. Nothing enumerates that set from a container, so a fourth
