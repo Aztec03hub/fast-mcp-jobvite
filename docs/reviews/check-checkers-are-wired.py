@@ -135,10 +135,13 @@ def checkers() -> list[str]:
         print(f"git ls-files failed: {done.stderr.strip()}")
         print("This is a BROKEN INSTRUMENT, not a finding. Exit 3.")
         raise SystemExit(3)
-    #: THIS FILE IS IN ITS OWN POPULATION, deliberately. A checker
-    #: that exempts itself from its own container is the precise blind
-    #: spot it exists to catch, and it would be free to go unwired
-    #: while reporting that everything is wired.
+    #: THIS FILE IS IN ITS OWN POPULATION, deliberately - a checker that
+    #: exempts itself from its own container is the precise blind spot
+    #: it exists to catch. **That is ASSERTED by control 4, not claimed
+    #: here**, because this comment was INERT when it was written: git
+    #: lists only TRACKED files, the checker was still untracked, and it
+    #: excluded itself for a reason no line of code mentions. The census
+    #: read 26 and became 27 on the commit that tracked it.
     return sorted(pathlib.PurePath(p).name for p in done.stdout.split())
 
 
@@ -198,13 +201,25 @@ def self_test() -> int:
     if "zzz" in strip_comments("echo hi  # zzz\n"):
         failures.append("strip_comments left a commented name behind")
 
+    # 4. THIS FILE MUST BE IN ITS OWN POPULATION, asserted rather than
+    #    commented. The comment in `checkers()` claimed it already was,
+    #    and the claim was INERT when I wrote it: `git ls-files` lists
+    #    only TRACKED files, and the checker was still untracked, so it
+    #    excluded itself for a reason the code never mentions. The
+    #    census
+    #    read 26 and silently became 27 on the commit that tracked it.
+    #    A rename that stops matching the glob would do the same thing.
+    me = pathlib.Path(__file__).name
+    if me not in checkers():
+        failures.append(f"{me} is NOT in its own population")
+
     print(f"run steps parsed: {steps}")
     for line in failures:
         print(f"  CONTROL FAILED: {line}")
     if failures:
         print(f"\n{len(failures)} control(s) failed. The instrument is wrong.")
         return 1
-    print("3/3 controls passed.")
+    print("4/4 controls passed.")
     return 0
 
 
