@@ -72,7 +72,15 @@ _HEADING = re.compile(r"^#{1,6}\s+(\d+(?:\.\d+)*)\.?\s")
 _REFERENCE = re.compile(r"§\s*(\d+(?:\.\d+)*)")
 # A markdown filename on the same line means the reference belongs to
 # THAT document.
-_NAMES_A_DOCUMENT = re.compile(r"[A-Za-z0-9_-]+\.md")
+# A line that NAMES the document it cites is not citing THIS document's
+# numbering, so its `§n` is not ours to resolve. That was spelled as
+# "mentions a `.md` file", which silently excluded EXTERNAL
+# specifications: `RFC 9457 §4.2.1` read as a broken internal reference
+# (#139, three sites across ADR-0017 and ADR-0030, all correct as
+# written). The rule was always about NAMING, never about the `.md`
+# suffix - an RFC number identifies its document at least as precisely
+# as a filename does.
+_NAMES_A_DOCUMENT = re.compile(r"[A-Za-z0-9_-]+\.md|\bRFC\s*\d+")
 
 # References that resolve in a document this checker does not read, on
 # lines that do not name it. Each needs a REASON, not just a coordinate.
@@ -104,10 +112,24 @@ _EXEMPT: dict[str, list[tuple[str, str]]] = {
 # document -> the document whose section numbering it ALSO cites, or
 # None. The plan is a plan for the design and cites its sections
 # throughout.
+# **THE REFERENT IS A CLAIM ABOUT WHOSE NUMBERING A DOCUMENT'S BARE `§n`
+# REFERENCES USE - NOT ABOUT WHAT THE DOCUMENT IS.** #139 surfaced the
+# doubt in a useful form: `STANDARDS.md` is a survey of an EXTERNAL
+# corpus, so naming the design as its referent felt like a statement
+# that the document is about our design. It is not. Its bare `§n` refs
+# cite the design's sections, measurably - all four resolve there and
+# every target was read and is on subject. Whose numbering, not whose
+# subject.
+#
+# `data-inventory.md` (15) and `STANDARDS.md` (4) were the whole
+# WRONG REFERENT class: 19 of the 46 unresolved references, and BOTH GO
+# TO ZERO with this referent. Measured, not assumed.
 DEFAULT_TARGETS: dict[str, str | None] = {
     "docs/DESIGN.md": None,
     "docs/plans/IMPLEMENTATION-PLAN.md": "docs/DESIGN.md",
     "docs/research/COMPLIANCE-SPEC.md": None,
+    "docs/data-inventory.md": "docs/DESIGN.md",
+    "docs/research/STANDARDS.md": "docs/DESIGN.md",
 }
 
 

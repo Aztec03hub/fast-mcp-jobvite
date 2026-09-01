@@ -51,7 +51,14 @@ total = 0
 files = 0
 for p in sorted(pop):
     text = (root / p).read_text()
-    ref = "docs/DESIGN.md" if p.startswith("docs/adr/") else None
+    # DEFER TO THE GATE'S OWN TABLE where it has an entry, so the two
+    # instruments cannot drift apart. They already did once: adding
+    # data-inventory.md and STANDARDS.md to DEFAULT_TARGETS made them
+    # clean for the GATE while this script, hard-coding referent=None
+    # for everything outside docs/adr/, still counted their 19
+    # references as unresolved. Two numbers for one question is the
+    # defect this file exists to prevent.
+    ref = m.DEFAULT_TARGETS.get(p, "docs/DESIGN.md" if p.startswith("docs/adr/") else None)
     try:
         miss = m.unresolved(text, ref, p)
     except ValueError as e:
