@@ -18,6 +18,11 @@ numbers, because the two wired gates do not share a container:
 | `check-design-citations.py` | `.py .toml .md .yml .yaml .sh` | **47** | **51** |
 | `check-design-citation-shape.py` | `.py .sh` | **25** | **25** |
 
+Tier 0 independently measured **52** at `20d5763`, one commit further on,
+after marking one more line. Both measurements are right; the number is
+simply not stable, and §8 says why that is the finding rather than a
+nuisance.
+
 The four new marked lines are all in `docs/briefs/BRIEF-142-scope-the-exemption.md`,
 the brief itself.
 
@@ -232,3 +237,81 @@ reading the code.
 ## 7. Not attempted yet
 
 - The apply pass and the controls. Both wait on the ruling.
+
+## 8. Tier 0's two open questions, answered
+
+Written after Tier 0's measurement crossed with this document. Their 52 at
+`20d5763` and my 51 at `ee20c94` agree; the count moved by one because one
+more line was marked in between. **That the number moves when people WRITE
+ABOUT the marker is not noise around the measurement - it is the
+measurement.**
+
+### Q1 - should a line that merely MENTIONS the marker be exempt at all?
+
+**No, and the mechanic in §3 settles it without a ruling being needed.**
+Requiring `REPOINT-EXEMPT(` retires all 36 mention-only lines at once,
+edits none of them, and grandfathers nothing. Tier 0's distribution says
+the same thing from the other end: the three largest holders are
+`check-design-citations.py` (8), `probe-repoint-fail-closed.py` (6) and
+`DOCS-LINT-REPORT.md` (5) - the checker, its probe, and the report about
+the probe. The tooling that implements the exemption is the biggest
+consumer of it. None of those lines has a citation to exempt.
+
+This is also why the count is unstable in the specific direction observed:
+the population grows every time someone documents the mechanism, and it
+can only grow, because nobody deletes a review record. A count that
+ratchets upward from prose cannot be a ratchet on anything.
+
+### Q2 - should the count exclude records? Is the container the cleaner fix?
+
+**It is a real defect, it is worth its own ticket, and it is NOT a
+substitute for the scoped form.** Three reasons, in order of weight.
+
+**a. One container feeds THREE consumers, not two.**
+`repoint-design-citations.py` does not enumerate files at all - it parses
+`check-design-citations.py --since` output (`repoint-design-citations.py:198-226`).
+Narrowing the bounds checker's suffix set therefore also decides what the
+REPOINTER will and will not rewrite. Dropping `.md` would stop prose being
+repointed, which is what `check-design-citation-shape.py:69-84` argues is
+correct for a record - and would simultaneously stop `CONTRIBUTING.md`,
+`README.md` and every live brief being bounds-checked at all.
+
+**b. `.md` is not a kind, it is two kinds.** `REVIEW-R10.md` is a frozen
+record. `docs/briefs/BRIEF-142-scope-the-exemption.md` is a live
+instruction that a reader will act on, and its wrong citation went red
+today for a good reason. Excluding by suffix would silence the live half
+to quiet the frozen half - which is precisely the mistake
+`check-design-citation-shape.py:82-84` records in its own comment: *"A path
+list cannot see the KIND of the thing at the path."* Trading a path list
+for a suffix list does not fix that; it renames it.
+
+**c. The scoped form subsumes it, per citation instead of per suffix.**
+`REPOINT-EXEMPT(DESIGN.md:99999: quotes the planted citation as evidence)`
+says "this one is a record" at the exact granularity the question is
+about, with a reason attached, in the one place a reader is already
+looking. A suffix rule guesses the same thing from a filename.
+
+**Suggested fix, and it is a ticket, not part of #142:** leave the
+container alone until the scoped form lands, then re-measure how many
+`.md` exemptions remain. If a large residue is still purely "this file is
+a record", that is the evidence for a container change and it will be
+measured rather than argued. Filing it now against a container nobody has
+re-measured would be a fix chosen before its defect was sized.
+
+### One implementation hazard the scoped form introduces, found by reading
+
+`repoint-design-citations.py:123` does its OWN bare-substring test on the
+citing line, re-read from disk, independently of the checker's. Today that
+is unreachable belt-and-braces: the bounds checker skips the whole line
+before it can emit a `MOVED` row for it.
+
+Under the subset rule in §3 the two stop agreeing. A line with one scoped
+citation and one unscoped one WILL emit a `MOVED` row for the unscoped
+one - and the repointer's line-level test would then refuse to repoint it,
+silently, because the line carries a marker for a different citation. **The
+repointer must match at RANGE granularity too, not just the checker.** It
+is in the plan as the third file; this records why it is not optional and
+what breaks if a Tier-2 worker changes only the two gates.
+
+Its fail-closed unreadable-line handling
+(`repoint-design-citations.py:100-107`, `:209-215`) must survive unchanged.
