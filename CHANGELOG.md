@@ -235,6 +235,15 @@ server cannot tell a person from a handler - see the README's disclosures.
 
 ### Changed
 
+- **The design-citation scan chooses its population by KIND now, not by PATH.** It excluded
+  `docs/reviews/` on the reasoning - stated in its own docstring - that *a review cites the design as
+  it stood*. That is right for a review DOCUMENT and wrong for the CHECKERS in the same directory,
+  which are live, linted, type-checked code whose citations are claims about the design NOW. The
+  blind spot had already hidden one: a citation in `check-settings-are-read.py` that RESOLVED and
+  named the wrong sentence, found by a human because no gate could see it. The scan now covers every
+  tracked `.py`/`.sh` file - 875 citations across 148 files - and reports 0. **That zero was proved
+  non-vacuous** by planting a bad citation in a checker and watching the scan name it. (2026-09-01 01:13 PM CDT)
+
 - **`ci.yml`'s design citations no longer carry line numbers, so a re-freeze cannot stale them.**
   The re-freeze at `8a9d63c` left 18 of the file's 20 `DESIGN.md:NNN` citations pointing at text
   that had moved - each still RESOLVED, each now naming a different sentence, and no checker covers

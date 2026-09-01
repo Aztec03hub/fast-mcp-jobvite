@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Every `§n.m` pointer resolves to a heading that exists.
 
-**Why this exists.** `DESIGN.md:605` cited `§5.4`. Section 5 runs 5.1,
-5.2, 5.3 and then section 6 begins, so the pointer resolved to nothing.
+**Why this exists.** `DESIGN.md` cited `§5.4` from §5.3's "the v1
+`jobFeed` URL is itself a secret" sentence. Section 5 runs 5.1, 5.2, 5.3
+and then section 6 begins, so the pointer resolved to nothing.
 It was found by an implementer who happened to follow it while building
 U3 - seven review rounds, three gate scripts and a frozen-object freeze
 had all passed over it, because **no gate reads cross-references.**

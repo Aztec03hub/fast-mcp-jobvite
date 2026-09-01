@@ -20,7 +20,7 @@ the source and sets one gets nothing**, and the comment reads exactly
 like documentation for a knob that works.
 
 **The frozen design names none of the four**, which is the sharper half:
-`DESIGN.md:373-375` requires "a total outbound budget, **configured**",
+§4.3 requires "a total outbound budget, configured",
 and the plan's §U9 records why naming a variable is the design's call
 and not an implementation's - a whole unit was once unbuildable because
 three variables had no names, and a reviewer's guesses were correctly
