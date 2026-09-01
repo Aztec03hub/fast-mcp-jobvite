@@ -217,8 +217,30 @@ jobs:
       # on this project, four inside the ADR documenting the defect - and the
       # env-var checker matches LITERALS, so a name built by composition is
       # invisible to it.
+      # I WIRED THIS AFTER MEASURING IT GREEN LOCALLY, WHICH WAS NOT
+      # ENOUGH. It reads the standards corpus - a PRIVATE sibling repo
+      # that exists beside my checkout and on no runner - so it exits 2
+      # ("this measurement did not run") in CI and turned the trunk red
+      # within minutes of being wired. `check-standards-citations.py`
+      # already had exactly this treatment; I did not carry it across.
+      #
+      # rc 2 is the CONFIGURED state, not a pass and not a failure. It is
+      # announced loudly so it can never read as a green, which is the
+      # switched-off-must-not-look-like-broken rule (#106).
       - name: Standard clause citations resolve
-        run: python3 docs/reviews/check-clause-citations.py
+        run: |
+          set +e
+          out=$(python3 docs/reviews/check-clause-citations.py 2>&1); rc=$?
+          echo "$out"
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::THE CLAUSE-CITATION GATE DID NOT RUN. The standards"
+            echo "         corpus is a private sibling repository this runner"
+            echo "         cannot read. CONFIGURED state, not a failure - and"
+            echo "         not a green: no clause citation was checked."
+            echo "         Fix: STANDARDS_TOKEN, then a checkout of it (#106)."
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Every env var is declared
         run: python3 docs/reviews/check-env-vars-are-declared.py

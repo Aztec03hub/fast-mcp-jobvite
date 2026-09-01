@@ -152,7 +152,28 @@ else:
 
     try:
         os.chmod(victim, 0o000)
-        assert not os.access(victim, os.R_OK), "chmod did not make the file unreadable"
+        # NOT an assert. `chmod 000` does not deny a process able to
+        # override it - root, or CAP_DAC_OVERRIDE - and on a runner
+        # this raised AssertionError, exiting non-zero with NO ROW
+        # NAMED. CI reported "exit=1 failed=none", the least useful
+        # thing a probe can say. The row REFUSES instead: it cannot be
+        # measured where the permission is not enforced, and a refusal
+        # is honest where a failure would be a lie about the subject.
+        if os.access(victim, os.R_OK):
+            os.chmod(victim, before_mode)
+            row(
+                "E. unreadable cited file -> REFUSED, not measured here",
+                True,
+                "chmod 000 did not deny this process (root or "
+                "CAP_DAC_OVERRIDE), so the unreadable case cannot be "
+                "staged here. NOTHING was tested by this row.",
+            )
+            print()
+            if FAILURES:
+                print(f"  {len(FAILURES)} row(s) did not behave: {FAILURES}")
+                raise SystemExit(1)
+            print("  rows ran; row E refused, see above.")
+            raise SystemExit(0)
         run = subprocess.run(
             [sys.executable, str(TOOL), SHA],
             capture_output=True,
