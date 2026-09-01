@@ -78,8 +78,14 @@ control() {
   #
   # The row is NOT counted as fired, so FIRED < TOTAL and the run exits 1: a
   # harness that cannot aim must fail rather than report.
-  if ! uv run --frozen pytest "$named" --collect-only -q \
-       -p no:cacheprovider >/dev/null 2>&1; then
+  timeout 120 uv run --frozen pytest "$named" --collect-only -q \
+       -p no:cacheprovider >/dev/null 2>&1
+  local probe_rc=$?
+  if [ "$probe_rc" -ne 0 ]; then
+    if [ "$probe_rc" -eq 124 ]; then
+      echo "  SELECTOR PROBE TIMED OUT after 120s - collection NEVER FINISHED."
+      echo "  Read this, not the lines below: a hang, not a rename."
+    fi
     echo "  [$label] SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
     echo "  -> this row has been reporting FIRED without running. Fix the harness."
     return
