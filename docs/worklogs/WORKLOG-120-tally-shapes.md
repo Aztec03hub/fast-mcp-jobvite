@@ -157,18 +157,42 @@ and these three were not. It costs one flag.
 through `ci-harness-gate.sh`, and that step reads only its exit code. Its tally
 is read by its own `[ "$FIRED" -ne "$TOTAL" ]` at `:322`.
 
-**Verdict: leave the step as it is - and the reason is not "it was fine".** It
-and `ci-harness-gate-controls.sh` are the two harnesses that deliberately PRINT
-anchor-failure vocabulary as part of passing: they exercise a checker by
-breaking anchors on purpose. `ci-harness-gate.sh` fails any harness whose output
-contains a vocabulary phrase, so wrapping either of them in the gate would fail
-it for doing its job. Both now publish their tally field regardless, so the
-second layer is one line away for whoever wants it; I did not add an inline
-grep to `ci.yml` because inline gate logic in a `run:` block is the two-lists
-defect #27 removed.
+**Verdict: WRAPPED IN THE GATE, and my first answer here was WRONG.**
 
-I have NOT measured that these two print a vocabulary phrase on a passing run -
-I read it out of their sources. See the unsettled list.
+I originally left this step inline, reasoning that this harness and
+`ci-harness-gate-controls.sh` both PRINT anchor-failure vocabulary as part of
+passing, so `ci-harness-gate.sh` - which fails any harness whose output contains
+a vocabulary phrase - would fail them for doing their job. I put it on the
+unsettled list because I had read that out of their SOURCES rather than
+measuring it.
+
+Measuring it refuted half of it. On a real passing run:
+
+    check-harness-anchors-controls.sh   exit 0   prints NEITHER phrase
+    ci-harness-gate-controls.sh         exit 0   prints COULD NOT APPLY x1, DID NOT LAND x1
+
+The phrases are in `check-harness-anchors-controls.sh`'s source and never reach
+its output. That is the precise distinction `ci-harness-gate.sh:112-116` is built
+on - it derives what to grep from the SOURCE and then looks in the OUTPUT - and
+reading the source alone is how you get it backwards. I had read one half of a
+paired source and called it an answer.
+
+So I ran the step I had called impossible:
+
+    bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
+    exit 0
+    HARNESS-RESULT name=check-harness-anchors-controls.sh rows=9 floor=9 fired=9/9 status=ok
+    tree: 0 dirty paths
+
+and then wired it. The inline form read only the harness's exit code, so a
+harness whose own `FIRED -ne TOTAL` comparison at `:322` was deleted would have
+passed it. It now has the same second layer as its thirteen siblings, and #27's
+"every harness step calls the gate" holds without an exception.
+
+`ci-harness-gate-controls.sh` STAYS INLINE, now for a measured reason rather
+than an assumed one: it really does print two vocabulary phrases on a passing
+run, so the gate would fail it. The exemption is narrowed from two harnesses to
+one, and the fourth gap is closed.
 
 ## The positive controls, and what each PROVED
 
@@ -287,25 +311,11 @@ bash -n on every edited shell file                                  SYNTAX OK
 
 ## What I did NOT verify
 
-1. **That `check-harness-anchors-controls.sh` and `ci-harness-gate-controls.sh`
-   print an anchor-failure vocabulary phrase on a PASSING run.** This is the
-   reason I gave for leaving them outside `ci-harness-gate.sh`, and I read it out
-   of their sources rather than measuring it. Both contain the phrases (`DID NOT
-   LAND` and `ANCHOR NOT UNIQUE` in the first; those plus `COULD NOT APPLY` in
-   the second), and both exist to exercise a checker by breaking anchors on
-   purpose, so I believe it - but a phrase present in source is not a phrase
-   printed at runtime, which is the exact distinction `ci-harness-gate.sh:112-116`
-   was built around. **To settle it:** run each and
-   `grep -F 'COULD NOT APPLY' -e 'DID NOT LAND' -e 'ANCHOR NOT UNIQUE'` its
-   output. I did not, because both mutate tracked files and every window I had
-   was occupied by the exit-code probe, which fails on a tree that moves under
-   it.
-
-2. **The `ci.yml` job as a whole has not been run.** I ran the individual gate
+1. **The `ci.yml` job as a whole has not been run.** I ran the individual gate
    commands from the changed steps, which is what the preamble asks for, but the
    job takes hours and #105 records that no CI run has ever gone green here.
 
-3. **Whether any harness should publish a tally it does not currently print.**
+2. **Whether any harness should publish a tally it does not currently print.**
    I only asked whether printed tallies are published and read. A harness that
    counts something internally and prints nothing would be invisible to both the
    census and my checker, because both start from the print statement. That is a
