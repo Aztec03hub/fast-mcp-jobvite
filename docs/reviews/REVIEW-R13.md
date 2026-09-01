@@ -340,10 +340,13 @@ an `echo`, in a heredoc, in a `--help` string, or as an argument to
 something else. The dangerous direction - false WIRED - is still open, and
 it is the direction that produces silent coverage claims.
 
-`echo` mentions of checkers are not hypothetical in this file: the two
-`::warning::` blocks at `ci.yml:288-295` and `:395-402` are exactly that
-shape today. Neither happens to name a `check-*.py` basename, so nothing is
-mislabelled right now - but nothing prevents it either.
+**Measured, so this is a latent hole and not a live one:** I tested all 27
+checker basenames against every `run:` body in all three workflows for a
+non-executed position (`echo`/`printf`/`cat` command position, or quoted).
+**Zero hits.** Nothing is mislabelled today. But `echo` mentions of *paths*
+are not hypothetical here - the two `::warning::` blocks at `ci.yml:288-295`
+and `:395-402` are exactly that shape, and neither happens to name a
+`check-*.py`. Nothing prevents the next one from doing so.
 
 **Suggested fix.** Reuse the tokeniser proposed in H2. A checker counts as
 wired when its basename appears as a **command-position or script-position
@@ -779,7 +782,27 @@ line.
 
 `uv run --frozen pytest -q` at `2584afb`, from the detached worktree:
 
-> SUITE_PLACEHOLDER
+```
+====================== 873 passed, 6 deselected in 55.50s ======================
+PYTEST_EXIT=0
+```
+
+**873 passed, 0 skipped, 6 deselected, exit 0. The claim HOLDS exactly.**
+`ci.yml:707` sets the floor at `873` at `2584afb`, derived from the workflow
+and not retyped from any brief, so the suite meets its floor with zero slack
+- which is the state a tight ratchet is supposed to be in.
+
+**One thing I got wrong, and it belongs here rather than buried.** My first
+attempt to run this suite produced nothing for forty minutes and I reported
+"still running" four times. It was not running. The backgrounded subshell
+never survived its tool call, `/tmp/r13-suite.txt` stayed empty, and the
+`pytest` processes visible on the box belonged to `tally-shapes`, not to me.
+**An empty output file and a not-yet-flushed one are byte-identical, and I
+read the absence as progress** - my instrument's behaviour stated as the
+object's. Re-run properly, the suite takes **55 seconds**, which is by
+itself the evidence that the first forty minutes measured nothing. Nothing
+else in this report depends on that run; every other number was taken from a
+command whose exit code I read on its own line.
 
 `ci.yml:707` sets the floor at `873` at `2584afb` (derived from the
 workflow, not retyped from any brief).
@@ -805,11 +828,13 @@ Each of these was attempted and could not be closed, not skipped.
    to *checked*. "12 of 78" is honest about what it ran; it is silent about
    how much of the remainder is reachable with a slightly better classifier,
    and that number would be the useful one.
-3. **Whether M3's false-WIRED is exploitable today.** I proved the mechanism
-   (`echo` mention reads WIRED) but did not enumerate every `run:` body for
-   an existing `check-*` basename in a non-executed position. The two
-   `::warning::` blocks are the right shape and do not name a checker; I did
-   not check the other 76.
+3. ~~Whether M3's false-WIRED is exploitable today.~~ **SETTLED after
+   drafting, and it is clean.** I enumerated every `run:` body in all three
+   workflows and tested each of the 27 checker basenames for a non-executed
+   position - `echo`/`printf`/`cat` command position, or wrapped in quotes.
+   **0 hits.** M3's mechanism is real and the gate would accept it, but
+   nothing in the tree exercises it today. Leaving the finding at Medium
+   because the guard is what is missing, not the victim.
 4. **The `-24:` window's behaviour on a real long traceback.** I read the
    slice and reasoned about it; I did not stage a probe failure with >24
    lines of stderr to watch the marker get cut, because doing that requires
