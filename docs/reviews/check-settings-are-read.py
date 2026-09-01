@@ -11,6 +11,13 @@ configured" was promised and nothing implemented one until U7.
 typed, defaulted, documented in `.env.example` and covered by config
 tests, every one of which passes on a setting no code consumes.
 
+**THE `STALE EXEMPTION` ARM IS THE TRIPWIRE FOR THAT ONE.** DESIGN.md
+§4.4 now carries rules for a throttle nobody has built, which is the
+same shape as a setting nothing reads unless something makes the
+implementer read them. The moment `outbound_rate_limit` gains a reader
+it leaves the unread set, its exemption goes STALE, and this exits 1
+pointing at §4.4. Verified by planting a reader: the arm fires.
+
 **A declared-and-unread setting is worse than a missing one.** A missing
 setting fails loudly at the first attempt to use it. A declared one
 ships in `.env.example`, an operator sets it, and it silently does
@@ -52,9 +59,15 @@ CONFIG = ROOT / "src" / "fast_mcp_jobvite" / "config.py"
 #: a reader needs. A bare name is refused: the reason IS the exemption.
 EXEMPT: dict[str, str] = {
     "outbound_rate_limit": (
-        "ADR-0025 (Proposed): the self-throttle does not exist yet, and the "
-        "page size, budget and throttle have to be settled together. This "
-        "entry is the record that it is KNOWN unread, not that it is fine."
+        "ADR-0025 (ACCEPTED, applied): the self-throttle does not exist "
+        "yet. This entry records that it is KNOWN unread, not that it is "
+        "fine. WHOEVER GIVES IT ITS FIRST READER: the STALE EXEMPTION arm "
+        "below fires on you, and that is deliberate - read DESIGN.md "
+        "§4.4's throttle rules FIRST. They are written to constrain the "
+        "implementer and say in bold that the throttle is not built: it "
+        "is PER-PROCESS, and time spent waiting on it SPENDS §4.3's "
+        "outbound budget. Drop this entry in the same commit that "
+        "implements them, not before."
     ),
 }
 
