@@ -1013,7 +1013,13 @@ async def test_a_retry_after_we_cannot_afford_stops_instead_of_sleeping() -> Non
         error = e.value
         assert isinstance(error, jc.JobviteRetryLaterError)
         assert error.retry_after == 900.0
-        problem = problem_from_exception(error, RID_A, retry_after=error.retry_after)
+        # PRODUCTION'S CALL SHAPE, with no extensions (R11-H1). This
+        # line used to pass `retry_after=error.retry_after`, which
+        # handed the assertion below the very value it was checking -
+        # and no production site has ever made that call. The hint now
+        # comes off the exception inside `problem_from_exception`, so
+        # what is asserted here is what a caller actually receives.
+        problem = problem_from_exception(error, RID_A)
         assert problem["status"] == 503
         assert problem["retry_after"] == 900.0
 
@@ -1070,9 +1076,10 @@ async def test_an_open_breaker_and_an_outage_are_told_apart_by_detail() -> None:
     outage_problem = problem_from_exception(outage.value, RID_A)
     opened_error = opened.value
     assert isinstance(opened_error, jc.JobviteRetryLaterError)
-    open_problem = problem_from_exception(
-        opened_error, RID_A, retry_after=opened_error.retry_after
-    )
+    # PRODUCTION'S CALL SHAPE, no extensions (R11-H1) - see the
+    # unaffordable-budget case above for why the old form proved
+    # nothing about the open breaker's hint.
+    open_problem = problem_from_exception(opened_error, RID_A)
     assert outage_problem["type"] == open_problem["type"]
     assert outage_problem["status"] == open_problem["status"] == 503
     assert outage_problem["detail"] != open_problem["detail"]

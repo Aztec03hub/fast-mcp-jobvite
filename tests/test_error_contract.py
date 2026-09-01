@@ -222,7 +222,17 @@ def test_an_extension_member_cannot_shadow_a_required_member() -> None:
 
 
 def test_extension_members_survive_alongside_the_seven() -> None:
-    """DESIGN.md:370 attaches a retry_after hint to the 503."""
+    """`build_problem` keeps an extension member beside the seven.
+
+    **This is a unit test of `**extensions`, and its docstring used to
+    claim more than that** (R11-H1). It said *"DESIGN.md:370 attaches a
+    retry_after hint to the 503"*, which is a claim about what a CALLER
+    receives - and it passes just as well against a server that never
+    attaches one, because the value is handed in on the line above.
+    The design claim is asserted where it can fail, at the tool
+    boundary: `test_tools_jobs.py`'s
+    `test_the_upstreams_retry_after_reaches_the_caller_on_a_502`.
+    """
     problem = errors.build_problem(
         errors.SERVICE_UNAVAILABLE, "breaker open", RID, retry_after=30
     )

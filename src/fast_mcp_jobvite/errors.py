@@ -138,11 +138,31 @@ class JobviteUpstreamError(FastMcpJobviteError):
     Jobvite's own status and message are preserved on the instance and
     reproduced in `detail` (DESIGN.md:592-594). They are never allowed
     to reach `status`.
+
+    **`retry_after` carries a `Retry-After` JOBVITE SENT, and nothing
+    else** (ADR-0030, DESIGN.md:376-382). A 5xx arriving with a hint we
+    cannot afford inside the outbound budget stops the retry loop -
+    correctly - and used to surface as a bare 502, telling the caller
+    *"Jobvite failed"* when we had been told *"Jobvite failed, and it
+    will keep failing for fifteen minutes"*. That is strictly less than
+    we knew.
+
+    **It is NEVER computed.** ADR-0030 is explicit: a synthesised hint
+    on a 502 would be this server inventing a prediction and dressing
+    it as the upstream's, which is worse than the omission it fixes.
+    The open breaker's hint is different in kind - it is computed from
+    our own remaining window, and is ours to compute precisely because
+    it describes our own state.
     """
 
     kind = EXTERNAL_SERVICE_ERROR
 
-    def __init__(self, upstream_status: int | None, upstream_message: str) -> None:
+    def __init__(
+        self,
+        upstream_status: int | None,
+        upstream_message: str,
+        retry_after: float | None = None,
+    ) -> None:
         """Record what Jobvite said, and build a `detail` that keeps it.
 
         Args:
@@ -151,11 +171,15 @@ class JobviteUpstreamError(FastMcpJobviteError):
                 (DESIGN.md:344-345). `None` when Jobvite gave no status
                 at all.
             upstream_message: Jobvite's own message text.
+            retry_after: Seconds, parsed from a `Retry-After` Jobvite
+                actually sent. `None` means we were not told - never
+                *do not retry*, and never a number of our own.
         """
         shown = "none" if upstream_status is None else str(upstream_status)
         super().__init__(f"Jobvite returned status {shown}: {upstream_message}")
         self.upstream_status = upstream_status
         self.upstream_message = upstream_message
+        self.retry_after = retry_after
 
 
 class JobviteUnavailableError(FastMcpJobviteError):
@@ -311,15 +335,36 @@ def problem_from_exception(
     credential fragment or an upstream body, and this value reaches the
     caller.
 
+    **A `retry_after` an exception is CARRYING is attached here, and
+    that is why it is here rather than at the six call sites**
+    (ADR-0030, R11-H1). DESIGN.md:376-382 says a hint the upstream
+    volunteered *"is passed on, on whatever problem shape results"*,
+    and DESIGN.md:368-370 says the open breaker's 503 carries one.
+    Neither reached a caller: every call site is
+    `problem_from_exception(exc, event.request_id)` with no extensions,
+    and the only code that passed the member was the tests, which
+    handed themselves the value they then asserted. Attaching it at the
+    six sites would have been six chances to forget, and the seventh
+    site would have been written without it.
+
+    **An explicit `extensions` entry WINS over the carried one.** The
+    caller is stating something about this occurrence and the exception
+    is stating something about itself; the more specific wins, and
+    `{"retry_after": hint, **extensions}` is that order.
+
     Args:
         exc: The exception to convert.
         request_id: The UUIDv4 minted by `audit.py` for this invocation.
-        **extensions: RFC 9457 extension members.
+        **extensions: RFC 9457 extension members. An explicit
+            `retry_after` here overrides one carried by `exc`.
 
     Returns:
         The problem object.
     """
     if isinstance(exc, FastMcpJobviteError):
+        hint = getattr(exc, "retry_after", None)
+        if hint is not None:
+            extensions = {"retry_after": hint, **extensions}
         return build_problem(exc.kind, exc.detail, request_id, **extensions)
     return build_problem(
         INTERNAL_ERROR,
