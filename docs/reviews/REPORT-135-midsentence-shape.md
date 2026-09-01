@@ -14,7 +14,7 @@ branch or any other. The detector is named `probe-` on purpose.
 
 | | |
 |---|---|
-| container | **881** citation sites, 163 tracked `.py`/`.sh` files |
+| container | **881** citation sites, 165 tracked `.py`/`.sh` files |
 | **mid-sentence backlog** | **320** sites (**36.3%**) - not ~90 |
 | of those, multi-line | 233 |
 | of those, single-line | 87 |
@@ -35,7 +35,7 @@ corrects the brief"* and *"This corrects #134"*.
 `docs/reviews/probe-midsentence-shape.py`, run against `5d17cd7`:
 
 ```
-container: 881 citation sites, 163 tracked files
+container: 881 citation sites, 165 tracked files
 design:    5d17cd7, 2133 lines
 
 320 site(s) start or end mid-sentence (36.3% of 881)
@@ -110,7 +110,7 @@ see paragraph membership, only sentence boundaries**, so it
 under-detects that shape. That is the clearest known blind spot and it
 is in the docstring.
 
-## Per-file distribution (66 of 163 files carry at least one)
+## Per-file distribution (66 of 165 files carry at least one)
 
 ```
     28  src/fast_mcp_jobvite/services/jobvite_client.py
@@ -139,6 +139,12 @@ is in the docstring.
 The tail (45 more files, 1-5 each) is in the probe's own output; it is
 not copied here, because a hand-copied tail is a second place for the
 number to decay.
+
+**`165` is the count with this branch's two new files tracked; the
+pre-commit run said `163`.** The 881 SITES are unchanged either way,
+which is the number every rate here divides by - `sample-135-complement.py`
+carries no `DESIGN.md:N` citation, and `probe-midsentence-shape.py`'s
+one is marker-exempted.
 
 **The distribution is not concentrated, and that matters for the sweep
 decision.** No file holds more than 9% of the backlog, and 66 files are
@@ -587,6 +593,13 @@ mechanism `check-design-citation-shape.py:33` already uses for
 `DESIGN.md:311`. Without the marker this report's own detector would
 have counted its own documentation, which is a shape this project has
 measured five times.
+
+**The exemption set moved 23 -> 24, and that is the whole move.** My
+first commit took it to 25: `sample-135-complement.py`'s docstring
+mentioned the marker by name in ordinary prose, which exempted a line
+carrying no citation at all. It is reworded. The exemption set is part
+of the result on this project, so a silent +1 in it is the same defect
+class as a silent +1 anywhere else.
 
 `check-checkers-are-wired.py` exiting 0 is the specific reason both new
 files are named `probe-` and `sample-`: a `check-*` file in

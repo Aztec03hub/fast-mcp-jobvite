@@ -21,7 +21,7 @@ the complement cannot be defined by subtraction. Both arms come
 off ONE tree, and `docs/DESIGN-FREEZE.txt` reads `5d17cd7` at `26973a4^`
 and at `main` alike, so both arms are judged against the same design.
 
-The container, the citation pattern and the `REPOINT-EXEMPT` skip are
+The container, the citation pattern and the exemption-marker skip are
 `check-design-citation-shape.py`'s, read at `--rev` rather than from the
 working tree - a second selector would be a second population.
 
