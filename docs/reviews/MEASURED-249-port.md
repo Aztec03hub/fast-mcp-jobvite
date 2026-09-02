@@ -142,9 +142,10 @@ Every difference falls into one of five buckets.
    `check-u3-audit-controls.sh`'s shape on main, so a switched-off check and a
    passing one do not render identically. It does not match any `--row-re` in
    `ci.yml` (`^########## M[0-9]+ `), so no row count moves; the reviewer went
-   further and checked `ci-harness-gate.sh:90` initialises `row_re=""` with no
-   default and `:416`-`:418` counts rows only when `--min-rows` is passed, so
-   there is no implicit `^########## ` counter anywhere for the line to inflate.
+   further and checked `ci-harness-gate.sh:90` (@ `d314283`) initialises
+   `row_re=""` with no default and `:416`-`:418` counts rows only when
+   `--min-rows` is passed, so there is no implicit `^########## ` counter
+   anywhere for the line to inflate.
 
 5. **The L1 and L2 code added in review round 1** (the zero-row guard and the
    two-line pointer in the failure branch). Neither is in `84d4959`. L2 fixes a
@@ -380,7 +381,7 @@ blocker was this document.
 |---|---|---|
 | H1 | The value claim was refuted by an ancestor of this commit: at 12 lanes the port removes ZERO wall clock | Timing conclusion rewritten to the reviewer's paragraph, arithmetic re-checked against `REVAMP-238-ci.md` (§ 7a.2, `:438-481` @ `d314283`) rather than against the summary |
 | L1 | A renamed selector's own row now prints `KILLED`; the doc claimed only "caught LOUDER" | Two pointer lines added to the failure branch of all eight; the loss recorded above in full |
-| L2 | The new guard was VACUOUS at `TOTAL=0` - it printed a success line for a check that checked nothing | `[ "$TOTAL" -eq 0 ] \|\|` restored in all eight, the guard `check-u3-audit-controls.sh:461` has and this port dropped |
+| L2 | The new guard was VACUOUS at `TOTAL=0` - it printed a success line for a check that checked nothing | `[ "$TOTAL" -eq 0 ] \|\|` restored in all eight, the guard `check-u3-audit-controls.sh:461` (@ `d314283`) has and this port dropped |
 | L3 | Timing was n=1 per cell with no spread | Table replaced with n>=2 interleaved medians and ranges |
 | N1 | Changed-line counts were 4-6 low against the stated method | Raw counts published, method stated exactly |
 
@@ -418,11 +419,17 @@ find.
   after that point, and the failure branch's `tail -20 "$OUT"` correctly prints
   the selector check's own output. But a reader debugging a `SURVIVED` row and
   reaching for the log finds collect-only output instead.
-  `check-u3-audit-controls.sh:468` already avoids this by writing
+  `check-u3-audit-controls.sh:468` (@ `d314283`) already avoids this by writing
   `/tmp/u3-sel.txt`, separate from its row log. Present in `ecb37b4` before
   round 1's fixes, so this port did not introduce it, and it is left alone here
   because another agent is editing that harness family. The fix is one line per
-  file: `SEL_OUT="${OUT%.txt}-sel.txt"` beside `OUT=`, used in the two places.
+  file: `SEL_OUT="$(mktemp /tmp/u9-sel-XXXXXX)"` beside `OUT=`, chained into
+  the existing `EXIT` trap so the per-run file is removed, used in the two
+  places. `check-u3-audit-controls.sh:107` and its trap at `:113` (@ the merge
+  of #262) are the shape to copy. A derived-but-still-fixed `/tmp` name like
+  `${OUT%.txt}-sel.txt` is not the fix: it expands to `/tmp/u9-mut-sel.txt`,
+  one more of the fixed shared paths that `DIAG-262-probe-nondeterminism.md`
+  §5.1 counts as still open, and applying it to seven files would add seven.
   Recorded so it is not lost.
 * Did not run CI. H1's arithmetic is carried through `REVAMP-238-ci.md`'s model
   and its n=1 run 33630968540, which that document itself flags as n=1. If the
