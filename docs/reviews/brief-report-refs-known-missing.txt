@@ -11,4 +11,3 @@
 #
 # Gate: docs/reviews/check-brief-report-references.py
 
-REVIEW-R20.md  IN FLIGHT, same shape: `review-r20` is dispatched and its brief names this report. Delete this line when the report lands. Two in-flight entries at once is what this record is for - the alternative is a gate that goes red every time an agent is dispatched, which is a gate that gets switched off.
