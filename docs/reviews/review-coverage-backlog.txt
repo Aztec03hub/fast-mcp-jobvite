@@ -149,3 +149,4 @@ cfc0835 NONE R18-M1: two halves of one file disagreed about whether t
 d29937f NONE ADR-0034 made `Type:` load-bearing in a FROZEN document,
 f38f7c3 NONE #170 F3, fixed by TENSE not by arithmetic - the fourth c
 2945f5e NONE BRIEF for R19, and #131 CLOSED by ruling on the half tha
+32aa9a8 NONE HANDOFF v6, and it is the first version whose predecesso
