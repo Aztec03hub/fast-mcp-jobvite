@@ -69,7 +69,7 @@ with min and max. `PYTHONDONTWRITEBYTECODE=1` throughout, as the harnesses set.
 Derived phases are differences of measured wholes, and are labelled as derived:
 `collect_proper = collect_only - spawn_pytest`, `exec = full_suite - collect_only`.
 
-### The pole: `check-u9-http-amputation.sh` (14 rows + 1 baseline, full suite each)
+### The pole: `check-u9-http-amputation.sh` (14 rows + 1 baseline, full suite each *at `4bc96a4`*)
 
 Raw output, `scripts/profile-harness-phases.sh`, `REPS=3`. **The profiler was run
 TWICE and BOTH runs are printed**, because the second came in 23% faster on the same
@@ -278,10 +278,19 @@ and the report says so rather than printing a number that would be quoted back.
 
 ### The suggested fix, and it is already in this tree
 
+> **THIS PROPOSAL LANDED. `50b006d` gave `check-u9-http-amputation.sh` exactly the
+> substitution proposed below, with the map built by the harness's own baseline
+> (`scripts/lib/select-covering-tests.py`). The design decision quoted below no
+> longer exists at `check-u9-http-amputation.sh:15-20`; those lines now say the
+> opposite. Read this section as the argument that produced the change, not as a
+> description of the tree. `MEASURED-286-u9-selection.md` measures what landed,
+> including the one place where the covering set is NOT the full killer set.**
+
 Every finding ships a fix. This one needs no new machinery: **the controls harnesses
 already implement lever 1.** `check-u9-http-controls.sh` mutates the same file with the
-same code and runs a selector, at 2.2s a row. The amputation harnesses run `$SUITE`
-instead **by an explicit design decision**, stated in `check-u9-http-amputation.sh:15-20`:
+same code and runs a selector, at 2.2s a row. The amputation harnesses ran `$SUITE`
+instead **by an explicit design decision**, stated at `4bc96a4` in
+`check-u9-http-amputation.sh:15-20`:
 
 > THE WHOLE SUITE IS RUN FOR EACH ROW, not this unit's file. That is deliberate and it
 > is what "does ANYTHING notice" means: an amputation run against only the tests written
@@ -321,6 +330,12 @@ and the row quietly stops testing what it thinks it tests. Do not commit the map
   could in principle be held up only by a test outside the covering set - though by
   construction of coverage that would require the amputation to change behaviour on a
   line no covering test executes, which I could not construct.
+  **Settled by #286**, which ran all 14 rows both ways against the landed selector:
+  every row is verdict-preserving, and row A14 IS the case this bullet could not
+  construct - four subprocess-driving killers in `tests/test_boot.py` and
+  `tests/test_shutdown.py` execute the amputated lines in a CHILD process the
+  in-process `--cov-context` map cannot see, so they are absent from the covering
+  set. See `MEASURED-286-u9-selection.md`.
 - **GitHub runner numbers.** Everything here is one 8-CPU local box. The only CI figure
   quoted is `#154`'s 1,270s, read from that task, not re-run by me.
 - **`check-suite-floor-amputation.sh` and `check-u15-gate-amputation.sh`** are excluded

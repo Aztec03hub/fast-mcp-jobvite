@@ -25,6 +25,18 @@ The failure directions are chosen deliberately:
     in-process map cannot see, and "run everything" is the fail-safe
     wide answer, never "run nothing".
 
+THE SUBPROCESS BLIND SPOT IS NOT ONLY AN EMPTY-SELECTION PROBLEM, and
+the rc=4 fallback above does not cover it. A row can have plenty of
+in-process coverage AND a killer that only reaches these lines through
+a spawned server; that killer is simply absent from the returned set.
+#286 measured one: U9 row A14 selects 8 ids and kills, while the full
+suite kills with 5, the four extra being `spawn_marker_server` tests in
+tests/test_boot.py and tests/test_shutdown.py. So the first paragraph's
+premise should be read precisely - "never EXECUTES ... IN THIS PROCESS".
+The consequence is one-directional and safe: the returned ids are a
+SUBSET of the suite, so this can under-report a row's killers or turn a
+real kill into a loud vacuous row, never turn a vacuous row green.
+
 The database comes from the SAME run's baseline (`pytest --cov
 --cov-context=test`), so it can never be stale against the tree
 being mutated. Contexts are read from the `arc` table because this
