@@ -139,7 +139,53 @@ echo "gate vocabulary for $harness (derived from its source): ${present[*]}"
 # Pre-existing dirt is TOLERATED and recorded, not failed on: this gate runs in
 # worktrees where an agent is legitimately mid-change. What is failed on is dirt
 # that APPEARED during the run, which is the harness's own doing.
-tree_before=$(git status --porcelain 2>/dev/null || true)
+tree_before=$(git -C "$REPO" status --porcelain 2>/dev/null || true)
+
+# ---- #131: leave a trail a SIGKILL cannot erase -----------------------------
+#
+# A mutation harness edits a tracked file and restores in a `trap`. SIGKILL runs
+# no trap, so a killed harness leaves its mutation live in the tree and nothing
+# owns putting it back. It happened four times in one day here, and
+# `docs/reviews/restore-stranded-mutation.sh` was built to repair it - but it
+# reads a STATE FILE rather than `git status`, because `git status` can say the
+# tree is dirty and can never say whether that dirt has an owner. Its own header
+# names the gap this closes: only `probe-harness-exit-codes.sh` wrote that state,
+# so a harness run through THIS gate - which is every harness step in CI, and the
+# way they are run by hand - was invisible to the restorer.
+#
+# Fixed HERE, at the one shared entry point, rather than in twenty-odd harnesses.
+#
+# THREE CONDITIONS, and each one's failure is PRINTED rather than silent, because
+# a state file that was never written and one that was written and lost look
+# identical to the restorer:
+#
+#   * The tree must be CLEAN. The recorded commit is the restore reference, and
+#     it is only sound when worktree, index and HEAD agree at this instant. This
+#     gate deliberately tolerates pre-existing dirt (see above), so on a dirty
+#     tree it records nothing and says so.
+#   * HEAD must resolve. No sha, no reference, no state.
+#   * An existing state file is NEVER overwritten. It is another run's evidence,
+#     and clobbering it would destroy the only record of what that run mutated.
+# shellcheck source=../docs/reviews/lib/harness-state.sh
+. "$REPO/docs/reviews/lib/harness-state.sh"
+state_written=0
+existing_state=$(harness_state_file "$REPO")
+head_sha=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)
+if [ -f "$existing_state" ]; then
+  echo "NOTE: a harness run state file already exists at $existing_state."
+  echo "      Not overwriting it - it is another run's evidence. This run is"
+  echo "      NOT covered by restore-stranded-mutation.sh."
+elif [ -n "$tree_before" ]; then
+  echo "NOTE: the tree was already dirty before this run, so no restore"
+  echo "      reference was recorded. A mutation stranded by a kill here"
+  echo "      cannot be attributed, and the dirt would not be new anyway."
+elif [ -z "$head_sha" ]; then
+  echo "NOTE: HEAD does not resolve, so there is no restore reference to"
+  echo "      record. This run is not covered by the stranded-mutation tool."
+else
+  harness_state_begin "$REPO" "$harness" "$head_sha"
+  state_written=1
+fi
 
 out=$(bash "$HARNESS_PATH" 2>&1); rc=$?
 
@@ -151,7 +197,19 @@ harness_result_ran 1 0
 echo "$out"
 
 # ---- did the harness put the tree back? ------------------------------------
-tree_after=$(git status --porcelain 2>/dev/null || true)
+tree_after=$(git -C "$REPO" status --porcelain 2>/dev/null || true)
+
+# THE STATE FILE IS CLEARED ONLY WHEN THE TREE CAME BACK, and only when THIS
+# run wrote it. Clearing it on a tree that did not come back would erase the
+# record at the exact moment the restorer needs it - which is the mistake
+# `harness_state_end`'s own comment warns about, from the other side.
+if [ "$state_written" -eq 1 ] && [ "$tree_before" = "$tree_after" ]; then
+  harness_state_end "$REPO"
+elif [ "$state_written" -eq 1 ]; then
+  echo "NOTE: the run state file is being LEFT IN PLACE because the tree did"
+  echo "      not come back. Run docs/reviews/restore-stranded-mutation.sh."
+fi
+
 if [ "$tree_before" != "$tree_after" ]; then
   # TWO DIFFERENT FAILURES, and they must not share a message. This file
   # already says why, one section down: "a message that misdescribes what

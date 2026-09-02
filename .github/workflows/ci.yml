@@ -1204,6 +1204,21 @@ jobs:
       - name: Stranded-mutation control
         run: bash docs/reviews/control-stranded-mutation.sh
 
+      # The restorer above reads a RUN STATE FILE rather than `git status`,
+      # because `git status` can say the tree is dirty and can never say whether
+      # that dirt has an owner. Its own header named the gap: only
+      # probe-harness-exit-codes.sh wrote that state, so a harness run through
+      # scripts/ci-harness-gate.sh - which is every harness step in this file -
+      # was invisible to it. The gate writes it now, and these four arms are
+      # what say so. Not routed through ci-harness-gate.sh for the same reason
+      # as the step above: that takes a bare harness NAME under scripts/.
+      #
+      # Every arm builds its own scratch repository, which is not tidiness: the
+      # gate only records state on a CLEAN tree, and no arm could exercise that
+      # path against a tree someone is working in.
+      - name: The gate records who is mutating
+        run: bash docs/reviews/probe-131-gate-state.sh
+
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
       # for a reason that turned out to be FALSE. #120 first left this step
       # inline, reasoning from the SOURCE that this harness prints
