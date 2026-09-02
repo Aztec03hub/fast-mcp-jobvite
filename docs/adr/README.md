@@ -23,6 +23,84 @@ index is not carried by the artifact a reader opens.
 Format: Status, Type, Context, Decision, Consequences. Every ADR cites the clause it deviates from
 at its `file:line`, and says what evidence the decision rests on.
 
+## The index: every decision, one line, without opening a file
+
+**This is what this section is for.** An ADR is an immutable decision record and there are a lot of
+them, so the cost of the set is not the count - it is having to open every file to learn what was
+decided. Each row below states the DECISION, not the topic. Where a decision is qualified, partial,
+or explicitly leaves something open, the row says so rather than reading clean.
+
+The number of ADRs is not written here as a literal, for the reason ADR-0034 gives. Derive it:
+
+    ls docs/adr/0*.md | wc -l                  # the numbered ADRs
+    python3 docs/reviews/check-adr-numbers.py  # unique, contiguous, and all of them listed below
+
+That checker refuses this table in BOTH directions - a file with no row, and a row with no file -
+so it cannot silently stop short the way it once stopped at 0023 with twelve ADRs missing.
+
+**`Status` is read from each file's own `Status:` line, not assumed.** As at `c965ce0`, every status
+line begins with the word `Accepted` - `0029`'s reads *Accepted in part*, and no other status word
+appears anywhere in the set, so nothing here is Superseded, Rejected or Proposed. Four lines carry a
+qualifier after that word and it is load-bearing in all four: 0007, 0025, 0026 and 0029. The rest of
+each line is an attribution, not a qualification. Re-derive rather than trusting this paragraph:
+
+    grep -H '^\*\*Status:\*\*' docs/adr/0*.md
+    grep -H '^\*\*Type:\*\*'   docs/adr/0*.md
+
+**SUPERSESSION: no ADR here supersedes or is superseded by another.** That is a statement about a
+form, not a claim that nothing was ever revised - three ADRs AMEND an earlier one's decision while
+leaving it standing as the record of what was decided when. Those edges are on both rows:
+
+- **0028 amends 0021.** 0021 defined `approval_mechanism` as a closed set of `elicitation`,
+  `sampling`, `no_handler`; 0028 renames `sampling` to `mrtr`. A reader acting on 0021's spelling
+  emits a value the design no longer names.
+- **0033 completes 0021.** 0021 deliberately left `approval_state`'s own vocabulary alone, and
+  0028 says in terms that it does not fold that in either; 0033 settles it.
+- **0035 widens 0034's selector.** 0034 replaced a stale count with the selector `Type: Deviation`;
+  0035 makes it `Type: Deviation` **and** `Type: Both`. 0035 states outright that it does NOT
+  revisit 0034's ruling, which stands.
+
+`0007`'s *"reversing an earlier decision"* reverses an earlier **revision of the design**, not an
+ADR. There is no ADR it supersedes.
+
+| ADR | Type | Status | The decision |
+|---|---|---|---|
+| [0001](0001-target-fastmcp-4-beta.md) | Deviation | Accepted | Pin `fastmcp==4.0.0b4` and target the sessionless `2026-07-28` spec, not the stable line. |
+| [0002](0002-in-process-rate-limiting.md) | Deviation | Accepted | Use FastMCP's own `RateLimitingMiddleware`, in process, instead of the mandated Redis token bucket. |
+| [0003](0003-problem-json-on-mcp-transport.md) | Deviation | Accepted | Carry the complete RFC 9457 problem object as the tool result's structured content and set no media type; `problem+json` is applied properly only where a real HTTP surface exists. |
+| [0004](0004-exclude-response-limiting-middleware.md) | Deviation | Accepted | Do not adopt `ResponseLimitingMiddleware`; each tool bounds its own response size, capping the page and reporting `showing 50 of 1,240`. |
+| [0005](0005-ai-domain-binds-by-intent.md) | Deviation | Accepted | The `ai/` standards domain BINDS this repository, though its literal scope - code that CALLS models - does not reach a server that models call. Obligations B9-B26 apply in full. |
+| [0006](0006-single-main-branch.md) | Deviation | Accepted | A single `main` branch, not the mandated `main`+`develop`. |
+| [0007](0007-httpx2-not-httpx.md) | Deviation | Accepted, reversing an earlier design revision (NOT an ADR) | Write the Jobvite client against `httpx2`, the client FastMCP actually installs, rather than `httpx`. |
+| [0008](0008-eeo-fields-excluded.md) | Deviation | Accepted | Special-category EEO fields appear in no output model, so they never leave the server. |
+| [0009](0009-approver-identity-unknowable.md) | Deviation | Accepted | Record that an approval response was received and what it said; do not claim to record WHO approved. Caller identity is knowable, approver identity is not. |
+| [0010](0010-coverage-targets-remapped.md) | Deviation | Accepted | Remap the standard's category model onto this repository: tool modules 85%, the Jobvite client 90%, critical paths 95% line and 90% branch, against its 80% floor. |
+| [0011](0011-three-log-producers-not-one.md) | Deviation | Accepted | Keep all three per-invocation log producers - `TimingMiddleware`, `StructuredLoggingMiddleware`, `audit.py` - and deviate from `request-middleware.md:145`'s one-log-per-request rule deliberately. |
+| [0012](0012-shared-inbound-constraints-module.md) | Design change | Accepted | Add `utils/constraints.py` to §3 as the single module every input model imports its inbound constraints from. No input model defines its own. |
+| [0013](0013-secret-absence-case-needs-a-pairing.md) | Design change | Accepted | §8's secret-absence case gains a positive pairing asserting the log stream carries records for an invocation that produced them, so the absence is measured against a stream proved non-empty rather than against silence - the construction §8's audit cases already use. |
+| [0014](0014-c8-i1-empty-values-is-wrong.md) | Design change | Accepted | Amend C8-I1's evidence clause to `.env.example` carrying every SECRET-CLASS variable empty (six named). SEVEN of the fifteen variables carry a value, so the clause as written describes evidence that does not exist. No rating and no disposition changes; only the sentence does. |
+| [0015](0015-licence-gate-is-a-deny-list.md) | Deviation | Accepted | The licence gate ships as a DENY-list over the flag-list - strong copyleft and non-OSI terms fail - not as an allow-list. Four packages sit on NEITHER list. Its negative arm is verified, so the pass is not vacuous. |
+| [0016](0016-setup-uv-v5-not-the-standards-v4.md) | Deviation | Accepted | Stay on `astral-sh/setup-uv@v5` where the standard pins `@v4`. |
+| [0017](0017-unmapped-errors-are-internal-error-not-about-blank.md) | Design change | Accepted | The unmapped-error registry row becomes `/problems/internal-error`, 500. `about:blank` is retained only for its real scope - an unmapped HTTP status received FROM Jobvite. |
+| [0018](0018-forced-exit-masks-a-crash-as-a-clean-stop.md) | Design change | Accepted | Keep `os._exit`, but give it the status the run actually earned - 70 (`EX_SOFTWARE`) on an abnormal termination - so a crash is not reported as a clean stop. Only the constant moves; the stdio-hang workaround is unchanged. |
+| [0019](0019-design-603-cites-a-section-that-does-not-exist.md) | Design change | Accepted | `DESIGN.md:603`'s `(§5.4)` becomes `(§4.1)`, there being no §5.4. Nothing else changes - no behaviour, no threat row, no verification case. |
+| [0020](0020-the-30-day-advisory-budget-runs-from-the-recorded-date.md) | Deviation | Accepted | The 30-day advisory-ignore budget is measured from the entry's recorded `date`, not from now; pinned by a named test with both the 30-day and 31-day boundary controls firing. |
+| [0021](0021-approval-mechanism-is-required-by-two-rows-and-defined-nowhere.md) | Design change | Accepted - **its vocabulary is amended by 0028** | Define `approval_mechanism` in §5.3 as a CLOSED set (`elicitation`, `sampling`, `no_handler`) recorded on the audit event, repoint the two rows that require it, and add the matching §8 arm. Deliberately does NOT settle `approval_state`'s own vocabulary - that is 0033. |
+| [0022](0022-no-cookie-jar-is-a-disable-not-an-omission.md) | Design change | Accepted | Restate the contract as an ACTION - clear the cookie jar after every request, in a `finally` - because `httpx2`'s default is to persist and resend. Held by a test plus a positive control asserting the bare client really does carry cookies. |
+| [0023](0023-harnesses-drop-e-from-strict-mode.md) | Deviation | **Accepted** (orchestrator, 2026-08-29) | `scripts/*.sh` keep `set -uo pipefail` and drop ONLY `-e`, scoped BY PURPOSE - anything here whose measurement is the exit code of a command expected to fail, INCLUDING the `ci.yml` `run:` blocks that call them - and never as a general licence to omit `-e`. `-e` would destroy the measurement and strand mutations in the tree. |
+| [0024](0024-paging-is-bounded-by-the-servers-honesty-and-nothing-else.md) | Design change | Accepted | An exhaustive scan gets BOTH a zero-progress break and a ceiling not derived from `total`, neither a substitute for the other - and the ruling puts that ceiling in RECORDS, not pages, because a page ceiling is a different record count at each page size. **Still latent: `scan()` has no caller, and an existing 513-line implementation is explicitly NOT adopted by the ruling.** |
+| [0025](0025-page-size-budget-and-throttle-are-one-decision.md) | Design change | Accepted - **Q2 and Q3 answered and applied; Q1 WITHDRAWN** | The page size, the outbound budget and the self-throttle are ONE decision, because any one chosen alone falsifies the arithmetic of the other two. The self-throttle is PER-PROCESS (Jobvite sees our process, not our scans), and the outbound budget bounds wall-clock INCLUDING throttle waiting. Q1 - what page size an exhaustive scan uses - is WITHDRAWN, not deferred: it rested on a reading of §4.5 that the design refutes. **None of the three constants is settled and the throttle is unimplemented.** |
+| [0026](0026-log-redaction-is-a-property-of-the-entry-point-not-the-client.md) | Design change | Accepted - option (1), plus a constraint the ADR never stated | `JobviteClient` installs the `httpx2` log-redaction filter itself, with an opt-out CONSTRUCTOR keyword defaulting to installing and never a `Settings` field - and the install MUST be idempotent, because a client is built once per invocation and a stacking filter is a slow leak inside the leak fix. |
+| [0027](0027-the-budget-must-be-configured-and-the-variable-set-is-closed.md) | Design change | Accepted | `JOBVITE_OUTBOUND_BUDGET_SECONDS` joins §10.1's closed variable list, and three things land TOGETHER: the design's list, the four artefacts the closed-set tests hold equal, and ALL THREE client factories. The retyped `== 15` count is derived rather than typed. |
+| [0028](0028-approval-mechanism-names-a-path-this-design-does-not-use.md) | Design change | Accepted - **amends 0021** | Rename the sessionless `approval_mechanism` value `sampling` to `mrtr`, keeping the set closed at three, and land the design, the §8 arm and `approval.py` together. Explicitly does not fold in 0021's `approval_state` restraint - that is 0033. |
+| [0029](0029-the-body-size-limit-has-no-middleware-to-live-in.md) | Design change | **Accepted in part** - accepted on the refusal, CORRECTED on the claim | ACCEPTED: `MAX_PAYLOAD_BYTES` is NOT the discharge of `DESIGN.md:165`, and that row stays open. CORRECTED: the title's claim is too strong - an `ASGIMiddleware` seat exists via `http_run_kwargs`, so the body cap is a GAP, not an impossibility, and it is HTTP-only by construction. |
+| [0030](0030-the-upstreams-retry-hint-is-dropped-on-every-shape-but-two.md) | Design change | Accepted | `retry_after` is populated on whatever problem shape results, wherever the upstream supplied one. It never becomes a required member, and absent means *we were not told*, never *do not retry*. |
+| [0031](0031-the-registry-has-no-row-for-a-refused-approval.md) | Design change | Accepted | Add a registry row - *an approval was required and none was returned* -> `/problems/forbidden`, 403 - minting NO new slug. `detail` separates it from a missing scope, exactly as the design already separates an open breaker from an outage. |
+| [0032](0032-a-fifth-middleware-runs-that-the-design-never-assessed.md) | Design change | Accepted | A fifth middleware runs that the design never assessed; ADOPT it rather than switch it off. §7.7 gains a fourth adopted middleware and C2 gains a row, rated LOW. Disabling it to match the document is rejected - fix the document, which is wrong, not the stack, which is fine. |
+| [0033](0033-approval-state-is-a-published-vocabulary.md) | Design change | Accepted - **completes 0021** | `approval_state`'s four values (`approved`, `refused`, `pending`, `unavailable`) are correct and §5.3 names them as a closed set. `pending` and `unavailable` must NOT be collapsed: one is an abandoned conversation, the other one that never started. |
+| [0034](0034-the-adr-count-in-design-md-is-deleted-not-corrected.md) | Design change | Accepted - **its selector is widened by 0035** | DELETE both ADR counts in `DESIGN.md` §13 rather than correcting them, and repair the universal by naming the class - `Type: Deviation` - in the count's place. No number replaces either: a corrected count is a count that will be wrong again. |
+| [0035](0035-the-frozen-selector-must-admit-both.md) | Design change | Accepted - **widens 0034** | The frozen selector admits `Type: Both` as well as `Type: Deviation`; `Both` is NOT retired despite having zero users today; and `from 0012 onward` is DELETED, not corrected, because a boundary that must be maintained is the same defect as a count. Does not revisit 0034's ruling. |
+
 ## An ADR's citations are AS AT its acceptance, and are NOT repointed
 
 **MEASURED, all 64 `DESIGN.md:N` citations carried by the ADRs THEMSELVES - `docs/adr/0*.md`, 19 of
@@ -145,44 +223,6 @@ exactly.
 **SO: NEW ADRs SHOULD CITE THE BINDING FORM. Existing ones are not rewritten.** Retrofitting is a
 sweep over a record set, which is the thing this whole section refuses; and adding the NEAR form
 would deploy, for the thirteenth time, a convention already measured not to work.
-
-| ADR | Decision | Status |
-|---|---|---|
-| [0001](0001-target-fastmcp-4-beta.md) | Target `fastmcp 4.0.0b4` and the sessionless spec, not the stable line | Accepted |
-| [0002](0002-in-process-rate-limiting.md) | In-process rate limiting instead of the mandated Redis token bucket | Accepted |
-| [0003](0003-problem-json-on-mcp-transport.md) | `problem+json` cannot be set on an MCP tool error | Accepted |
-| [0004](0004-exclude-response-limiting-middleware.md) | `ResponseLimitingMiddleware` excluded; size bounded in-tool | Accepted |
-| [0005](0005-ai-domain-binds-by-intent.md) | The `ai/` standards domain binds this repository by intent | Accepted |
-| [0006](0006-single-main-branch.md) | Single `main` branch rather than the mandated `main`+`develop` | Accepted |
-| [0007](0007-httpx2-not-httpx.md) | `httpx2` rather than `httpx` | Accepted |
-| [0008](0008-eeo-fields-excluded.md) | Special-category EEO fields excluded from output models | Accepted |
-| [0009](0009-approver-identity-unknowable.md) | Approver identity cannot be recorded; caller identity can | Accepted |
-| [0010](0010-coverage-targets-remapped.md) | Coverage targets remapped from the standard's category model | Accepted |
-| [0011](0011-three-log-producers-not-one.md) | Three log producers per invocation, not the mandated one | Accepted |
-| [0012](0012-shared-inbound-constraints-module.md) | A shared `utils/constraints.py` for the inbound constraints | Accepted |
-| [0013](0013-secret-absence-case-needs-a-pairing.md) | §8's secret-absence case needs a positive pairing, as the audit cases have | Accepted |
-| [0014](0014-c8-i1-empty-values-is-wrong.md) | C8-I1 says `.env.example` has empty values; seven of fifteen carry one | Accepted |
-| [0015](0015-licence-gate-is-a-deny-list.md) | The licence gate is a deny-list; four packages sit on neither list | Accepted |
-| [0016](0016-setup-uv-v5-not-the-standards-v4.md) | `astral-sh/setup-uv@v5`, where the standard pins `@v4` | Accepted |
-| [0017](0017-unmapped-errors-are-internal-error-not-about-blank.md) | The unmapped row is `/problems/internal-error`, not `about:blank` | Accepted |
-| [0018](0018-forced-exit-masks-a-crash-as-a-clean-stop.md) | `os._exit(status)`, not `os._exit(0)`, so a crash is not reported as a clean stop | Accepted |
-| [0019](0019-design-603-cites-a-section-that-does-not-exist.md) | `DESIGN.md`'s one `§5.4` becomes `§4.1`; there is no §5.4 | Accepted |
-| [0020](0020-the-30-day-advisory-budget-runs-from-the-recorded-date.md) | The 30-day advisory budget runs from the recorded date, not from now | Accepted |
-| [0021](0021-approval-mechanism-is-required-by-two-rows-and-defined-nowhere.md) | `approval_mechanism` defined in §5.3, closed to three values | Accepted |
-| [0022](0022-no-cookie-jar-is-a-disable-not-an-omission.md) | "Do not implement a cookie jar" is a DISABLE, not an omission | Accepted |
-| [0023](0023-harnesses-drop-e-from-strict-mode.md) | The `scripts/` harnesses run `set -uo pipefail`; `-e` would destroy the measurement and strand mutations | Proposed |
-| [0024](0024-paging-is-bounded-by-the-servers-honesty-and-nothing-else.md) | Paging is bounded by the server's honesty and by nothing else | Accepted |
-| [0025](0025-page-size-budget-and-throttle-are-one-decision.md) | The page size, the outbound budget and the self-throttle are one decision | Accepted |
-| [0026](0026-log-redaction-is-a-property-of-the-entry-point-not-the-client.md) | Log redaction belongs to the entry point; the client carries the credential | Accepted |
-| [0027](0027-the-budget-must-be-configured-and-the-variable-set-is-closed.md) | The budget must be configurable, and the closed variable set had no seat for it | Accepted |
-| [0028](0028-approval-mechanism-names-a-path-this-design-does-not-use.md) | `approval_mechanism`'s closed set names `sampling`, a path this design has not got | Accepted |
-| [0029](0029-the-body-size-limit-has-no-middleware-to-live-in.md) | §2.1's 1 MiB body limit is placed at a middleware this design does not have | Accepted in part |
-| [0030](0030-the-upstreams-retry-hint-is-dropped-on-every-shape-but-two.md) | The upstream's retry hint is passed on wherever we were given one | Accepted |
-| [0031](0031-the-registry-has-no-row-for-a-refused-approval.md) | The registry has no row for a refused approval; add the row, mint no slug | Accepted |
-| [0032](0032-a-fifth-middleware-runs-that-the-design-never-assessed.md) | A fifth middleware runs that the design never assessed | Accepted |
-| [0033](0033-approval-state-is-a-published-vocabulary.md) | `approval_state`'s four values are a published vocabulary, so the design names them | Accepted |
-| [0034](0034-the-adr-count-in-design-md-is-deleted-not-corrected.md) | `DESIGN.md`'s ADR count is DELETED, not corrected, and "all" was the worse half | Accepted |
-| [0035](0035-the-frozen-selector-must-admit-both.md) | The frozen selector must admit `Both`, and the "0012 onward" boundary is deleted | Accepted |
 
 ## Acknowledged non-conformances without an ADR
 
