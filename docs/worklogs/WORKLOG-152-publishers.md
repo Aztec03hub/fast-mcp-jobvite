@@ -134,6 +134,10 @@ Narrowed to "publishes SOME named tally": **0 findings, exit 0.**
     ci-harness-gate.sh check-suite-floor-amputation.sh
       --amputation --require 'post-run re-check...'  (CI's line) exit 0
     ... same line + --result-killed  (the HANDOVER step)        exit 0
+    ... same line + --controls-fired (field-selectivity control)  exit 1  (correctly refuses)
+    ci-harness-gate.sh check-u3-audit-amputation.sh --amputation
+      --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
+      (CI's line + the HANDOVER flag)                            exit 0   applied=10/10
 
 Both `ruff` gates were **RED** on the first draft of the checker (53 + 1
 errors): W505 fires on plain `#` comments here, not only docstrings - a rule's
@@ -170,7 +174,9 @@ is the existing line **plus one flag**; nothing else changes.
 run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --result-killed --require 'post-run re-check of the real script: exit=0'"
 ```
 
-`ci.yml:1293` - u3-audit. **RUN, see the result line below.**
+`ci.yml:1293` - u3-audit. **RUN, exit 0**, canonical line
+`HARNESS-RESULT name=check-u3-audit-amputation.sh rows=10 floor=0 applied=10/10 status=ok`
+(where at `9e04411` that line carried no tally field at all).
 
 ```yaml
 run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
