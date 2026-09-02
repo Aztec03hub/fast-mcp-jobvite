@@ -97,6 +97,39 @@ control has no job to share until its subject has one.
 
 ---
 
+## 2.4 R16's three "newly visible members", checked one at a time
+
+`review-r16` reported R16-M1 while this was in flight. All three of its
+claims were re-measured against this branch rather than relied on.
+
+| claim | verdict |
+|---|---|
+| `scripts/check-timeout-literals.py` is in no workflow | **CONFIRMED, and now CLOSED** — wired at `ci.yml:328-329` by this change |
+| `docs/reviews/probe-*`: 24 unwired of 28 | **CORRECTED**: 29 unwired of 30 (see §2.1) |
+| `scripts/check-secrets-baseline.py` "invisible to the gate today" | **TRUE of the OLD container, NOT of this one** |
+
+The third needs saying precisely, because the difference is the whole
+change: `scripts/check-secrets-baseline.py` is *newly visible* — it was
+outside the old population entirely — but it is **not newly a problem.**
+It reads WIRED, correctly, via `python3 scripts/check-secrets-baseline.py
+--controls` at `ci.yml:1581`. Newly visible and already wired is the
+outcome the widening wants, not a finding.
+
+The `scripts/` half classifies as: **51 members, 41 wired, 10 unwired and
+all 10 excused with a reason.**
+
+**R16-H1 and R16-M2 are NOT newly visible.** Both
+`docs/reviews/check-harness-result.sh` and
+`docs/reviews/check-landing-published.py` were already in the old
+`docs/reviews/check-*` container. Neither is mine this run and I have not
+touched them.
+
+The one file in that family that IS newly visible is
+`scripts/lib/harness-result.sh` — exempted as a sourced library, and the
+file whose false-GREEN classification produced §3.1 below.
+
+---
+
 ## 3. Two defects the widening found IN THE CHECKER ITSELF
 
 ### 3.1 HIGH — the wiring test was a bare SUBSTRING, and it produced a false GREEN
@@ -172,7 +205,7 @@ arm C kills the right row for the right reason.
 
 ---
 
-## 6. The positive control, both arms (§E)
+## 6. The positive control, both arms, in BOTH halves (§E, R16-M1)
 
 In `probe-wired-checker-amputation.py`, running the real checker as a
 **subprocess** and reading ITS exit code:
@@ -186,8 +219,30 @@ In `probe-wired-checker-amputation.py`, running the real checker as a
   excused, and no other member may be unexplained — otherwise a green
   here would not be attributable to the reason.
 
-Both pass. The fixture is removed in a `finally` and the tree is asserted
-clean **by asking git**, not by trusting the unlink.
+**Both arms now run ONCE PER HALF of the container** — `docs/reviews/`
+and `scripts/`. That is `review-r16`'s correction to my first version and
+it was right: my original planted only into `docs/reviews/`, **the half
+that was never broken.**
+
+**Measured, because the point of the row is that it fires.** With
+`CONTAINER_DIRS` narrowed back to the pre-#153 value:
+
+    docs/reviews/  ARM 1: ok        <- passes unchanged on the OLD code
+    docs/reviews/  ARM 2: ok        <- passes unchanged on the OLD code
+    scripts/       ARM 1: FAILED    "exited 1 but never named
+                                     scripts/verify-container-arm.py"
+    scripts/       ARM 2: FAILED    "not in the enumerated container
+                                     at all"
+    probe exit 1
+
+The `docs/reviews/` pair is green on the broken code. Only the
+`scripts/` pair can see the defect this task exists for. Source restored
+by byte-comparison against a pre-mutation backup, not by re-editing — a
+`sed` that matches nothing succeeds silently — and the anchor count is
+asserted to be exactly 1 first, so the mutation cannot no-op and pass.
+
+The fixture is removed in a `finally` and the tree is asserted clean **by
+asking git**, not by trusting the unlink.
 
 ---
 
@@ -204,7 +259,7 @@ Run in `fmj-worktrees/w153` at `bfade9e`, with CI's exact invocations.
     check-checkers-are-wired.py --self-test               exit 0   (35/35 controls)
     check-timeout-literals.py --self-test                 exit 0   (3/3)
     check-timeout-literals.py                             exit 0   (0 retyped figures, 38 scripts, 1017 echo lines)
-    probe-wired-checker-amputation.py                     exit 0   (12/12 arms, no survivor)
+    probe-wired-checker-amputation.py                     exit 0   (14/14 arms, no survivor)
 
 Suite floor 887, met exactly. `pre-commit` passes and keeps passing.
 
