@@ -272,6 +272,50 @@ source files: empty.
 
 Worktree `/tmp/u3-selection-work` **removed** after this report was committed.
 
+## 9b. FOLLOW-UP (`fix/252-selector-resolution`) - a LYING GREEN THIS CONVERSION OPENED
+
+Team-lead sent two points after #252 merged. The first - assert the map names
+the row's `$want` - was already shipped above; M10 is why. The second was a
+hazard, and MEASURING it rather than accepting it found something worse than
+the prediction.
+
+**Planting an import-breaking mutation in `audit.py`, one row, both ways:**
+
+    pytest $SUITE      (BARE, pre-conversion)   rc=2   $want in log: 0 times
+    pytest <node id>   (SELECTING, post-#252)   rc=4   $want in log: 1 time
+
+pytest echoes the NODE ID in `ERROR: found no collectors for
+.../test_audit.py::test_arm3_...`, and a node id CONTAINS the test name. So
+#252's `grep -q "$want"` matched **pytest complaining that it could not collect
+the killer**, and the row would have reported `killed by $want` for a test that
+never ran. Reachable ONLY because rows now select: at rc=2 the bare form printed
+no node id at all. **This conversion opened it.**
+
+Two independent guards now close it - an explicit rc 4/5 branch (a selection
+that resolved nothing cannot have run the killer) and a verdict grep anchored to
+a RESULT line, `^(FAILED|ERROR) [^ ]*$want`.
+
+`docs/reviews/probe-252-rc4-verdict-trap.sh`, **7/7**, reproduces the defect
+(row 5: the OLD rule says "killed"), shows the new rule refuses it (row 6), and
+carries a positive control (row 7) so a regex matching nothing cannot pass. It
+reads the verdict regex OUT of the harness rather than retyping it.
+
+**One-per-harness resolution check**, in `84d4959`'s shape: 75 distinct derived
+ids, all 75 collect, rc=0, zero ERROR lines - including two carrying a literal
+`\n` from a parametrised id. Non-vacuous: an absent id gives rc=4
+`ERROR: not found`, and still rc=4 mixed with a valid one.
+
+Harness re-measured: rc=0, 15/15, WALL 89.75s, same killer named on every row.
+
+**CORRECTION TO §4 ABOVE.** That section's "3/3 arms" is NOT reproducible.
+#262 measured 2/3 then 1/3, a different arm voiding each time, and I saw one
+VOID and one 3/3 myself. The arms probe now REFUSES (exit 2) on a void instead
+of reporting `status=breach`, so "could not aim" and "aimed at something broken"
+stop rendering identically - but **§4's pass rate should be read as
+unreproducible until #262 closes**. Both easy causes are already refuted there.
+
+---
+
 ## 10. WHAT I DID NOT VERIFY
 
 - **Nothing here ran on the runner.** Every figure is local. The 488s/499s split
