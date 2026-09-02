@@ -268,6 +268,10 @@ def _warn_untracked() -> None:
         print("\n  (untracked pre-check skipped: git is not on PATH)")
         return
     listed = _untracked_paths(git)
+    if listed is None:
+        # It already said why. Saying anything more here is the
+        # second line R19-M1 was about.
+        return
     if not listed:
         # NOT a skip: there is genuinely nothing untracked. Said
         # plainly so it cannot be confused with the branches above,
@@ -308,7 +312,7 @@ def _warn_untracked() -> None:
         print(f"  {path}: {len(found)} finding(s)")
 
 
-def _untracked_paths(git: str) -> list[str]:
+def _untracked_paths(git: str) -> list[str] | None:
     """The untracked, non-ignored paths, one per element.
 
     SPLIT OUT SO IT CAN BE CONTROLLED. R18-M4 found `_warn_untracked`
@@ -342,13 +346,17 @@ def _untracked_paths(git: str) -> list[str]:
             if path
         ]
     except (OSError, subprocess.CalledProcessError) as exc:
-        # SAYS SO, for R18-L1's reason - and a FOURTH instance of the
-        # shape its list named three of. An empty list and a failed
-        # listing must not be confused by the CALLER either: both mean
-        # "nothing to warn about", and neither is a claim that the set
-        # is clean.
+        # NONE, NOT `[]` (R19-M1). The comment here used to say that a
+        # failed listing and an empty one "must not be confused by the
+        # CALLER" - and then returned the same value for both, so the
+        # caller's `if not listed:` printed "(no untracked files to
+        # check ahead of tracking)" DIRECTLY UNDER the skip line. The
+        # requirement was stated and the return value defeated it,
+        # which is R18-H1's own class inside the commit that fixed
+        # R18-L1. A distinct value is what makes the two distinguishable
+        # rather than a comment asking the reader to keep them apart.
         print(f"\n  (untracked pre-check skipped: {type(exc).__name__})")
-        return []
+        return None
     return listed
 
 
@@ -471,6 +479,21 @@ def controls() -> int:
             finally:
                 os.chdir(cwd)
 
+            # `None` HERE IS ITSELF A FINDING, not a case to tolerate.
+            # R19-M1 made the failed listing distinguishable from the
+            # empty one, and mypy then refused these three arms - which
+            # is the type system asking the question the arms should
+            # answer. This is a scratch repository we just created; if
+            # `git ls-files` failed in it, the arms below would compare
+            # against nothing and pass for the wrong reason.
+            if found is None:
+                arm(
+                    "C7-C9 the listing FAILED in the scratch repository",
+                    False,
+                    "the arms would run against no population at all",
+                )
+                found = []
+
             # C7  THE ONE THAT WOULD HAVE CAUGHT R18-H1. Under
             #     `.split()` this filename arrived as `with` and
             #     `space.md`, neither of which exists, so the scan
@@ -500,7 +523,35 @@ def controls() -> int:
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
-    print(f"secrets-baseline-controls: arms={len(arms)} failed={len(failed)}")
+
+    # THE ARM FLOOR (R19-M2), and it was a MEASURED SURVIVOR before it
+    # existed. `failed == 0` is satisfied by zero arms, and nothing else
+    # held the count: this file has no floor, ci.yml passes no
+    # --min-rows, the step is not routed through ci-harness-gate.sh, and
+    # check-row-floor-exactness.py enumerates `scripts/*.sh` so a `.py`
+    # is outside its container by construction. R19 deleted C7-C9 - the
+    # three arms that exist BECAUSE R18-H1 shipped - and the step stayed
+    # GREEN at `arms=6 failed=0`.
+    #
+    # That is R18-M4's own defect one column over: M4 was "nothing makes
+    # it run", this was "nothing makes it keep existing".
+    #
+    # DERIVED, not chosen: C1-C6 are the comparison arms, C7-C9 the
+    # listing arms added with the R18-H1 fix. Raise it in the commit
+    # that adds an arm; lowering it is a visible diff that has to
+    # be defended.
+    arm_floor = 9
+    status = "ok" if not failed and len(arms) >= arm_floor else "breach"
+    print(
+        f"secrets-baseline-controls: arms={len(arms)} failed={len(failed)}"
+        f" floor={arm_floor} status={status}"
+    )
+    if len(arms) < arm_floor:
+        print(
+            f"::error::{len(arms)} arms against a floor of {arm_floor} -"
+            " an arm was DELETED, which is the whole reason the floor is here."
+        )
+        return 1
     return 1 if failed else 0
 
 
