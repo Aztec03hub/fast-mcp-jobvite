@@ -143,8 +143,13 @@ line says the same to whoever reads only the table.
 ## M3 - the register entry's magnitude
 
 "a 2-4.6s WIN" -> "somewhere between a 2.0s win and a wash", matching
-`d314283:536-539`. The reason it is unwired is unchanged and still true:
-its inputs are one historical GitHub run.
+`d314283:536-539`. The reason it is unwired was unchanged by M3 and was,
+at the time of this round, that its inputs were one historical GitHub
+run. Both halves have since moved: the probe now fits three accepted
+runs, and the 12-lane cell reads +5.0 / -1.0 / -4.0 and is NOT
+determinate. The register entry in `check-checkers-are-wired.py` carries
+the current wording; this section stays as the dated record of what M3
+did.
 
 ## Verification
 
@@ -163,11 +168,11 @@ Re-verified in the closure round, at `RESTARTS = 10000`:
 |---|---|
 | both guard arms, one at a time | `REFUSING` before any table row, exit 1 each; file restored byte-identical (sha256 unchanged) |
 | every printed cell, R = 1 ... 40000 | only `s11` moves past R=200; it settles at 334.0 from R=10000 to R=100000 |
-| `:440`'s "12 lanes and above and nowhere else" | lanes 2-20 at R=2000: sharded wins at every lane >= 12, loses at every lane <= 11, no exceptions |
+| `:440`'s "12 lanes and above and nowhere else" | lanes 2-20 at R=2000, on the single-run fit this round measured: sharded wins at every lane >= 12, loses at every lane <= 11, no exceptions. On the tip's per-fit refit this no longer holds at 12 lanes, whose MIN fit is +5.0s, a loss. |
 | `> 5s` strict filter | 32 steps / 3306s; the boundary is one `Install from the frozen lock` at exactly 5.0s |
 | 12-16 unsharded gaps | 0.000 at all five, so `=` is correct |
 | 12-16 sharded gaps | 2.617 / 1.685 / 10.529 / 8.293 / 3.000, so `~` is correct |
-| the `a849f7f` run row | 35 steps / 3323s / largest 304s on run 33629034552 |
+| the `a849f7f` run row | 35 steps / 3323s / largest 304s on run 33629034552 - the count and the largest hold, the total was this round's reading. The probe on the tip computes 3316s for that run, because its 35 counts the duplicated `Install from the frozen lock` in `WRAP` rather than in the population. Same count, different set, 7s apart. |
 
 `WIRED` is unchanged, so no member moved WIRED -> EXEMPT. Member count is
 unchanged because M3 edits an entry that already existed on this branch;

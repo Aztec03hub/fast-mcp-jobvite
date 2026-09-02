@@ -135,6 +135,7 @@ pytest's self-reported duration is the only intra-step clock there is,
 which is why the decomposition is built on it.
 """
 
+import argparse
 import datetime
 import hashlib
 import io
@@ -221,6 +222,16 @@ SHARDABLE = {
     ),
 }
 SHARD_K = 2
+
+# COUNTERFACTUAL ONLY, set by --residual. None means the measured fit:
+# ovh is whatever the run's own wall leaves over. A number pins the
+# per-invocation residual instead, and K1_IDENTITY says where the
+# leftover goes - into the indivisible baseline B that every shard
+# reruns (True, the reading 7a.2 uses, k=1 still reproduces the wall),
+# or nowhere (False, k=1 no longer reproduces it). The two readings
+# give opposite trends; see REVAMP-238-ci.md 7a.2.
+RESIDUAL_OVERRIDE: float | None = None
+K1_IDENTITY = True
 
 # pytest's own session line, e.g.
 #   ===== 889 passed, 6 deselected in 172.74s (0:02:52) =====
@@ -325,7 +336,9 @@ def shard_profile(run: str, walls: dict[str, float]) -> dict[str, float]:
                 segment = lines[hits[0] : hits[-1] + 1]
                 if not any(ROW_BANNER.search(line) for line in segment):
                     continue
-                baseline, rows_seen, seen = [], [], False
+                baseline: list[float] = []
+                rows_seen: list[float] = []
+                seen = False
                 for line in segment:
                     if ROW_BANNER.search(line):
                         seen = True
@@ -344,7 +357,12 @@ def shard_profile(run: str, walls: dict[str, float]) -> dict[str, float]:
                         "shard cost is derived from them and would be void."
                     )
                 b, r = baseline[0], sum(rows_seen)
-                ovh = (walls[step_name] - b - r) / (1 + expect_rows)
+                if RESIDUAL_OVERRIDE is None:
+                    ovh = (walls[step_name] - b - r) / (1 + expect_rows)
+                else:
+                    ovh = RESIDUAL_OVERRIDE
+                    if K1_IDENTITY:
+                        b = walls[step_name] - r - ovh * (1 + expect_rows)
                 costs[step_name] = b + r / SHARD_K + ovh * (1 + expect_rows / SHARD_K)
                 found = True
                 break
@@ -526,11 +544,17 @@ def fit(accepted: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
     sample, and nothing downstream would say so.
     """
     names = sorted(next(iter(accepted.values())))
-    for run, steps in accepted.items():
+    for steps in accepted.values():
         if sorted(steps) != names:
-            missing = set(names) ^ set(steps)
+            # Union over ALL runs, so the differing names - and the runs
+            # named below - do not depend on which run dict order made
+            # the reference.
+            missing = set().union(*(set(names) ^ set(s) for s in accepted.values()))
+            carry = sorted(r for r, s in accepted.items() if set(s) & missing)
+            lack = sorted(set(accepted) - set(carry))
             raise SystemExit(
-                f"REFUSING: run {run}'s population differs by {sorted(missing)}. "
+                f"REFUSING: population differs by {sorted(missing)}: "
+                f"present in {carry}, absent from {lack}. "
                 "A per-step median needs the same steps in every run."
             )
     if len(names) != EXPECT_NAMES:
@@ -557,6 +581,17 @@ def fit_shards(shards: dict[str, dict[str, float]]) -> dict[str, dict[str, float
         label: {n: pick([s[n] for s in shards.values()]) for n in names}
         for label, pick in PICKERS
     }
+    if RESIDUAL_OVERRIDE is not None:
+        # The band records the MEASURED fit. A counterfactual is a
+        # different model and is expected to leave it; refusing here
+        # would make the flag unusable, so say so instead.
+        print(
+            f"COUNTERFACTUAL: residual pinned at {RESIDUAL_OVERRIDE * 1000:.0f}ms"
+            f" per invocation, k=1 identity "
+            f"{'PRESERVED' if K1_IDENTITY else 'DROPPED'}."
+        )
+        print("EXPECT_SHARD_BAND is NOT enforced below. Not a measurement.")
+        return fitted
     for name in names:
         low, high = EXPECT_SHARD_BAND[name]
         for label, costs in fitted.items():
@@ -639,6 +674,12 @@ def main() -> int:
             f"{EXPECT_MEDIAN_TOTAL:.0f}+-{MEDIAN_TOTAL_TOLERANCE:.0f}s. "
             "Every figure below is derived from it and would be void."
         )
+
+    # Fitted BEFORE the first table row. fit_shards() carries the
+    # shard-cost band guard, and every table below derives from its
+    # result, so it must refuse before any row reaches stdout. Its
+    # own print stays further down, with the rest of the shard prose.
+    shard_fits = fit_shards(shards)
     print(f"\npopulation: {len(fits['MEDIAN'])} steps, joined on the step name")
     print(
         f"per-lane setup {SETUP:.0f}s (measured "
@@ -656,7 +697,6 @@ def main() -> int:
         )
     print()
 
-    shard_fits = fit_shards(shards)
     print("2-shard costs, fitted by the SAME picker over the SAME three runs:")
     for name in sorted(SHARDABLE):
         per_run = " ".join(f"{s[name]:7.1f}" for s in shards.values())
@@ -716,11 +756,11 @@ def main() -> int:
     print()
     lo = {n: min(deltas[k][n] for k, _ in PICKERS) for n in deltas["MEDIAN"]}
     hi = {n: max(deltas[k][n] for k, _ in PICKERS) for n in deltas["MEDIAN"]}
-    flips = [n for n in sorted(lo) if lo[n] < 0 < hi[n]]
-    firm = sorted(set(lo) - set(flips))
+    flipped = [n for n in sorted(lo) if lo[n] < 0 < hi[n]]
+    firm = sorted(set(lo) - set(flipped))
     print(f"DETERMINATE at {firm} lanes: every fit agrees on the sign, so the")
     print("verdict there does not depend on which run was sampled.")
-    print(f"NOT DETERMINATE at {flips}.")
+    print(f"NOT DETERMINATE at {flipped}.")
     print()
     print("Refitting the sharded column did NOT settle 12 lanes; it narrowed")
     print(f"it, from a 31.7s envelope (+19.0/-12.7) to {hi[12] - lo[12]:.1f}s.")
@@ -733,5 +773,30 @@ def main() -> int:
     return 0
 
 
+def _cli() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--residual",
+        type=float,
+        metavar="SECONDS",
+        help="counterfactual: pin the per-invocation residual instead of "
+        "fitting it from the wall. #278 measures 0.13; this repository's "
+        "own logs put it at 1.26-2.08.",
+    )
+    parser.add_argument(
+        "--no-k1-identity",
+        action="store_true",
+        help="with --residual, do NOT push the leftover into B, so k=1 "
+        "stops reproducing the measured wall. Inverts the trend.",
+    )
+    args = parser.parse_args()
+    global RESIDUAL_OVERRIDE, K1_IDENTITY
+    RESIDUAL_OVERRIDE = args.residual
+    K1_IDENTITY = not args.no_k1_identity
+    if RESIDUAL_OVERRIDE is None and args.no_k1_identity:
+        parser.error("--no-k1-identity is meaningless without --residual")
+    return main()
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_cli())
