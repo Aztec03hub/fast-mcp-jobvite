@@ -66,6 +66,16 @@ ROW_TIMEOUT=300
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
 
+# ONLY 0 AND 1 ARE MEASUREMENTS (#283). This harness read `^PASSED ` lines for
+# its verdict while handling nothing but rc=124, so a collection error (2), an
+# internal error (3) or a usage error (4) produced an output file with no
+# PASSED lines and every declared assertion was scored as having died. Its rows
+# run an explicit node-id list, which makes rc=4 not hypothetical: rows A, B and
+# F were MEASURED at rc=4 on this tree and all three printed
+# "every declared assertion died".
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 3
 
@@ -126,6 +136,26 @@ UNEXPECTED=0
 # The increment is at the TOP of the row function so that a row
 # which aborts on a missing anchor still counts as having run.
 HR_COUNTED_ROWS=0
+
+# A ROW MAY DECLARE THAT ITS AMPUTATION MAKES THE SUITE UNCOLLECTABLE, and
+# then it must PROVE it. Rows A and B delete and empty the module every test
+# here imports at module scope, so pytest cannot collect and exits 4 with no
+# `^PASSED ` lines - the exact shape verdict_guard refuses. Refusing them
+# would be wrong: the import failure IS the death. So those rows declare the
+# import error they expect as a grep -E pattern, and the row is accepted only
+# when pytest printed it; a SyntaxError from a broken amputation prints
+# something else and still goes to the guard. Set immediately before the
+# `report` call; `report` consumes and clears it, so it cannot leak into the
+# next row.
+#
+# The same block lives at the single call site in
+# scripts/check-u15-gate-amputation.sh, deliberately NOT in
+# scripts/lib/verdict-guard.sh: docs/reviews/check-checkers-are-wired.py
+# derives "is this script guarded" from the function names that library
+# defines, so a second name there would let a script that calls only the
+# weaker one count as guarded.
+EXPECT_UNCOLLECTABLE=""
+
 report() {  # $1 = label, $2.. = the test ids this row MUST kill
   HR_COUNTED_ROWS=$((HR_COUNTED_ROWS + 1))
   local label="$1"; shift
@@ -147,16 +177,38 @@ report() {  # $1 = label, $2.. = the test ids this row MUST kill
     -p no:cacheprovider -q -rA >"$WORK/out.txt" 2>&1
   local rc=$?
   restore
-  if [ "$rc" -eq 124 ]; then
-    # NOT just a note. A timed-out run produces no PASSED lines, so every
-    # MUST_DIE id "did not survive" and the row would read as a pass. A
-    # row that could not be measured is a row that failed.
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - the amputated tree HANGS rather than failing."
-    echo "  THIS ROW MEASURED NOTHING; treat it as a FAILURE, not a pass."
-    UNEXPECTED=1
+  # rc -> restore -> guard -> verdict, in that order. The restore is first
+  # because the guard EXITS, and exiting with an amputation still applied
+  # leaves the next reader a mutated checkout; the guard is before the
+  # verdict because a guard downstream of the verdict annotates it rather
+  # than guarding it. Both constraints are stated in
+  # scripts/lib/verdict-guard.sh, and both have been shipped wrong here.
+  #
+  # A timed-out run produces no PASSED lines, so every MUST_DIE id "did not
+  # survive" and the row reads as a pass - and so does a collection error, an
+  # internal error and a usage error. The 124-only branch this replaced knew
+  # about exactly one of the four.
+  if [ -n "$EXPECT_UNCOLLECTABLE" ]; then
+    local want="$EXPECT_UNCOLLECTABLE"
+    EXPECT_UNCOLLECTABLE=""
+    if { [ "$rc" -ne 2 ] && [ "$rc" -ne 4 ]; } \
+       || ! grep -qE -- "$want" "$WORK/out.txt"; then
+      echo "  REFUSING: this row DECLARED an uncollectable suite - pytest 2 or 4"
+      echo "  with /$want/ in the output - and did not get it (rc=$rc)."
+      echo "  The declared failure mode did not occur, so nothing below would be"
+      echo "  a measurement of this row. The last 20 lines of its output:"
+      sed 's/^/    /' "$WORK/out.txt" | tail -20
+      exit 5
+    fi
+    tail -1 "$WORK/out.txt"
+    echo "  UNCOLLECTABLE BY DESIGN, ASSERTED: pytest exited $rc having printed"
+    echo "    /$want/"
+    echo "  Every declared assertion died by being unable to import its subject,"
+    echo "  which is this row's whole point. It is not an absence of PASSED lines."
     echo
     return
   fi
+  verdict_guard "$rc" "$WORK/out.txt" "$ROW_TIMEOUT"
   tail -1 "$WORK/out.txt"
   local survivors
   survivors=$(grep -E '^PASSED ' "$WORK/out.txt" | sed 's/^PASSED //' || true)
@@ -211,9 +263,31 @@ MUST_E=(
   "tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id"
   "tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable"
 )
+# ONE arm, and the SECOND one was removed because this row cannot measure it
+# (#254 H3). `test_the_default_loopback_bind_starts_a_real_process` was
+# declared here and the row exited 4 for six revisions, reporting "every
+# declared assertion died" for a run that collected nothing from that file.
+#
+# MEASURED, not reasoned. Emptying KNOWN_TOOLS does not make a node id fail to
+# resolve, and neither declared id is parametrised - the reason recorded
+# against #280 and repeated in the ratchet entry this commit deletes. What
+# actually happens: src/fast_mcp_jobvite/http_hardening.py calls
+# `_assert_total()` at IMPORT TIME, that invariant refuses an inconsistent
+# TOOL_SCOPES/KNOWN_TOOLS pair, and it raises
+#   RuntimeError: TOOL_SCOPES must cover exactly KNOWN_TOOLS; unscoped=[]
+#   unknown=['create_candidate', ...]
+# while tests/test_boot.py is importing __main__. The module is uncollectable,
+# so the boot arm never runs and can neither survive nor die here.
+#
+# It is not restated as an EXPECT_UNCOLLECTABLE row either. That would trade
+# the one arm this row CAN measure for an assertion about an import-time
+# invariant that is not this row's subject: with the boot id present pytest
+# bails during collection and `test_a_recognised_tool_name_starts` is never
+# executed at all. With it removed the row exits 1, the config arm runs, and
+# it dies on the ConfigurationError the empty allow-list produces - which is
+# what "the tool allow-list is empty" is a row about.
 MUST_F=(
   "tests/test_config.py::test_a_recognised_tool_name_starts"
-  "tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process"
 )
 MUST_G=(
   "tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state"
@@ -328,12 +402,23 @@ echo
 
 # --- A. config.py does not exist at all -----------------------------------
 rm -f "$CONFIG"
+# tests/test_config.py imports from this module at module scope and
+# tests/test_boot.py reaches it through __main__, so BOTH declared ids become
+# uncollectable and pytest exits 4. Declared, so the guard accepts it as this
+# row's kill only when pytest actually names the missing module.
+EXPECT_UNCOLLECTABLE="No module named 'fast_mcp_jobvite\.config'"
 report "A. config.py does not exist at all" "${MUST_A[@]}"
 
 # --- B. config.py exists and is ZERO BYTES --------------------------------
 # The clean-empty trap: the import of the MODULE succeeds, so anything that
 # does not actually reach a name inside it keeps passing.
 : > "$CONFIG"
+# The MODULE imports; the NAMES do not. Both test modules do a `from
+# fast_mcp_jobvite.config import ...` at module scope, so collection still
+# fails - with an ImportError that names the module, not a ModuleNotFoundError.
+# The two rows therefore declare DIFFERENT patterns; one pattern for both would
+# have let row A pass row B's evidence.
+EXPECT_UNCOLLECTABLE="cannot import name '[A-Za-z_]+' from 'fast_mcp_jobvite\.config'"
 report "B. config.py exists but is ZERO BYTES" "${MUST_B[@]}"
 
 # --- C. validate_settings() runs and refuses NOTHING ----------------------
@@ -408,6 +493,10 @@ PY
 report "E. TOOL_REQUIREMENTS is an EMPTY table" "${MUST_E[@]}"
 
 # --- F. the tool allow-list is empty --------------------------------------
+# One declared arm, and why, is recorded above MUST_F. The short version: the
+# package refuses to import with an empty KNOWN_TOOLS, so tests/test_boot.py
+# cannot be collected under this row and nothing it contains is measurable
+# here.
 python3 - "$CONFIG" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
