@@ -543,10 +543,26 @@ give `run()` an optional briefs-dir argument so A21/A22 can use `row`, and
   composed the expected `name=` from a path-qualified `$TARGET`. The two facts
   were introduced separately and never joined, exactly as the comment says.
 
-- **The four merges.** `git show --cc` on all four produces an empty combined
-  diff, i.e. every file in each result matches one parent - no third version
-  was invented at any merge. `b9b59dd` and `cd8c938` are clean; `73dd717` and
+- **The four merges.** `b9b59dd` and `cd8c938` are clean; `73dd717` and
   `7197271` are covered above.
+
+  > **CORRECTION, 2026-09-02, by the orchestrator ruling #231B.** This bullet
+  > used to say *"`git show --cc` on all four produces an empty combined diff,
+  > i.e. every file in each result matches one parent - no third version was
+  > invented at any merge."* **That is false, and one command shows it:**
+  > `git show --cc 73dd717 | wc -c` returns **11376**, and the combined diff
+  > carries a third version of `docs/briefs/BRIEF-199-ratchet-defects.md`
+  > present in neither parent. The two CLEAN verdicts are correct and are kept
+  > - `check-merge-invented.py` independently reports `invented=0` for both
+  > `b9b59dd` and `cd8c938`. What is removed is the UNIVERSAL, which this
+  > report's own §2 had already contradicted by naming `73dd717` as one of the
+  > two "covered above".
+  >
+  > The correction is here rather than in a later document because this
+  > sentence is load-bearing: this report's whole-tree
+  > `REVIEW-COVERS: c749334..80463a5` is what clears `73dd717` in
+  > `check-review-coverage.py`, so a reader reaches a coverage green through
+  > this claim. See #231B for the ruling it produced.
 
 - **Counts in the 26 commit messages that DO derive**, each re-run:
   `grep -lE 'git show [0-9a-f]{7}:docs/DESIGN\.md' docs/adr/00*.md` -> 5;
