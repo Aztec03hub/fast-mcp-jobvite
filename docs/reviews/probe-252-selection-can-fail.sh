@@ -23,6 +23,12 @@
 # docs/adr/0023-harnesses-drop-e-from-strict-mode.md.
 set -uo pipefail
 
+# THE ONE CANONICAL RESULT LINE (task #107). Without it
+# `check-row-floor-controls.sh` cannot tell a fired floor from a silent one -
+# it said so, in those words, the first time it was pointed at this file.
+# shellcheck source=../../scripts/lib/harness-result.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/lib/harness-result.sh"
+
 # TWO levels up, not one: this probe lives in `docs/reviews/`, where the
 # `/..` that the `scripts/` harnesses use lands on `docs/`. Written wrong the
 # first time and caught only because every arm then reported
@@ -173,7 +179,12 @@ arm "M14" "test_a_container_under_an_unlisted_key_is_redacted_WHOLE" \
   '    _ = (out, _leaks(repr(out), "job-42", "a@b.invalid"))'
 
 echo "########## ARMS: $ARMS_PASSED/$ARMS_RUN passed"
+# `fired`, not `killed`: this probe's tally is "how many arms fired", the same
+# meaning check-row-floor-controls.sh and the other docs/reviews probes use.
+# harness-result.sh refuses any other name.
+harness_result_tally fired "$ARMS_PASSED" "$ARMS_RUN"
 ROW_FLOOR=3
+harness_result_ran "$ARMS_RUN" "$ROW_FLOOR"
 if [ "$ARMS_RUN" -lt "$ROW_FLOOR" ]; then
   echo "FEWER ARMS THAN THE FLOOR ($ARMS_RUN/$ROW_FLOOR) - arms were lost."
   exit 1
