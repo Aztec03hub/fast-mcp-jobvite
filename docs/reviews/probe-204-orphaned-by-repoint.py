@@ -42,37 +42,59 @@ writes *"`:153` rather than `:153-155`"* as a record of the change.
 Those are reported and MARKED, not filtered, because a filter for
 them would be a filter for the finding too.
 
-## THIS PRODUCES CANDIDATES, NOT FINDINGS, AND HERE IS THE WEAKNESS
+## THIS PRODUCES CANDIDATES, NOT FINDINGS
 
-**The pairing is at FILE level, not at LINE level, and that is not
-tight enough to publish a count from.** The probe asks "was this range
-repointed anywhere in this file, and does a bare form of the old value
-still stand anywhere in this file". Those two anywheres need not be the
-same citation.
+The file-level pairing above is not tight enough to publish a count
+from: it asks "was this range repointed anywhere in this file, and does
+a bare form of the old value still stand anywhere in this file", and
+those two anywheres need not be the same citation. **#208 added the two
+tests below, which narrow the candidate set from 55 to 35 by asking the
+question per LINE rather than per FILE.**
 
-Measured: it reported six sites in `src/` and `tests/` - continuation
-comments like
+**TEST A - COEXISTENCE.** Did the bare line itself, byte for byte, exist
+in the file at the repoint commit's PARENT? If it did not, the two
+spellings never stood together when the sweep ran, so the sweep cannot
+have walked past this line and it is not an orphan.
+
+This is the mechanised form of the `git log -S` read that was previously
+prescribed as manual work. Measured at 55 candidates: it drops 19, and
+those 19 include **all six** of the known-false `src/` and `tests/`
+continuation comments, such as
 
     # U7 - RESILIENCE (DESIGN.md:354-370, :373-375, :617).
 
-`git log -S` on that exact comment returns ONE commit, its own
-introduction. **The line has never been repointed at all**, in either
-half, so the two spellings do not disagree and it is not an orphan. It
-matched only because `DESIGN.md:373-375` was repointed ELSEWHERE in the
-same file. All six fall the same way.
+which matched only because `DESIGN.md:373-375` was repointed ELSEWHERE
+in the same file. It also drops `docs/adr/0028-...`, whose contrast of
+an old and a new range is deliberate - **not because it can tell a
+contrast from a contradiction, which no selector can, but because that
+line postdates its repoint.** Do not read that as the trap being solved.
 
-**So the `->` destination this probe prints is not evidence
-either**: when one commit repoints several ranges in one file, it
-pairs an arbitrary removal with an arbitrary addition.
+**TEST B - DISAGREES TODAY.** In the file as it stands, is the cited
+document named in QUALIFIED form at some value OTHER than the bare one?
+Only then does the document actually contradict itself. If every
+qualified mention agrees with the bare half, there is nothing to find.
 
-**One instance is CONFIRMED, and it was confirmed by reading a diff, not
-by this probe.** `docs/adr/0017-...` at `02245b1` carried
-`DESIGN.md:489-490` at `:15` and bare `:489-490` at `:66`; `b0e86b8`
-changed the first to `:495-496` and left the second. Both lines are in
-the file today. That is a real self-contradiction inside one document.
+**This test exists because the one CONFIRMED instance was still being
+reported after it was fixed.** `docs/adr/0017-...` carried
+`DESIGN.md:489-490` qualified and bare; `b0e86b8` moved the qualified
+half to `:495-496`; `be94bce` restored it to `489-490`, so the ADR
+agrees with itself again. The probe went on listing it FIRST, because it
+reads history and never looked at the present state of the other half. A
+detector whose headline row is its own closed instance teaches the
+reader to discount the whole list.
 
-Treat every other row as a lead to be read, and read it with
-`git log -S '<the exact line>' -- <file>`.
+**THE `->` DESTINATION WAS NONDETERMINISTIC AND IS NO LONGER PRINTED.**
+It was never evidence - when one commit repoints several ranges in one
+file it pairs an arbitrary removal with an arbitrary addition - but it
+was worse than that: `removed[f] - added[f]` is a set of `str` tuples,
+iterated in hash order, and Python randomises string hashing per
+process. Two runs over an IDENTICAL tree differed on **99 lines**, all
+of them destinations. So no two readers saw the same output and a diff
+between two runs meant nothing. The pairing is now sorted, and the row
+prints only the SHA, which is the part that is real.
+
+Treat every surviving row as a lead to be READ, as at the moment it was
+written - `docs/adr/README.md:65-72`, never `git blame`.
 
 Usage:
     python3 docs/reviews/probe-204-orphaned-by-repoint.py
@@ -138,9 +160,12 @@ def repoint_history() -> dict[tuple[str, str, str], list[tuple[str, str]]]:
     added: dict[str, set[tuple[str, str]]] = collections.defaultdict(set)
 
     def flush() -> None:
-        for f in set(removed) | set(added):
-            for name, rng in removed[f] - added[f]:
-                for n2, r2 in added[f] - removed[f]:
+        # SORTED, because these are sets of str tuples and Python
+        # randomises string hashing per process. Unsorted, two runs over
+        # one tree disagreed on 99 output lines - see the docstring.
+        for f in sorted(set(removed) | set(added)):
+            for name, rng in sorted(removed[f] - added[f]):
+                for n2, r2 in sorted(added[f] - removed[f]):
                     if n2 == name and r2 != rng:
                         out[(f, name, rng)].append((r2, sha))
         removed.clear()
@@ -171,6 +196,56 @@ def _same_document(anchored: str, cited: str) -> bool:
     return anchored.rsplit("/", 1)[-1] == cited.rsplit("/", 1)[-1]
 
 
+_BLOB: dict[tuple[str, str], str | None] = {}
+
+
+def _blob(rev: str, path: str) -> str | None:
+    """The file at a revision, or None if it did not exist there.
+
+    None and "" are kept DISTINCT on purpose: a path that did not exist
+    is not a file that was empty, and collapsing them would make TEST A
+    pass vacuously on every file the repoint commit created.
+    """
+    key = (rev, path)
+    if key not in _BLOB:
+        r = subprocess.run(
+            ["git", "show", f"{rev}:{path}"],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+        _BLOB[key] = r.stdout if r.returncode == 0 else None
+    return _BLOB[key]
+
+
+def coexisted(path: str, line: str, sha: str) -> bool:
+    """TEST A: did this exact line stand in the file when the sweep ran?
+
+    False means the line POSTDATES its own repoint, so the two spellings
+    were never both in the file, so the sweep cannot have skipped it.
+    """
+    parent = _blob(sha + "^", path)
+    return parent is not None and line.rstrip("\n") in parent
+
+
+def disagrees_today(path: str, doc: str, old: str) -> bool:
+    """TEST B: does the file cite this document at a DIFFERENT value?
+
+    The self-contradiction is between the bare half and a QUALIFIED half
+    that says something else. If a qualified mention carries the same
+    value as the bare one, the halves agree and the instance is closed -
+    which is what `be94bce` did to ADR-0017.
+    """
+    text = (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+    base = doc.rsplit("/", 1)[-1]
+    quals = {
+        m.group("a") + ("-" + m.group("b") if m.group("b") else "")
+        for m in _QUAL.finditer(text)
+        if m.group("name").rsplit("/", 1)[-1] == base
+    }
+    return bool(quals) and old not in quals
+
+
 def main() -> int:
     hist = repoint_history()
     sites, _shapes, _excl = _p204.scan()
@@ -188,24 +263,42 @@ def main() -> int:
                 continue
             if not any(_same_document(d.strip(), doc) for d in detail.split(",") if d):
                 continue
-            new, sha = moves[-1]
+            _new, sha = moves[-1]
             discusses = any(w in s.line for w in _DISCUSSION)
-            rows.append((s, doc, old, new, sha, rung, detail, discusses))
+            rows.append((s, doc, old, sha, rung, detail, discusses))
             break
 
-    live = [r for r in rows if not r[-1]]
-    talk = [r for r in rows if r[-1]]
-    print(f"ORPHANED-BY-REPOINT candidates: {len(rows)}")
+    # BOTH counts are printed. The file-level number is what this probe
+    # reported before #208, and it is kept so the narrowing is visible
+    # rather than asserted - a detector that shows only its tightened
+    # figure cannot be checked against the one it replaced.
+    kept, dropped_a, dropped_b = [], 0, 0
+    for r in rows:
+        s, doc, old, sha = r[0], r[1], r[2], r[3]
+        if not coexisted(s.path, s.line, sha):
+            dropped_a += 1
+        elif not disagrees_today(s.path, doc, old):
+            dropped_b += 1
+        else:
+            kept.append(r)
+
+    print(f"file-level candidates (the pre-#208 figure): {len(rows)}")
+    print(f"  -{dropped_a}  TEST A: the bare line POSTDATES its own repoint")
+    print(f"  -{dropped_b}  TEST B: every qualified half AGREES with it today")
+    print(f"\nORPHANED-BY-REPOINT leads to READ: {len(kept)}")
+
+    live = [r for r in kept if not r[-1]]
+    talk = [r for r in kept if r[-1]]
     print(f"  {len(live)}  a citation being MADE")
     print(
         f"  {len(talk)}  a line that DISCUSSES the old range (reported, not filtered)"
     )
     for label, group in (("MAKING A CITATION", live), ("DISCUSSING THE CHANGE", talk)):
         print(f"\n===== {label} =====")
-        for s, doc, old, new, sha, rung, detail, _ in group:
+        for s, doc, old, sha, rung, detail, _ in group:
             subject = _git("log", "-1", "--format=%s", sha).strip()
             print(f"\n{s.path}:{s.lineno}   anchor {rung} -> {detail}")
-            print(f"    bare `:{old}` survives; `{doc}:{old}` -> `:{new}`")
+            print(f"    bare `:{old}` survives; `{doc}:{old}` was repointed away")
             print(f"    at {sha[:7]}  {subject[:76]}")
             print(f"    | {s.line.strip()[:118]}")
     return 0
