@@ -114,6 +114,15 @@ trap harness_result_emit EXIT
 
 echo
 echo "$fired/$total amputations killed a test."
+# THE SAME TWO COUNTERS AS THE PROSE LINE ABOVE AND THE GATE BELOW, published
+# as a named field (task #152). This harness computed `fired`/`total`, printed
+# them in PROSE, and gated on them at the `fired -ne total` comparison - but
+# published nothing, so every checker that reads the canonical line was blind
+# to a tally this harness had all along. `killed` is the field, not `applied`:
+# `fired` counts amputations that KILLED A TEST, which is the meaning
+# `harness_result_tally killed` names. A recount here would be a second copy
+# free to disagree with the two readers above and below it.
+harness_result_tally killed "$fired" "$total"
 
 # Post-run re-check of the real script, the same requirement the coupling
 # harness carries: a harness that leaves the tree mutated is worse than none.

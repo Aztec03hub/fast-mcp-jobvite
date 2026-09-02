@@ -18,7 +18,17 @@
 #
 # It exits non-zero only if it could not run, if the intact baseline is red, or
 # if an amputation left the tree dirty. The CI step gates on every row having
-# APPLIED ITS ANCHOR, not on this exit code.
+# APPLIED ITS ANCHOR, not on this exit code - and that is true only because the
+# step passes `--anchors-applied` and this harness publishes `applied=N/M`.
+#
+# THIS SENTENCE WAS FALSE FROM THE DAY IT WAS WRITTEN UNTIL TASK #152. There was
+# no anchor counter here and no `applied=` field, and the step read
+# `--amputation --min-rows 17 --row-re ...` - rows and an exit code, never
+# anchors. A row whose anchor moved printed "COULD NOT APPLY", `return`ed, was
+# counted as a row like any other, and the step passed. The claim named the
+# gate that would have caught it, which is the reason it read as safe: no gate
+# reads a comment, so a comment describing a gate that does not exist is
+# indistinguishable from one that does.
 #
 # PYTHONDONTWRITEBYTECODE=1: `.pyc` invalidation keys on (mtime, size), and an
 # amputation that replaces a body with `pass` can be the same size inside one
@@ -98,6 +108,14 @@ TOTAL_SURVIVORS=0
 # The increment is at the TOP of the row function so that a row
 # which aborts on a missing anchor still counts as having run.
 HR_COUNTED_ROWS=0
+# THE ANCHOR-LANDING COUNTER, task #152. Every row below verifies TWICE that
+# its anchor landed - once for uniqueness inside the Python heredoc, once
+# against git - and then threw both results away into prose and `return`ed.
+# The row still counted as having RUN, so `rows=` on the canonical line was
+# identical whether an anchor landed or not, and no checker downstream could
+# see the difference: a tally this harness computed per row and never
+# published. It is counted here and published as `applied=` below.
+HR_APPLIED=0
 amputate() {
   HR_COUNTED_ROWS=$((HR_COUNTED_ROWS + 1))
   local label="$1" file="$2" old="$3" new="$4"
@@ -129,6 +147,11 @@ PY
     echo
     return
   fi
+
+  # IT LANDED. Counted separately from the row count, because a row that
+  # RAN and a row whose anchor APPLIED are different facts and the two
+  # `return`s above are exactly where they diverge.
+  HR_APPLIED=$((HR_APPLIED + 1))
 
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
@@ -367,5 +390,11 @@ amputate "A12 a route-level 404 IS mapped to a record-level not-found" "$CLIENT"
 # counter. This harness declares no ROW_FLOOR, so the floor is 0:
 # 0 is not a floor anything can breach, and it reads as absent.
 harness_result_ran "$HR_COUNTED_ROWS" 0
+# THE ANCHOR TALLY, published as a named field (task #152). The same two
+# counters the rows maintained all along. `applied` is the field, not
+# `killed`: survivors are this harness's OUTPUT and are not a failure, so
+# there is no kill tally to report - what CAN silently go wrong is a row
+# whose anchor stopped matching, and that is what this counts.
+harness_result_tally applied "$HR_APPLIED" "$HR_COUNTED_ROWS"
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
 echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"
