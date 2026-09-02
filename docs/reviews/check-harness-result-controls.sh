@@ -172,6 +172,97 @@ if [ "$TREE_BEFORE" != "$(git -C "$REPO" status --porcelain)" ]; then
   exit 3
 fi
 
+# ---------------------------------------------------------------------------
+# C9-C11: THE COUNTERS MUST SEE A TRAP THEY CANNOT MATCH ON ONE LINE (R16-H1).
+#
+# Both counters in check-harness-result.sh used to anchor on `EXIT$` against
+# RAW lines. A `trap` split across a `\` continuation matches NEITHER - the
+# first line carries `trap` but ends in `\`, the second ends in `EXIT` but does
+# not start with `trap`. Both read 0, 0 == 0, and the script scored as ARMED
+# with its emitter not chained at all. Two harnesses carry that shape today.
+#
+# EVERY ROW BELOW RUNS IN A SCRATCH ARCHIVE CLONE, never in the tree. Two
+# reasons, and the second is the one that bites: another agent may be editing
+# the very harness these rows mutate, and a harness killed mid-row leaves its
+# mutation behind for the next run to blame on someone else (#131, #146).
+#
+# AND THE CLONE MUST CARRY THE WORKING COPY OF THE CHECKER, NOT HEAD's.
+# `git archive HEAD` populates the scratch tree from the COMMITTED object,
+# so the first version of these rows silently tested the OLD checker and
+# reported C9 and C10 as BROKEN CONTROLS - correctly, because the old
+# checker does survive the mutation. The subject of a pre-commit control
+# is what you are about to commit, not what is already committed. Copying
+# it in is the whole fix, and the failure was worth having: it is the
+# "audit the object, not the working tree" rule pointing the other way.
+c_scratch=$(mktemp -d)
+git -C "$REPO" archive HEAD | tar -x -C "$c_scratch"
+cp "$REPO/docs/reviews/check-harness-result.sh" \
+   "$c_scratch/docs/reviews/check-harness-result.sh"
+git -C "$c_scratch" init -q .
+git -C "$c_scratch" add -A >/dev/null 2>&1
+git -C "$c_scratch" -c user.email=c@c -c user.name=c commit -qm scratch >/dev/null 2>&1
+
+# C9 IS THE VACUITY GUARD AND IT COMES FIRST. Without it, C9 and C10 pass for
+# free against a clone that was already failing for some unrelated reason.
+TOTAL=$((TOTAL + 1))
+(cd "$c_scratch" && bash docs/reviews/check-harness-result.sh) >/dev/null 2>&1
+c9v_rc=$?
+if [ "$c9v_rc" -eq 0 ]; then
+  FIRED=$((FIRED + 1))
+  echo "  FIRED  C9 the unmutated scratch clone is GREEN, so C10 and C11 measure"
+  echo "         their own mutation rather than a broken fixture (exit $c9v_rc)"
+else
+  echo "::error::BROKEN CONTROL C9 - the scratch clone fails BEFORE any mutation"
+  echo "         (exit $c9v_rc). C10 and C11 below prove nothing until this is 0."
+fi
+
+# C10: the shape that is in the tree today.
+TOTAL=$((TOTAL + 1))
+c10_target_a="$c_scratch/scripts/check-u1-boot-amputation.sh"
+c10_before=$(grep -c "trap 'harness_result_emit; cp" "$c10_target_a" || true)
+perl -0pi -e "s/trap 'harness_result_emit; cp/trap 'cp/" "$c10_target_a"
+c10_after=$(grep -c "trap 'harness_result_emit; cp" "$c10_target_a" || true)
+(cd "$c_scratch" && bash docs/reviews/check-harness-result.sh) >/dev/null 2>&1
+c10a_rc=$?
+if [ "$c10_before" -ne 1 ] || [ "$c10_after" -ne 0 ]; then
+  echo "::error::BROKEN CONTROL C10 - the mutation did not land ($c10_before -> $c10_after)."
+  echo "         The anchor moved; re-read the harness before trusting this row."
+elif [ "$c10a_rc" -ne 0 ]; then
+  FIRED=$((FIRED + 1))
+  echo "  FIRED  C10 an emitter dropped from a MULTI-LINE trap is caught (exit $c10a_rc)"
+else
+  echo "::error::BROKEN CONTROL C10 - the emitter was removed from a multi-line EXIT"
+  echo "         trap and the gate still exited 0. That is R16-H1 returning: the"
+  echo "         counters are matching raw lines again, so a continuation hides a"
+  echo "         disarmed harness and disarmed looks exactly like passing."
+fi
+
+# C11: the SIBLING SHAPE, latent - none in the tree. `trap Y EXIT INT TERM`
+# also REPLACES the sourced trap (measured: Y wins), and an `EXIT$` anchor can
+# never see it. Closed at the same time because the next multi-signal trap
+# anyone writes would otherwise be invisible from the day it lands.
+TOTAL=$((TOTAL + 1))
+c11_target="$c_scratch/scripts/check-suite-floor.sh"
+printf '\ntrap %s EXIT INT TERM\n' "'true'" >> "$c11_target"
+(cd "$c_scratch" && bash docs/reviews/check-harness-result.sh) >/dev/null 2>&1
+c11_rc=$?
+if [ "$c11_rc" -ne 0 ]; then
+  FIRED=$((FIRED + 1))
+  echo "  FIRED  C11 a multi-signal 'EXIT INT TERM' trap without the emitter is"
+  echo "         caught (exit $c11_rc)"
+else
+  echo "::error::BROKEN CONTROL C11 - a trap ending 'EXIT INT TERM' that does not"
+  echo "         chain the emitter was not counted. The anchor is back to EXIT\$."
+fi
+rm -rf "$c_scratch"
+
+if [ "$TREE_BEFORE" != "$(git -C "$REPO" status --porcelain)" ]; then
+  echo "::error::C9-C11 left the tree changed. They run in a scratch clone and"
+  echo "         must not be able to. STOP and read the diff."
+  git -C "$REPO" status --porcelain
+  exit 3
+fi
+
 echo
 echo "########## THE AMPUTATION - remove the report and the line must notice"
 

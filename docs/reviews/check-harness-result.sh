@@ -96,8 +96,31 @@ for s in "${SCRIPTS[@]}"; do
   # `trap ... EXIT` REPLACES the one the shared file arms at source time, so a
   # trap that does not chain `harness_result_emit` silently disarms the whole
   # mechanism for that script - and disarmed looks exactly like passing.
-  traps=$(grep -cE '^[[:space:]]*trap .*[[:space:]]EXIT$' "$f")
-  chained=$(grep -cE '^[[:space:]]*trap .*harness_result_emit.*[[:space:]]EXIT$' "$f")
+  #
+  # FOLD BACKSLASH CONTINUATIONS FIRST, AND DO NOT ANCHOR ON `EXIT$`
+  # (R16-H1). Both counters used to match `^[[:space:]]*trap .*EXIT$`
+  # against raw lines. A `trap` split across a `\` continuation matches
+  # NEITHER pattern - the first line has the `trap` but ends in `\`, the
+  # second ends in `EXIT` but does not start with `trap`. Both counters
+  # then read 0, 0 == 0, and the script scores as ARMED while its
+  # emitter is not chained at all.
+  #
+  # MEASURED BOTH WAYS by R16: dropping `harness_result_emit;` from a
+  # multi-line trap still printed "37" and "EQUAL: all 37", exit 0; the
+  # identical drop on a single-line trap printed 36 and exited 1. The
+  # gate's sensitivity depended on the FORMATTING of its subject, which
+  # is the one property a gate must not have. Two harnesses carry the
+  # multi-line shape today.
+  #
+  # The relaxed `EXIT([[:space:]]|$)` closes the sibling shape in the
+  # same line: `trap Y EXIT INT TERM` also replaces the sourced trap
+  # (R16 ran it - Y wins), and `EXIT$` could never see it. None in the
+  # tree today, which is why it is worth closing now rather than after.
+  folded=$(sed -e :a -e '/\\$/N; s/\\\n//; ta' "$f")
+  traps=$(printf '%s\n' "$folded" \
+    | grep -cE '^[[:space:]]*trap .*[[:space:]]EXIT([[:space:]]|$)' || true)
+  chained=$(printf '%s\n' "$folded" \
+    | grep -cE '^[[:space:]]*trap .*harness_result_emit.*[[:space:]]EXIT([[:space:]]|$)' || true)
   if [ "$traps" -eq "$chained" ]; then
     armed=$((armed + 1))
   else
