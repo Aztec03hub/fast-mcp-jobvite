@@ -70,7 +70,7 @@ Every row below is a real run against the real `ci.yml`, not a unit fixture.
 | what | before | after |
 | --- | --- | --- |
 | `check-row-floor-exactness.py`, unmodified ci.yml | rc=0, 16 compared | **rc=0, 16 compared** |
-| `--self-test` | rc=0, 20/20 | **rc=0, 38/38** (27 first pass, 34 after R270 r1, 38 after r2) |
+| `--self-test` | rc=0, 20/20 | **rc=0, 42/42** (27, 34, 38, 42 across four rounds) |
 | PLANTED sharded step (`HARNESS_SHARDS: 2`, `--min-rows 5`, 10 rows) | **rc=1 "SLACK by 5"** | **rc=0** |
 | ...and one row AMPUTATED from the harness (9 rows) | - | **rc=1** |
 | ...and `--min-rows 4` against 10 rows (harness grew) | - | **rc=1 "SLACK by 2"** |
@@ -128,7 +128,7 @@ file rather than widen, so this is filed.
 
 **F2 (Low, FIXED in this branch).** `arm_floor` was `20` with `len(arms) >=
 arm_floor`. I added 7 arms, so leaving the floor at 20 would have let all 7 be
-deleted silently. Raised to 38 (27 first pass, 34 after r1), which is an equality against the live arm count
+deleted silently. Raised to 42 across four rounds, which is an equality against the live arm count
 in the same run. *Note:* this file's arm floor is still spelled `>=`,
 which is correct for a floor meant to ratchet upward as arms are added, and is
 NOT the comparison #223 tightened - that one was the ROW floor. I did not change
@@ -433,12 +433,106 @@ and A34 left. The rule that actually holds is narrower than "check the twin" -
 it is *the sweep is not finished until the selector returns zero*, and a count
 is the only way to know that.
 
-## 10. Merge
+## 10. R270 round 3: the same fail-open a THIRD time, one column over again
+
+Round 3 returned 0C/0H/2M/2L/2N and NOT MERGEABLE. All six closed. Two of them
+I closed by REFUTING the finding with a measurement, and the blocking one was
+mine for the third time in the same file.
+
+### M1 - I bounded the TOKEN and never bounded the `env:` ITSELF
+
+Round 2's L1 said a count outside `env:` was silently honoured. I fixed it by
+requiring the token to sit under an `env:` line - and accepted **any**
+`^\s*env:\s*$` at **any** indent. So an `env:`-SHAPED line inside the step's
+own `run: |` scalar, or an `env:` nested under `with:`, is found and read.
+GitHub Actions applies neither.
+
+MEASURED, old code against new, all three shapes:
+
+    P1  env: here-doc'd inside a run scalar, no step env: at all
+          OLD a38e0fb: {'a.sh': (5, '^r ', 2)}      NEW: REFUSED
+    P3  with: > env: nested
+          OLD a38e0fb: {'a.sh': (5, '^r ', 2)}      NEW: REFUSED
+    P1b real env: FIRST, then env: in the run scalar
+          OLD a38e0fb: {'a.sh': (5, '^r ', 2)}      NEW: REFUSED
+    CONTROL a real step-level env:
+          OLD: (5, '^r ', 2)                        NEW: (5, '^r ', 2)
+
+End to end that laundered a genuinely unsharded, genuinely slack step to exit 0
+where base reds `SLACK by 5` - **the same signature as round 1's H1, arrived at
+through a third door.**
+
+*Fix:* `_env_shard_values()` derives the step's KEY INDENT from the block's own
+`- ` and requires `env:` at exactly that indent with the token strictly deeper.
+Both my measurement and the reviewer's were true; mine tested the token and
+theirs tested the mapping, and only one of us was testing the property the
+message claims.
+
+**A37 was the eighth weak arm** and its name was the tell: it claimed the
+general property while its fixture exercised only the leave-the-mapping reset.
+It now runs all three shapes.
+
+### M2 - two guards, each the other's only backstop, both unarmed
+
+The per-block continuation fold and the `flags`-count assertion. Amputate BOTH
+and **13 of the live `ci.yml`'s 16 gate lines silently vanish**: the checker
+parses 3, compares 3, prints "Every floor equals its harness's live row count.
+OK." and exits 0 - verbatim the "reassuring zero rather than an error" the
+assertion's own message names. Both pre-date this branch and were unarmed
+there too; this branch rewrote both sides, so it closes them. Arms A39, A40.
+
+### L1 and N1 REFUTED, both with measurements
+
+* **L1** called the dedent test's second half unreachable and a deletion
+  candidate. It is neither: a non-comment, non-item line at exactly the item
+  indent yields **1 block intact, 2 amputated** - the item below is collected
+  into a list that key already closed. Kept, and armed by A41.
+* **N1** is about my own evidence rather than the code, and it is right:
+  `grep -c "except SystemExit:"` returning 0 was **blind to
+  `except SystemExit as exc:`**, which two sites still used. Neither was
+  exposed, so the code was fine and the PROOF was not. Both converted for
+  uniformity; `grep -cE "except SystemExit\b"` is now 0.
+
+**That is the second time in two rounds that a selector I offered as proof was
+narrower than the shape it swept.** Round 2's rule - *the sweep is not finished
+until the selector returns zero* - needs its rider: **the selector must match
+the SHAPE, not a literal string.** A count from a pattern blind to its own
+variants is exactly the confident zero the rule exists to prevent.
+
+### L2, N2
+
+L2: the quote strip in `int(value.strip(...))` was unarmed - a mutant turns a
+legal `HARNESS_SHARDS: '2'` into an unhandled `ValueError`. Arm A42. N2: a
+comment my own round-2 reflow garbled, duplicating one line and dropping
+another. Rewritten.
+
+### The battery: twelve guards, every one killed by a NAMED arm
+
+    R3-M1 env: bounded to key indent      41/42  A37
+    R3-M1 the key_indent derivation       34/42  A25,A27,A28,A31,A32,A33,A34,A42
+    R3-M2 the continuation fold           41/42  A39
+    R3-M2 the flags-count assertion       41/42  A40
+    R3-L1 the dedent test's 2nd half      41/42  A41
+    R3-L2 the quote strip                 41/42  A42
+    prior the dedent exit                 41/42  A41
+    prior the comment filter              40/42  A28,A36
+    prior the not-a-step-list exit        41/42  A38
+    prior the multiplication              38/42  A21,A22,A23,A24
+    prior equality -> `>=`                39/42  A23,A24,A26
+    prior the mentions comment filter     41/42  A36
+
+**One honest note on attribution.** Amputating the dedent exit now kills A41,
+not A35. A35 survives it because M1's key-indent bound independently refuses
+the absorbed job-level `env:` - two guards where there was one. The dedent exit
+IS armed, by A41; A35 no longer arms it, and saying "A35 covers it" would be
+the kind of stale attribution this file exists to catch.
+
+## 11. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \
         merge --ff-only fix/270-exactness-shards
 
-## 11. What I did NOT verify
+## 12. What I did NOT verify
 
 - **No sharded step has ever RUN.** Everything here is static analysis of a
   planted `ci.yml`. That a 2-lane `check-u3-audit-amputation.sh` actually

@@ -427,12 +427,12 @@ def _step_blocks(raw: str) -> list[str]:
         if not in_steps:
             continue
         if not line.strip():
-            # SKIPPED, not appended. The append was INOPERATIVE: every
-            # consumer of a block is a continuation fold, a per-line
-            # gate search, or an anchored HARNESS_SHARDS pattern, and a
-            # gate search, or an anchored HARNESS_SHARDS pattern, and
-            # a blank line changes none of them.
-            # green AND every block's parse identical (R270-R2-N2).
+            # SKIPPED, not appended. The append was INOPERATIVE:
+            # every consumer of a block is a continuation fold, a
+            # per-line gate search, or an anchored HARNESS_SHARDS
+            # pattern, and a blank line changes none of them.
+            # Amputating it left the suite green AND every block's
+            # parse byte-identical (R270-R2-N2).
             continue
         # A COMMENT NEVER ENDS THE LIST. `ci.yml` carries block comments
         # at the step indent BETWEEN steps, and treating one as a dedent
@@ -475,20 +475,36 @@ def _env_shard_values(block: str) -> list[str]:
     sum - because two copies of this rule would drift, the defect
     `_min_rows_verdict()` already exists to prevent for the arithmetic.
     """
+    lines = [ln for ln in block.split("\n") if ln.strip()]
+    if not lines:
+        return []
+    # THE STEP'S KEY INDENT. A step is `- name: x` then `  run: ...`,
+    # so its keys sit at the dash's indent + 2. Deriving it is what
+    # lets the `env:` ITSELF be bounded, not only the token beneath.
+    first = lines[0]
+    dash = STEP_ITEM.match(first)
+    if dash:
+        key_indent = len(dash.group("indent")) + 2
+    else:
+        key_indent = len(first) - len(first.lstrip(" "))
+
     values: list[str] = []
-    env_indent: int | None = None
-    for line in block.split("\n"):
-        if not line.strip():
-            continue
+    in_env = False
+    for line in lines:
         indent = len(line) - len(line.lstrip(" "))
         if re.match(r"^\s*env:\s*$", line):
-            env_indent = indent
+            # ONLY the step's OWN `env:` counts. An `env:`-shaped line
+            # deeper than the step's keys is a here-doc'd YAML fragment
+            # inside a `run: |` scalar, or an `env:` nested under
+            # `with:` - Actions applies neither, so reading a lane count
+            # from one is the fail-OPEN direction (R270-R3-M1).
+            in_env = indent == key_indent
             continue
-        if env_indent is None:
+        if not in_env:
             continue
-        if indent <= env_indent:
-            # Left the mapping - a sibling key at the step level.
-            env_indent = None
+        if indent <= key_indent:
+            # A sibling key at the step level ends the mapping.
+            in_env = False
             continue
         hit = re.match(rf"^\s*{SHARD_ENV}\s*:\s*(.+?)\s*$", line)
         if hit:
@@ -1329,7 +1345,7 @@ def self_test() -> int:
             "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 9"
             " --row-re '^r '\n"
         )
-    except SystemExit as exc:
+    except BaseException as exc:  # noqa: BLE001 - see A28
         dup_reason = str(exc)
     arm(
         "A29 two gate lines for ONE harness are REFUSED, not last-one-wins",
@@ -1394,7 +1410,7 @@ def self_test() -> int:
     neg_reason = ""
     try:
         _shard_count("h.sh", f"      - x\n        env:\n          {SHARD_ENV}: -1\n")
-    except SystemExit as exc:
+    except BaseException as exc:  # noqa: BLE001 - see A28
         neg_reason = str(exc)
     plus_two = None
     try:
@@ -1486,14 +1502,36 @@ def self_test() -> int:
         "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
         " --row-re '^r '\n"
     )
-    script_reason = ""
-    try:
-        _external_floors(in_script)
-    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
-        script_reason = str(exc)
+    # AND THE TWO SHAPES THAT REACH THIS ARM'S NAME (R270-R3-M1). The
+    # fixture above has a real `env:` first, so it exercises only the
+    # leave-the-mapping reset. These have an `env:`-SHAPED LINE where
+    # Actions applies none: here-doc'd inside a `run: |` scalar with no
+    # step `env:` at all, and nested under `with:`. Both read shards=2
+    # before the key-indent bound and passed a slack step at exit 0.
+    heredoc_env = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - name: x\n        run: |\n          cat <<'EOF' > f.yml\n"
+        f"          env:\n            {SHARD_ENV}: 2\n          EOF\n"
+        "          bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+    )
+    with_env = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - name: x\n        with:\n          env:\n"
+        f"            {SHARD_ENV}: 2\n"
+        "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+    )
+    reasons = []
+    for fixture in (in_script, heredoc_env, with_env):
+        try:
+            _external_floors(fixture)
+            reasons.append("")
+        except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+            reasons.append(str(exc))
     arm(
-        "A37 a count inside a `run: |` script is NOT the step's lane count",
-        "sit in a step-level `env:` mapping" in script_reason,
+        "A37 an `env:` Actions does not apply is NOT the step's lane count",
+        all("sit in a step-level `env:` mapping" in r for r in reasons),
         "the old search was unanchored over the whole block, so a line "
         "in a script - inert to Actions - was silently honoured as the "
         "lane count while the refusal asserted it had checked `env:`",
@@ -1517,6 +1555,88 @@ def self_test() -> int:
         "build this case and suggested deleting the guard; it decides.",
     )
 
+    # -- THE TWO GUARDS THAT ARE EACH OTHER'S ONLY BACKSTOP ----------
+    # R270-R3-M2: amputate the per-block continuation fold AND the
+    # flags-count assertion together and 13 of ci.yml's 16 gate lines
+    # silently vanish - the checker parses 3, compares 3, prints "Every
+    # floor equals its harness's live row count. OK." and exits 0. That
+    # is verbatim the "reassuring zero rather than an error" the
+    # assertion's own message names. Both pre-date this branch and were
+    # unarmed there too; this branch rewrote both sides, so it closes
+    # the gap here.
+    wrapped = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - name: x\n        run: |\n"
+        "          bash scripts/ci-harness-gate.sh \\\n"
+        "            a.sh --min-rows 5 --row-re '^r '\n"
+    )
+    try:
+        folded = _external_floors(wrapped)
+    except BaseException:  # noqa: BLE001 - see A28's rationale
+        folded = {}
+    arm(
+        "A39 a gate line WRAPPED across a continuation is still parsed",
+        folded == {"a.sh": (5, "^r ", 1)},
+        "13 of the live ci.yml's 16 gate lines wrap. Without the fold "
+        "they parse as a bare command and a separate flag line, and the "
+        "harness is never compared to anything.",
+    )
+    flags_reason = ""
+    try:
+        # A `--min-rows` flag no step block can reach: the job has no
+        # `steps:` key at all, so `_step_blocks` yields nothing.
+        _external_floors(
+            "jobs:\n  j:\n    notsteps:\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n"
+        )
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        flags_reason = str(exc)
+    arm(
+        "A40 a --min-rows the step scan cannot reach is an ERROR",
+        "parsed 0 --min-rows values but ci.yml carries 1 as flags" in flags_reason,
+        "this assertion is the fold's only backstop, and it was itself "
+        "unarmed - so both could go and the run would report a clean "
+        "zero over 3 of 16 harnesses",
+    )
+    # THE DEDENT TEST'S SECOND HALF. R270-R3-L1 called it unreachable
+    # and a deletion candidate; it is neither. A non-comment, non-item
+    # line at EXACTLY the item indent ends the list, and without the
+    # half-condition the lines below it are collected into a step.
+    arm(
+        "A41 a non-item line at the item indent ENDS the step list",
+        len(
+            _step_blocks(
+                "jobs:\n  j:\n    steps:\n      - run: echo a\n"
+                "      notanitem: x\n      - run: echo b\n"
+            )
+        )
+        == 1,
+        "measured both ways: amputated this yields 2 blocks, collecting "
+        "an item that follows a key which already closed the list. Same "
+        "shape as R270-R2-N1, which was also called unreachable.",
+    )
+    # QUOTED INTEGERS. `'2'` and `"2"` are legal YAML integers and the
+    # strip is what admits them; a mutant that drops it turns a legal
+    # value into an unhandled ValueError (R270-R3-L2).
+    quoted: list[int | None] = []
+    for spelling in ("'2'", '"2"'):
+        try:
+            quoted.append(
+                _shard_count(
+                    "h.sh",
+                    f"      - x\n        env:\n          {SHARD_ENV}: {spelling}\n",
+                )
+            )
+        except BaseException:  # noqa: BLE001 - see A28's rationale
+            quoted.append(None)
+    arm(
+        "A42 a QUOTED integer is a lane count, not a crash",
+        quoted == [2, 2],
+        "the quote strip is unarmed otherwise, and dropping it makes a "
+        "legal `HARNESS_SHARDS: '2'` raise ValueError rather than refuse",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -1532,7 +1652,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 38
+    arm_floor = 42
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
