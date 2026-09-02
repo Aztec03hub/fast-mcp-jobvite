@@ -1,11 +1,13 @@
-# HANDOFF — 2026-09-02 04:15Z, written against compaction
+# HANDOFF — 2026-09-02 04:48Z, written against compaction
 
-Verified by running it at `d0f8d85`. `origin/main` is `d0f8d85` and
-**nothing is held locally** — `git rev-list --count origin/main..HEAD`
-is 0. Every number below was derived at that sha by the command beside
-it, not carried forward.
+Verified by running it at `33fc977`, which is this file's PARENT.
+**`origin/main` is `6e4fae3` and 23 commits were held there** —
+`git rev-list --count origin/main..HEAD` returned 23 at `33fc977`, so it
+reads 24 once this commit lands, and rises with every commit after.
+**Do not trust the digit; run the command.** Every number below was
+derived at that sha by the command beside it, not carried forward.
 
-## READ THIS FIRST: this document has been wrong FIVE times, and the sixth version is the first that was not
+## READ THIS FIRST: this document has been wrong SIX times
 
 Version 1 said **"Main is GREEN locally, on every gate"** and listed six
 gates, all 0. Every number was true and the claim was false: the gate
@@ -24,21 +26,38 @@ Version 5 said *"THE RUNNING JOB IS THE FIRST TO REACH THE LONG POLE"*
 about a run that died at the secret-scan step two sentences before its
 own paragraph predicted exactly that.
 
-**VERSION 6 IS THE FIRST WHOSE PREDECESSOR DID NOT GO FALSE.** Version 5
-marked its unobserved claims `NOT YET OBSERVED` and named a run id; the
-run then concluded and every marked item resolved without contradicting
-anything. That is the fix working, not luck: **the defect was never
-being wrong, it was asserting a whole from a sample.** So this version
-keeps the rule — every count carries its container and its sha, anything
-CI does not run says so, and anything unobserved is marked.
+**VERSION 6 WENT FALSE BY STANDING STILL.** Its numbers were right when
+written and it opened with *"`origin/main` is `d0f8d85` and nothing is
+held locally"*. Twenty-three commits later that was the most misleading
+sentence in the file, and nothing about version 6 was wrong — it simply
+described a tree that had moved. **A handoff's freshness is part of its
+correctness**, so this version leads with the held count, which is the
+number that goes stale first.
 
 ## Where the trunk is
 
-    origin/main   d0f8d85   pushed to BOTH remotes, nothing held
-    DESIGN freeze e3b5c97   (docs/DESIGN-FREEZE.txt; blob verified equal)
-    ADRs          34        ls docs/adr/[0-9]*.md | wc -l
+    origin/main   6e4fae3   NOT what is checked out
+    local HEAD    33fc977   23 commits ahead, PUSH DELIBERATELY HELD
+    DESIGN freeze d1f1a52   (docs/DESIGN-FREEZE.txt; blob verified equal)
+    ADRs          35        ls docs/adr/[0-9]*.md | wc -l
     scripts/*.sh  39        git ls-files -- 'scripts/*.sh' | wc -l
-    backlog       79 recorded = 79 measured
+    backlog       80 recorded, holding
+
+## What is HELD, and why the push is held
+
+Twenty-three commits: R18's eight fixes, R19's seven findings closed,
+ADR-0034 + ADR-0035 with two re-freezes, `suborch-170`'s eleven-commit
+merge, and the R19 report.
+
+**The hold is a rule, not a hesitation.** The trunk has exactly one
+green run in its history (`33582613697`, head `22c9873`). A second green
+run is what would establish that the first repeats, and pushing over a
+queued run cancels it — GitHub supersedes older QUEUED runs in a
+concurrency group regardless of `cancel-in-progress`. So: push, then
+WATCH THAT RUN TO A CONCLUSION before pushing again.
+
+**Only Phil pushes and merges.** Brief him on exactly what the push
+changes before it lands so he can watch it.
 
 ## THE TRUNK IS GREEN, and this is the first time that sentence has been true
 
@@ -49,10 +68,8 @@ CI does not run says so, and anything unobserved is marked.
     Lint, types, tests                    86.6min
 
 Every earlier run in this project's history either failed or was
-cancelled. Runs since have been cancelled by GitHub superseding QUEUED
-runs in the concurrency group when a push lands on top — **that is
-expected, not a failure**, and it is why a run worth having must not be
-pushed over.
+cancelled. **`startup_failure` is 0 across every workflow ever**, so the
+0-job cancellations are genuine supersessions, not parse errors.
 
 ### The step table, and it corrected a task headline
 
@@ -70,37 +87,23 @@ past 73 minutes". It is FIFTH.** U9 and U0 are 42% of the job between
 them. A failing trunk under-reports its own durations, so the ranking I
 had built was a ranking of the steps that got to run.
 
-The per-harness default is 1800s and rests on an inherited 1040s figure.
-**The largest real row is 1270s, n=1** — so 1.42x headroom over the
-largest OBSERVED row, not the ~1.7x the old figure implied. No cap was
-changed: one observation is a lower bound on a maximum, and this project
-has already sized a cap from a maximum that was not one.
+The per-harness default is 1800s. **The largest real row is 1270s,
+n=1** — 1.42x headroom over the largest OBSERVED row. No cap was
+changed: one observation is a lower bound on a maximum.
 
-`docs/reviews/measure-ci-step-durations.py` refuses to print a maximum
-without the number of runs that REACHED the step, and lists separately
-the steps that have NEVER completed — because a ranked table can only
-rank what finished.
-
-## Gates at `d0f8d85`, and which of them CI runs
+## Gates at `33fc977`, and which of them CI runs
 
     ruff check . / ruff format --check .                    0
-    mypy                                    0   136 source files
-    pytest                    887 passed, 0 skipped, 6 deselected
-    pre-commit run --all-files                              0
-    check-review-coverage                   0   79 = 79
-    probe-coverage-ratchet                  0   10/10 arms
-    check-checkers-are-wired                0   + --self-test 35/35
+    mypy                                    0   137 source files
+    check-review-coverage                   0   backlog 80, holding
+    check-checkers-are-wired                0   131 members, 72 wired,
+                                                59 unwired-with-reason
+                                                + --self-test 35/35
     check-design-freeze                     0   blob equal
-    check-row-floor-exactness               0   25 harnesses
-    check-obligations / clause-citations    0
-    check-no-sigpipe-pipelines              0
-    check-harness-result.sh                 0   38 container, 31 tallies
-    check-harness-anchors.py                0   464 anchors
-    control-stranded-mutation.sh            0   32 arms  (was 26)
-    probe-131-gate-state.sh                 0   12 arms, floor 12  NEW
-    check-mirror-liveness-controls.sh       0   16 arms, floor 16  NEW
-    probe-wired-checker-amputation.py       0   14 arms, floor 14  NEW
-    secrets-baseline --controls             0   9 arms   (was 6)
+    check-clause-citations                  0
+    check-obligations                       0   31 mappings
+    check-row-floor-exactness               0
+    probe-mirror-zero-refs.sh               0   3/3, floor 3   NEW
     shellcheck --severity=warning -x        0
 
 **actionlint is NOT INSTALLED here.** CI runs it with
@@ -112,78 +115,74 @@ evening: `check-committed-file-types.py` bare (staged set, 0 files, exit
 0 — which hid a red trunk for 127 commits), `python3` where CI uses
 `uv run --frozen python`, and `actionlint` without its `SHELLCHECK_OPTS`.
 
-## The backlog no longer feeds itself
+## Agents and panes
 
-`review-coverage-backlog.txt` entered `RECORD_PATHS` at `1abb362`. Before
-that, a top-up touched that file ALONE and so became an uncovered commit
-the NEXT top-up had to record — four commits of pure self-reference. I
-met that tail four times and wrote *"the tail is inherent"* into one of
-those commit messages. **It was a missing dict key**, and this file's own
-docstring already stated the principle.
+`suborch-187` is live on the floor-container widening, worktree
+`fmj-worktrees/w187`, branch `fix/187-floor-container`. Everything else
+is stopped.
 
-**The push-then-record ORDER still stands**: the checker measures
-`origin/main`, so a line added before its commit is on the trunk reads
-as recorded-with-nothing-under-it.
+**`TaskStop` DOES free a pane — my previous version said it does not,
+and that was wrong.** Stopping eight agents took window 3 from 13 agent
+panes to 5. What is actually binding is GEOMETRY: at 272x50 a window
+holds about six panes, so `Agent` fails with "no space for new pane"
+well before any count limit. Stop finished agents before concluding you
+cannot dispatch, and check `tmux list-panes -a` rather than `ListAgents`
+alone — some panes belong to OTHER sessions and must not be touched.
 
-## Agents live right now
-
-    suborch-170   #180 (build the wrong-subject register) then #182.
-                  Branch fix/170-retyped-counts in fmj-worktrees/w170,
-                  7+ commits, UNMERGED, UNPUSHED. Owns its census tool
-                  and findings doc.
-    review-r19    the 23-commit fix round, e845839..origin/main.
-                  fmj-worktrees/r19. Read-only outside its report and
-                  the backlog file.
-
-**Panes are the binding cap on dispatch.** Finished agents do not
-release their pane and `Agent` fails outright with "no space for new
-pane". Check `ListAgents` and stop a finished one before concluding you
-cannot dispatch.
-
-**Every brief must carry §0 VERBATIM from the canonical template.** Two
-of mine tonight shipped without it, so their "TaskGet before acting on
-any assignment" instruction was unfollowable — the Task tools are
-DEFERRED and absent from an agent's opening toolset. Its failure is
-silent: the agent finds no such tool and improvises.
+**Every brief must carry §0 VERBATIM.** The Task tools are DEFERRED and
+absent from an agent's opening toolset, so "TaskGet before acting on any
+assignment" is unfollowable without it, and its failure is silent: the
+agent finds no such tool and improvises.
 
 ## What tonight established, beyond the individual fixes
 
-**A FIX REPLACING A COUNT WITH A SELECTOR NEEDS THE SELECTOR DERIVED.**
-ADR-0034 deleted "all eleven ADRs" correctly and put `Type: Deviation`
-in its place — inside a FROZEN document. One real deviation was spelled
-`Standards deviation`, so it fell outside the selector written to
-include it, and the ADR added a fifth spelling itself. Caught by an
-agent VERIFYING the fix rather than accepting it.
+**A FIX THAT REPLACES A COUNT MUST NOT WRITE ANOTHER COUNT.** ADR-0034
+ruled that a stale ADR count is DELETED, not corrected. Its own
+blockquote then said 33; R19 caught it; I "fixed" it to 34; ADR-0035
+landed one commit later and made it 35. The corrected number was false
+before it was committed, inside the record that forbids the mistake.
 
-**A GATE CAN PRINT AN ALL-CLEAR PRECISELY WHERE IT FAILED TO LOOK.**
-`git ls-files` output split on whitespace turned `my notes.md` into two
-nonexistent paths; the scanner found nothing in either and the gate
-printed *"none would be a finding"* over a file holding three. Worse
-than silence: it ends the enquiry, and it is most confident exactly
-where its input was mangled.
+**A RATIO IS A JOIN, AND A JOIN OVER TWO POPULATIONS IS WRONG EVEN WHEN
+BOTH NUMBERS ARE RIGHT.** "21 of 94 steps disable errexit" — 94 counts
+NAMED steps, 17 of which are `uses:` steps that execute no shell and can
+never be members. The numerator could only come from the `run:` steps,
+which were 86 at that moment and are 87 now because the very commit that
+corrected the sentence added one. Found because the tool printed a
+smaller step count across MORE files one line below its own docstring.
 
-**AN ISOLATED CONTROL CANNOT SEE THE OUTSIDE WORLD IT EXCLUDED.**
-Fourteen mirror-liveness rows all inject JSON — deliberate, and it means
-not one could see that the first LIVE call used a path where the API
-takes a file name. The live call needs its own step.
+**A CONTROL THAT REPORTS INSTEAD OF ASSERTING IS NOT A CONTROL.** The
+mirror push step's comment said "mirroring nothing and mirroring
+everything must not both read as success" and shipped an `echo` of the
+ref list. Nothing counted it. In a step that has never once executed,
+because there has never been a MIRROR_TOKEN.
 
-**THE SAME NOUN CAN NEED OPPOSITE REMEDIES.** "867 citations" is
-decoration → delete the digit. "nine wrong-subject citations" is the
-EVIDENCE that citations go wrong at a rate worth a checker → build a
-register so it derives. Deleting the second would take the argument
-with it.
+**A REPORT THAT WAS WRITTEN IS NOT A REPORT THAT WAS COMMITTED.**
+`REVIEW-R18.md` exists in NO git object — written into a worktree that
+was then removed. `REVIEW-R19.md` was reachable from exactly one ref
+until this session merged it. Task #4 records the same loss for R1.
+That is #192.
+
+**MY OWN INSTRUMENTS MISLED ME THREE TIMES IN ONE HOUR**, each nearly
+published as a finding about someone else's work: `| head` gave Python
+exit 120 and I read it as a gate failing; a positive control passed when
+it should have failed because the file it tested was UNTRACKED and the
+container is `git ls-files`; and two path guesses returned clean empties
+from directories that do not exist.
 
 ## What I would pick up first
 
-1. **Collect `review-r19` and `suborch-170`.** Neither has reported on
-   its current piece.
-2. **Watch a run to a conclusion before pushing again.** The trunk has
-   one green run; a second would establish that it repeats.
-3. **#158 and #9 are PHIL'S**, not mine: `main` has no branch protection
-   and zero rulesets, and six OIDC roles use wildcard subject claims.
-4. **#106 and #160 stay blocked** on `STANDARDS_TOKEN` and on a CodeQL
+1. **Collect `suborch-187`** and fold `fix/187-floor-container`.
+2. **Push, then WATCH THE RUN TO A CONCLUSION.** One green run is not a
+   repeatable green run.
+3. **#192 first among the new ones**: make committing the report part of
+   the reviewer brief, not an assumption.
+4. **#158 and #9 are PHIL'S**: `main` has no branch protection and zero
+   rulesets, and six OIDC roles use wildcard subject claims.
+5. **#106 and #160 stay blocked** on `STANDARDS_TOKEN` and on a CodeQL
    findings before/after.
-5. **#162 is a standing hazard, not a task to close.** Its textual
-   mitigation fired correctly tonight: an agent refused a completion
-   echo by comparing the TEXT, and noted that the social tell would have
-   failed because `assignedBy` read `team-lead` rather than itself.
+6. **#162 is a standing hazard, not a task to close.** A `TaskUpdate`
+   re-emits the original description as a fresh assignment. Catch it
+   TEXTUALLY; `assignedBy` has read `team-lead` for an agent's own echo,
+   so the social tell fails.
+7. **`review/r18` must NOT be merged** — superseded, and merging it
+   would revert `probe-131-gate-state.sh` from 341 lines to 190.
