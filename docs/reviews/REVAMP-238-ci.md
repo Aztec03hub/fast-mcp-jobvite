@@ -243,9 +243,39 @@ So this version states measurements and ONE identity, and stops.
 
     wall = max over jobs j of (queue_j + duration_j)
 
-For run 33610211810 the maximum is `Harness U5 + U8`: 305 + 540 = 845
-against a wall of 845. That is provable from ONE run and needs no
-comparison.
+For run 33610211810 the maximum is `Harness U5 + U8`: 305 + 540 = 845.
+That is provable from ONE run and needs no comparison.
+
+RE-DERIVED FROM THE PAYLOADS, 2026-09-02, after R25 recorded that no
+review round had ever fetched them - the whole of this section rested on
+numbers three readers had only read back. Both runs re-fetched from
+`/repos/:owner/:repo/actions/runs/<id>/jobs`, every figure recomputed:
+
+    run 33610211810  conclusion=failure  16 jobs
+      run wall (updated_at - created_at)          846s
+      max_j(queue_j + duration_j)                 845s
+      attained by  Harness U5 + U8   q=305  d=540
+      max queue alone 305s ; max duration alone 540s
+
+    run 33614887374  conclusion=success  16 jobs
+      run wall                                    431s
+      max_j(queue_j + duration_j)                 430s
+      attained by  Harness U6 + U7 + U9 controls  q=5  d=425
+      max queue alone 5s ; max duration alone 425s
+
+Every number above this paragraph holds. **846 and 845 are two different
+quantities, not a retyped digit** - the run wall spans `created_at` to
+`updated_at` and includes the second between the last job completing and
+the run record being written, so it exceeds `max_j(queue+duration)` by
+1s in both runs (846/845 and 431/430). The section had both figures and
+never said they measure different things, which is how it reads as an
+inconsistency.
+
+Two further things the payloads settle. The pole CHANGES IDENTITY between
+the runs - `Harness U5 + U8` in run 1, `Harness U6 + U7 + U9 controls` in
+run 2 - so no claim resting on "the pole" transfers between them. And in
+run 2 the maximum queue over all sixteen jobs is 5s, which is why the
+queue argument that fits run 1 says nothing at all about run 2.
 
 **WHY THE TWO-RUN ARGUMENT I PUBLISHED WAS CIRCULAR.** I wrote that
 `maxQ` tracked `gap` in both runs and concluded the gap was queue. R23
