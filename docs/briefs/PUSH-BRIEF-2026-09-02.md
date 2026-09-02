@@ -71,22 +71,48 @@ push, exit 1 on zero. That step has NEVER EXECUTED, because there is no
 `MIRROR_TOKEN`. Proved by a probe that EXTRACTS the guard with `awk` rather than
 retyping it. No remote was touched, because a mirror push is `--force --prune`.
 
-## What is NOT resolved, and could bite
+## A CLAIM IN THE PREVIOUS VERSION, NOW REFUTED BY MEASUREMENT
 
-**25 CI steps invoke a checker under a bare inherited `python3`** - not one or
-two. And `check-plan-measurements.py` gives a DIFFERENT VERDICT depending on
-which interpreter answers:
+That version told you **25 CI steps run a bare `python3` and CI's green may
+be an accident of PATH.** That is FALSE, and the measurement that killed it is
+better than the story it replaced.
 
-    /usr/bin/python3         [STALE] M3, [STALE] M4   rc=1
-    uv run --frozen python   [PASS] M1-M4             rc=0
+    SAME 25   DIFFERENT 0   DIFFERENT-OUTPUT 0   FAILS-TO-RUN 0
 
-Same file, same commit. **So CI's green may be an accident of what `python3`
-resolves to on the runner.** Nobody has read a run log to find out; the risk is
-conditional and I am not asserting the step is red. This is #221, in flight.
+All 25 sites give identical exit codes and identical normalised output under
+both interpreters. All 23 distinct scripts behind them import stdlib only.
 
-The one green run this project has ever had is `33582613697`, head `22c9873`,
-and it presumably had all 25 of these steps green - which is evidence, and is
-the thing to read first if CI fails on one of them.
+**The real cause was never the interpreter.** `check-plan-measurements.py` fell
+back to `sys.executable` when `.venv` was absent, and `uv run` SYNCS `.venv` as
+a side effect - so the interpreter arm looked causal while the venv did the
+work. Held constant at `/usr/bin/python3`, varying only `.venv`, the verdict
+still flips. Zero `ci.yml` lines were changed; the fix is `exit 2` in the
+checker for an unmet precondition.
+
+**And the runner was READ, not reasoned about.** From the one green run's log
+(205KB, fetched via `gh api .../jobs/.../logs`, because `gh run view --log`
+returns EMPTY at exit 0 on this repo - a clean zero that explains itself as
+nothing): `python3` there is hostedtoolcache 3.12.14 with no `VIRTUAL_ENV`,
+`uv sync` creates `.venv` before every step, and the step printed that it
+selected `.venv/bin/python` itself.
+
+**How to read this brief, given that:** a claim here is worth what its
+measurement is worth. This document has now been wrong twice - once claiming
+gates were green when a wired one was red, once passing on a diagnosis that
+was right about WHICH and wrong about WHY. Both were caught by agents working
+on something else.
+
+## WHAT IS GENUINELY UNRESOLVED
+
+**Ten merges in this repository's history contain lines present in NEITHER
+parent** - 224 lines, and NINE of the ten predate `origin/main` and have never
+been examined. Content entered with no branch diff to show it and no reviewer
+able to see it. Among it: an entire `EXEMPT` dict and skip branch in a wired
+gate, and three whole `ci.yml` steps.
+
+The detector for it ships in this push (`check-merge-invented.py`, four
+controls including two synthetic). It is deliberately NOT wired and NOT ruled
+on - that decision is open.
 
 ## After you push
 
