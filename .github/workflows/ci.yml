@@ -158,6 +158,10 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      # `actions: read` is for the mirror-liveness step at the end of this job,
+      # which reads the mirror workflow's `state` and its most recent run from
+      # the Actions API. Read-only, and the narrowest scope that call accepts.
+      actions: read
     steps:
       # fetch-depth 0: the freeze gate resolves the SHA in docs/DESIGN-FREEZE.txt,
       # which a SHALLOW clone does not contain - it failed in CI with 'invalid
@@ -843,6 +847,35 @@ jobs:
           args: --offline --no-progress '**/*.md'
           fail: true
 
+      # THE MIRROR IS STILL RUNNING. mirror.yml reports three states from inside
+      # a run - configured-off, broken, and running-but-copying-nothing - and
+      # names the fourth as a residual it cannot reach: that it is not running
+      # at all. A workflow that does not run has no steps, so nothing written
+      # inside one can speak for it. This step is the outside check its header
+      # asks for.
+      #
+      # IT LIVES HERE, IN CI, AND NOT IN A CRON OF ITS OWN. A cron watching a
+      # cron inherits the whole defect one level up - nobody reads it either,
+      # which is #18 exactly. Coupling it to pushes is correct rather than a
+      # compromise: the mirror exists to copy commits, so a stopped mirror
+      # matters precisely when there are commits to copy, which is precisely
+      # when this job runs. GitHub's 60-day-inactivity disable is the sharpest
+      # case - during those 60 days nothing needs mirroring, and the first push
+      # afterwards runs this step, which reads the workflow's `state` and says
+      # so before that push goes uncopied.
+      #
+      # The full-suite controls for the five exit codes are the harness step in
+      # the `test` job. This step is the LIVE call, and it is worth having as
+      # its own thing: the fixture-fed controls all inject JSON, so not one of
+      # them builds a URL, and the first live run 404'd on a path the API does
+      # not accept. A control that never runs the artifact does not check it.
+      - name: The mirror workflow is still running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run --frozen python scripts/check-mirror-liveness.py \
+            --repo "${{ github.repository }}" || exit 1
+
   # ---------------------------------------------------------------------------
   # The Python project.
   # ---------------------------------------------------------------------------
@@ -1189,6 +1222,17 @@ jobs:
       # `fired=9/9`, tree clean.
       - name: Harness anchor checker controls, all fired
         run: bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
+
+      # The mirror-liveness checker's logic: five distinct exit codes plus three
+      # amputations, every row fed INJECTED JSON so no row reaches the network.
+      # That offline discipline is deliberate and it has a stated blind spot -
+      # a fixture-fed row builds no URL, so none of these could see that the
+      # first live call used the workflow's PATH where the API takes its FILE
+      # NAME, and 404'd. The live call is its own step in the static-gates job;
+      # this one covers what the live call cannot exercise on a healthy repo,
+      # which is every state except "alive".
+      - name: Mirror liveness controls, all fired
+        run: bash scripts/ci-harness-gate.sh check-mirror-liveness-controls.sh --controls-fired
 
       # The gate every step below calls, exercised against stub harnesses that
       # replay recorded output. Twenty-three rows, every arm including the ones
