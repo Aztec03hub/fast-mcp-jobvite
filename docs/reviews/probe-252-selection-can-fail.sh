@@ -118,13 +118,33 @@ PY
 
   # The row must still be SELECTING - a wide fallback here would mean the arm
   # measured the fallback rather than the selection.
+  # A VOID ARM REFUSES THE WHOLE PROBE (exit 2). It does NOT fall through to be
+  # counted as an arm that failed to fire.
+  #
+  # WHY, and it is #262's finding rather than mine. This probe was reported as
+  # 3/3; re-run twice on main it gave 2/3 and then 1/3, with a DIFFERENT arm
+  # voiding each time. Two candidate causes were measured and BOTH refuted -
+  # neutering does not change what the killer covers (7 nodes, killer named,
+  # identical intact vs neutered), and the map is stable across three builds on
+  # a clean tree. The cause is still open and is #262's to close.
+  #
+  # What must not wait for that: a void used to decrement the tally, so the
+  # probe exited 1 with `status=breach` - the same line it prints when a
+  # selection really is vacuous. "I could not aim" and "the thing I aimed at is
+  # broken" were rendering identically, which is the shape this repository has
+  # already been bitten by. `refused` is the honest word and exit 2 is the
+  # honest code: `harness_result_emit` prints status=refused because
+  # `harness_result_ran` is never reached.
+  #
+  # #262's fix 1 - rotate to another candidate row instead of refusing - is the
+  # better end state and is NOT done here. This only stops the ambiguity.
   case "$sel_line" in
     *"SELECTOR "[0-9]*" node(s)"*) ;;
     *)
       echo "  ARM VOID: $row took the WIDE fallback, so this arm did not test"
-      echo "  the selected path. Pick a different row."
-      echo
-      return
+      echo "  the selected path. THIS PROBE CANNOT AIM - refusing rather than"
+      echo "  reporting a breach it did not measure. See task #262."
+      exit 2
       ;;
   esac
   case "$sel_line" in
@@ -132,8 +152,8 @@ PY
     *)
       echo "  ARM VOID: the selector no longer names $killer, so the break"
       echo "  removed the test from the map instead of disarming it."
-      echo
-      return
+      echo "  THIS PROBE CANNOT AIM - refusing. See task #262."
+      exit 2
       ;;
   esac
 

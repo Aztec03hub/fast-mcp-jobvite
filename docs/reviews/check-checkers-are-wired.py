@@ -467,6 +467,19 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "overlap proxy cannot settle every citation, and a proxy that "
         "needs a human for 31 of 166 is not a gate."
     ),
+    "probe-252-rc4-verdict-trap.sh": (
+        "it PLANTS AN IMPORT-BREAKING MUTATION in src/fast_mcp_jobvite/audit.py "
+        "and restores it. A killed job leaves the product source broken in the "
+        "checkout - the same reason restore-stranded-mutation.sh exists - and "
+        "unlike a neutered test that damage is loud, which is exactly why it "
+        "must not be left behind by a runner. What it holds is a property of "
+        "the U3 controls harness's VERDICT REGEX, which it reads out of the "
+        "harness rather than retyping, so the regex cannot drift away from the "
+        "probe silently: re-run it by hand when that verdict line changes. The "
+        "standing regression question - can a row report `killed by $want` for "
+        "a test that never ran - is held in the harness itself by two "
+        "independent guards, the rc 4/5 branch and the anchored regex."
+    ),
     "probe-252-selection-can-fail.sh": (
         "it AMPUTATES THE TEST SUITE, not the product: each arm strips the "
         "assertion out of a real test in tests/ and restores it, three "

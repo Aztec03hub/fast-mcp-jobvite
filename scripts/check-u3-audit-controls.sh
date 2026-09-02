@@ -50,6 +50,7 @@ set -uo pipefail
 # even where two of them share a value today.
 BASELINE_TIMEOUT=900
 ROW_TIMEOUT=900
+SELECTOR_TIMEOUT=120
 
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
@@ -88,6 +89,15 @@ trap 'harness_result_emit; rm -f "$COVDB"' EXIT
 
 PASS=0
 FAIL=0
+
+# Every node id any row aimed at, and a count of the rows that recorded one.
+# Verified ONCE against the INTACT tree after the last row - see the block
+# above ROW_FLOOR. The shape is 84d4959's (R24-H1): one `--collect-only` per
+# HARNESS, never one per row, because #244 measured the per-row probe as
+# doubling the process count and process startup is what a per-row harness is
+# made of.
+SELECTORS=()
+SEL_ROWS=0
 
 # `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares the
 # worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
@@ -155,7 +165,7 @@ run_mutation() {
   sel_rc=$?
   if [ "$sel_rc" -eq 4 ]; then
     sel="$SUITE"
-    echo "$id: SELECTOR fallback=WIDE (no in-process coverage) -> \$SUITE"
+    echo "$id: SELECTOR fallback=WIDE (no in-process coverage), want=$want -> \$SUITE"
   elif [ "$sel_rc" -ne 0 ]; then
     echo "$id: SELECTOR FAILED (rc=$sel_rc) - fix the harness. STOPPING."
     exit 3
@@ -188,11 +198,17 @@ run_mutation() {
         # `check-u9-http-amputation.sh:186` does.
         # shellcheck disable=SC2206
         sel_nodes=($sel)
-        echo "$id: SELECTOR ${#sel_nodes[@]} node(s): $sel"
+        echo "$id: SELECTOR ${#sel_nodes[@]} node(s), want=$want: $sel"
+        # Recorded for the ONE intact-tree resolution check after the last row.
+        # Only the node-id rows are recorded: a wide-fallback row's selector is
+        # $SUITE, three FILE paths that resolve by construction, and adding
+        # them would pad the check with members that cannot fail it.
+        SELECTORS+=("${sel_nodes[@]}")
+        SEL_ROWS=$((SEL_ROWS + 1))
         ;;
       *)
         sel="$SUITE"
-        echo "$id: SELECTOR fallback=WIDE (the map does not name $want) -> \$SUITE"
+        echo "$id: SELECTOR fallback=WIDE, want=$want NOT NAMED by the map -> \$SUITE"
         ;;
     esac
   fi
@@ -260,15 +276,47 @@ PY
     exit 3
   fi
 
-  if [ "$rc" -eq 5 ]; then
-    echo "$id: NOTE - pytest exit 5, the selection resolved NO test. Read the"
-    echo "  verdict below as a broken selector, not as a property of the code."
+  # rc 4 and 5 mean the SELECTION did not run, and neither is ever a kill.
+  #
+  # MEASURED, and this branch exists because the bare form could not reach it
+  # and the selecting form can. Planting `this_name_is_undefined_at_import_time`
+  # in audit.py and running one row both ways:
+  #
+  #   pytest $SUITE          rc=2  "Interrupted: 1 error during collection"
+  #                                $want appears 0 times
+  #   pytest <node id>       rc=4  "ERROR: found no collectors for
+  #                                 .../test_audit.py::test_arm3_the_warning_..."
+  #                                $want appears 1 time
+  #
+  # The second is the trap. pytest echoes the NODE ID in its own error line,
+  # and a node id CONTAINS the test name - so a bare `grep -q "$want"` matches
+  # pytest complaining that it could not collect the test, and the row would
+  # report `killed by $want` for a test that never ran. That is the lying green
+  # this whole harness exists to prevent, and per-row selection is what makes
+  # it reachable: at rc=2 the bare form printed no node id at all.
+  #
+  # TWO INDEPENDENT GUARDS, because either alone leaves a hole:
+  #   * this rc check - a selection that resolved nothing cannot have run the
+  #     killer, whatever the text says;
+  #   * the verdict grep below, now anchored to a RESULT line (`^FAILED` /
+  #     `^ERROR`) rather than to any occurrence of the name.
+  if [ "$rc" -eq 4 ] || [ "$rc" -eq 5 ]; then
+    echo "$id: THE SELECTION DID NOT RUN (pytest rc=$rc). Not a kill and not a"
+    echo "  survivor - the named test never executed, so this row measured"
+    echo "  nothing. pytest said:"
+    grep -E "^ERROR|no tests ran|Interrupted" /tmp/u3-mut.txt | sed 's/^/      /' | head -3
+    FAIL=$((FAIL + 1))
+    return
   fi
 
   if [ "$rc" -eq 0 ]; then
     echo "$id: SURVIVED - the selected tests stayed green. NOT A CONTROL."
     FAIL=$((FAIL + 1))
-  elif grep -q "$want" /tmp/u3-mut.txt; then
+  # ANCHORED TO A RESULT LINE. `-rf` prints `FAILED <nodeid> - <reason>` in the
+  # short summary; an erroring test prints `ERROR <nodeid>`. Matching those two
+  # forms - rather than the whole log - is what stops pytest's own diagnostics
+  # from being read as a verdict about the code.
+  elif grep -qE "^(FAILED|ERROR) [^ ]*$want" /tmp/u3-mut.txt; then
     echo "$id: killed by $want"
     PASS=$((PASS + 1))
   else
@@ -384,6 +432,56 @@ run_mutation "M15 the exception-message arm stops redacting" "$REDACT" \
   'test_a_url_embedded_in_an_exception_message_is_redacted'
 
 echo
+# ===========================================================================
+# DO ALL THE DERIVED NODE IDS STILL RESOLVE? ONE process, on the INTACT tree.
+# ===========================================================================
+#
+# The shape is 84d4959's (R24-H1), and the reason it is one-per-harness rather
+# than one-per-row is that commit's: #244 removed a per-row `--collect-only`
+# because it doubled the process count, and R24 then measured the per-row
+# rc-plus-grep rule that replaced it as wrong in BOTH directions. Neither
+# question is answerable from a MUTATED run, so ask the intact tree once.
+# Every row above restored its file and compared it to the index (exit 3 if it
+# differed), so the tree here is the tree row 1 started on.
+#
+# WHY THIS HARNESS NEEDS IT AT ALL, which is not the same reason the hand-written
+# harnesses do. Their selectors are TYPED and can go stale against a rename.
+# Mine are DERIVED from a coverage map built minutes earlier in this same run,
+# so a stale selector is not the risk - a bad ROUND TRIP is. The map stores a
+# test's context string and this harness hands it back to pytest as a node id,
+# and nothing until now checked that the two forms agree. MEASURED at the time
+# of writing: 75 distinct ids across the selecting rows, all 75 collected,
+# rc=0, zero ERROR lines - including two that carry a literal backslash-n from
+# a parametrised id, which were the two I expected to fail and did not.
+#
+# The check is NOT vacuous, and that was measured too rather than assumed:
+# an absent node id gives rc=4 `ERROR: not found: ...`, and still rc=4 when it
+# is mixed in with a valid one - so one bad id among seventy-five is caught.
+if [ "$SEL_ROWS" -gt 0 ]; then
+  if [ "${#SELECTORS[@]}" -eq 0 ]; then
+    echo "########## $SEL_ROWS ROW(S) SELECTED AND RECORDED NO NODE IDS."
+    echo "The check below would pass over an empty list, which is a green that"
+    echo "asked nothing. Fix the harness."
+    exit 3
+  fi
+  if ! timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "${SELECTORS[@]}" \
+       --collect-only -q -p no:cacheprovider >/tmp/u3-sel.txt 2>&1; then
+    echo "########## A DERIVED NODE ID DOES NOT RESOLVE ON THE INTACT TREE."
+    echo "The coverage map named a test that pytest will not collect, so at"
+    echo "least one row narrowed to a selector that could not run what it"
+    echo "aimed at. ${#SELECTORS[@]} id(s) from $SEL_ROWS selecting row(s)."
+    echo "pytest, on the restored tree:"
+    tail -20 /tmp/u3-sel.txt
+    exit 3
+  fi
+  # The count is id SLOTS, not distinct ids - rows overlap, so the same test is
+  # usually named by several of them. Said plainly because an unqualified
+  # "209 node ids" against a 107-test suite is a number that invites the wrong
+  # arithmetic.
+  echo "########## ALL ${#SELECTORS[@]} DERIVED NODE ID SLOTS RESOLVE" \
+       "($SEL_ROWS selecting row(s), ids repeat across rows, one intact-tree process)"
+fi
+
 echo "########## RESULT: $PASS killed, $FAIL not killed"
 # The canonical result line's tally, from the SAME two counters the line
 # above prints and the harness's own gate compares - never a recount.
