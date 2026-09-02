@@ -462,7 +462,7 @@ is why the comparisons below survive it and the absolute numbers do not.
 
 | lanes | unsharded LB / BEST | sharded LB / BEST | delta |
 |---|---|---|---|
-| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 | **-2.0s** |
+| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** |
 | 13 | 311.0 / **311.0 exhibited** | 283.8 / 285.5 | -25.5s |
 | 14 | 311.0 / **311.0 exhibited** | 264.5 / 275.0 | -36.0s |
 | 15 | 311.0 / **311.0 exhibited** | 247.7 / 256.0 | -55.0s |
@@ -479,6 +479,32 @@ construction and it does not generalise.
 
 The unsharded cells stop being provable at **11 lanes**: 3311/11 = 301.0
 exceeds 298, so the instance is no longer max-bound (LB 314, best 316).
+
+### TWO PACKERS, AND MINE IS THE WEAKER ONE
+
+Every sharded figure here is an UPPER BOUND produced by a search, so the
+LOWER of two results is the better evidence - a packing that exists is a
+packing that exists. Two independent searches have run and they do not
+agree:
+
+| quantity | my packer | round 6's | which is evidence |
+|---|---|---|---|
+| 12-lane sharded best | 310.50 | **309.00** | R6 - it exhibited a better schedule |
+| re-anchored 12-lane win | 6.50 | **8.00** | R6 |
+| U3 refit from 258s, 12-lane | 305.62 | **304.00** | R6 |
+| overhead-deleted, 12-lane | 316.00 | **311.00** | R6 |
+
+**The model INPUTS reproduce exactly** - I re-derived U3's 138.62s shard
+against R6's 138.6, U9's overhead-deleted 234.83 against 234.8, U3's
+165.12 against 165, and the re-anchored unsharded floor of 317.00 against
+317.0. The disagreement is entirely in the SEARCH, not the arithmetic.
+
+So the figures above are R6's, attributed, and mine are recorded as the
+weaker bound. **This matters most in the overhead-deleted row**: my 316.00
+would read as a 5s LOSS, and it is not evidence of one - R6 exhibited
+311.00, so the true value is at most that, and the honest reading of that
+case is a wash rather than a regression. A worse search result is a fact
+about the instrument, not about CI.
 
 ### THE MANDATE IS REACHABLE, and an earlier version of this section denied
 it while printing the numbers
