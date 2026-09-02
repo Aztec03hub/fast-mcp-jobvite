@@ -1,0 +1,363 @@
+# FINDINGS #170 — the retyped-count container, measured
+
+<!-- REVIEW-COVERS: e845839..1cddd76 PATHS: docs pyproject.toml CONTRIBUTING.md .github/workflows -->
+
+**Measured at `1cddd76` unless a line says otherwise.** The census tool
+is `docs/reviews/probe-170-retyped-counts.py`, committed on this branch;
+every number below is reproducible by running it. **DO NOT PUSH** — a CI
+run was in flight when this was written and nothing here has been pushed
+or merged.
+
+## §0 — THE CONTAINER, BEFORE ANY FINDING
+
+Nobody had this number. Here it is, at `d30f1e1` (this branch, one
+commit after `1cddd76`; the tool's own file adds candidates, which is
+disclosed rather than hidden):
+
+| Stage | Count | Files |
+|---|---|---|
+| tracked files | 485 | — |
+| skipped as binary/unreadable | **0** | — |
+| number-beside-plural adjacencies | **20,566** | 470 |
+| …whose noun is ENUMERABLE | **6,762** | 432 |
+| …of those, inside a DATED RECORD | **4,401** | — |
+| …**LIVE, and therefore checkable** | **2,361** | **298** |
+| …of those carrying a QUANTIFIER (`all`/`every`/`none`/`only`/`both`/`no`) | **530** | — |
+| …of those whose noun is a GLOB, so the true figure is MECHANICAL | **28** | — |
+
+**The last row is the one that got fully derived.** A glob names a set by
+construction, so `--derive` counts the tracked files it matches and
+compares. Every other noun needs a human to say which set it names, and
+2,361 sentences is not a night's reading — so §2's coverage is stated
+honestly in §5 rather than implied.
+
+**Population by kind, never by path** (#115). The tool reads every
+tracked text file: BASH-1 lived in a markdown table cell, #116's figures
+lived in shell comments and Python docstrings, and `pyproject.toml`
+below is a TOML comment. A `docs/*.md` filter would have found none of
+those three.
+
+### The zero was a finding about my selector, twice, and once it mattered
+
+**THE FIRST VERSION MISSED A LIVE THREE-NUMBER FINDING IN ITS OWN
+MOTIVATING FILE.** `docs/OBLIGATIONS.md:161` hard-wraps `13 of the 15`
+onto one line and `` `scripts/*.sh` exceed 100 lines `` onto the next. A
+line-based scan cannot see the pair. Joining each line with its
+successor moved the LIVE container **1,960 → 2,361**: the first census
+understated itself by 19% and reported nothing about the file BASH-1
+came from. That case is now self-test arm 8.
+
+Two more selector faults, each of which returned a **plausible wrong
+noun** rather than none — the dangerous kind:
+
+- a lazy noun regex truncated `assertions` to `as` and
+  `` `scripts/*.sh` `` to `scripts`;
+- a greedy one truncated the same glob to `scripts/*.s`.
+
+And one that produced a **clean zero that explained itself**: accepting
+any token with `/` and `*` as a glob admitted `6/min**` and `L/I.**` —
+markdown bold read as a path — each deriving a confident population of
+**0**.
+
+15/15 self-test arms pass, and all three historically measured instances
+(#116, #166, BASH-1) are planted and required back.
+
+## §1 — TWO INSTRUMENTS DISAGREE ABOUT `scripts/*.sh`, AND IT IS NOT ROUNDING
+
+Before any finding that cites this glob:
+
+    git ls-files -- 'scripts/*.sh'   ->  39
+    shell / PurePosixPath glob       ->  38
+
+A git pathspec wildcard **crosses `/`**, so it admits
+`scripts/lib/harness-result.sh`; a shell glob does not. BASH-1's own fix
+at `d0bdf2a` counted **39** and named that file as one of them, so git's
+reading is the one this repository means. `--derive` prints both
+whenever they differ, because a glob whose population depends on which
+tool reads it should not have a side picked for it silently.
+
+## §2 — FINDINGS, in the three classes the brief names
+
+### Class B — stale AND the surrounding claim is false. Rewrite the claim, do not swap the digit.
+
+---
+
+**F1 (HIGH) — `docs/DESIGN.md:2063` and `:2067`: "all eleven ADRs" / "eleven ADRs", against 33.**
+
+Derived at `1cddd76`: `git ls-files 'docs/adr/0*.md'` → **33**.
+
+This is #166's exact finding, in the document the two files it fixed
+both describe. #166 corrected `docs/README.md:22` and
+`docs/adr/README.md:7` — **both verified clean here, see §3** — and did
+not reach `DESIGN.md`, which says it twice.
+
+**AND THE WORD "all" IS FALSE INDEPENDENTLY OF THE NUMBER, which is why
+replacing 11 with 33 is the wrong fix.** `:2063` claims recording a
+deviation from a `priority: required` standard "is the job all eleven
+ADRs below do". It is not the job of all of them: ADR-0019, ADR-0021,
+ADR-0028, ADR-0029, ADR-0031 and ADR-0033 record design defects,
+rulings and published vocabularies, not standards deviations — and
+`docs/adr/README.md` itself now distinguishes `Deviation` from
+`Design change` as two `Type:` values. A cell reading "all 33 ADRs"
+would still claim every member is a deviation, which is the same
+mistake BASH-1 made.
+
+**Suggested fix — and it needs an ADR, because `DESIGN.md` is FROZEN**
+(freeze `5d17cd7`; the working tree blob `639f4b7` was verified
+identical to the freeze blob before reading). Proposed ADR text for §13:
+
+- `:2063` → "This is the job of the `Deviation` ADRs below, and it has
+  **nothing to do with the freeze**."
+- `:2067` → "That is why `Deviation` ADRs exist against a document that
+  is not frozen…"
+
+No count in either. That is #166's ruling — delete the number, do not
+replace it with today's — applied to the third and fourth sites.
+
+---
+
+**F2 (HIGH) — `docs/OBLIGATIONS.md:161-162`: "13 of the 15 `scripts/*.sh` exceed 100 lines; the largest is 469."**
+
+Derived at `1cddd76`:
+
+    tracked `scripts/*.sh`                 39 (git) / 38 (shell glob)
+    ...of those, over 100 lines            38
+    the largest                            598  (scripts/check-u1-boot-amputation.sh)
+
+**Three numbers stale in one sentence, in the same file as BASH-1, about
+the same population, fifteen lines below the row `d0bdf2a` had just
+fixed.** The section it heads exists to weigh `bash.md:799` honestly, and
+it currently weighs it against a population less than half the real one.
+
+The `13 of 15` framing also carries an implied claim that **two members
+are under the guideline**. Today the exception is **one** — and it is
+`scripts/lib/harness-result.sh`, the sourced library that BASH-1 already
+identifies as legitimately outside its own rule. So the corrected
+sentence has a different shape, not a different digit.
+
+**Suggested fix — REWRITE, no count retyped** (this file is not mine to
+edit; §B of the brief reserves it):
+
+> **`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or
+> Go". Nearly every tracked `scripts/*.sh` exceeds 100 lines — derive it:
+> list them with `git ls-files 'scripts/*.sh'` and count those whose
+> `wc -l` exceeds 100. The one that does not is
+> `scripts/lib/harness-result.sh`, the sourced library BASH-1 already
+> names as outside its rule for the same reason.**
+
+---
+
+**F3 (MEDIUM) — `pyproject.toml:345`: "the file count moves 96 -> 105 and there are exactly 9 `scripts/*.py`".**
+
+Derived at `1cddd76`:
+
+    tracked `scripts/*.py`                       14 (git) / 13 (shell glob)
+    mypy `files` population, without `scripts`   122
+    mypy `files` population, with `scripts`      136
+
+All three numbers are stale and `exactly` is the quantifier that makes
+it a claim rather than an estimate.
+
+**But the digits are LOAD-BEARING EVIDENCE, not decoration:** `105 - 96
+= 9` is the arithmetic that justifies adding `"scripts"` to
+`tool.mypy.files`. Swapping in today's figures breaks nothing about the
+argument and everything about its tense — the measurement was made once,
+at a commit, and was correct then. **The remedy is tense, not
+arithmetic.**
+
+**Suggested fix** — one word, preserving the internal consistency:
+
+> `MEASURED BOTH WAYS AT THE TIME, because a nine-file addition
+> reporting ZERO errors under `strict = true` was a suspiciously clean
+> number. The file count moved 96 -> 105, the size of `scripts/*.py`
+> then; …`
+
+### Class A — merely stale. Delete the number, or derive it.
+
+---
+
+**F4 (MEDIUM) — `CONTRIBUTING.md:219`: "There are 847 `DESIGN.md:N` citations across 82 files".**
+
+Derived at `1cddd76` **by this repository's own checker**,
+`python3 docs/reviews/check-design-citations.py`:
+
+    1988 DESIGN.md citations across 216 files
+
+Stale by 2.3x in both figures. This sentence is live guidance: it is the
+argument a contributor reads to decide whether skipping the repointer
+matters. Understating it by 1,141 citations argues the wrong way.
+
+**Suggested fix — derive, do not retype**, exactly as `CONTRIBUTING.md`
+already does for the harness list twenty lines above it:
+
+> **The count is deliberately absent — derive it, because it moves with
+> every edit:** `python3 docs/reviews/check-design-citations.py` prints
+> the inventory. A five-line insertion moves most of them, so an edit
+> that skips this ships hundreds of wrong citations.
+
+---
+
+**F5 (LOW) — `.github/workflows/ci.yml:1143`: "18 checkers, 16 wired".**
+
+Derived at `1cddd76`: `docs/reviews/check-*.py` → **24**; and the
+container that comment's own subject now uses is **130 members, 71
+wired** (#153's widening). Not mine to edit — reported for Tier 0.
+
+**Suggested fix:** make it past tense and name the sha —
+"found by enumerating `docs/reviews/check-*.py` against this file at the
+time: 18 checkers, 16 wired" — or drop both digits and point at
+`check-checkers-are-wired.py`, which now prints the live figure.
+
+---
+
+**F6 (LOW) — `docs/reviews/check-checkers-are-wired.py:63`: "33 of the 34 probes here are unwired".**
+
+Derived at `1cddd76`: `probe-*` in that file's own container
+(tracked `.py`/`.sh` under `docs/reviews/` and `scripts/`) → **38**.
+
+The number is inside the bullet explaining #155's finding, so it is
+arguably a record of what #155 measured — but it sits in a live
+docstring with no date, in the file whose entire subject is that a
+container grows. **Suggested fix:** "`probe-*` was never in the
+population, so nobody was ever ASKED for a reason — at the time, 33 of
+34 probes here were unwired."
+
+---
+
+**F7 (LOW) — `docs/reviews/probe-wired-checker-amputation.py:38`: "23 Python probes".**
+
+Derived at `1cddd76`: `docs/reviews/probe-*.py` → **24**. Stale by one.
+It is the size of a container the file's ruling declines to widen into,
+so the digit does real work in the argument. **Suggested fix:** "Widening
+that container to the Python probes here would be a large unasked sweep".
+
+### Class C — inside a DATED RECORD. Correct as written, LEFT ALONE.
+
+Recorded so they are visibly considered rather than overlooked. #166
+measured this distinction and deliberately left `REPORT-147` §6's stale
+13 in place; the same ruling applies.
+
+| Site | Claim | Today | Left alone because |
+|---|---|---|---|
+| `docs/briefs/HANDOFF-2026-09-01-orchestration.md:52` | "Only 4 of 28 `docs/reviews/probe-*` files are wired" | **37** tracked; and task #155 records the truth as **1 of 30** | a dated handoff. It was already known wrong on its own date, which is exactly what a record preserves |
+| `docs/briefs/HANDOFF-2026-09-01-orchestration.md:185` | "(24 of 28 probes)" | 37 | same record |
+| `docs/reviews/COMPLIANCE-SPEC-PASS.md:260` | "`docs/` holds 8 research documents, 16 ADRs, 24 review documents" | 7 research `.md`, 33 ADRs, 147 entries under `docs/reviews/` | a dated conformance pass |
+| `docs/reviews/DESIGN-DELTA-REVIEW.md:37`, `DESIGN-FREEZE-REVIEW.md:26` | "32/32 controls fired", "34/34" | superseded by later rounds | review documents; each records one run |
+| `docs/DESIGN.md:1615` | "the conformance sweep found eleven consecutive documentation obligations unaddressed" | — | a past sweep's RESULT stated in the past tense, and `fourteen README sections` beside it is the STANDARD's number, not this repo's |
+
+**A FOURTH CLASS THE BRIEF DOES NOT NAME, and F3/F5/F6/F7 are all in
+it.** A *historical justification living inside a live file* is neither
+a dated record nor a plain stale count: the file is load-bearing and
+undated, but the number is evidence for a decision already taken, so
+swapping the digit falsifies the argument it supports. The remedy is
+**tense** — say when it was measured — which is a fifth remedy, distinct
+from delete, derive, and rewrite-the-claim. Recommend Tier 0 add it to
+the ruling.
+
+## §3 — CHECKED, AND FOUND CORRECT
+
+Named because a findings list that only lists failures says nothing
+about how hard it looked.
+
+- **`docs/README.md:22`** — #166's "Eleven decision records" is **gone**;
+  the cell now reads "The decision records". The fix holds at `1cddd76`.
+- **`docs/adr/README.md:7`** — #166's "eleven ADRs" is **gone**; the
+  clause now reads "that is why the ADRs exist". Holds.
+- **`docs/README.md:25` "Seven reports"** — #166 cleared this and it is
+  **still right**: `docs/research/` holds exactly 7 `.md` files
+  (COMPLIANCE-SPEC, FASTMCP-SPIKE-4, FASTMCP, JOBVITE-API,
+  JOBVITE-CONTRACT, LICENSING-SURVEY, STANDARDS) plus 15 fixtures.
+- **`docs/README.md:26` "Six further gates"** — **still right**, and it
+  is self-enumerating: it names all six (design-freeze blob, no-errexit,
+  row-floor exactness, row-floor firing, citation-shape scan,
+  settings-are-read), so it can be checked by reading.
+- **`docs/OBLIGATIONS.md:146` (the BASH-1 cell itself)** — the
+  `--derive` pass flags "all 20 `scripts/*.sh`" here. **It is a
+  QUOTATION** of the text `d0bdf2a` removed, inside the sentence
+  explaining why it was wrong. Correct as written; a scanner cannot tell
+  a quotation from a claim and this one should not be "fixed".
+- **`docs/reviews/check-row-floor-exactness.py:201`** — flagged as
+  "CLAIMS 5 against 39". **False positive**: the 5 is `ROW_FLOOR=5` from
+  the neighbouring clause, and "Enumerating `scripts/*.sh`" carries no
+  count at all. Nothing to fix.
+- **`docs/reviews/lib/harness-state.sh:25` and
+  `docs/reviews/restore-stranded-mutation.sh:33`** — "every
+  `scripts/check-*.sh` writing its own state". **Correct**: a statement
+  about a hypothetical future change, carrying no population claim. 36
+  tracked members today, and the sentence would still be true at any
+  number.
+- **`docs/adr/0023:130` "only in `scripts/*.sh`"** — **correct**: a scope
+  statement, not a count.
+- **`docs/briefs/BRIEF-156-u1-boot-unguarded.md:44` "the other 36
+  `scripts/*.sh`"** — 39 tracked, the brief owns 1
+  (`scripts/check-u1-boot-amputation.sh`), so the arithmetic wanted 38.
+  **Reported as a nit only**: it is a dispatch document, dated, and its
+  purpose (do not touch scripts you do not own) is unaffected.
+
+## §4 — WHERE THIS BRIEF WAS WRONG
+
+1. **§A says to cut the worktree "from `origin/main`", and the command it
+   gives has no start-point** — so it branches from local `HEAD`.
+   Branching from `origin/main` would have been **wrong**: `d0bdf2a`,
+   the worked example §A tells you to read, is one of the three
+   local-only commits and is not on `origin/main`. The command is right
+   and the sentence above it is not. Fix: delete "from `origin/main`".
+2. **§A's canon list omits `docs/briefs/PREAMBLE.md`**, which
+   `PROTOCOL-sub-orchestrators.md` §1 makes the *first* thing a Tier-1
+   brief must order. It carries the evidence standards, the
+   derive-the-freeze-SHA rule and the delivery protocol. Fix: add it as
+   item 0.
+3. **§C says BASH-1 measured "39 tracked, 37 with the option".** True,
+   but `39` is only true under `git ls-files`; a shell glob gives 38.
+   §E asks every count to carry its container — it should also carry its
+   **instrument** when the two disagree (§1).
+4. **§E's suite figure (887 passed, 0 skipped) was RIGHT** — measured,
+   not assumed. Reported because a correction list that only lists
+   errors is its own kind of stale claim.
+5. Task #170's description is dated `2026-09-02` and `d0bdf2a` is
+   authored `Tue Sep 1 22:29:48 2026 -0500`. Not acted on; noted so the
+   next reader is not confused by a future-dated raise.
+
+## §5 — WHAT I COULD NOT SETTLE (separate from what I did not attempt)
+
+**COULD NOT SETTLE:**
+
+- **Whether `docs/briefs/` is a DATED RECORD class.** It has the
+  properties of one (dated, superseded, a snapshot of what was known at
+  dispatch) and it is not in #166's enumerated list. 41 LIVE candidates
+  sit in `docs/briefs/`, and the answer moves them all between class A
+  and class C. **This is a Tier-0 ruling, not mine.** The tool's
+  `RECORD_PREFIXES` currently does NOT treat them as records, so the
+  container above counts them as live — the conservative direction.
+- **`docs/OBLIGATIONS.md:21-23`: "Of the twelve obligations CONF-6 found
+  **met**, exactly **one** — B58 — … The other **nine** are met by
+  accident."** `1 + 9 = 10`, not 12. This is not staleness against a
+  container — it is internally inconsistent as written, and I cannot
+  tell from this repository whether CONF-6 found 10 or 12, because the
+  audit it cites (`CONF-6-PROPAGATION-AUDIT.md`) is the record and
+  correcting a record is exactly what class C forbids. **Needs someone
+  who can read CONF-6's tally.** Flagged rather than guessed.
+- **`docs/OBLIGATIONS.md:181`: "3374 lines of amputation-verified
+  harness".** Derived: all tracked `scripts/*.sh` total **13,760** lines;
+  the 16 matching `scripts/*amputation*.sh` total **5,967**. 3,374
+  matches neither, and I could not reconstruct which container it named
+  when written.
+- **`docs/OBLIGATIONS.md:94`: "the 28 open obligations"** against 31 table
+  rows today. The sentence says "Seeded from CONF-6's population", which
+  may make 28 correct as a description of the SEED rather than the
+  table. I could not settle which without CONF-6's own tally, same
+  blocker as above.
+
+**NOT ATTEMPTED, and stated so it is not mistaken for an absence:**
+
+- **2,333 of the 2,361 live candidates were not individually derived.**
+  Only the 28 GLOB candidates have a mechanical derivation; the rest
+  ("222 rows", "148 arms", "77 gates") name sets that need a human to
+  say which container is meant. §2 is the yield of the derivable
+  sub-container plus a hand pass over the `adrs`/`checkers`/`probes`/
+  `obligations`/`decisions` nouns. **The remaining nouns — `rows`,
+  `arms`, `sites`, `controls`, `citations`, `commits` — were not swept**,
+  and at 222 and 148 members the two largest are where I would look next.
+- I did not run `check-clause-citations.py` (needs the standards sibling
+  checkout, exits 2 when absent) or the harness gates. Nothing in this
+  change touches a harness.

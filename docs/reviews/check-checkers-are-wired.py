@@ -120,6 +120,24 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "record its own sha), and ci.yml is owned by another agent this "
         "run. Wire it with #153's widening, in one ci.yml change."
     ),
+    "probe-170-retyped-counts.py": (
+        "a CENSUS, and a census cannot go red. #170 asked how many "
+        "retyped counts exist beside containers this repository can "
+        "enumerate; the answer at `d30f1e1` is 2361 LIVE candidates in "
+        '298 files, and most of them - "three reasons", "two '
+        'different things" - name no set at all. Deciding which do is '
+        "a human reading a sentence, so a gate here would either fail "
+        "on prose forever or pass by guessing. **THE COUNT IS "
+        "DELIBERATELY NOT THE POINT OF THIS ENTRY**: it moves with "
+        "every commit, and this file is the register that says WHY, "
+        "not a second place to keep it. The one sub-class that IS "
+        "mechanical is `--derive`, which counts the tracked files each "
+        "GLOB candidate matches - that is BASH-1's exact shape - and "
+        "it too reports rather than refuses, because a glob's "
+        "population differs between `git ls-files` and a shell glob "
+        "(39 vs 38 for `scripts/*.sh`) and no checker should pick a "
+        "side silently. Run it after any sweep that adds files."
+    ),
     "check-row-floor-control.sh": (
         "a control OF a control: it proves `check-row-floors.py` can still "
         "fail, by breaking a floor on purpose. Running it in CI would "
