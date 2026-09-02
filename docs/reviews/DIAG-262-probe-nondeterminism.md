@@ -556,7 +556,27 @@ Still open:
 * **29 fixed `/tmp` paths remain**, across 26 tracked shell harnesses, on this
   commit - re-run §5.1's derivation against `HEAD` rather than `d314283` to
   reproduce that pair. (A commit cannot cite its own SHA; an earlier draft of
-  this line did, and the amend that followed made the cite dangle.) This commit clears four of the 33. The rest need a sweep ticket, and until
+  this line did, and the amend that followed made the cite dangle.) §5.1
+  publishes the command for the PATHS but not for the FILES, and the two are
+  not the same question: closure review read 27 harnesses here and called this
+  bullet self-contradictory. It is not. That 27 comes from counting files
+  WITHOUT §5.1's non-comment filter, which is the filter that produces the 29
+  the same reader accepted - with it dropped the path count is 31, not 29, so
+  the pair 27/29 mixes two populations. Both files leave the set on this
+  commit, not one: `scripts/check-u3-audit-controls.sh` keeps no matching line
+  at all, and `docs/reviews/probe-252-selection-can-fail.sh` keeps two, both of
+  them COMMENTS about the path it stopped using. 28 - 2 = 26. The file half of
+  the derivation, so the next reader need not re-invent it:
+
+  ```
+  git grep -n -E '/tmp/[A-Za-z0-9._-]+\.(txt|json|db)' HEAD \
+        -- 'scripts/*.sh' 'docs/reviews/*.sh' \
+    | sed 's|^HEAD:||' \
+    | /usr/bin/grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
+    | cut -d: -f1 | sort -u | wc -l                                     -> 26
+  ```
+
+  This commit clears four of the 33. The rest need a sweep ticket, and until
   it lands the §5.4 assertion is the only thing standing between a contaminated
   harness and a green probe.
 * **`probe-252-rc4-verdict-trap.sh:55,137` is not fixed.** Same defect, same
