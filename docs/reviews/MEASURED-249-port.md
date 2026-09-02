@@ -180,11 +180,17 @@ same result:
     check-u9-http-controls.sh    rc=0  rows=14 floor=14 fired=14/14 status=ok
     check-body-cap-controls.sh   rc=0  rows=12 floor=12 fired=12/12 status=ok
 
-### The other four, after only
+### The other four - CLOSED in round 2
 
 `check-u7-resilience`, `check-u8-candidates`, `check-u10-write` and
-`check-u14-arguments` were run in the ported state ONLY. Nobody has run them
-before/after. This is a floor check, not a verdict comparison:
+`check-u14-arguments` were run in the ported state ONLY by me, and this section
+used to say nobody had run them before/after. **Round 2 closed that gap**
+(`REVIEW-249-R2.md` @ `60e8dec`): all four were run before (`6f89364`) and after
+(`98125e9`), n=2, whole-stdout diff, and in every arm-pair the diff is the same
+two hunks the four above show - the baseline pytest duration and one inserted
+`ALL N SELECTORS RESOLVE` line. **Every `HARNESS-RESULT` line is byte-identical
+between arms; no verdict moved on any of the eight.** My own ported-state floor
+check still stands as run:
 
     check-u7-resilience-controls.sh  rc=0  fired=31/31  status=ok
     check-u8-candidates-controls.sh  rc=0  fired=25/25  status=ok
@@ -192,10 +198,7 @@ before/after. This is a floor check, not a verdict comparison:
     check-u14-arguments-controls.sh  rc=0  fired=20/20  status=ok
 
 `docs/reviews/check-row-floor-exactness.py` asserts every floor EQUALS its
-harness's live row count, and all four printed exactly their floor. Given the
-byte-identical transformation and four clean before/after comparisons, the
-residual risk is low - but it is not zero, and it is stated here rather than
-implied away.
+harness's live row count, and all four printed exactly their floor.
 
 ### A renamed selector is STILL DETECTED - the fix must not trade a defect for a blind spot
 
@@ -259,18 +262,50 @@ My own first-revision figures were n=1, back to back, and are superseded in both
 directions: u9's -42.6% was about 1.7 points flattered by a high `before`, and
 **body-cap's -34.9% UNDERSTATED the win, which is really -40.3%**.
 
-Per row is **1.74-1.98s**, one `uv run --frozen pytest` startup and collection.
-The first revision offered 1.7-2.1s; 2.1 does not appear in the data.
+Per row is **NOT a constant**, and two earlier revisions of this line published
+one anyway - first 1.7-2.1s, then 1.74-1.98s narrowed to the four harnesses in
+the table above. **Both are retracted.** Measured across all EIGHT harnesses
+(round 2, `REVIEW-249-R2.md` @ `60e8dec`, n=2 per arm, interleaved, both venvs
+warm, on a FASTER box than the one the table above was run on - so the absolute
+seconds in the two tables are not comparable and are not compared), the deleted
+work runs **-0.28 to -1.38 s/row, a 4.9x spread**, against the 1.14x the
+retracted range spanned:
 
-    Extrapolated over the 156 rows of the eight, that is on the order of 4.5-5.1
-    minutes of pytest startup deleted from a full sweep. That is RUNNER WORK, not
-    wall clock: REVAMP-238-ci.md:495-556 measures the floor as
-    `max(slowest fixed job, LPT over harness steps)`, and at today's 12 lanes it
-    is 311s, set alone by the indivisible 298s U9 AMPUTATION step this branch
-    does not touch. Removing 300s from the packable side moves the LPT term from
-    289s to 264s and the floor not at all. The gain is banked for the 14-lane
-    sharded target, and shows up as CPU now. #273 should take the measured
-    per-row figure above rather than the row count.
+| harness | rows | mean delta | s/row |
+|---|---|---|---|
+| check-u9-http-controls.sh | 14 | -19.4s | -1.38 |
+| check-u12-jobfeed-controls.sh | 17 | -22.9s | -1.34 |
+| check-body-cap-controls.sh | 12 | -14.7s | -1.22 |
+| check-u10-write-controls.sh | 21 | -25.6s | -1.22 |
+| check-u8-candidates-controls.sh | 25 | -29.6s | -1.18 |
+| check-u5-jobs-controls.sh | 16 | -18.4s | -1.15 |
+| check-u14-arguments-controls.sh | 20 | -18.7s | -0.94 |
+| **check-u7-resilience-controls.sh** | **31** | **-8.7s** | **-0.28** |
+
+The mechanism is MEASURED, not inferred from the harness: the deleted per-row
+work is one `pytest --collect-only` on one node id, so its cost is the cost of
+importing that ONE test module. Same box, same minute, at `6f89364`,
+`tests/test_resilience.py` collects in 0.25-0.41s against
+`tests/test_http_hardening.py` at 1.08-1.13s. That is a RATIO, so it is
+box-independent - and it is why the outlier is u7-resilience, which is the
+harness with the MOST rows, 31 of the 156 any extrapolation multiplies. The
+four harnesses the retracted range was measured on are the four expensive ones.
+No per-row constant is transferable.
+
+    SUMMED over the eight rather than multiplied out from a constant, the eight
+    measured deltas total **157.9s (2.6 min) over 156 rows, 1.01 s/row
+    averaged**. That is the figure to quote. It is NOT the 271-309s that
+    156 x 1.74-1.98 implies, and this document's earlier "on the order of
+    4.5-5.1 minutes" was high by ~1.7-2.0x. And it is RUNNER WORK, not wall
+    clock: `REVAMP-238-ci.md:438-481` (@ `d314283`, read there because local
+    `main` rewrote that file by 347 lines and the old `:495-556` pointer no
+    longer lands on this subject) measures the floor as `max(slowest fixed job,
+    LPT over harness steps)`, and at today's 12 lanes it is 311s, set alone by
+    the indivisible 298s U9 AMPUTATION step this branch does not touch. Removing
+    ~158s from the packable side moves the PACKING LOWER BOUND from 289s to
+    about 276s and the floor not at all. The gain is banked for the 14-lane
+    sharded target, and shows up as CPU now. **#273 should take the per-harness
+    SUM above - not the row count, and not a per-row constant.**
 
 That paragraph replaces a first-revision claim that "CI's floor is bound by TOTAL
 work spread over lanes rather than by the largest step - so this is work removed,
@@ -281,13 +316,20 @@ ancestor of this very commit (`git merge-base --is-ancestor 96072cd ecb37b4` →
 true) and measures it the other way. **Grep the design before repeating a
 premise, including one you were handed.**
 
-Checked, not copied: `REVAMP-238-ci.md:520` gives harness work 3311s over 12
-lanes; 3311/12 = 275.9, +13s setup = 289s. Ported, 3011/12 = 250.9, +13s = 264s.
-Both are perfect-packing lower bounds rather than a greedy LPT figure, so the
-true term sits at or above them - which does not move the conclusion, because
-`298 + 13 = 311` binds above both in either column. `git diff --name-only
-6f89364 ecb37b4` touches zero `*-amputation.sh` files, so the 298s step is
-untouched under any model.
+Checked, not copied: `REVAMP-238-ci.md:448` (@ `d314283`) gives harness work
+3311.0s over 12 lanes; 3311/12 = 275.9, +13s setup = 289s. Ported, with the
+157.9s actually measured above removed, 3153/12 = 262.8, +13s = 276s. Both are
+perfect-packing lower bounds, not greedy LPT figures, so the true term sits at
+or above them.
+
+It does not move the conclusion. `298 + 13 = 311` binds above both in either
+column, and it binds under the narrower reading local `main` has since adopted:
+`REVAMP-238-ci.md:454-457` (@ `d314283`) calls the 13s per-lane setup a
+CHERRY-PICKED lane, reads this run's twelve lanes at **8-17s, median 12**, and
+states the unsharded floor as **306-315s, not 311.0**. The constant is added to
+BOTH columns, so no delta moves, and 306 still binds above 289 and above 276.
+`git diff --name-only 6f89364 ecb37b4` touches zero `*-amputation.sh` files, so
+the 298s step is untouched under any model.
 
 ## GATES
 
@@ -336,7 +378,7 @@ blocker was this document.
 
 | id | finding | what changed |
 |---|---|---|
-| H1 | The value claim was refuted by an ancestor of this commit: at 12 lanes the port removes ZERO wall clock | Timing conclusion rewritten to the reviewer's paragraph, arithmetic re-checked against `REVAMP-238-ci.md:495-556` rather than against the summary |
+| H1 | The value claim was refuted by an ancestor of this commit: at 12 lanes the port removes ZERO wall clock | Timing conclusion rewritten to the reviewer's paragraph, arithmetic re-checked against `REVAMP-238-ci.md` (§ 7a.2, `:438-481` @ `d314283`) rather than against the summary |
 | L1 | A renamed selector's own row now prints `KILLED`; the doc claimed only "caught LOUDER" | Two pointer lines added to the failure branch of all eight; the loss recorded above in full |
 | L2 | The new guard was VACUOUS at `TOTAL=0` - it printed a success line for a check that checked nothing | `[ "$TOTAL" -eq 0 ] \|\|` restored in all eight, the guard `check-u3-audit-controls.sh:461` has and this port dropped |
 | L3 | Timing was n=1 per cell with no spread | Table replaced with n>=2 interleaved medians and ranges |
@@ -363,9 +405,25 @@ find.
   agent's worktree. No escalation was granted or requested; the coordinator
   stated plainly that it could not grant any, and none was taken.
 * **Before/after verdict comparison on four of the eight** - `u7-resilience`,
-  `u8-candidates`, `u10-write`, `u14-arguments`. They are ported-only in every
-  record that exists. Four of the eight were compared (two by me, two by the
-  reviewer).
+  `u8-candidates`, `u10-write`, `u14-arguments` - was not done BY ME. Four of
+  the eight were compared here (two by me, two by round 1's reviewer); round 2
+  ran all eight and moved no verdict, so the gap is closed in the record but not
+  by this document's own runs.
+* **Known divergence from `check-u3-audit-controls.sh`, PRE-EXISTING and
+  deliberately NOT fixed here.** The intact-tree selector check writes its
+  output to `"$OUT"` - `/tmp/u9-mut.txt` and its siblings
+  (`check-u9-http-controls.sh:64` and `:403-404` @ `98125e9`, identical in all
+  eight) - which is the same file every row wrote its pytest output to, so the
+  LAST row's mutation log is clobbered. Harmless today: nothing reads `$OUT`
+  after that point, and the failure branch's `tail -20 "$OUT"` correctly prints
+  the selector check's own output. But a reader debugging a `SURVIVED` row and
+  reaching for the log finds collect-only output instead.
+  `check-u3-audit-controls.sh:468` already avoids this by writing
+  `/tmp/u3-sel.txt`, separate from its row log. Present in `ecb37b4` before
+  round 1's fixes, so this port did not introduce it, and it is left alone here
+  because another agent is editing that harness family. The fix is one line per
+  file: `SEL_OUT="${OUT%.txt}-sel.txt"` beside `OUT=`, used in the two places.
+  Recorded so it is not lost.
 * Did not run CI. H1's arithmetic is carried through `REVAMP-238-ci.md`'s model
   and its n=1 run 33630968540, which that document itself flags as n=1. If the
   model is wrong the magnitude moves; the direction does not, because the 298s
