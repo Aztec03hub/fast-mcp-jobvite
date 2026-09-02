@@ -19,11 +19,14 @@ mechanism: it does not survive the reviewer who does not think of it, and **ther
 **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE-FROZEN at `c15b138`**
 
-> **THIS DOCUMENT HAS MORE THAN ONE REFERENCE FRAME, AND NOTHING ABOUT A CITATION TELLS YOU WHICH
-> ONE IT IS IN. RE-DERIVE ANY CITATION YOU INTEND TO RELY ON.** This blockquote said for one
-> revision that every citation below is a line number in `c15b138`; it said for the next revision
-> that the citation's FORM tells you the frame. The first was too strong and the second was simply
-> wrong, refuted by a citation 1,700 lines below it.
+> **THIS DOCUMENT HAS TWO REFERENCE FRAMES. THE CITATION'S FORM PREDICTS WHICH ONE, 130 TIMES OUT
+> OF 131 - AND THE 131st IS IN THIS FILE.** Re-derive anything you rely on; the tendency is strong
+> enough to plan by and not strong enough to trust.
+>
+> This paragraph has now been wrong three times, each time in the direction opposite the last. It
+> said every citation resolves at `c15b138`; then that the FORM tells you which, with no measurement
+> behind it; then that NOTHING tells you which, which was the same unmeasured mistake pointing the
+> other way. The census below is the measurement that should have come first.
 >
 > **The frames are real.** Two citations 26 lines apart, each correct at its own blob and nonsense
 > at the other:
@@ -33,55 +36,79 @@ Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE
 > | `:1220`, §1 table row 1 | **`135c3ac`** | `- the 200-with-401-body trap;` | a blank line at `c15b138` |
 > | `DESIGN.md:1370-1371`, under that same table | **`c15b138`** | *"Every refusal-path test is paired with a positive control..."* | `]` at `135c3ac` |
 >
-> **THE FORM IS NOT THE DISCRIMINATOR, AND THE COUNTER-EXAMPLE IS IN THIS FILE.** `:1737` cites a
-> bare `:300` and names its own blob in its own words - *"at the frozen `c15b138`"*. At `c15b138`
-> line 300 reads *"Every input model imports its constraints from `utils/constraints.py`"*; at
-> `135c3ac` line 300 is `---`, and that sentence appears **nowhere** in that blob. A rule sending
-> bare citations to `135c3ac` would send a reader there to a horizontal rule. Found by `review-218`
-> hunting for exactly this, because the previous revision of this paragraph asked it to.
+> And they are not always paragraphs apart. **`:271-273` carries `DESIGN.md:1466-1472` and a bare
+> `:1426` in ONE SENTENCE, in different frames**: `135c3ac:1426` is *"CI must run ..."*, and
+> `c15b138:1426` is blank.
 >
-> What is true is narrower and is a fact about ONE TABLE, not about a syntax: **the §1 table was
-> written in one pass against one blob**, and all **25 of its 25 rows** resolve verbatim at
-> `135c3ac` and none at `c15b138`. Read at both blobs, not sampled.
+> ## The census
 >
-> **TWO POPULATIONS, COUNTED SEPARATELY, BECAUSE MIXING THEM IS HOW THE LAST VERSION WENT WRONG.**
-> `#111`'s figure of 111 is the QUALIFIED population and nothing else - its selector is
-> `grep -rno 'DESIGN\.md:[0-9]' .`, which returns 111 both at `#111`'s own ruling commit `0ec4c85`
-> and at `04432c5`. A bare `:1220` cannot match that selector and **is not one of the 111**, so it
-> never falsified *"all 111 remain correct against `c15b138`"* - and the four qualified citations
-> measured here (`:1370`, `:1466`, `:1627`, `:1846`) all resolve at `c15b138`, which SUPPORTS that
-> sentence rather than refuting it. Measured so far: **4 of the 111 qualified**, and **25 of the
-> bare**, whose population is whatever this returns today:
+> **MEASURED AT `7e8adfa`, AND A DATED RECORD RATHER THAN A LIVE COUNT.** All 166 citations as this
+> file stood at that blob, resolved at both `135c3ac` and `c15b138` by
+> `docs/reviews/probe-218-frame-census.py`, which reports its own method and adjudicates by hand
+> every citation its proxy could not place. **The blockquote you are reading has itself added
+> citations since**, so the live commands below will return larger numbers than this table - that
+> is the table being pinned, not the table being wrong:
 >
->     grep -c '`:[0-9]' docs/plans/IMPLEMENTATION-PLAN.md
+> |  | resolves at `135c3ac` | at `c15b138` | identical at both | undecidable |
+> |---|---|---|---|---|
+> | **qualified** `DESIGN.md:NNNN` | **0** | 88 | 18 | 5 |
+> | **bare** `:NNNN` | **42** | 3 | 1 | 9 |
 >
-> Everything else in both populations is unmeasured, `:300` was found in the unmeasured part, and
-> a full census of both is about twenty minutes of `sed` that nobody has spent.
+> **ZERO of 111 qualified citations resolve at `135c3ac`**, at every threshold the probe sweeps and
+> after hand-reading every doubtful row. That zero was checked for comparability before it was
+> explained: the same code path, blob read and scoring function return 32 on the bare side, so the
+> `135c3ac` arm demonstrably fires and the zero is not an artifact of construction.
 >
-> **NO CITATION IN THIS DOCUMENT IS REPOINTED, AND THAT IS `#111` APPLIED RATHER THAN OVERRULED.**
-> `#111` ruled `docs/plans` a RECORD: all sixteen units U0-U15 are built, nothing executes this
-> document any more, and its citations stand as written, the same standing as a worklog. Not one is
-> moved here, which is what `#111` actually constrains. What changes is the document's DECLARATION
+> **THE ONE EXCEPTION IS A SINGLE CITATION, AND IT IS WHY THE RULE IS NOT A RULE.** The three bare
+> `c15b138` hits are all `:300` - once at its site, twice where this blockquote quotes it. It lives
+> in **the ADR-0012 discharge paragraph in §9's Wave C**, and its own sentence names its blob:
+> *"`DESIGN.md:295` and `:300` at the frozen `c15b138`"*. Read a bare citation at `135c3ac` first;
+> expect to be wrong about one of them.
+>
+> ## Reading a citation here, and what the numbers do not tell you
+>
+> **19 of the 166 are BYTE-IDENTICAL at both blobs.** For those, resolving at one blob proves
+> nothing about the frame - roughly one citation in nine agrees with whichever blob you happen to
+> open. That is why "re-derive" above means at BOTH blobs, not at one.
+>
+> **THE TWO COUNTS ARE FLOORS, NOT EXACT.** `:2261` writes `DESIGN.md:295,300`, whose `,300` half
+> carries neither a colon-prefixed form nor a filename and so matches neither selector. Other
+> shapes may exist; nobody has swept for them.
+>
+>     grep -o 'DESIGN\.md:[0-9]' docs/plans/IMPLEMENTATION-PLAN.md | wc -l    # the qualified population
+>     grep -o '`:[0-9]'          docs/plans/IMPLEMENTATION-PLAN.md | wc -l    # the bare population
+>
+> **Both commands are `grep -o | wc -l` and both name this file, deliberately.** `grep -c` counts
+> LINES, not citations, because at least one line here carries four bare citations at once; and
+> `#111`'s repo-wide `grep -rno` returns thousands, of which 111 is this file's share. Earlier
+> revisions of this paragraph published both of those errors - a mis-counting instrument inside the
+> document about mis-counting instruments.
+>
+> ## Why no citation is repointed
+>
+> **`#111` IS APPLIED HERE, NOT OVERRULED.** It ruled `docs/plans` a RECORD: all sixteen units
+> U0-U15 are built, nothing executes this document any more, and its citations stand as written,
+> the same standing as a worklog. **Not one is moved.** What changes is the document's DECLARATION
 > about them, a live claim of fact rather than a record of a past decision - and `#111`'s own reason
 > is that a wrong sha *"would turn a document that is honestly out of date into one that is
-> confidently wrong"*. A declaration naming one frame for a multi-frame document already is that
+> confidently wrong"*. A declaration naming one frame for a two-frame document already is that
 > failure, read from the other end.
 >
 > Repointing the bare citations to `c15b138` was the other candidate remedy and is **REFUSED**: it
 > is the move-the-orphan-to-match shape ADR-0017 rejected, and it would be correct only until
-> `DESIGN.md` moved again. It has moved five times since `c15b138` - `8a9d63c`, `aca9397`,
-> `86ab20e`, `e3b5c97`, `d1f1a52` - which is neither the "twice" nor the "four times" earlier
-> revisions of this passage claimed, and is why the list is written out rather than counted.
+> `DESIGN.md` moved again. It has moved five times since `c15b138`, and the shas are written out
+> because an endpoint like `HEAD` is reader-relative and goes stale the same way a count does:
 >
->     git log --oneline c15b138..HEAD -- docs/DESIGN.md
+>     git log --oneline c15b138..d1f1a52 -- docs/DESIGN.md
+>     8a9d63c  aca9397  86ab20e  e3b5c97  d1f1a52
 >
 > If this plan ever becomes live again - a new unit is planned - the remedy is to replace the
 > numbers with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`,
 > not to repoint them.
 >
-> **The rule above governs citations whose nearest antecedent is `DESIGN.md`.** This file also
-> carries bare citations into `tech-stack.md`, `STANDARDS.md` and `CREDENTIAL-CHECKLIST.md`; those
-> are not `DESIGN.md` line numbers and neither blob has anything to say about them.
+> **The frames above concern citations into `DESIGN.md`.** This file also cites `tech-stack.md`,
+> `STANDARDS.md` and `CREDENTIAL-CHECKLIST.md` in the bare form; neither blob has anything to say
+> about those.
 where the eight-ADR batch landed - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
