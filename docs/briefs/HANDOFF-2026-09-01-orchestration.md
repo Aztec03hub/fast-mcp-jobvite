@@ -90,11 +90,30 @@ Each has a brief in `docs/briefs/BRIEF-<n>-*.md`. **Ownership is stated
 in each brief's §B and the three do not overlap.** Do not put a fourth
 agent in `ci.yml`.
 
-## Unmerged branches
+## Unmerged branches — all three EXAMINED now, all superseded
 
-    fix/kind-not-path            1 ahead   SUPERSEDED, kept as a record
-    rescue/adr-0024-scan-bound   1 ahead   pre-existing, unexamined
-    rescue/r6-probe-half-open    1 ahead   pre-existing, unexamined
+    fix/kind-not-path            1 ahead   superseded, see below
+    rescue/adr-0024-scan-bound   1 ahead   superseded, see below
+    rescue/r6-probe-half-open    1 ahead   superseded, see below
+
+They sat as "pre-existing, unexamined" for three handoffs. Checked
+against the CODE, not against their commit messages:
+
+- **`rescue/adr-0024-scan-bound`** — ADR-0024's scan bound IS on main,
+  in `services/jobvite_client.py`, `tools/jobs.py`,
+  `tests/test_scan_incomplete.py` and `tests/test_resilience.py`. #74
+  landed it at `1e55129` by a different route.
+- **`rescue/r6-probe-half-open`** — main's `probe-r6-breaker-reset.py`
+  is 267 lines with 17 half-open references; the branch's is 228 with
+  14. #75 landed it at `3ef01f5`.
+- **`fix/kind-not-path`** — #138's successor `e199dd8` IS an ancestor of
+  main (verified with `merge-base --is-ancestor`), so its task note
+  saying UNMERGED is stale, not a stranded piece of work.
+
+**WHAT I VERIFIED IS THAT THE SUBJECT LANDED, NOT THAT THE BRANCH HOLDS
+NOTHING UNIQUE.** A superset in one dimension is not a superset. They
+are kept as records under #111's ruling; nobody needs to re-open them
+unless a specific claim points back at one.
 
 Everything else merged at `ccbdaae`: #143, #146/#131, #147, #152, plus
 #130 and #151.
