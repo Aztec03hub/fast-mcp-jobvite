@@ -664,6 +664,18 @@ jobs:
           set +e
           out=$(python3 docs/reviews/check-plan-measurements.py 2>&1); rc=$?
           echo "$out"
+          # EXIT 2 IS AN UNMET PRECONDITION, NOT A VERDICT. The checker
+          # exits 2 when `.venv` is absent, meaning NOTHING was measured;
+          # it exits 1 when a plan claim has actually gone stale. Without
+          # this branch the `-ne 0` below prints the stale-claim sentence
+          # for both - reproducing, one layer up, the exact conflation the
+          # checker was fixed to stop (#221). Measured: with `.venv` absent
+          # the pre-fix body printed "a measurement ... no longer holds".
+          # The shape is the one already used at the standards-citations
+          # step, which tests `rc -eq 2` before its `-ne 0` branch.
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::the plan probes had no venv, so nothing was measured - run uv sync --frozen"; exit 1
+          fi
           if [ "$rc" -ne 0 ]; then
             echo "::error::a measurement the plan rests a decision on no longer holds"; exit 1
           fi
