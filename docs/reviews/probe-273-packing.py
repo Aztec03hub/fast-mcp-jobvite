@@ -7,13 +7,16 @@ the output of LPT (longest-processing-time-first) as a measurement:
   - it first said the shard plan needed 15 lanes;
   - it then said sharding at 12 lanes was a 12-second REGRESSION.
 
-Neither held. LPT is EXACT when one item dominates - when the largest
-item exceeds total/lanes, the schedule is max-bound and greedy is
-provably optimal - and it is a LOOSE UPPER BOUND when no item
-dominates. CI's two configurations sit in DIFFERENT regimes:
+Neither held. LPT is a heuristic in BOTH regimes; what differs is how
+loose. When one item dominates - largest > total/lanes - the area
+bound falls away and max(item) is often achievable, so a packing that
+MEETS the bound can usually be exhibited; when none dominates, LPT is
+only a loose upper bound. This is EXHIBITION, not a theorem: for
+m=5 over [27,23,22,16,13,9,8,6] the largest item dominates and LPT
+still returns 28 against an optimum of 27. See REVAMP-238-ci.md 7a.2.
 
-  unsharded  largest 298s > 3311/12 = 275.9  MAX-bound   exact
-  sharded    largest 227s < 3521/12 = 293.4  AREA-bound  upper bound
+  unsharded  largest 298s > 3311/12 = 275.9  a meeting packing EXISTS
+  sharded    largest 227s < 3521/12 = 293.4  AREA-bound, upper bound
 
 So the "regression" was an exact number differenced against an upper
 bound. Sweeping the INPUTS could never reveal it, because both columns
@@ -74,12 +77,17 @@ WRAP = (
     "setup-python",
 )
 
-SETUP = 13.0  # per-lane setup, measured as job-minus-step on this run's U3 lane
+# per-lane setup. THIS RUN'S 12 LANES READ 8-17s (median 11.5); 13.0
+# is one lane, not the middle. Added to BOTH columns, so it cancels in
+# every delta and biases only the absolutes. NOT moved to the median on
+# purpose: every absolute published in REVAMP-238-ci.md 7a.2 carries
+# 13.0, and changing it here would move all of them.
+SETUP = 13.0
 EXPECT_STEPS = 33
 EXPECT_TOTAL = 3311.0
 U3_SHARD = 163.3
 U9_SHARD = 219.5
-RESTARTS = 60
+RESTARTS = 400
 
 
 def parse_time(value: str) -> datetime.datetime:
@@ -239,15 +247,15 @@ def main() -> int:
     print(header)
     print("-" * 5 + "-+-" + "-" * 26 + "-+-" + "-" * 26 + "-+------")
 
-    for lanes in (12, 13, 14, 15, 16):
+    for lanes in (11, 12, 13, 14, 15, 16):
         u_lb = lower_bound(unsharded, lanes) + SETUP
         u_lpt = lpt(unsharded, lanes) + SETUP
         u_best = best(unsharded, lanes) + SETUP
         s_lb = lower_bound(sharded, lanes) + SETUP
         s_lpt = lpt(sharded, lanes) + SETUP
         s_best = best(sharded, lanes) + SETUP
-        u_mark = "=" if abs(u_best - u_lb) < 0.5 else "~"
-        s_mark = "=" if abs(s_best - s_lb) < 0.5 else "~"
+        u_mark = "=" if u_best <= u_lb + 1e-9 else "~"
+        s_mark = "=" if s_best <= s_lb + 1e-9 else "~"
         delta = s_best - u_best
         verdict = "WINS" if delta < -0.5 else ("loses" if delta > 0.5 else "wash")
         print(
@@ -261,6 +269,10 @@ def main() -> int:
     print("All figures include the per-lane setup. Sharded cells are UPPER")
     print("BOUNDS, so each could be a few seconds better - which only widens")
     print("any win. Shard costs are FITTED; see task #278.")
+    print("Absolutes carry the setup spread (306-315s unsharded); deltas do not.")
+    print("11 lanes is a PROVED loss, not a search artefact: the sharded LOWER")
+    print("bound exceeds an EXHIBITED unsharded packing. Sharding adds ~210s of")
+    print("work, and below 12 lanes there is nowhere to absorb it.")
     return 0
 
 
