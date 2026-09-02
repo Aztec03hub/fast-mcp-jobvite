@@ -435,172 +435,122 @@ from R23:
   than a wrong `(P)`, which is why it is carried here rather than
   dropped.
 
-## 7a.2 The shard plan: what is exact, what is a bracket, and what is not established
+## 7a.2 The shard plan: a bracket, and the one input that decides it
 
-Five review rounds. Round 5 refuted this section's headline, and the reason
-is one no amount of input perturbation could have surfaced.
+Six review rounds. The DIRECTION has survived every one - no reviewer has
+constructed a case where sharding loses. The MAGNITUDE has been wrong in
+both directions, and round 6 found that the section never propagated its
+own stated uncertainty into the cell its headline rests on.
 
-### WHAT IS EXACT
+### The population, reproduced by three reviewers
 
-CI's floor is `max(slowest fixed job, LPT over harness lanes)`. `ci.yml`
-declares 16 jobs of which **12 are harness lanes** (`harness-*` at
-`:1649`-`:2132`); the other four are fixed and cannot absorb harness steps.
-Their slowest draw is 218s (`Lint, types, tests` drew 161/213/218), so they
-never bind here.
+Run 33630968540: every step in a `harness-*` job of duration **>= 5s**,
+excluding GitHub's per-job wrapper steps. **33 steps, 3311.0s, largest
+298.0s.** Strict `> 5s` gives 32 / 3306 and changes nothing; the boundary
+case is one `Install from the frozen lock` at exactly 5.0s. Twelve of the
+sixteen jobs are harness lanes (`ci.yml:1649`-`:2132`); the other four are
+fixed and top out at 161s in this run.
 
-Harness population, run 33630968540: every step in a `harness-*` job of
-duration **>= 5s**, excluding GitHub's per-job wrapper steps. That yields
-**33 steps, 3311s, largest 298s**. It admits one `Install from the frozen
-lock` at exactly 5.0s; strict `> 5s` gives 32 / 3306 and changes nothing.
-Per-lane setup is **13s** - one delta from one job, this run's U3 amputation
-lane, 271s job minus 258s step. `MEASURED-268:122` corroborates
-independently at n=12.
+**Per-lane setup is taken as 13s, and that is a CHERRY-PICKED lane.** This
+run's twelve lanes read **8-17s, median 12**, and `MEASURED-268:122` in
+full says "mean of 12 observations spanning 6-15s". So no figure below is
+exact to a tenth: the unsharded floor is **306-315s**, not 311.0. The
+constant is added to BOTH columns, so it cannot affect any delta - which
+is why the comparisons below survive it and the absolute numbers do not.
 
-**Unsharded, the floor is 311s at EVERY lane count, and this number is
-EXACT.** The 298s U9 amputation step is indivisible and exceeds
-3311/12 = 275.9s, so the schedule is MAX-BOUND: greedy LPT is provably
-optimal in that regime and `311 = 298 + 13` is not an estimate. No fan-out
-reaches 300s.
+### The bracket
 
-**Therefore sharding is NECESSARY.** That conclusion rests only on the
-exact number and survives everything below.
-
-### THE 12-LANE QUESTION, SETTLED WITH A REAL PACKER
-
-Earlier versions said sharding at 12 lanes is a **12s regression** (311 ->
-323) and defended it with a sweep over overhead and setup. Round 5 showed
-the sign was an artifact: the two columns are in different regimes, so LPT
-is exact on one and loose on the other.
-
-| column | largest item | total/lanes | regime | LPT is |
-|---|---|---|---|---|
-| unsharded | 298s | 275.9s | MAX-bound | provably optimal - EXACT |
-| sharded | 227s | 293.2s | AREA-bound | an UPPER BOUND |
-
-The section differenced an exact number against an upper bound.
-
-**Re-run with a lower bound and a local-search packer** (LPT plus steepest
-descent on moves and pair swaps, 60 randomised restarts), on the same 33
-measured steps:
-
-| lanes | unsharded LB / LPT / BEST | sharded LB / LPT / BEST | verdict |
+| lanes | unsharded LB / BEST | sharded LB / BEST | delta |
 |---|---|---|---|
-| 12 | 311.0 / 311.0 / **311.0 =** | 306.4 / 323.0 / 310.5 | sharding is neutral-to-better |
-| 13 | 311.0 / 311.0 / **311.0 =** | 283.8 / 294.3 / 285.5 | **-25.5s** |
-| 14 | 311.0 / 311.0 / **311.0 =** | 264.5 / 277.0 / 275.0 | **-36.0s** |
-| 15 | 311.0 / 311.0 / **311.0 =** | 247.7 / 264.0 / 256.0 | **-55.0s** |
-| 16 | 311.0 / 311.0 / **311.0 =** | 240.0 / 245.0 / 243.0 | **-68.0s** |
+| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 | **-2.0s** |
+| 13 | 311.0 / **311.0 exhibited** | 283.8 / 285.5 | -25.5s |
+| 14 | 311.0 / **311.0 exhibited** | 264.5 / 275.0 | -36.0s |
+| 15 | 311.0 / **311.0 exhibited** | 247.7 / 256.0 | -55.0s |
+| 16 | 311.0 / **311.0 exhibited** | 240.0 / 243.0 | -68.0s |
 
-`=` marks a cell where BEST met the lower bound, so the value is PROVED.
-All figures include the 13s per-lane setup.
+**"Exhibited", not "provably optimal".** An earlier version claimed that a
+max-bound instance makes greedy LPT provably optimal. **That is false**,
+and round 6 gave a counterexample: m=5 over [27,23,22,16,13,9,8,6] has
+largest 27 > 24.8 = total/m, and LPT returns 28 against an optimum of 27.
+What makes these five cells certain is not a theorem about LPT but that a
+packing achieving max-load 298.0 was EXHIBITED at every lane count from 12
+to 16. The lower bound and an achieved schedule meet; that is a proof by
+construction and it does not generalise.
 
-**Three corrections fall out, and the last one corrects round 5 as well.**
+The unsharded cells stop being provable at **11 lanes**: 3311/11 = 301.0
+exceeds 298, so the instance is no longer max-bound (LB 314, best 316).
 
-1. **The unsharded floor is 311.0s at every lane count, PROVED** - the
-   lower bound and the best packing agree exactly. That half was always
-   right and is now certain.
-2. **There is no regression at 12 lanes.** LPT said 323s; the best packing
-   found here is 310.5s and round 5 exhibited 309.0s, against a lower bound
-   of 306.4s. So the true sharded value at 12 lanes lies in
-   **[306.4, 309.0]** against an exact 311.0 - a **2 to 4.6 second WIN**,
-   not a 12 second loss.
-3. **Round 5's "under a minimising packer there is no crossing lane" is
-   right in letter and misleading in spirit.** There is no crossing because
-   sharding never LOSES: it is a small win at 12 and grows monotonically
-   from there. The old framing looked for the lane count where sharding
-   starts to pay; the answer is that it already pays.
+### THE MANDATE IS REACHABLE, and an earlier version of this section denied
+it while printing the numbers
 
-The sharded column remains an UPPER BOUND at every lane count (its BEST
-never met its LB), so each sharded cell could be a few seconds better still.
-That direction is safe: it can only widen the win.
+A previous version ended "nothing here reaches 300s". **Its own table
+contradicts that**: 275.0s at 14 lanes, 256.0s at 15, 243.0s at 16. Under
+the modelled shard costs, sharding plus fourteen lanes lands under the
+five-minute mandate with 25s to spare, and the inference drawn from the
+false sentence - that only removing work can help - does not follow from
+it either.
 
-**Nothing here reaches 300s.** The best case measured is 243s at 16 lanes,
-and 12 lanes sits at ~307-311s either way. The mandate needs work REMOVED,
-not only redistributed - which is what #249 does.
+Removing work still helps, and `#249` does that (net -148 pytest process
+starts). But it is no longer the only route on these numbers.
 
-### The per-harness arithmetic, and what is NOT measured
+### THE CELL THE HEADLINE RESTS ON, AND THE INPUT THAT DECIDES IT
 
-    step_ci(k) = scale * (B + (R + overhead) / k)
+At 12 lanes the win is **2.0s**: 309.0 against 311.0. That margin is thin
+enough that the fitted inputs decide it, and this section states elsewhere
+that `#278` contests the overhead term by a factor of 17-20 without ever
+propagating that into this cell. Round 6 propagated it:
 
-| harness | B | R | overhead | divisible share | scale | k=1 | k=2 |
-|---|---|---|---|---|---|---|---|
-| U3 amputation | 14.47s | 153.11s | 26.4s | 0.9254 | 1.567x | 304s | 163s |
-| U9 amputation | 82.79s | 60.93s | 31.3s | 0.5270 | 1.703x | 298s | 219s |
+- across U9's own stated 209-235s band the sign NEVER flips, but the
+  margin decays from 2.0s to about 0.7s;
+- **re-fitting both shard costs with the overhead term DELETED** - the
+  `#278` direction, and the scale `MEASURED-268:122` already publishes,
+  whose 165s U3 shard reproduces to 165.12 - gives U9 k=2 = 234.8 and a
+  12-lane best of **311.00 against an exact 311.00. The win is 0.00s.**
 
-The divisible share is `(R+overhead)/(B+R+overhead)`, matching the formula
-above the table.
+**So at 12 lanes the honest answer is: between a 2.0s win and a wash,
+decided entirely by a term this repository measures at 130ms and this
+model fits at 2.24-2.64s.** It is not a regression under any input tried.
+It is also not reliably a win.
 
-PROVENANCE, stated exactly: U3's B and R are at `MEASURED-268:124`, inside
-its load-bearing section. U9's B and R are secondhand quotes inside that
-document's own "did NOT verify" list. **Both overhead terms - 26.4s and
-31.3s - have NO source anywhere in this tree.**
+Two other re-derivations both move the answer TOWARD sharding, which is
+why the direction survives:
 
-**The k=2 column is FITTED.** `scale = k1/(B+R+overhead)` regenerates 304.0
-and 298.0 identically, so k=1 closes by construction and carries no
-information; U9's k=2 spans 209-235s across a 0x-2x overhead sweep. Nothing
-has ever run sharded.
+- re-deriving U3's shard from the 258s it actually DREW gives 138.6s per
+  shard, a 12-lane best of 304.0 - a 7.0s win - and 282.0 at 13 lanes;
+- re-anchoring to U3's three-run median (below) widens the 12-lane win to
+  8.0s.
 
-`overhead` is separately contradicted by measurement - see #278, which
-measures the per-row `uv run` cost this term names at 130ms against the
-2.24-2.64s stated here. That is unresolved and moves U9's divisible share
-to 0.431.
+### The re-anchoring caveat was wrong in both directions - and it resolves the `MEASURED-268` disagreement
 
-### Claims WITHDRAWN
+An earlier version warned that the sharded column "mixes runs" because it
+charges shard costs derived from U3's 304s median while the table is
+scoped to a run where U3 drew 258s, and estimated "12 and 13 read
+318/288".
 
-- **The wall prediction (290-394s).** Pooled three floor-to-wall gaps and
-  added them to a floor. Queue from `run.created_at` is 3-5s (3/5, 4/5,
-  4/5), not the gap; and two of the three runs predate #266's repack, so
-  the pool averaged two schedules.
-- **"Three independent computations agree on 14 lanes."** There are not
-  three: `MEASURED-268:402-407` disclaims its own 276s as modelled on U3's
-  ratio. A previous version supported this with an invariance - that 14
-  lanes reads 276-277s regardless of U9's shard cost - **which is not
-  real**: it reads 263 / 275 / 277 / 280 for costs 78.5 / 209 / 219.5 /
-  235s, and 260 / 276 / 276 / 289 on 3-run medians.
-- **"At 12 lanes sharding is a regression."** Withdrawn as above. The
-  bracket is 306-323s and the sign is not established.
+Both halves are wrong. **The sharded pool is UNCHANGED under re-anchoring**
+- `3311 - 258` and `3357 - 304` are the same number, because the
+substitution removes whichever U3 step the pool contained. What moves is
+the UNSHARDED floor, which rises to **317.0**.
 
-### The covdb hoist: an ESTIMATE, not a citation
+That is the whole `MEASURED-268` disagreement, resolved: it publishes 317s
+where this section computes 311s, and the difference is exactly which U3
+draw the unsharded pool carries. Neither is wrong; they are scoped to
+different runs.
 
-A hoisted coverage map would let U9 shard without replicating its baseline.
-The figures in circulation are **"roughly a 78s shard plus a ~141s map
-job"** - an estimate, hedged when first written. A previous version of this
-section dropped the hedges, presented them as "its published numbers", and
-derived a 12-lane figure to one decimal from them. That precision was
-manufactured; neither number exists anywhere in this tree outside this
-section.
+And the consequence runs the other way from the caveat: re-anchored, the
+12-lane win **widens to 8.0s**.
 
-What can honestly be said: on those estimates the hoist lands near or below
-the unsharded floor at 12 lanes, which is the same bracket the sharded
-column already occupies - so it does not settle the 12-lane question
-either. Its cost is real and code-cited:
-`check-u9-http-amputation.sh:90-92` makes the map non-stale BY
-CONSTRUCTION, and hoisting trades that for a SHA-keyed guard. Unbuilt,
-unmeasured.
+### What remains unmeasured
 
-### Live disagreements with `MEASURED-268`
+The shard costs 163.3s and 219.5s are FITTED. `scale` is derived as
+`k1/(B+R+overhead)`, so the k=1 column closes by construction and carries
+no information. U9's k=2 spans 209-235s across the overhead sweep, and
+`#278` argues the term should be near zero, which is the case that takes
+the 12-lane win to nothing.
 
-1. It publishes the unsharded floor as **317s** against this section's
-   **311s**. The gap is entirely the largest step: U3 amputation's
-   three-run median is 304s but it drew 258s in 33630968540, so a one-run
-   scoping and a three-run median disagree about which step is largest. Its
-   own population is stated at `:122` as 35 harness work steps, median sum
-   3442s.
-2. It publishes a **1.814x** scale for U3 where this section uses
-   **1.567x**. Definitional, not a conflict: `:125` is `304/167.6`
-   (`B+R`); this section is `304/193.98` (`B+R+overhead`).
-
-### Where this section's own numbers are still soft
-
-- **The sharded column mixes runs**: scoped to 33630968540 where U3
-  amputation drew 258s, while the shard column charges 2 x 163 from its
-  304s median in another run. Re-anchored, 12 and 13 lanes read 318/288.
-- **The structure is right and n=1.** One run deliberately - it is the only
-  post-repack run, and averaging would mix two packings. Where three-run
-  medians are used (per-step swings, largest-step attribution) they are n=3
-  with swings to 3.2x.
-- The largest step is a different step in each run: **376s** (U3 controls),
-  **304s** (U3 amputation), **298s** (U9 amputation).
+Nothing has ever run sharded. `#270`, the gate that reds any sharded step,
+is not yet mergeable. And nothing in the tree consumes `HARNESS_SHARDS`
+(R270-R4-L3), so no splitter exists to produce these lanes yet.
 
 
 ## 7b. The three ci/237-audit items, settled
