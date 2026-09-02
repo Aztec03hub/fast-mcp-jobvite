@@ -604,6 +604,17 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "it is an edit nobody reviewed. `check-design-citations.py` is "
         "the wired half that SAYS which citations moved."
     ),
+    "probe-213-syntax-split.py": (
+        "the counterfactual for a ruling that has NOT been made. #213 "
+        "measured what the brief-report gate detects today against what "
+        "a syntax-split gate would detect, because R21-M3 found the "
+        "split's refusal argued backwards by its own numbers. Wiring it "
+        "would gate the trunk on a question Tier 0 has not answered, "
+        "and its output is EVIDENCE FOR A DECISION rather than a "
+        "property of the tree. It becomes wired, or deleted, when the "
+        "ruling lands - and if the ruling never lands, this row is the "
+        "record that it is outstanding."
+    ),
     "probe-stale-branch-regression.sh": (
         "advisory by design, and wiring it would make it useless. Its "
         "survey form exits 0 always: it DESCRIBES which unmerged "
