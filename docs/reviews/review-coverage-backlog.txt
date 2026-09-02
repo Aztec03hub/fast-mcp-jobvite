@@ -128,3 +128,5 @@ fcde13f NONE R16-M2: report a landing failure unless it is POSITIVELY
 ac4b36c NONE R17-M1: the zero was over 42 files of 116, and briefs ha
 c60941d NONE #167: measure the anchor container first, then widen it,
 d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
+5e087eb NONE R17-H2 RULED: no change. Its path list was measured agai
+3987403 NONE #163 RULED: warn on untracked findings; `git add -N` and a pra
