@@ -604,6 +604,18 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "it is an edit nobody reviewed. `check-design-citations.py` is "
         "the wired half that SAYS which citations moved."
     ),
+    "probe-stale-branch-regression.sh": (
+        "advisory by design, and wiring it would make it useless. Its "
+        "survey form exits 0 always: it DESCRIBES which unmerged "
+        "branches would delete lines from main rather than failing on "
+        "one, and a gate that went red merely because unmerged "
+        "branches exist would be red by construction and would get "
+        "switched off. Its one-branch form (exit 1 regress, 0 clean, 2 "
+        "no such branch) is the PRE-MERGE question a human asks, not a "
+        "trunk property. Line count is a proxy there, so its verdict "
+        "is a reason to read the diff and never on its own a reason "
+        "to refuse - which is not a thing CI can decide."
+    ),
     "restore-stranded-mutation.sh": (
         "a recovery tool: it puts back a mutation a SIGKILLed harness "
         "stranded, by reading the run-state file. It writes to the tree "
