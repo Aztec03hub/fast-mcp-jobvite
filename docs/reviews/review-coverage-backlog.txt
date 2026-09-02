@@ -70,3 +70,16 @@ ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
 # measured against 9e04411, five behind the trunk. No round covers them.
 b567974 PARTIAL #143: lint-clean the applier, update CONTRIBUTING's job
 c6e3cda PARTIAL #151 R1: two Highs closed, and H2 was my prose being fal
+#
+# 2026-09-02, +7: R16 extended its declaration to 2d886a4 after the
+# trunk moved 15 commits under it. Eight of the fifteen are now FULLY
+# covered; these seven are PARTIAL, held back by docs/briefs,
+# CONTRIBUTING.md and .pre-commit-config.yaml - paths R16 did NOT read
+# and did NOT declare.
+0256438 PARTIAL PROTOCOL: the assignment echo is more dangerous than the
+0b90c2a PARTIAL fix(secrets): gate on the finding set, not on the baseli
+3aad1a3 PARTIAL Rewrite the handoff, which was wrong a THIRD time - and
+3d7a82f PARTIAL R1-M6: the control's BASELINE arm asserted the TRUNK was
+401689e PARTIAL Examine the three leftover branches that three handoffs
+a00d2ac PARTIAL docs(secrets): the findings, and CONTRIBUTING gains both
+ffd36c7 PARTIAL #155 re-measured exactly, and the handoff was wrong a FO
