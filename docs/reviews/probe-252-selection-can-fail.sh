@@ -173,9 +173,9 @@ arm "M14" "test_a_container_under_an_unlisted_key_is_redacted_WHOLE" \
   '    _ = (out, _leaks(repr(out), "job-42", "a@b.invalid"))'
 
 echo "########## ARMS: $ARMS_PASSED/$ARMS_RUN passed"
-ARM_FLOOR=3
-if [ "$ARMS_RUN" -lt "$ARM_FLOOR" ]; then
-  echo "FEWER ARMS THAN THE FLOOR ($ARMS_RUN/$ARM_FLOOR) - arms were lost."
+ROW_FLOOR=3
+if [ "$ARMS_RUN" -lt "$ROW_FLOOR" ]; then
+  echo "FEWER ARMS THAN THE FLOOR ($ARMS_RUN/$ROW_FLOOR) - arms were lost."
   exit 1
 fi
 [ "$ARMS_PASSED" -eq "$ARMS_RUN" ] || exit 1

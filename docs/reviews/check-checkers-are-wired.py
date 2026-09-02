@@ -467,6 +467,24 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "overlap proxy cannot settle every citation, and a proxy that "
         "needs a human for 31 of 166 is not a gate."
     ),
+    "probe-252-selection-can-fail.sh": (
+        "it AMPUTATES THE TEST SUITE, not the product: each arm strips the "
+        "assertion out of a real test in tests/ and restores it, three "
+        "times, running the whole U3 controls harness in between (~4.5 min "
+        "locally). Two reasons it is not a job step. A killed job leaves a "
+        "NEUTERED TEST in the checkout - the same class of bomb as "
+        "probe-repoint-fail-closed.py's chmod row, one layer up, because a "
+        "test that cannot fail is invisible where a chmod-ed file is not. "
+        "And its cost exceeds the entire five-minute CI mandate #244 is "
+        "measuring against, to re-derive a one-time property of a "
+        "conversion. What it establishes - that per-row selection in "
+        "check-u3-audit-controls.sh can still make a row go from killed to "
+        "not killed - is a property of that harness's SHAPE. Re-run it by "
+        "hand when the harness changes shape or when a row's selector "
+        "narrows; the standing regression question is held by the harness "
+        "itself, which fails closed because a controls row passes only "
+        "when its NAMED test goes red."
+    ),
     "profile-harness-phases.sh": (
         "a PROFILER. It times the phases of one harness row and prints "
         "shares; there is no pass or fail in it, and a step that cannot "

@@ -195,6 +195,7 @@ docs/reviews/probe-wired-checker-amputation.py|COMPUTED|0|1|static
 docs/reviews/check-brief-report-refs-controls.sh|^ *(row|recipe_row) \"|2|1|cmd
 docs/reviews/probe-mirror-zero-refs.sh|^row |1|1|cmd
 docs/reviews/check-row-floor-exactness.py|arm\(\n\s*\"(?P<label>A[0-9]+) |0|1|static
+docs/reviews/probe-252-selection-can-fail.sh|^arm \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }
