@@ -1,191 +1,160 @@
-# HANDOFF — 2026-09-02 04:48Z, written against compaction
+# HANDOFF — 2026-09-02 05:42Z, written against compaction
 
-Verified by running it at `33fc977`, which is this file's PARENT.
-**`origin/main` is `6e4fae3` and 23 commits were held there** —
-`git rev-list --count origin/main..HEAD` returned 23 at `33fc977`, so it
-reads 24 once this commit lands, and rises with every commit after.
-**Do not trust the digit; run the command.** Every number below was
-derived at that sha by the command beside it, not carried forward.
+Verified by running it at `72fe217`, this file's PARENT. `origin/main` is
+`6e4fae3`; `git rev-list --count origin/main..HEAD` returned **55**
+there, so it reads 56 once this commit lands and rises with every commit
+after. **Do not trust the digit; run the command.** Every number below
+was derived at that sha by the command beside it.
 
-## READ THIS FIRST: this document has been wrong SIX times
+## READ THIS FIRST: seven versions, and what each one got wrong
 
-Version 1 said **"Main is GREEN locally, on every gate"** and listed six
-gates, all 0. Every number was true and the claim was false: the gate
-that had refused the tree for 127 commits was not on the list.
+Versions 1-5 each asserted a whole from a sample: a "green on every gate"
+list missing the gate that had been red for 127 commits; a display cap
+read as a population; five gate names that no longer existed; four
+hand-run probes listed as CI gates; and a run declared to have reached
+the long pole two sentences after its own paragraph predicted it would
+die earlier.
 
-Version 2 said **"15 trunk commits are covered by no round"**. 15 was a
-DISPLAY CAP (`untouched[:15]`); the population printed one line above.
+**VERSION 6 WENT FALSE BY STANDING STILL.** Every number in it was true
+when written, and it opened *"nothing is held locally"*. Twenty-three
+commits later that was the most misleading sentence in the file.
 
-Version 3 said main was `09477ee` and listed five gates that no longer
-existed under those names, because #143 consolidated three CI jobs.
-
-Version 4 listed four hand-run probes under "Gates ... run with CI's
-exact invocation" when CI ran none of them.
-
-Version 5 said *"THE RUNNING JOB IS THE FIRST TO REACH THE LONG POLE"*
-about a run that died at the secret-scan step two sentences before its
-own paragraph predicted exactly that.
-
-**VERSION 6 WENT FALSE BY STANDING STILL.** Its numbers were right when
-written and it opened with *"`origin/main` is `d0f8d85` and nothing is
-held locally"*. Twenty-three commits later that was the most misleading
-sentence in the file, and nothing about version 6 was wrong — it simply
-described a tree that had moved. **A handoff's freshness is part of its
-correctness**, so this version leads with the held count, which is the
-number that goes stale first.
+**VERSION 7 WENT FALSE ONE COMMIT LATER**, in the way it had just warned
+about: it said "backlog 80 recorded, holding" in two places, and the
+backlog became 66 at `a0677bc` - the very next commit. **So v8 writes no
+digit it can avoid**, and where a number is unavoidable it carries the
+command that produces it.
 
 ## Where the trunk is
 
     origin/main   6e4fae3   NOT what is checked out
-    local HEAD    33fc977   23 commits ahead, PUSH DELIBERATELY HELD
-    DESIGN freeze d1f1a52   (docs/DESIGN-FREEZE.txt; blob verified equal)
+    local HEAD    72fe217   PUSH DELIBERATELY HELD
+    DESIGN freeze d1f1a52   docs/DESIGN-FREEZE.txt; blob verified equal
     ADRs          35        ls docs/adr/[0-9]*.md | wc -l
-    scripts/*.sh  39        git ls-files -- 'scripts/*.sh' | wc -l
-    backlog       DERIVE IT - the digit here went stale one commit
-                  after this file was written (80 -> 66 at a0677bc).
-                  uv run --frozen python docs/reviews/check-review-coverage.py
 
-## What is HELD, and why the push is held
+    held commits  git rev-list --count origin/main..HEAD
+    backlog       uv run --frozen python docs/reviews/check-review-coverage.py
 
-Twenty-three commits: R18's eight fixes, R19's seven findings closed,
-ADR-0034 + ADR-0035 with two re-freezes, `suborch-170`'s eleven-commit
-merge, and the R19 report.
+## Why the push is held, and what would release it
 
-**The hold is a rule, not a hesitation.** The trunk has exactly one
-green run in its history (`33582613697`, head `22c9873`). A second green
-run is what would establish that the first repeats, and pushing over a
-queued run cancels it — GitHub supersedes older QUEUED runs in a
-concurrency group regardless of `cancel-in-progress`. So: push, then
+The trunk has exactly ONE green run in its history (`33582613697`, head
+`22c9873`). A second would establish that it repeats. **Pushing over a
+queued run cancels it** - GitHub supersedes older QUEUED runs in a
+concurrency group regardless of `cancel-in-progress` - so: push, then
 WATCH THAT RUN TO A CONCLUSION before pushing again.
 
-**Only Phil pushes and merges.** Brief him on exactly what the push
+**Only Phil pushes and merges.** Brief him on exactly what a push
 changes before it lands so he can watch it.
 
-## THE TRUNK IS GREEN, and this is the first time that sentence has been true
+## Gates, and how to run them
 
-    CI run 33582613697   head 22c9873   SUCCESS
+    uv run --frozen python docs/reviews/check-review-coverage.py
+    uv run --frozen python docs/reviews/check-checkers-are-wired.py
+    uv run --frozen python docs/reviews/check-clause-citations.py
+    uv run --frozen python docs/reviews/check-obligations.py
+    uv run --frozen python docs/reviews/check-design-freeze.py
+    uv run --frozen python docs/reviews/check-design-citations.py
+    uv run --frozen python docs/reviews/check-row-floor-exactness.py
+    uv run --frozen python docs/reviews/check-brief-report-references.py
+    bash docs/reviews/check-brief-report-refs-controls.sh
+    python3 docs/reviews/check-row-floor-exactness.py --self-test
+    uv run --frozen ruff check . ; uv run --frozen ruff format --check .
+    uv run --frozen mypy ; shellcheck --severity=warning -x docs/reviews/*.sh scripts/*.sh
 
-    Static gates, supply chain and links     45s   (#143's three-job fold)
-    CodeQL                                   70s
-    Lint, types, tests                    86.6min
-
-Every earlier run in this project's history either failed or was
-cancelled. **`startup_failure` is 0 across every workflow ever**, so the
-0-job cancellations are genuine supersessions, not parse errors.
-
-### The step table, and it corrected a task headline
-
-68 completed steps in the test job, 5191s of step time:
-
-    1270s  U9 HTTP hardening amputation, every row applied
-     927s  U0 test controls, all fired
-     620s  U1 boot amputation harness ran every row
-     497s  U4 client mutation controls, all killed
-     442s  U4 client amputation harness ran every row
-     190s  U3 audit mutation controls, all killed
-
-**#154 said "the U4 client amputation harness is the step holding CI
-past 73 minutes". It is FIFTH.** U9 and U0 are 42% of the job between
-them. A failing trunk under-reports its own durations, so the ranking I
-had built was a ranking of the steps that got to run.
-
-The per-harness default is 1800s. **The largest real row is 1270s,
-n=1** — 1.42x headroom over the largest OBSERVED row. No cap was
-changed: one observation is a lower bound on a maximum.
-
-## Gates at `33fc977`, and which of them CI runs
-
-    ruff check . / ruff format --check .                    0
-    mypy                                    0   137 source files
-    check-review-coverage                   0   backlog: run it, do not
-                                                read a digit from here
-    check-checkers-are-wired                0   131 members, 72 wired,
-                                                59 unwired-with-reason
-                                                + --self-test 35/35
-    check-design-freeze                     0   blob equal
-    check-clause-citations                  0
-    check-obligations                       0   31 mappings
-    check-row-floor-exactness               0
-    probe-mirror-zero-refs.sh               0   3/3, floor 3   NEW
-    shellcheck --severity=warning -x        0
+All green at `72fe217`.
 
 **actionlint is NOT INSTALLED here.** CI runs it with
-`SHELLCHECK_OPTS=--severity=warning`; I could not, and say so rather
-than claim the gate. That is the whole of what could not be run.
+`SHELLCHECK_OPTS=--severity=warning`; say so rather than claiming it.
 
-**RUN CI'S EXACT INVOCATION, FLAGS AND ALL.** Broken three times in one
-evening: `check-committed-file-types.py` bare (staged set, 0 files, exit
-0 — which hid a red trunk for 127 commits), `python3` where CI uses
-`uv run --frozen python`, and `actionlint` without its `SHELLCHECK_OPTS`.
+**READ EACH EXIT CODE ON ITS OWN LINE.** Three verification shapes bit
+me in one session, all one family:
 
-## Agents and panes
+    cmd >/dev/null && echo "OK"     # && short-circuits; under set -e only
+                                    # the LAST command of an AND-list
+                                    # triggers errexit. Hid a ruff red.
+    rc=0; cmd; rc=$?; echo "$rc"    # REPORTS a failure without stopping.
+                                    # I committed over a red gate once.
+    Briefs scanned: 0 ... rc=0      # WORST: a SUCCESS the gate had not
+                                    # earned, over a directory that did
+                                    # not exist. That is #205.
 
-`suborch-187` is live on the floor-container widening, worktree
-`fmj-worktrees/w187`, branch `fix/187-floor-container`. Everything else
-is stopped.
+The commit scripts now end with an explicit `REFUSING TO COMMIT ON RED`,
+and it has blocked two commits that would otherwise have landed red.
 
-**`TaskStop` DOES free a pane — my previous version said it does not,
-and that was wrong.** Stopping eight agents took window 3 from 13 agent
-panes to 5. What is actually binding is GEOMETRY: at 272x50 a window
-holds about six panes, so `Agent` fails with "no space for new pane"
-well before any count limit. Stop finished agents before concluding you
-cannot dispatch, and check `tmux list-panes -a` rather than `ListAgents`
-alone — some panes belong to OTHER sessions and must not be touched.
+## Agents live right now
+
+    review-r21    reviewing c749334..main in fmj-worktrees/r21
+    suborch-204   the bare `:NNN` citation form, in fmj-worktrees/w204
+
+**`TaskStop` DOES free a pane.** What binds is GEOMETRY: at 272x50 a
+window holds about six panes, so `Agent` fails with "no space for new
+pane" well before any count limit. Check `tmux list-panes -a`, and note
+some panes belong to OTHER sessions and must not be touched.
 
 **Every brief must carry §0 VERBATIM.** The Task tools are DEFERRED and
-absent from an agent's opening toolset, so "TaskGet before acting on any
-assignment" is unfollowable without it, and its failure is silent: the
-agent finds no such tool and improvises.
+absent from an agent's opening toolset, so "TaskGet before acting" is
+unfollowable without it, and its failure is silent.
+
+**RECORD A REVIEWER'S REPORT AS IN FLIGHT IN THE SAME COMMIT AS ITS
+BRIEF.** A brief naming its report CITES it, so
+`check-brief-report-references.py` goes red until the report lands.
+Learned by hitting it three times after the fact.
+
+## Rulings made this session, none of them yet reviewed
+
+- **ADR citations are AS AT acceptance and are NOT repointed**
+  (`docs/adr/README.md`). 46 of 64 measured DRIFTED. No gate was red -
+  `check-design-citations.py` proves a line EXISTS - so this is a
+  convention, not a fix. The SHA-per-ADR remedy was refused because it
+  ALREADY EXISTS in five ADRs and already failed: ADR-0019 names its
+  blob and all four of its citations drifted anyway.
+- **The brief-report gate cannot tell a CITATION from a QUOTATION, and
+  that false positive is ACCEPTED** (its docstring). Remedy is to
+  rewrite the prose. An EXEMPT marker was refused on the measured
+  47->61 inflation a bare-substring marker already caused here.
+- **The obligation is REPORTING; filing a task is the brief's to grant**
+  (`PREAMBLE.md`). It contradicted `PROTOCOL-sub-orchestrators.md` and
+  an agent was caught between them.
 
 ## What tonight established, beyond the individual fixes
 
-**A FIX THAT REPLACES A COUNT MUST NOT WRITE ANOTHER COUNT.** ADR-0034
-ruled that a stale ADR count is DELETED, not corrected. Its own
-blockquote then said 33; R19 caught it; I "fixed" it to 34; ADR-0035
-landed one commit later and made it 35. The corrected number was false
-before it was committed, inside the record that forbids the mistake.
+**A COUNT I WROTE WAS WRONG FOUR TIMES, EVERY TIME FROM A SELECTOR WITH
+A LOOSE OR MISSING EDGE.** A regex with no left boundary read
+`CODE-REVIEW-CHECKLIST.md` as a shorter name and I published that as a
+finding; `grep -c` over a table counted its header row; "twelve ADRs"
+was five; a step denominator moved four times in one day. **The only
+reason the last was caught is that another agent's number disagreed.**
 
-**A RATIO IS A JOIN, AND A JOIN OVER TWO POPULATIONS IS WRONG EVEN WHEN
-BOTH NUMBERS ARE RIGHT.** "21 of 94 steps disable errexit" — 94 counts
-NAMED steps, 17 of which are `uses:` steps that execute no shell and can
-never be members. The numerator could only come from the `run:` steps,
-which were 86 at that moment and are 87 now because the very commit that
-corrected the sentence added one. Found because the tool printed a
-smaller step count across MORE files one line below its own docstring.
+**A DATED PAST-TENSE FIGURE ONLY RESOLVES AN AMBIGUITY COARSER THAN THE
+RATE THE FIGURE MOVES.** Every commit in the range carried the same
+date, so the date could not disambiguate 86 from 90.
 
-**A CONTROL THAT REPORTS INSTEAD OF ASSERTING IS NOT A CONTROL.** The
-mirror push step's comment said "mirroring nothing and mirroring
-everything must not both read as success" and shipped an `echo` of the
-ref list. Nothing counted it. In a step that has never once executed,
-because there has never been a MIRROR_TOKEN.
+**A CLEAN MERGE SAYS NOTHING ABOUT WHAT IT OVERWRITES.** An agent
+yielded to my version, reverted its own hunk, and verified zero
+conflicts - but I had already hand-resolved both into a superset, so its
+clean merge would have replaced the superset with the weaker half.
 
-**A REPORT THAT WAS WRITTEN IS NOT A REPORT THAT WAS COMMITTED.**
-`REVIEW-R18.md` exists in NO git object — written into a worktree that
-was then removed. `REVIEW-R19.md` was reachable from exactly one ref
-until this session merged it. Task #4 records the same loss for R1.
-That is #192.
-
-**MY OWN INSTRUMENTS MISLED ME THREE TIMES IN ONE HOUR**, each nearly
-published as a finding about someone else's work: `| head` gave Python
-exit 120 and I read it as a gate failing; a positive control passed when
-it should have failed because the file it tested was UNTRACKED and the
-container is `git ls-files`; and two path guesses returned clean empties
-from directories that do not exist.
+**A REFUSAL THAT MISDIAGNOSES IS WORSE THAN A BARE ONE.** The floor
+control told me a `.sh` file "is not bash". Two members, two different
+reasons, one hardcoded sentence asserting the wrong one for half of them.
 
 ## What I would pick up first
 
-1. **Collect `suborch-187`** and fold `fix/187-floor-container`.
-2. **Push, then WATCH THE RUN TO A CONCLUSION.** One green run is not a
-   repeatable green run.
-3. **#192 first among the new ones**: make committing the report part of
-   the reviewer brief, not an assumption.
-4. **#158 and #9 are PHIL'S**: `main` has no branch protection and zero
-   rulesets, and six OIDC roles use wildcard subject claims.
-5. **#106 and #160 stay blocked** on `STANDARDS_TOKEN` and on a CodeQL
-   findings before/after.
-6. **#162 is a standing hazard, not a task to close.** A `TaskUpdate`
-   re-emits the original description as a fresh assignment. Catch it
-   TEXTUALLY; `assignedBy` has read `team-lead` for an agent's own echo,
-   so the social tell fails.
-7. **`review/r18` must NOT be merged** — superseded, and merging it
-   would revert `probe-131-gate-state.sh` from 341 lines to 190.
+1. **Collect `review-r21` and `suborch-204`.**
+2. **Push, then WATCH THE RUN TO A CONCLUSION.**
+3. **#194's remaining half**: `probe-131-gate-state.sh` CAN be watched -
+   read `rows=N` from a first run rather than predicting it;
+   `probe-wired-checker-amputation.py` needs its own `--self-test`.
+4. **#158 and #9 are PHIL'S**: no branch protection, zero rulesets, and
+   six OIDC roles with wildcard subject claims.
+5. **#106 and #160 stay blocked** on `STANDARDS_TOKEN` and a CodeQL
+   before/after.
+6. **#162 is a standing hazard** and its row no longer carries a count,
+   because the population is "sightings someone happened to mention".
+7. **`review/r18` must NOT be merged** - superseded. Merging it would
+   shrink `probe-131-gate-state.sh` to its 190-line version. Derive both
+   rather than trusting a digit here; main's has grown twice since this
+   warning was first written, and the pair is:
+
+       git show review/r18:docs/reviews/probe-131-gate-state.sh | wc -l
+       wc -l < docs/reviews/probe-131-gate-state.sh
