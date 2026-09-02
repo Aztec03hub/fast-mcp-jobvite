@@ -64,9 +64,17 @@ name: Mirror to personal fork
 # a red tick beside their own commit. So the first step no longer only reports
 # its own configuration - it reports whether the MIRROR IS ACTUALLY CURRENT, by
 # comparing the two remotes' refs. That check needs no token and no working
-# mirror, so it is meaningful today, it would have been red for all 119 runs of
-# the original defect, and it stays meaningful whichever mechanism does the
-# copying. Two failure modes remain and are named rather than hidden:
+# mirror, so it is meaningful today and stays meaningful whichever mechanism
+# does the copying.
+#
+# It would NOT have caught R3-H1, and the first draft of this paragraph claimed
+# it would. Those 119 runs died before any job was scheduled, so no step of any
+# kind ran; nothing written inside a step could have spoken. What this check
+# adds is the THIRD state: R3-H1's fix separated "switched off" from "broken",
+# and this separates both from "running but copying nothing" - which is the
+# state this repository has been in for 213 billed runs with nobody saying so.
+#
+# Two failure modes remain and are named rather than hidden:
 #
 #   * GitHub disables a scheduled workflow after 60 days of repository
 #     inactivity, and emails the owner. That is a real way this stops silently
