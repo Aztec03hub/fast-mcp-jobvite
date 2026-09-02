@@ -28,5 +28,4 @@
 # line belongs here at DISPATCH time, not after the gate catches you.
 # Add it in the same commit as the brief; delete it when the report
 # lands, which the gate will demand.
-WORKLOG-208-orphan-leads.md  2026-09-02 IN FLIGHT: suborch-208 is dispatched and BRIEF-208-orphaned-by-repoint.md names this worklog by path. Recorded AT DISPATCH; delete when it lands.
 FINDINGS-213-syntax-split.md  2026-09-02 IN FLIGHT: suborch-213 is dispatched and BRIEF-211-213-record-and-counterfactual.md names this probe output. Designed to EXPIRE - when it lands the gate fails with "a recorded entry now resolves" and this line must go.
