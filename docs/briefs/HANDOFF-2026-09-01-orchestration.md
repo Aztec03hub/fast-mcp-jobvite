@@ -3,7 +3,7 @@
 Verified by running it at `3d7a82f`. Trunk is `ccbdaae` on both remotes;
 `3d7a82f` is one commit ahead, local, unpushed.
 
-## READ THIS FIRST: this document has been wrong three times
+## READ THIS FIRST: this document has been wrong FOUR times
 
 Version 1 said **"Main is GREEN locally, on every gate"** and listed six
 gates, all 0. Every number was true and the claim was false: the gate
@@ -16,8 +16,13 @@ Version 3 (this one's predecessor) said main was `09477ee` and listed
 five gates that no longer exist under those names, because #143
 consolidated three CI jobs into one.
 
-All three are one defect: **a claim about a whole, evidenced by a sample
-or a snapshot.** So every count below carries its container and its sha.
+Version 4 is THIS one, corrected before you read it: it listed four
+hand-run probes under "Gates ... run with CI's exact invocation" when CI
+runs none of them. True about my terminal, false about the repository.
+
+All four are one defect: **a claim about a whole, evidenced by a sample
+or a snapshot.** So every count below carries its container and its sha,
+and anything CI does not run says so on its line.
 
 ## Where the trunk actually is
 
@@ -33,16 +38,26 @@ pending run is free; pushing while you care about a RUNNING one is not.
 
 ## Gates at `3d7a82f`, every one run with CI's exact invocation
 
+**AND FOUR OF THESE ARE NOT IN CI AT ALL.** `probe-coverage-ratchet`,
+`probe-ci-checker-steps`, `probe-ci-checker-steps-control` and
+`control-stranded-mutation.sh` are named in no workflow: I ran them, CI
+does not. Only 4 of 28 `docs/reviews/probe-*` files are wired anywhere,
+and `check-checkers-are-wired.py` cannot see the other 24 because its
+container is `check-*` BY PREFIX (#155). Listing a hand-run probe under
+"gates" without that mark is this document's fourth version of its own
+recurring defect - a claim about the repository, evidenced by my
+terminal.
+
     ruff check . / format --check / mypy                    0
     scripts/check-committed-file-types.py --all             0   RUN IT WITH --all
     check-cross-references / design-freeze                  0
     check-checkers-are-wired                                0
     check-landing-published                                 0   NEW (#152)
     check-review-coverage                                   0   backlog 86
-    probe-coverage-ratchet                                  0   9/9 arms
-    probe-ci-checker-steps / -control                       0   34-block bucket now 0
+    probe-coverage-ratchet                                  0   9/9 arms, NOT IN CI
+    probe-ci-checker-steps / -control                       0   34-block bucket now 0, NOT IN CI
     check-harness-result.sh                                 0   30 print == 30 publish
-    control-stranded-mutation.sh                            0   26 arms
+    control-stranded-mutation.sh                            0   26 arms, NOT IN CI
     check-no-errexit / no-sigpipe / row-floors / exactness   0
     check-obligations                                       0
     check-harness-anchors --self-check --floor 458          0
