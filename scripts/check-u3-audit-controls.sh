@@ -20,6 +20,27 @@
 # Every mutation is grepped for BEFORE the suite runs (it landed) and the file
 # is grepped again AFTER the restore (it is gone), because `git checkout --` is
 # how a mutation harness silently reverts the fix it was meant to be testing.
+#
+# PER-ROW SELECTION (task #252). Each row runs only the tests that actually
+# EXECUTED the lines it mutates, derived from a coverage map the baseline below
+# builds on the pristine tree. The mechanism is `scripts/lib/select-covering-tests.py`
+# and it is the same one `check-u9-http-amputation.sh` and
+# `check-u4-client-amputation.sh` already use; its docstring carries the argument
+# for why this asks the identical question. Two things about it are load-bearing
+# HERE and are stated at the call site rather than left to be re-derived:
+#   * the WIDE fallback. `rc=4` from the deriver means "no in-process test
+#     covered these lines" and the row runs the whole `$SUITE`. This project
+#     measures NO coverage inside a child process, and one of the three files in
+#     `$SUITE` exists precisely because it drives one - so the map is blind to
+#     that file by construction and the fallback is the only thing that can see
+#     past it.
+#   * the verdict is unchanged and stays FAIL-CLOSED under narrowing. A row
+#     passes only when the NAMED test goes red. If a selection ever dropped that
+#     test, its row could not silently pass: it would report SURVIVED, or "red
+#     but not at $want", and either way `FAIL` goes up and the harness exits 1.
+#     Narrowing here cannot manufacture a green, which is why the selection that
+#     is refused on the amputation harness - where narrowing shrinks the SURVIVOR
+#     LIST, its product, by construction - is admissible on this one.
 
 set -uo pipefail
 
@@ -53,6 +74,18 @@ REDACT="src/fast_mcp_jobvite/utils/redaction.py"
 # to hide.
 SUITE="tests/test_audit.py tests/test_redaction.py tests/test_logging_process.py"
 
+# THE COVERAGE MAP. Built by the baseline below, on the PRISTINE tree, and read
+# once per row to pick the tests that executed the lines that row is about to
+# mutate. The database is this run's own, so it cannot be stale against the tree
+# being mutated - the same construction as
+# `scripts/check-u9-http-amputation.sh` (COVDB at :93, map build at :94-95) and
+# `scripts/check-u4-client-amputation.sh` (:88-90).
+COVDB="$(mktemp /tmp/u3-controls-covdb-XXXXXX)"
+# `harness_result_emit` FIRST. `lib/harness-result.sh` armed an EXIT trap at
+# source time and bash has no trap stack, so this trap REPLACES it - chaining
+# the emitter into the front is what keeps an abort from rendering as silence.
+trap 'harness_result_emit; rm -f "$COVDB"' EXIT
+
 PASS=0
 FAIL=0
 
@@ -73,7 +106,15 @@ if [ -n "$(git status --porcelain -- "$AUDIT" "$REDACT")" ]; then
 fi
 
 echo "########## BASELINE - the intact tree"
-timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >/tmp/u3-base.txt 2>&1
+# The baseline DOUBLES as the coverage-map build: `--cov-context=test` records
+# which test executed which line, and every row below selects out of exactly
+# this run of exactly this tree. `--cov-report=` suppresses the report (the map
+# is the product, not the percentage) and `--cov-fail-under=0` stops
+# pyproject's `fail_under` turning a three-file slice of the suite into a red
+# baseline it was never meant to satisfy.
+COVERAGE_FILE="$COVDB" timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
+  -p no:cacheprovider --cov --cov-context=test --cov-report= --cov-fail-under=0 \
+  >/tmp/u3-base.txt 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -94,6 +135,67 @@ echo
 # ---------------------------------------------------------------------------
 run_mutation() {
   local id="$1" file="$2" old="$3" new="$4" want="$5"
+
+  # WHICH TESTS EXECUTED THE LINES THIS ROW IS ABOUT TO MUTATE. Derived from the
+  # PRISTINE tree and BEFORE the write below, because the deriver locates the
+  # anchor by text and converts it to line numbers - and the numbers have to be
+  # the ones the map was built from.
+  #
+  # rc=4 is "no in-process test covered these lines" and falls back WIDE to the
+  # whole `$SUITE`. Any other non-zero rc is a broken precondition and STOPS the
+  # harness: a selection computed from a wrong precondition is a silent wrong
+  # zero, and here it would be a silent wrong KILL.
+  #
+  # The selector is PRINTED, one line per row. A count cannot show which row
+  # narrowed to what, and every wrong reading of this column in this project so
+  # far has survived being counted and died on being listed.
+  local sel sel_rc
+  sel=$(printf '%s' "$old" | COVERAGE_DB="$COVDB" \
+    python3 scripts/lib/select-covering-tests.py "$file")
+  sel_rc=$?
+  if [ "$sel_rc" -eq 4 ]; then
+    sel="$SUITE"
+    echo "$id: SELECTOR fallback=WIDE (no in-process coverage) -> \$SUITE"
+  elif [ "$sel_rc" -ne 0 ]; then
+    echo "$id: SELECTOR FAILED (rc=$sel_rc) - fix the harness. STOPPING."
+    exit 3
+  else
+    # THE SELECTION MUST CONTAIN THIS ROW'S NAMED KILLER, or it is not a
+    # selection this row can use. MEASURED, and it is why this branch exists
+    # rather than being reasoned into the file: M10's killer is
+    # `test_audit_scope_calls_request_id_scope_rather_than_setting_the_var_itself`,
+    # which `ast.parse`s audit.py and asserts over the TREE. It never EXECUTES
+    # the lines M10 mutates, so no arc is attributed to it and the map cannot
+    # name it - and the first run of this conversion took M10 from `killed` to
+    # `red, but NOT at $want`.
+    #
+    # That refutes, in this tree today, the premise
+    # `scripts/lib/select-covering-tests.py` states for itself: "a test that
+    # never EXECUTES the mutated statements cannot go red because of them". A
+    # source-READING test can, and 16 of the test modules here import `ast` or
+    # call `inspect.getsource`. The deriver has no way to know that; the caller
+    # does, because a CONTROLS row names the test it requires.
+    #
+    # Matching is the SAME substring rule the verdict below uses (`grep -q
+    # "$want"`), on purpose: two different rules for one name is how a row
+    # passes one check and fails the other. `$want` is sometimes a prefix
+    # (`test_arm3`, `test_case2`) and both sites must read it the same way.
+    case "$sel" in
+      *"$want"*)
+        local -a sel_nodes
+        # Word-splitting is WANTED: the deriver prints a space-separated node-id
+        # list and `pytest $sel` below consumes it the same way, exactly as
+        # `check-u9-http-amputation.sh:186` does.
+        # shellcheck disable=SC2206
+        sel_nodes=($sel)
+        echo "$id: SELECTOR ${#sel_nodes[@]} node(s): $sel"
+        ;;
+      *)
+        sel="$SUITE"
+        echo "$id: SELECTOR fallback=WIDE (the map does not name $want) -> \$SUITE"
+        ;;
+    esac
+  fi
 
   if ! OLD="$old" NEW="$new" FILE="$file" python3 - <<'PY'
 import os, pathlib, sys
@@ -142,7 +244,10 @@ PY
     return
   fi
 
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rf >/tmp/u3-mut.txt 2>&1
+  # `$sel` is the covering node-id list derived above, or the whole `$SUITE` on
+  # the wide fallback. Unquoted on purpose - it is a LIST, and quoting it would
+  # hand pytest one impossible node id.
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rf >/tmp/u3-mut.txt 2>&1
   local rc=$?
   if [ "$rc" -eq 124 ]; then
     echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
@@ -155,14 +260,19 @@ PY
     exit 3
   fi
 
+  if [ "$rc" -eq 5 ]; then
+    echo "$id: NOTE - pytest exit 5, the selection resolved NO test. Read the"
+    echo "  verdict below as a broken selector, not as a property of the code."
+  fi
+
   if [ "$rc" -eq 0 ]; then
-    echo "$id: SURVIVED - the suite stayed green. NOT A CONTROL."
+    echo "$id: SURVIVED - the selected tests stayed green. NOT A CONTROL."
     FAIL=$((FAIL + 1))
   elif grep -q "$want" /tmp/u3-mut.txt; then
     echo "$id: killed by $want"
     PASS=$((PASS + 1))
   else
-    echo "$id: suite went red, but NOT at $want - a coincidence, not a control"
+    echo "$id: the selected tests went red, but NOT at $want - a coincidence, not a control"
     grep -E '^FAILED' /tmp/u3-mut.txt | sed 's/^/      /' | head -5
     FAIL=$((FAIL + 1))
   fi
