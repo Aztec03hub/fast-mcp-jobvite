@@ -1185,7 +1185,9 @@ jobs:
       - name: Every checked row floor EQUALS its harness's live row count
         run: python3 docs/reviews/check-row-floor-exactness.py
 
-      # THE SIXTEEN ARMS OF THE STEP ABOVE, run by nobody until this landed.
+      # THE ARMS OF THE STEP ABOVE, run by nobody until this landed. The
+      # live count is printed by the step itself - a number retyped here
+      # decays, which is the rule that checker's own docstring states.
       # #187 rebuilt that checker's container as a KIND rather than a glob,
       # and the fold at 65fabe4 added two more members; the live census is
       # printed by the step above under `CONTAINER:`. A container change to a
