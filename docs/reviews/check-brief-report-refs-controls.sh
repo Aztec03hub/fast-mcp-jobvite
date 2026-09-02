@@ -45,7 +45,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CHECKER="$ROOT/docs/reviews/check-brief-report-references.py"
 PY=(uv run --frozen python)
 
-ROW_FLOOR=22
+ROW_FLOOR=25
 ROWS=0
 FIRED=0
 
@@ -233,8 +233,18 @@ fi
 # A11 - delete the LEFT BOUNDARY; A10 must go red. Without this arm the
 # lookbehind can be removed and nothing notices, which is exactly how
 # the false finding shipped in the first place.
+#
+# THE ANCHOR MOVED WITH #209 AND HAD TO. It was `/(?<!/d` - delete every
+# line containing the lookbehind. That was safe while the lookbehind
+# appeared once in a comment and once inside `re.compile`; now it is a
+# NAMED CONSTANT that `REF` and `RECIPE` are both built from, so
+# deleting the line raises NameError at import and the arm would go red
+# at rc=1 for a reason that has nothing to do with the boundary. Same
+# colour, different subject - which is the failure A8 named. Emptying
+# the constant removes the boundary from BOTH consumers and from
+# nothing else, which is the amputation this arm claims to be.
 fixture_longer_name
-if amputate boundary '/(?<!/d'; then
+if amputate boundary 's/^BOUNDARY = .*$/BOUNDARY = ""/'; then
   record ""
   row "A11 AMP left boundary -> A10 goes red at 1" "$AMP" 1
 fi
@@ -316,6 +326,115 @@ if amputate briefsdir 's/^    if not args\.briefs\.is_dir():$/    if False:/'; t
   else
     echo "  FAIL A22 AMP briefs-dir (rc=$rc, wanted 0)"
   fi
+fi
+
+# --- #209: the PUBLISHED RECIPE and the GATE must be one population ----
+# The docstring's "re-derive without trusting this file" recipe used to
+# be a SECOND hand-written selector, and it drifted: no left boundary,
+# so it returned `REVIEW-CHECKLIST.md` - the truncated name 1985471
+# retracted, which has never been a file. Measured over docs/briefs at
+# a52af14: the loose recipe 27 names, the gate 26, and the single
+# difference was that phantom. `--recipe` now prints a one-liner
+# composed from the SAME `BOUNDARY` and `NAME` the gate's `REF` is
+# composed from, and these three arms are what stops the two ever
+# disagreeing again.
+#
+# THE FIXTURE CARRIES BOTH TRAPS AT ONCE: the longer name whose TAIL a
+# free left edge matches, and a non-`.md` file that `grep -r` reads and
+# `cited()` does not.
+mkdir -p "$tmp/recipe-briefs/sub"
+cat > "$tmp/recipe-briefs/BRIEF-a.md" <<'EOF'
+See `docs/reviews/REVIEW-PRESENT.md` and REVIEW-ABSENT.md.
+Also `docs/CODE-REVIEW-CHECKLIST.md`, which is NOT a report citation.
+EOF
+cat > "$tmp/recipe-briefs/sub/BRIEF-b.md" <<'EOF'
+Filed one directory down, citing WORKLOG-SUB.md.
+EOF
+cat > "$tmp/recipe-briefs/notes.txt" <<'EOF'
+Not a brief, and it names FINDINGS-NOT-A-BRIEF.md.
+EOF
+
+# recipe_row <label> <checker> <same | the exact names the recipe ADDS>
+#
+# It runs the checker's OWN printed recipe through a real shell, so the
+# subject is the published text and not a copy of it. `set -o pipefail`
+# inside that shell is load-bearing: without it the pipeline's status is
+# `sort`'s, so an UNSUPPORTED `-P` or a bad pattern would exit 0 with an
+# empty result and read as "the gate found nothing" - the clean zero
+# that explains itself. grep's rc=1 (no matches) is a legitimate answer
+# and is admitted; anything above 1 is a broken instrument and the arm
+# says so instead of comparing two empty files.
+recipe_row() {
+  ROWS=$((ROWS + 1))
+  local cmd rc
+  if ! cmd=$("${PY[@]}" "$2" --briefs "$tmp/recipe-briefs" --recipe 2>&1); then
+    echo "  FAIL $1 - --recipe itself failed: $cmd"
+    return 0
+  fi
+  rc=0
+  bash -c "set -o pipefail; $cmd" > "$tmp/recipe.out" 2>"$tmp/recipe.err" || rc=$?
+  if [ "$rc" -gt 1 ]; then
+    echo "  FAIL $1 - the recipe command exited $rc (broken instrument)"
+    sed 's/^/       /' "$tmp/recipe.err"
+    return 0
+  fi
+  if ! "${PY[@]}" "$2" --briefs "$tmp/recipe-briefs" --list-names \
+      > "$tmp/listnames.out" 2>/dev/null; then
+    echo "  FAIL $1 - --list-names itself failed"
+    return 0
+  fi
+  # The comparison is SET-WISE and in BOTH directions, and the expected
+  # difference is NAMED. "they differ" would be satisfied by any two
+  # edges being loose at once, which is how an arm ends up red for a
+  # reason other than the one it claims.
+  local added removed
+  added=$(comm -23 "$tmp/recipe.out" "$tmp/listnames.out" | tr '\n' ' ')
+  removed=$(comm -13 "$tmp/recipe.out" "$tmp/listnames.out" | tr '\n' ' ')
+  added=${added% }
+  removed=${removed% }
+  if [ -n "$removed" ]; then
+    echo "  FAIL $1 - the GATE sees names the recipe does not: $removed"
+    return 0
+  fi
+  local want=""
+  if [ "$3" != "same" ]; then want="$3"; fi
+  if [ "$added" = "$want" ]; then
+    FIRED=$((FIRED + 1))
+    if [ "$3" = "same" ]; then
+      echo "  ok   $1 (identical, $(wc -l < "$tmp/listnames.out") names)"
+    else
+      echo "  ok   $1 (recipe adds exactly: $added)"
+    fi
+  else
+    echo "  FAIL $1 (recipe adds [$added], wanted [$want])"
+  fi
+}
+
+# A23 - the published recipe returns EXACTLY the gate's population.
+recipe_row "A23 --recipe == --list-names -> identical" "$CHECKER" same
+
+echo "########## amputations (recipe)"
+
+# A24 - PUT THE #209 DEFECT BACK: `-E`, no lookbehind. A23 must go red
+# and the name that appears must be `REVIEW-CHECKLIST.md`, the phantom
+# 1985471 retracted.
+#
+# IT KEEPS `--include='*.md'`, WHICH THE PRE-FIX RECIPE DID NOT HAVE.
+# The real pre-fix line had BOTH edges loose, so an arm asserting only
+# "they differ" would have been satisfied by the file-type edge alone
+# and would have proved nothing about the boundary it names - the A8
+# confound, for the third time in this file. Each arm loosens ONE edge
+# and NAMES the one name that must appear.
+if amputate recipe_loose "s#^RECIPE = .*\$#RECIPE = \"grep -rhoE --include='*.md' '(REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+[.]md' {briefs} | sort -u\"#"; then
+  recipe_row "A24 AMP loose recipe -> A23 goes red" "$AMP" REVIEW-CHECKLIST.md
+fi
+
+# A25 - drop `--include='*.md'` and keep the selector. `grep -r` then
+# reads notes.txt, which `cited()` never opens. This edge costs nothing
+# TODAY - all 83 files under docs/briefs are .md - so without this arm
+# it would be prose nobody could falsify.
+if amputate recipe_allfiles "s#^RECIPE = .*\$#RECIPE = \"grep -rhoP '\" + BOUNDARY + NAME + \"' {briefs} | sort -u\"#"; then
+  recipe_row "A25 AMP no --include -> A23 goes red" "$AMP" FINDINGS-NOT-A-BRIEF.md
 fi
 
 harness_result_tally fired "$FIRED" "$ROWS"
