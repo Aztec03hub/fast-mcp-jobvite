@@ -140,3 +140,7 @@ fd300ec NONE #149 M-4: the wiring probe now RUNS, in a job of its own
 9ce969f NONE The restorer never read the `repo=` field it has always 
 d0bdf2a NONE BASH-1: the count was 20 against a population of 39, and
 fd500c7 NONE R18-H2: fourteen green rows and the transport was never 
+46b09c4 NONE R18-M2: the mirror step went red on any fork, and the ob
+6e09af1 NONE R18-N1: a trailing slash on --repo named a different sta
+c0f1524 NONE Re-freeze DESIGN.md at e3b5c97, the commit ADR-0034 chan
+e3b5c97 NONE ADR-0034: DESIGN.md's "all eleven ADRs" is DELETED, not 
