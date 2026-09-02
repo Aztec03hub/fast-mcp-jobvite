@@ -5,8 +5,12 @@ SANE, THAT WAS THE POINT OF THE AUDIT. FULL CI IS NOT TO TAKE MORE THAN
 5 MINS WHEN REVAMP IS DONE."
 
 Written by `blackthorn-revamp` on branch `ci/238-revamp`, worktree
-`/tmp/w238-ci-revamp`, off main at `04432c5`. Input map:
-`docs/reviews/AUDIT-237-ci.md` (the 111-step table; not re-derived here).
+`/tmp/w238-ci-revamp`. Started off main at `04432c5`; main then moved
+under the task and `33c23e0` is merged in (`ci.yml` was identical at
+both bases, so the merge was clean). Inputs: `AUDIT-237-ci.md` (the
+111-step map), `PROFILE-240-harness-cost.md` (execution is 96.6% of a
+row; selection proved on U9 A1), and #241 (the double suite run,
+verified safe to merge).
 
 Timing sources, marked per figure: **(G)** = per-step wall-clock from
 green run `33582613697`, the only fully green run of the old shape;
@@ -213,16 +217,36 @@ tree after this file was committed: rc=0, recorded below the table.
 
 ## 7. The arithmetic for the new shape - labelled prediction (P)
 
+The lead's run `33605986404` corrected the audit's 222s product path to
+an OBSERVED 318s pole job / 323s run wall - the gap is job startup,
+checkout, sync and inter-step gaps that per-step sums do not carry. #241
+then attributed 241s of that 318s to the suite running TWICE (plain
+117s, --cov 124s) with no stated reason anywhere, and verified the merge
+four ways. This branch applies it: ONE `pytest --cov` run, the zero-skip
+guard and the 888 floor read its output, the separate Coverage step is
+deleted, and the ADR-0010 floors read the same run's coverage.json. Run
+here with the step's exact body: rc=0, `888 passed, 6 deselected`,
+`suite floor OK: 888 passed, floor 888`, skip guard positive-controlled
+on a synthetic skip in the --cov output shape, check-coverage-floors
+rc=0 on the produced json. The B59 obligation anchor (its subject: no
+positional path, so testpaths stays authoritative) was repointed to the
+merged command; check-obligations: "Mappings: 31 | anchors verified
+against their subject: 25 | recorded as absent: 6 ... OK." (verbatim).
+
 Job pole estimates, runner-scaled at the observed 1.5x where (L):
 
-    test job (unchanged product path)      222s (G)   = 3.7 min  <- pole
+    test job  318s observed - ~117s (#241)  = ~201s   = ~3.4 min <- pole
     harness-u9-amputation  ~195s (P from 130s L)      = ~3.3 min
     harness-u3-controls    190s (G)                   = ~3.3 min
     harness-u4             ~180s (P from 118s L)      = ~3.0 min
     every other harness job                          <= ~3 min
     codeql 67s, static-gates 44s, wiring-probe 17s (G)
 
-    PREDICTED wall for full CI: ~4 min      (P)
+    PREDICTED wall for full CI: ~3.5-4 min  (P)
+    Further knob, deliberately NOT taken: the 33s secret-scan step is
+    movable out of the test job (#241 verified no dependency), worth
+    ~0.5 min off the pole. Left in place: the budget holds without it
+    and the churn does not pay.
     PREDICTED billed: ~30-40 job-min        (P)  vs ~90 before -
       the sum of steps fell ~55 min; 12 new prologues (~10s each) and
       12 more billed-minute roundings buy the wall-clock. #143 optimised
@@ -236,6 +260,28 @@ week was corrected by a measurement; these will be too. The first push
 of this branch is the measurement: read the run's wall-clock and its
 billed minutes from the API, and correct §7 in place.
 
+## 7b. The three ci/237-audit items, settled
+
+1. **Five stale `NEVER EXECUTED` comments**: carried verbatim from
+   `632c679` (head block, both SBOMs, TruffleHog, lychee, CodeQL), each
+   now dated to run 33582613697.
+2. **The `0 6 * * *` nightly cron**: REFUSED. Its whole purpose was to
+   make "the harnesses run nightly" true; on this branch the harnesses
+   run on every trigger, so the schedule-only cadence it patched no
+   longer exists. The weekly Sunday sweep stays as a redundant full run
+   (its advisory-rot rationale in the trigger comment still holds).
+3. **The "What this push green does and does not certify" notice**: NOT
+   carried. It states that a push green skips 41 harness steps; on this
+   branch a push green skips nothing, so the notice would be a false
+   statement printed on every run. This green narrows nothing, which is
+   the stronger fix for #231's open half than announcing a narrowing.
+
+Flagged, not built (Tier 0's call): nothing watches ci.yml's own cron
+for GitHub's 60-day auto-disable, the way mirror-liveness watches the
+mirror. With everything on push the blast radius is small (the weekly
+sweep is redundant coverage, not sole coverage), but a silently stopped
+schedule still renders like a passing one.
+
 ## 8. What changed, by commit
 
     f516679  probe-repoint-fail-closed.py fixed (both breaks, §4)
@@ -243,10 +289,13 @@ billed minutes from the API, and correct §7 in place.
     ee9f005  ci.yml: 41 guards deleted, 12 harness-* jobs, prose
              rewritten in place, test timeout 180 -> 15;
              check-checkers-are-wired declares the selector
+    (merge)  main 33c23e0 merged in - #240's scripts and measurements
+    (last)   one --cov suite run (#241 applied), the five comment
+             corrections carried, B59 anchor repointed, §7/§7b rewritten
 
 ## 9. What I did NOT verify
 
-- **No run of the new workflow shape has executed.** The ~4 min wall and
+- **No run of the new workflow shape has executed.** The ~3.5-4 min wall and
   ~30-40 billed figures are (P). DO NOT PUSH stood for this whole task;
   the first push is the positive control. Watch: all 16 jobs schedule
   (GitHub's 20-concurrent free-tier ceiling leaves 4 of headroom),
