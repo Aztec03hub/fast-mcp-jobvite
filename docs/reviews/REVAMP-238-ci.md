@@ -465,45 +465,58 @@ reaches 300s.
 **Therefore sharding is NECESSARY.** That conclusion rests only on the
 exact number and survives everything below.
 
-### WHAT IS A BRACKET, AND WHY THE HEADLINE WAS WITHDRAWN
+### THE 12-LANE QUESTION, SETTLED WITH A REAL PACKER
 
-Earlier versions of this section stated that at 12 lanes sharding is a
-**12s regression** (311s -> 323s), and defended it with a sweep: overhead
-at 0/0.5x/1x/2x, setup at 6/8/13/15/20s, sign unchanged throughout. A
-reviewer reproduced that sweep. It was called robust.
-
-**The sign was an artifact of the packing heuristic.** The two columns are
-not in the same regime:
+Earlier versions said sharding at 12 lanes is a **12s regression** (311 ->
+323) and defended it with a sweep over overhead and setup. Round 5 showed
+the sign was an artifact: the two columns are in different regimes, so LPT
+is exact on one and loose on the other.
 
 | column | largest item | total/lanes | regime | LPT is |
 |---|---|---|---|---|
 | unsharded | 298s | 275.9s | MAX-bound | provably optimal - EXACT |
-| sharded | 227s | 293.2s | AREA-bound | an UPPER BOUND, ~5% loose here |
+| sharded | 227s | 293.2s | AREA-bound | an UPPER BOUND |
 
-So the section differenced an **exact** number against an **upper bound**
-and published the gap as a finding. An explicit 12-lane packing of the same
-35 sharded items reaches 296.0s of lane load, **309.0s with setup - 2s
-BELOW the unsharded floor.**
+The section differenced an exact number against an upper bound.
 
-**At 12 lanes the sharded figure is a bracket of 306-323s. The sign is NOT
-ESTABLISHED**, and under a minimising packer there is no crossing lane at
-all.
+**Re-run with a lower bound and a local-search packer** (LPT plus steepest
+descent on moves and pair swaps, 60 randomised restarts), on the same 33
+measured steps:
 
-Five rounds missed this because every perturbation re-ran the SAME
-heuristic on BOTH columns. Varying the inputs cannot expose a bias in the
-estimator; the bias moves with them. The algorithm was the one variable
-nobody varied.
+| lanes | unsharded LB / LPT / BEST | sharded LB / LPT / BEST | verdict |
+|---|---|---|---|
+| 12 | 311.0 / 311.0 / **311.0 =** | 306.4 / 323.0 / 310.5 | sharding is neutral-to-better |
+| 13 | 311.0 / 311.0 / **311.0 =** | 283.8 / 294.3 / 285.5 | **-25.5s** |
+| 14 | 311.0 / 311.0 / **311.0 =** | 264.5 / 277.0 / 275.0 | **-36.0s** |
+| 15 | 311.0 / 311.0 / **311.0 =** | 247.7 / 264.0 / 256.0 | **-55.0s** |
+| 16 | 311.0 / 311.0 / **311.0 =** | 240.0 / 245.0 / 243.0 | **-68.0s** |
 
-| lanes | unsharded (exact) | sharded (LPT upper bound) |
-|---|---|---|
-| 12 | 311s | 323s - true value >= 306s |
-| 13 | 311s | 294s |
-| 14 | 311s | 277s |
-| 16 | 311s | 245s |
-| 18+ | 311s | 240s |
+`=` marks a cell where BEST met the lower bound, so the value is PROVED.
+All figures include the 13s per-lane setup.
 
-The sharded column is an upper bound at every lane count. Where it sits
-well below 311s the conclusion is safe in direction; at 12 lanes it is not.
+**Three corrections fall out, and the last one corrects round 5 as well.**
+
+1. **The unsharded floor is 311.0s at every lane count, PROVED** - the
+   lower bound and the best packing agree exactly. That half was always
+   right and is now certain.
+2. **There is no regression at 12 lanes.** LPT said 323s; the best packing
+   found here is 310.5s and round 5 exhibited 309.0s, against a lower bound
+   of 306.4s. So the true sharded value at 12 lanes lies in
+   **[306.4, 309.0]** against an exact 311.0 - a **2 to 4.6 second WIN**,
+   not a 12 second loss.
+3. **Round 5's "under a minimising packer there is no crossing lane" is
+   right in letter and misleading in spirit.** There is no crossing because
+   sharding never LOSES: it is a small win at 12 and grows monotonically
+   from there. The old framing looked for the lane count where sharding
+   starts to pay; the answer is that it already pays.
+
+The sharded column remains an UPPER BOUND at every lane count (its BEST
+never met its LB), so each sharded cell could be a few seconds better still.
+That direction is safe: it can only widen the win.
+
+**Nothing here reaches 300s.** The best case measured is 243s at 16 lanes,
+and 12 lanes sits at ~307-311s either way. The mandate needs work REMOVED,
+not only redistributed - which is what #249 does.
 
 ### The per-harness arithmetic, and what is NOT measured
 
