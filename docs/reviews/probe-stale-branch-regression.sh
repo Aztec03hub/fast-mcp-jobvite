@@ -47,7 +47,14 @@
 # merge`, not after: this project has already had a merge resolution put
 # back damage a branch had fixed, and the reason it was caught was that
 # somebody happened to look.
-set -euo pipefail
+# NOT errexit. check-no-errexit.py forbids it in this class of harness
+# and it is right: this probe RUNS commands that are expected to fail
+# and then READS their status, and under errexit the shell exits AT the
+# command so `rc=$?` never runs. I shipped `set -euo pipefail` here and
+# it turned main RED on a wired gate - the third file of mine this
+# session to do that, every time because I ran the checkers I was
+# thinking about rather than the ones that exist.
+set -uo pipefail
 
 BASE="${BASE:-main}"
 
@@ -100,10 +107,8 @@ if [ $# -ge 1 ]; then
     # this probe's own ARM 3, which is why the arm exists: a refusal that
     # misdiagnoses is worse than a bare one, because it answers a
     # question you did not ask and sounds certain doing it.
-    set +e
     judge "$1"
     verdict=$?
-    set -e
     if [ "$verdict" -eq 2 ]; then
         printf '\nVERDICT %s: NO SUCH BRANCH. Nothing was measured.\n' "$1"
         printf 'This is not a merge judgement - the probe never ran one.\n'
