@@ -3,10 +3,20 @@
 **Status:** Accepted (orchestrator, 2026-09-02)
 **Type:** Design change
 
-> `DESIGN.md:2063` and `:2067` say **"all eleven ADRs"** and **"eleven ADRs exist"**. There are
-> **33**. And the count is the smaller error: **"all"** is false independently of it, because the
-> sentence is describing ONE OF TWO JOBS an ADR does here and the same paragraph names the other
-> job three lines below. Replacing 11 with 33 would have kept the false claim and made it larger.
+> `DESIGN.md:2063` and `:2067` say **"all eleven ADRs"** and **"eleven ADRs exist"**. Eleven is
+> not the population and has not been for a long time; **this ADR deliberately does not say what
+> the population is**, because a corrected count is a count that goes stale, and
+> `ls docs/adr/[0-9]*.md | wc -l` answers it at any moment.
+>
+> **THIS BLOCKQUOTE HAS BEEN WRONG TWICE, IN THE ADR THAT FORBIDS THE MISTAKE.** It said **33** at
+> acceptance; R19-N2 read it against the census eight lines below and corrected it to **34**; that
+> was false one commit later when ADR-0035 landed. A count written inside the record that rules
+> counts out is the strongest evidence the ruling is right.
+>
+> And the count is the smaller error: **"all"** is false independently of it, because the sentence
+> is describing ONE OF TWO JOBS an ADR does here and the same paragraph names the other job three
+> lines below. Replacing eleven with a larger number would have kept the false claim and made it
+> larger.
 
 ## Context
 
@@ -35,15 +45,20 @@ at all. It is wrong about the population doing job 1.
 
 ### Measured by KIND, not by a grep over a word
 
-Every ADR carries a `**Type:**` line, so the population can be partitioned without guessing:
+Every ADR carries a `**Type:**` line, so the population can be partitioned without guessing. The
+partition AT ACCEPTANCE, recorded as the evidence for this ruling and NOT as a live figure - the
+set has grown since, and the command below is the live answer:
 
     19  Design change
     15  Deviation
     --
     34  total   (this ADR included)
 
-**Fifteen of thirty-four do job 1.** A word-grep would have said 16 - `deviat` appears in ADRs that
-merely discuss the concept - which is why the `Type:` line is the instrument and the grep is not.
+    grep -h '^\*\*Type:\*\*' docs/adr/[0-9]*.md | sort | uniq -c
+
+**A MINORITY OF ADRs DO JOB 1** - fifteen of thirty-four when this was written. A word-grep would
+have said 16, because `deviat` appears in ADRs that merely discuss the concept, which is why the
+`Type:` line is the instrument and the grep is not.
 
 **THAT TABLE IS NOT WHAT I FIRST WROTE, AND THE DIFFERENCE IS A DEFECT THIS ADR CAUSED.** The census
 at acceptance read `17 / 14 / 1 Standards deviation / 1 Correction to a contract statement...`, and
@@ -58,7 +73,8 @@ the commit that carries this paragraph: `ADR-0023` to `Deviation` (its body argu
 `ADR-0022` and this ADR to `Design change` (a correction to the design IS a change to it). The
 published vocabulary is unchanged; the ADRs now conform to it.
 
-Six of the seventeen are unambiguous, and reading them is what settles it rather than the tally:
+Six of the `Design change` ADRs are unambiguous, and reading them is what settles it rather than
+the tally:
 **ADR-0019** (a citation to a `§5.4` that does not exist), **ADR-0021** (`approval_state`'s
 mechanism required by two rows and defined nowhere), **ADR-0028** (a closed set naming a `sampling`
 path this design does not have), **ADR-0029** (a body limit placed at a middleware this design does
