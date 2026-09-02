@@ -51,8 +51,15 @@ was written as `--min-rows == live`, which is right for a step that runs
 its harness once and WRONG for one that splits it across lanes: a shard
 running half the rows passes `--min-rows 5` against 10 declared ones,
 and this checker turned that into "SLACK by 5", exit 1. Planted and read
-rather than reasoned about (#268 §5), and it blocked sharding entirely -
-the gate is wired, so no sharded step could ever be green. The rule is
+rather than reasoned about (#268 §5), and it blocked sharding AT THIS
+GATE: the step is wired, so the run went red. That is narrower than "no
+sharded step could ever be green", which is inferred - a harness that
+declares its own `ROW_FLOOR` prints `status=breach` and exits non-zero
+on its OWN account, and `ci-harness-gate.sh` reds on that exit whatever
+this checker says. `check-u3-audit-amputation.sh` declares no internal
+floor (its comment says so at `:272-273`) and counts within the lane, so
+u3 is unblocked by this change ALONE; any harness carrying one needs
+#272 first. The rule is
 now `live == min_rows * shards`, with the shard count read off the
 step's `env:` block, because `ci-harness-gate.sh` runs the harness with
 NO arguments and a flag could not reach it.
@@ -69,6 +76,27 @@ instead of rounding. `shards` defaults to 1 where no `env:` names it,
 which is every step in `ci.yml` today, so the unsharded verdict and both
 of its messages are unchanged - arm A26 pins that rather than assuming
 it.
+
+**AND HERE IS WHAT THE EQUALITY STOPS SHORT OF, because a tightening
+that quietly narrows its own subject is the shape this file exists to
+catch (R270-M4).** At `shards = 1` this checker and the gate's own
+`rows -lt min_rows` together proved that EVERY DECLARED ROW RAN. At
+`shards = 2` they prove only that each lane ran at least 5 rows and that
+5 * 2 == 10. **Two lanes running the SAME five rows satisfy both
+instruments while five rows never execute at all.** Nothing here, in
+`ci-harness-gate.sh`, or in `check-row-floor-controls.sh` compares the
+UNION of the lanes against the harness's declared row set.
+
+That is not a defect in this checker - a static reader of `ci.yml`
+cannot see how a splitter partitions rows - but it means the multiplier
+MOVES a coverage guarantee out of this gate and into a sharding
+mechanism that does not exist yet. Whoever builds that splitter owes a
+disjointness-and-coverage check: have each lane publish the row labels
+it ran, and assert the n lanes' label sets are disjoint and cover the
+declared set. Until that exists, `live == min_rows * shards` is an
+exact statement about ARITHMETIC and a weaker one about COVERAGE than
+the unsharded rule it replaces. Filed as a blocking prerequisite on the
+sharding task; #272 carries it.
 
 **HOW THE THIRD CLAIM COUNTS, and why it is not a fourth table.** It
 reads the harness's own `echo "########## $label"` row opener, takes the
@@ -359,31 +387,73 @@ def static_rows(text: str, ere: str, extra: int) -> int:
 #: default - see `_shard_count()`, and A25 for the refusal.
 SHARD_ENV = "HARNESS_SHARDS"
 
-#: A YAML step is a list item, and the `env:` block belonging to a gate
-#: line is the one inside the SAME item. Bounding the search that way is
-#: what stops a sibling step's shard count being read against this
-#: step's `--min-rows` - a join error that would report a reassuring
-#: pass, which is the failure mode `_external_floors()` already guards
-#: its own count against.
-STEP_ITEM = re.compile(r"^(?P<indent>[ ]*)-[ ]", re.M)
+#: A YAML step is a list item under `steps:`, and the `env:` block
+#: belonging to a gate line is the one inside the SAME item. The step is
+#: the UNIT OF PARSING now, not a text offset: `_external_floors()`
+#: derives `--min-rows`, `--row-re` and the shard count from ONE block,
+#: so the three cannot come from different steps.
+#:
+#: **THE OFFSET FORM WAS A MEASURED FAIL-OPEN (R270-H1).** It was
+#: `anchor = raw.find(f"ci-harness-gate.sh {name}")`, and `str.find`
+#: takes the FIRST textual occurrence anywhere in the file - a COMMENT
+#: counts. A genuinely slack, genuinely UNSHARDED step was made to pass
+#: at exit 0 by putting `HARNESS_SHARDS: 2` on an unrelated earlier step
+#: that merely MENTIONED the gate command in a comment. Five deletable
+#: rows, gate green. A comment documenting that hazard sat one line
+#: above the defect and was not a guard against it; arm A28 is.
+STEP_ITEM = re.compile(r"^(?P<indent>[ ]*)-[ ]")
+
+#: `steps:` opens the only list this checker parses. Deriving the item
+#: indent from it - rather than matching any `- ` anywhere - is what
+#: keeps a `- ` inside a `run: |` script from being read as a new step,
+#: which was one of four spellings that silently returned 1 (R270-M1).
+STEPS_KEY = re.compile(r"^(?P<indent>[ ]*)steps:\s*$")
 
 
-def _step_block(raw: str, pos: int) -> str:
-    """The text of the YAML list item containing offset `pos`.
+def _step_blocks(raw: str) -> list[str]:
+    """Every `steps:` list item in `raw`, as its own text.
 
-    The item runs from its own `- ` to the next `- ` at the SAME or a
-    shallower indent, which is where the step ends whether or not it is
-    the last step in its job.
+    A block runs from its `- ` to the next `- ` AT THE SAME INDENT, so
+    a deeper `- ` (a bullet inside a `run: |` script, a `with:` list)
+    stays INSIDE the step it belongs to instead of starting a new one.
     """
-    starts = [m for m in STEP_ITEM.finditer(raw) if m.start() <= pos]
-    if not starts:
-        return ""
-    here = starts[-1]
-    indent = len(here.group("indent"))
-    for nxt in STEP_ITEM.finditer(raw, here.end()):
-        if len(nxt.group("indent")) <= indent:
-            return raw[here.start() : nxt.start()]
-    return raw[here.start() :]
+    blocks: list[list[str]] = []
+    item_indent: int | None = None
+    in_steps = False
+    for line in raw.split("\n"):
+        if STEPS_KEY.match(line):
+            in_steps, item_indent = True, None
+            continue
+        if not in_steps:
+            continue
+        if not line.strip():
+            if blocks:
+                blocks[-1].append(line)
+            continue
+        # A COMMENT NEVER ENDS THE LIST. `ci.yml` carries block comments
+        # at the step indent BETWEEN steps, and treating one as a dedent
+        # ended the scan at the first of them: 57 blocks holding 6 of 36
+        # gate lines. The count assertion caught it - 5 parsed against
+        # 16 flags - which is the whole reason that assertion is there.
+        if line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        item = STEP_ITEM.match(line)
+        if item_indent is None:
+            if item is None:
+                # Content before the first `- `: not a step list.
+                in_steps = False
+                continue
+            item_indent = indent
+        if indent < item_indent or (indent == item_indent and item is None):
+            # Dedented out of the list - a sibling job key, a new job.
+            in_steps, item_indent = False, None
+            continue
+        if item is not None and indent == item_indent:
+            blocks.append([line])
+        elif blocks:
+            blocks[-1].append(line)
+    return ["\n".join(b) for b in blocks]
 
 
 def _shard_count(name: str, block: str) -> int:
@@ -417,8 +487,16 @@ def _shard_count(name: str, block: str) -> int:
             f"{name}: {len(found)} {SHARD_ENV} values in one step, so which "
             "one the row count should be multiplied by is undecidable here."
         )
-    value = found[0]
-    if not re.fullmatch(r"['\"]?\d+['\"]?", value):
+    # A TRAILING YAML COMMENT IS NOT PART OF THE VALUE (R270-L3).
+    # `HARNESS_SHARDS: 2  # two lanes` is legal YAML whose value is 2,
+    # and it was refused with a message blaming run-time expressions.
+    value = re.sub(r"\s+#.*$", "", found[0])
+    # THE SIGN IS ADMITTED SO A NEGATIVE REACHES ITS OWN BRANCH
+    # (R270-L2). Without it `-1` was rejected here as "not an integer
+    # literal", which points the reader at `${{ }}` syntax for a fault
+    # that is nothing of the kind, and left `shards < 1` reachable only
+    # for exactly 0.
+    if not re.fullmatch(r"['\"]?-?\d+['\"]?", value):
         raise SystemExit(
             f"{name}: {SHARD_ENV} is {value!r}, which is not an integer "
             "literal. A static checker cannot multiply the row count by an "
@@ -469,45 +547,80 @@ def _min_rows_verdict(name: str, min_rows: int, shards: int, live: int) -> list[
     ]
 
 
-def _external_floors() -> dict[str, tuple[int, str, int]]:
+def _external_floors(raw: str | None = None) -> dict[str, tuple[int, str, int]]:
     """`(--min-rows, --row-re, shards)` per harness, off its gate line.
 
-    Continuations are folded first: every one of these invocations wraps
-    with a trailing backslash, so a line-at-a-time scan sees the harness
-    name and its flags as separate lines and pairs nothing.
+    **THE STEP IS THE UNIT, NOT A TEXT OFFSET.** All three fields come
+    from ONE step block, so they cannot be attributed to different
+    steps. The previous form located the step by `raw.find()` of the
+    gate command and was a measured fail-open - see `STEP_ITEM` above
+    and arm A28.
+
+    Continuations are folded INSIDE each block, so a gate line that
+    wraps before its harness name is still one line by the time it is
+    read. Folding the whole file first and then locating a block by
+    offset is what made the two drift apart.
+
+    A COMMENT IS NOT A STEP. Lines whose first non-space character is
+    `#` are skipped, so a commented-out or merely-quoted gate command
+    contributes nothing.
 
     The count is asserted against the number of `--min-rows` FLAGS, not
     every occurrence of the string - three sit inside comments, and
     counting those made a correct join look broken.
 
-    `--row-re` is captured too, because `ci-harness-gate.sh` refuses
-    `--min-rows` without it, and the third claim below cannot count rows
-    without knowing which printed lines the gate will accept.
+    `raw` is a parameter so `--self-test` can arm THESE RULES on
+    synthetic YAML rather than a second copy of them; `main()` passes
+    nothing and reads `ci.yml`.
     """
-    raw = CI.read_text(encoding="utf-8")
-    joined = re.sub(r"\\\n\s*", " ", raw)
+    if raw is None:
+        raw = CI.read_text(encoding="utf-8")
+    blocks = _step_blocks(raw)
     found: dict[str, tuple[int, str, int]] = {}
-    for match in re.finditer(r"ci-harness-gate\.sh\s+(\S+)([^\n]*)", joined):
-        name, tail = match.group(1), match.group(2)
-        flag = re.search(r"--min-rows\s+(\d+)", tail)
-        if not flag:
-            continue
-        row_re = re.search(r"--row-re\s+'([^']*)'", tail)
-        if row_re is None:
-            raise SystemExit(
-                f"{name}: --min-rows with no --row-re. ci-harness-gate.sh "
-                "refuses that pairing at run time, so finding it here means "
-                "ci.yml and the gate disagree."
+    for block in blocks:
+        joined = re.sub(r"\\\n\s*", " ", block)
+        for line in joined.split("\n"):
+            # NO COMMENT CHECK HERE, DELIBERATELY.
+            # `_step_blocks()` drops comment lines before a block is
+            # built, so a second filter
+            # at this level is INOPERATIVE - amputating it left the
+            # suite 34/34 green, which is how it was found. One filter,
+            # at the point where the block is assembled, and arm A28
+            # covers it.
+            match = re.search(r"ci-harness-gate\.sh\s+(\S+)(.*)$", line)
+            if match is None:
+                continue
+            name, tail = match.group(1), match.group(2)
+            flag = re.search(r"--min-rows\s+(\d+)", tail)
+            if not flag:
+                continue
+            row_re = re.search(r"--row-re\s+'([^']*)'", tail)
+            if row_re is None:
+                raise SystemExit(
+                    f"{name}: --min-rows with no --row-re. ci-harness-gate.sh "
+                    "refuses that pairing at run time, so finding it here "
+                    "means ci.yml and the gate disagree."
+                )
+            # TWO GATE LINES FOR ONE HARNESS IS A REFUSAL, NOT A
+            # LAST-ONE-WINS (R270-N5). The old dict write silently kept
+            # the last `--min-rows` while the shard count came from the
+            # FIRST mention - two occurrences supplying different
+            # fields of one verdict. Two steps invoking one harness is
+            # also exactly the shape sharding will produce, so it has
+            # to be decided rather than collapsed.
+            if name in found:
+                raise SystemExit(
+                    f"{name}: two ci-harness-gate.sh lines name this harness. "
+                    "Which step's --min-rows and which step's shard count the "
+                    "verdict is about is undecidable, and collapsing them "
+                    "silently is how one step's floor gets read against "
+                    "another step's lanes."
+                )
+            found[name] = (
+                int(flag.group(1)),
+                row_re.group(1),
+                _shard_count(name, block),
             )
-        # THE SHARD COUNT IS READ OFF THE RAW TEXT, not `joined`.
-        # Folding continuations moves every offset after the first
-        # wrapped gate line, so a step block located in `joined`
-        # coordinates would drift into a neighbouring step - silently,
-        # and in the direction that pairs one step's `--min-rows` with
-        # another's shard count.
-        anchor = raw.find(f"ci-harness-gate.sh {name}")
-        shards = _shard_count(name, _step_block(raw, anchor) if anchor >= 0 else "")
-        found[name] = (int(flag.group(1)), row_re.group(1), shards)
     flags = sum(
         1
         for line in raw.splitlines()
@@ -518,6 +631,28 @@ def _external_floors() -> dict[str, tuple[int, str, int]]:
             f"parsed {len(found)} --min-rows values but ci.yml carries {flags} "
             "as flags. The join is wrong, and a wrong join here reports a "
             "reassuring zero rather than an error."
+        )
+    # EVERY SHARD COUNT MUST SIT WHERE THIS CHECKER LOOKS (R270-M1).
+    # `shards = 1` is the documented silent default for an ABSENT
+    # `env:`, and it must not double as the silent default for a
+    # PRESENT one written where the step scan cannot see it - job-level
+    # or workflow-level `env:`, or a flow-style `env: { ... }` mapping.
+    # Both are legal GitHub Actions and both silently re-blocked
+    # sharding, which is the bug this whole change exists to remove.
+    # The comparison is deliberately over EVERY mention of the token,
+    # so a spelling nobody has thought of is a refusal rather than a
+    # quiet 1.
+    mentions = len(re.findall(rf"\b{SHARD_ENV}\b", raw))
+    readable = sum(
+        len(re.findall(rf"^\s*{SHARD_ENV}\s*:\s*\S", b, re.M)) for b in blocks
+    )
+    if mentions != readable:
+        raise SystemExit(
+            f"ci.yml mentions {SHARD_ENV} {mentions} time(s) but only "
+            f"{readable} sit in a step-level `env:` mapping this checker "
+            "reads. A shard count outside one is silently read as 1 lane, "
+            "which turns a sharded step's floor back into a red for a "
+            "reason nobody would trace to this line."
         )
     return found
 
@@ -1019,7 +1154,7 @@ def self_test() -> int:
     )
     arm(
         "A24 an UNEVEN split REDS rather than rounding",
-        _min_rows_verdict("h.sh", 5, 2, 11) != [],
+        any("SLACK by 1" in line for line in _min_rows_verdict("h.sh", 5, 2, 11)),
         "11 rows do not divide across 2 lanes, so no --min-rows is "
         "exact. Rounding would hand back the lower bound this whole "
         "claim exists to abolish.",
@@ -1064,24 +1199,168 @@ def self_test() -> int:
         "u14 at 16 rows against 10 is the real measurement that put "
         "claim 3 here; the shard multiplier must not have reworded it.",
     )
-    # THE `env:` READ IS BOUNDED BY THE STEP. A shard count belonging to
-    # a neighbouring step, paired with this step's --min-rows, is a join
-    # error that reports a reassuring pass.
+    # THE `env:` READ IS BOUNDED BY THE STEP, and a `- ` DEEPER than
+    # the step indent - a bullet inside a `run: |` script - must not
+    # start a new one. That was one of four spellings that silently
+    # returned 1 (R270-M1).
     two_steps = (
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
         "      - name: sharded\n"
         "        env:\n"
         f"          {SHARD_ENV}: 2\n"
-        "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5\n"
+        "        run: |\n"
+        "          echo a\n"
+        "            - not a step, a bullet inside a script\n"
         "      - name: plain\n"
-        "        run: bash scripts/ci-harness-gate.sh b.sh --min-rows 9\n"
+        "        run: echo b\n"
     )
+    blocks = _step_blocks(two_steps)
     arm(
-        "A27 a sibling step's shard count does NOT leak across",
-        _shard_count("a.sh", _step_block(two_steps, two_steps.find("a.sh"))) == 2
-        and _shard_count("b.sh", _step_block(two_steps, two_steps.find("b.sh"))) == 1,
-        "reading the whole file for `HARNESS_SHARDS` would give b.sh a "
-        "count of 2 and let 9 rows pass against --min-rows 9 x 2 = 18, "
-        "or red it - either way a verdict about the wrong step",
+        "A27 a step is bounded by ITS indent, and a deeper `- ` is inside it",
+        len(blocks) == 2
+        and _shard_count("a.sh", blocks[0]) == 2
+        and _shard_count("b.sh", blocks[1]) == 1,
+        "matching any `- ` made a bullet inside a `run: |` script start "
+        "a block BELOW the env:, so a sharded step read as 1 lane and "
+        "silently re-blocked its own sharding",
+    )
+
+    # -- THE JOIN, WHICH IS WHERE THE FAIL-OPEN WAS (R270-H1) --------
+    # A comment mentioning harness A inside a DIFFERENT, sharded step B
+    # was enough to give A a shard count of 2. That laundered a real
+    # `SLACK by 5` into exit 0 on a genuinely unsharded step. A27 could
+    # not see it: it tests block bounding GIVEN a correct offset, and
+    # the defect was in choosing the offset.
+    two_step_yaml = (
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
+        "      - name: sharded, and it MENTIONS the other harness\n"
+        "        env:\n"
+        f"          {SHARD_ENV}: 2\n"
+        "        # bash scripts/ci-harness-gate.sh a.sh --min-rows 9\n"
+        "        run: bash scripts/ci-harness-gate.sh b.sh --min-rows 4"
+        " --row-re '^r '\n"
+        "      - name: plain, unsharded\n"
+        "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+    )
+    # WRAPPED: an amputated comment filter makes this raise rather than
+    # return, and an uncaught SystemExit prints no HARNESS-RESULT line
+    # at all - so the arm floor never runs and the suite reports
+    # nothing. A guard whose failure silences the tally is worse than
+    # one that fails loudly in its own row.
+    try:
+        joined_floors = _external_floors(two_step_yaml)
+    except SystemExit:
+        joined_floors = {}
+    arm(
+        "A28 a COMMENT mention does not hand its step's shards to another",
+        joined_floors.get("a.sh") == (5, "^r ", 1)
+        and joined_floors.get("b.sh") == (4, "^r ", 2),
+        "MEASURED FAIL-OPEN: with the offset join, a.sh took the "
+        "commented step's 2 lanes and a genuinely slack unsharded step "
+        "passed at exit 0. The step is the unit of parsing now.",
+    )
+    # TWO GATE LINES FOR ONE HARNESS (R270-N5).
+    dup_reason = ""
+    try:
+        _external_floors(
+            "jobs:\n  j:\n    steps:\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 9"
+            " --row-re '^r '\n"
+        )
+    except SystemExit as exc:
+        dup_reason = str(exc)
+    arm(
+        "A29 two gate lines for ONE harness are REFUSED, not last-one-wins",
+        "two ci-harness-gate.sh lines name this harness" in dup_reason,
+        "the dict write kept the LAST --min-rows while the offset join "
+        "took the FIRST mention's shard count - two occurrences "
+        "supplying different fields of one verdict",
+    )
+    # A SHARD COUNT WHERE THE STEP SCAN CANNOT SEE IT (R270-M1).
+    outside_refused = False
+    try:
+        _external_floors(
+            "jobs:\n  j:\n"
+            f"    env:\n      {SHARD_ENV}: 2\n"
+            "    steps:\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n"
+        )
+    except SystemExit:
+        outside_refused = True
+    arm(
+        "A30 a JOB-level shard count is REFUSED, not silently read as 1",
+        outside_refused,
+        "`shards = 1` is the documented default for an ABSENT env:, and "
+        "it must not double as the default for a PRESENT one written "
+        "where this checker does not look - that silently re-blocks the "
+        "sharding this change exists to unblock",
+    )
+    # THE TWO REFUSALS THAT AMPUTATED GREEN (R270-M2, R270-M3).
+    zero_refused = False
+    try:
+        _shard_count(
+            "h.sh",
+            f"      - name: x\n        env:\n          {SHARD_ENV}: 0\n",
+        )
+    except SystemExit:
+        zero_refused = True
+    arm(
+        "A31 a shard count of 0 is REFUSED",
+        zero_refused,
+        "min_rows * 0 == 0, so a step whose whole harness was deleted "
+        "would satisfy the equality. Deleting this guard left the suite "
+        "27/27 green - a negative-only suite cannot see it.",
+    )
+    dup_env_refused = False
+    try:
+        _shard_count(
+            "h.sh",
+            f"      - name: x\n        env:\n          {SHARD_ENV}: 2\n"
+            f"          {SHARD_ENV}: 3\n",
+        )
+    except SystemExit:
+        dup_env_refused = True
+    arm(
+        "A32 TWO shard counts in one step are REFUSED",
+        dup_env_refused,
+        "without this the first silently wins and the 'undecidable' the "
+        "message names is decided arbitrarily. Deleting it also left "
+        "the suite fully green.",
+    )
+    # THE TWO MESSAGE-ACCURACY BOUNDS (R270-L2, R270-L3).
+    neg_reason = ""
+    try:
+        _shard_count("h.sh", f"      - x\n        env:\n          {SHARD_ENV}: -1\n")
+    except SystemExit as exc:
+        neg_reason = str(exc)
+    arm(
+        "A33 a NEGATIVE count is refused for being < 1, not for being an expression",
+        "at least one lane" in neg_reason,
+        "the literal test rejected `-1` first, so the message blamed "
+        "`${{ }}` syntax for a fault that is nothing of the kind and "
+        "left `shards < 1` reachable only for exactly 0",
+    )
+    try:
+        commented = _shard_count(
+            "h.sh",
+            f"      - x\n        env:\n          {SHARD_ENV}: 2  # two lanes\n",
+        )
+    except SystemExit:
+        commented = None
+    arm(
+        "A34 a trailing YAML comment on the value is NOT a non-literal",
+        commented == 2,
+        "`2  # two lanes` is legal YAML whose value is 2; refusing it "
+        "hands the first person who annotates a shard count a message "
+        "about run-time expressions",
     )
 
     failed = [a for a in arms if not a[1]]
@@ -1099,7 +1378,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 27
+    arm_floor = 34
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "

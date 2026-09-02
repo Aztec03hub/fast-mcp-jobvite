@@ -68,7 +68,7 @@ Every row below is a real run against the real `ci.yml`, not a unit fixture.
 | what | before | after |
 | --- | --- | --- |
 | `check-row-floor-exactness.py`, unmodified ci.yml | rc=0, 16 compared | **rc=0, 16 compared** |
-| `--self-test` | rc=0, 20/20 | **rc=0, 27/27** |
+| `--self-test` | rc=0, 20/20 | **rc=0, 34/34** (27 at first pass; R270 added seven) |
 | PLANTED sharded step (`HARNESS_SHARDS: 2`, `--min-rows 5`, 10 rows) | **rc=1 "SLACK by 5"** | **rc=0** |
 | ...and one row AMPUTATED from the harness (9 rows) | - | **rc=1** |
 | ...and `--min-rows 4` against 10 rows (harness grew) | - | **rc=1 "SLACK by 2"** |
@@ -126,8 +126,8 @@ file rather than widen, so this is filed.
 
 **F2 (Low, FIXED in this branch).** `arm_floor` was `20` with `len(arms) >=
 arm_floor`. I added 7 arms, so leaving the floor at 20 would have let all 7 be
-deleted silently. Raised to 27, which is an equality against the live arm count
-in the same run. *Note:* this file's arm floor is still spelled `>=` at `:1102`,
+deleted silently. Raised to 34 (27 at first pass), which is an equality against the live arm count
+in the same run. *Note:* this file's arm floor is still spelled `>=`,
 which is correct for a floor meant to ratchet upward as arms are added, and is
 NOT the comparison #223 tightened - that one was the ROW floor. I did not change
 it, and I am naming it so nobody reads my `>=` as the blind one.
@@ -139,7 +139,7 @@ moves `live` DOWN, so it lands on the cannot-pass message, not the slack one.
 and silent about which of the two messages it reaches. Both directions are now
 armed separately (A22 short, A23 grew) rather than conflated.
 
-## 6. The seven new arms
+## 6. The new arms (seven at first pass, fourteen after R270)
 
     A21  a sharded step with the right arithmetic PASSES
     A22  a sharded step ONE ROW SHORT still REDS
@@ -203,12 +203,118 @@ vocabulary. Two concerns, one file, disjoint hunks.
 exactness.py half is superseded by #223's `is_computed()`; its controls.sh half
 is on `main`. It stays valuable only as the record of what #194 concluded.
 
-## 8. Merge
+## 8. R270 round 1: a MEASURED fail-open in my own fix, and nine guards armed
+
+R270 returned 0C/1H/4M/5L. **The High was real, and it was the shape this
+whole file exists to catch: my fix rebuilt the defect one column over.** All
+ten findings are closed below. Everything in §1-§7 above stands as written
+unless a row here says otherwise.
+
+### H1 - the join took a COMMENT, and it laundered real slack into exit 0
+
+`anchor = raw.find(f"ci-harness-gate.sh {name}")` takes the FIRST textual
+occurrence anywhere in the file. `_step_block()` then correctly bounded the
+WRONG step. A27 passed throughout because it tested bounding GIVEN an offset;
+the defect was in choosing the offset. **A six-line comment about exactly that
+hazard sat one line above it and was not a guard.**
+
+REPRODUCED HERE, old code against new, on the real `ci.yml`. u3 made genuinely
+slack (`--min-rows 5` against 10 live rows, NO `env:`, unsharded) plus an
+unrelated sharded step EARLIER in the file whose comment merely names u3's gate
+command:
+
+    OLD (701131a, raw.find)   rc=0   <- FAIL-OPEN. 5 deletable rows, gate green.
+    NEW (step blocks)         rc=1   "SLACK by 5"
+
+The decoy must precede u3 in FILE ORDER - my first two plants put it after, and
+`raw.find` then picked the correct step, so the run was green for the wrong
+reason. That is worth recording: the fail-open is order-dependent, which is why
+it sat latent.
+
+**THE FIX IS STRUCTURAL, not a patched offset.** `_step_blocks()` yields step
+texts, continuations fold INSIDE each block, and `--min-rows`, `--row-re` and
+the shard count all come from ONE block - so they cannot be attributed to
+different steps. There is no offset left to be wrong.
+
+### The other nine
+
+| # | what | disposition |
+| --- | --- | --- |
+| M1 | `shards = 1` was a silent default for a LOOKUP FAILURE, not only a genuine absence | FIXED, and at the rule: wrapped gate lines and deep `- ` bullets are fixed by construction; job/workflow-level and flow-style `env:` are now a REFUSAL comparing every `HARNESS_SHARDS` mention against those readable in a step block |
+| M2 | `shards < 1` guard untested, amputating left 27/27 green | FIXED, arm A31 |
+| M3 | duplicate-`HARNESS_SHARDS` refusal untested, same | FIXED, arm A32 |
+| M4 | the equality does NOT establish the lanes are DISJOINT | ADOPTED, stated in the docstring; two lanes running the same 5 rows satisfy both instruments. Blocking prerequisite filed on #272 |
+| L1 | A24 vacuous - asserted only `!= []`, survived AMP-H | FIXED, asserts `SLACK by 1` |
+| L2 | a negative count was refused as a "run-time expression" | FIXED, the sign is admitted so it reaches `shards < 1` |
+| L3 | `2  # two lanes` refused as a non-literal | FIXED, trailing comment stripped |
+| N4 | "no sharded step could ever be green" was INFERRED | NARROWED to what was run: blocked AT THIS GATE, and u3 specifically is unblocked because it declares no internal `ROW_FLOOR` |
+| N5 | two gate lines for one harness collapsed last-one-wins | FIXED, now a refusal |
+
+### Every guard amputated, and which arm died
+
+Arms 27 -> 34. Each row is a run of `--self-test` with that guard replaced:
+
+    AMP-A  the comment filter in _step_blocks     rc=1  33/34  killed A28
+    AMP-B  duplicate gate line refusal            rc=1  33/34  killed A29
+    AMP-C  out-of-block shard assertion           rc=1  33/34  killed A30
+    AMP-D  shards < 1 guard                       rc=1  32/34  killed A31, A33
+    AMP-E  duplicate HARNESS_SHARDS refusal       rc=1  33/34  killed A32
+    AMP-F  the sign in the literal test           rc=1  33/34  killed A33
+    AMP-G  the trailing-comment strip             rc=1  33/34  killed A34
+    AMP-H  the multiplication itself              rc=1  30/34  killed A21-A24
+    AMP-I  step-indent bounding                   rc=1  33/34  killed A27
+    AMP-J  the non-literal refusal                rc=1  CRASH  (uncaught ValueError)
+
+AMP-J kills by crashing rather than by a named arm - the same shape R270 itself
+recorded for that guard. It is a kill; it is not a clean one, and I am naming
+it rather than counting it as covered.
+
+### TWO OF MY OWN ARMS WERE VACUOUS ON THE FIRST RUN OF THIS BATTERY
+
+Recorded because it is the finding, not a footnote:
+
+* **AMP-A survived at 34/34.** I had written TWO comment filters, and the one
+  in `_external_floors()` could never fire because `_step_blocks()` already
+  drops comment lines. It was INOPERATIVE code. **Deleted**, not left beside
+  the live one, and A28 now covers the surviving filter.
+* **AMP-B survived at 34/34.** A29 caught *any* `SystemExit`, and with the
+  duplicate refusal amputated the FLAGS-COUNT assertion raised instead - so the
+  arm passed for a reason that had nothing to do with its name. It now asserts
+  its own message text.
+
+Both are the same defect R270 found in A24, in my own new arms, found only by
+amputating rather than by reading them.
+
+### The count assertion earned its place
+
+My first `_step_blocks()` treated a comment at step indent as a dedent and
+ended the scan at the first block comment: **57 blocks holding 6 of 36 gate
+lines.** The run did not report a reassuring number - `parsed 5 --min-rows
+values but ci.yml carries 16 as flags` at rc=1. That assertion pre-dates this
+branch and is why the bug took minutes rather than a review round.
+
+### What I REFUSED, with the measurement
+
+**R270-M1's suggested `yaml.safe_load` rewrite. NOT ADOPTED.** It would kill
+all four M1 spellings at once and I still refused it, because the reviewer's
+own "did NOT verify" list names the reason: whether PyYAML is importable in the
+CI image. It is not safe here. This checker is invoked as bare
+`python3 docs/reviews/check-row-floor-exactness.py` (`ci.yml:1186`, `:1197`),
+and its job runs `actions/setup-python@v5` (`ci.yml:891`), which puts a
+hostedtoolcache interpreter first on `PATH` - the same one #221 measured as
+`hostedtoolcache 3.12.14`. A fresh hostedtoolcache Python carries no PyYAML.
+The three sibling checkers that DO `import yaml` are every one of them invoked
+as `uv run --frozen python`, never bare - so there is no precedent for it under
+this checker's actual interpreter, and adopting it would trade a latent
+join defect for an `ImportError` on every run. The regex path is hardened
+instead, and M1's unreadable spellings are made LOUD rather than silently 1.
+
+## 9. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \
         merge --ff-only fix/270-exactness-shards
 
-## 9. What I did NOT verify
+## 10. What I did NOT verify
 
 - **No sharded step has ever RUN.** Everything here is static analysis of a
   planted `ci.yml`. That a 2-lane `check-u3-audit-amputation.sh` actually
