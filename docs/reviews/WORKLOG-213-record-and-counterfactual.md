@@ -316,9 +316,72 @@ A deselect is not a skip and I checked which it was rather than assuming.
   invisible to it. I believe that is the right population for "what would
   the gate have shown a human", since CI runs on the trunk, but it is a
   choice and a different choice would give a different denominator.
+- **THE PROBE'S "already RECORDED" SPLIT READS TODAY'S RECORD FILE, NOT THE
+  RECORD AS AT THE MEASURED REVISION - and I caught this only by accident.**
+  Running `--rev 80463a5` on my branch prints `RECORDED 1 / LIVE 0`; the
+  same command on the merged tree prints `RECORDED 0 / LIVE 1`, for the
+  identical revision, because `main`'s record file changed underneath it.
+  The partition and the LOST column are unaffected - they read the tree at
+  the rev - but **the recorded-vs-live split is a statement about now, not
+  about then**, and the `--history` pass deliberately does not use it (the
+  docstring says why). I am flagging it rather than fixing it because
+  fixing it means reading the record blob per-revision, which is a real
+  change to a probe that has already been run and quoted. It does not move
+  any number in FINDINGS-213.
+
 - **I did not measure how often a bare-only citation is written today
   versus a year ago.** The trend, not the count, is what would tell you
   whether the residual is shrinking. Out of scope and not attempted.
+
+---
+
+## §8 - THE MERGE INTO CURRENT `main` - two things you need before you land this
+
+`main` moved while I worked: it was `a52af14` at dispatch and is `043cc6f`
+now. **`git merge --ff-only` will NOT work** - my branch is not a descendant
+of current `main`. I verified the merge rather than guessing, in a THROWAWAY
+worktree that I then removed, so nothing of mine touched the shared checkout:
+
+    $ git merge-tree --write-tree --name-only 043cc6f c57b1cc >/dev/null; echo $?
+    0
+
+**No conflicts.** An ordinary `git merge` is clean. Two consequences:
+
+**1. THE BRIEF-REPORT GATE GOES RED ON THE MERGE RESULT, AND THIS IS BY
+DESIGN.** While I worked, `main` recorded `FINDINGS-213-syntax-split.md` in
+`docs/reviews/brief-report-refs-known-missing.txt` as known-missing. My
+commit makes that file EXIST, so the gate's shrink-direction fires:
+
+    ::error::A RECORDED ENTRY NOW RESOLVES, so the record is stale.
+      FINDINGS-213-syntax-split.md   is tracked now; delete its line
+    rc=1
+
+This is the ratchet working exactly as its docstring promises - *"the entry
+for an in-flight report is designed to go red the moment the agent commits
+it, which is how it deletes itself."* **The merge must delete that one
+line.** I did not delete it on my branch, because the line does not exist
+on my branch: it is on `main`, and editing it here would be me resolving a
+conflict that is yours to resolve.
+
+**2. `ruff check .` IS RED ON `main` ALONE, AND IT IS NOT MINE.**
+
+    $ git rev-parse --short HEAD          # main, my branch absent
+    043cc6f
+    $ uv run --frozen ruff check .
+    Found 3 errors.
+    ruff_on_main_rc=1
+
+All three are `docs/reviews/probe-204-orphaned-by-repoint.py` (2x W505,
+1x E501), added at `bc42cc5`. My branch measured `ruff check .` rc=0 at its
+own base and my own file is clean. **Reporting it because a red trunk that
+arrives with someone else's merge is how "never merge red" quietly becomes
+"the red was already there".**
+
+I also re-ran the probe against the MERGED tree to prove `#209`'s selector
+rewrite did not break my import - `#209` refactored the checker into
+`BOUNDARY`/`NAME`/`REF`, and my probe imports `REF` and reads groups 1 and
+2. Post-merge, `--rev 80463a5` returns the identical partition (22 / 6 / 14
+/ 2). The import survived; I checked rather than assumed.
 
 ---
 
