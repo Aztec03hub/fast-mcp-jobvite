@@ -5,7 +5,20 @@
     python3 $P              # the census
     python3 $P --findings   # the enumerable, non-record subset
     python3 $P --derive     # true figure for every GLOB candidate
+    python3 $P --tallies    # prose counts vs the file's own ROW_FLOOR
     python3 $P --self-test
+
+**READ THE `<-- QUOTED` MARKER BEFORE ACTING ON A HIT.** A run of
+`--derive` found ELEVEN glob hits and SIX were in this file - its own
+fixtures, and its prose quoting the text BASH-1 removed. That is the
+sixth instance on this project of a defect-grep finding its own
+documentation. The fix is NOT a narrower pattern, because narrowing
+stops matching a real instance before it stops matching a quotation,
+and it is NOT a path self-exclusion, because that is the filter-by-path
+mistake #115 exists to prevent. A hit whose number AND noun both sit
+inside `"`-delimited runs is a QUOTATION of a count rather than a claim
+of one, and is MARKED - never dropped, because a real instance can be
+quoted too.
 
 **WHY THIS EXISTS.** The same shape has been found three times by three
 unrelated routes - #116 (70 retyped seconds figures), #166 ("Eleven
@@ -244,6 +257,44 @@ def _noun_of(token: str) -> tuple[str, bool] | None:
     return None
 
 
+def quoted_spans(text: str) -> list[tuple[int, int]]:
+    """Character ranges of `"`-delimited runs, for the QUOTED signal.
+
+    Parity over `"` only. Apostrophes are excluded deliberately: prose
+    here is full of possessives and contractions, and treating `'` as a
+    delimiter would mark half the corpus.
+    """
+    spans: list[tuple[int, int]] = []
+    open_at: int | None = None
+    for i, ch in enumerate(text):
+        if ch != '"':
+            continue
+        if open_at is None:
+            open_at = i
+        else:
+            spans.append((open_at, i))
+            open_at = None
+    return spans
+
+
+def _is_quoted(text: str, start: int, end: int) -> bool:
+    """Are BOTH ends of the number..noun span inside quoted runs?
+
+    **Both ends, not one span**, because a CONCATENATED literal is still
+    a quotation: `"13 of the 15" + " " + "`scripts/*.sh` exceed"` puts
+    the number in one string and the noun in the next, and requiring a
+    single enclosing span left two of this file's own fixtures unmarked.
+    Requiring the number to be quoted keeps the test tight - a bare
+    count beside a quoted noun is still a claim and stays visible.
+    """
+    spans = quoted_spans(text)
+
+    def within(pos: int) -> bool:
+        return any(a <= pos <= b for a, b in spans)
+
+    return within(start) and within(max(start, end - 1))
+
+
 def _noun_after(text: str, pos: int) -> tuple[str, bool] | None:
     """The first plural noun within LOOKAHEAD tokens after `pos`."""
     for i, tm in enumerate(TOKEN.finditer(text[pos:])):
@@ -284,10 +335,26 @@ def tracked_text_files() -> list[str]:
 class Hit:
     """One number standing beside one plural noun."""
 
-    __slots__ = ("path", "line", "number", "noun", "glob", "text", "record")
+    __slots__ = (
+        "path",
+        "line",
+        "number",
+        "noun",
+        "glob",
+        "text",
+        "record",
+        "quoted",
+    )
 
     def __init__(
-        self, path: str, line: int, number: str, noun: str, glob: bool, text: str
+        self,
+        path: str,
+        line: int,
+        number: str,
+        noun: str,
+        glob: bool,
+        text: str,
+        quoted: bool = False,
     ) -> None:
         """Record one adjacency and classify its file."""
         self.path = path
@@ -297,6 +364,12 @@ class Hit:
         self.glob = glob
         self.text = text.strip()
         self.record = is_record(path)
+        #: The span sits inside a `"`-delimited run, so it is a
+        #: QUOTATION of a count rather than a claim of one. **Marked,
+        #: never excluded** - a real instance can be quoted too, and a
+        #: filter that drops it would trade a misleading report for a
+        #: silent one.
+        self.quoted = quoted
 
     @property
     def enumerable(self) -> bool:
@@ -338,7 +411,20 @@ def scan(files: list[str]) -> tuple[list[Hit], list[str]]:
                 if found is None:
                     continue
                 noun, glob = found
-                hits.append(Hit(rel, idx + 1, m.group(1), noun, glob, joined))
+                # The span runs from the number to the end of the noun.
+                noun_end = joined.find(noun, m.end())
+                end = noun_end + len(noun) if noun_end >= 0 else m.end()
+                hits.append(
+                    Hit(
+                        rel,
+                        idx + 1,
+                        m.group(1),
+                        noun,
+                        glob,
+                        joined,
+                        _is_quoted(joined, m.start(), end),
+                    )
+                )
     return hits, unreadable
 
 
@@ -540,6 +626,53 @@ def _self_test() -> int:
             )
         )
 
+    # THE QUOTATION SIGNAL. Tier 0 ran `--derive` cold and found SIX of
+    # eleven hits were in THIS FILE - its own fixtures and its prose
+    # quoting BASH-1's removed text. That is the sixth instance on this
+    # project of a defect-grep finding its own documentation, and the
+    # recorded fix is NOT a narrower pattern: narrowing stops matching a
+    # real instance before it stops matching a quotation.
+    def quoted(label: str, line: str, want: bool) -> None:
+        ms = list(NUMBER_TOKEN.finditer(line))
+        got = False
+        for m in ms:
+            f = _noun_after(line, m.end())
+            if f is None:
+                continue
+            ne = line.find(f[0], m.end())
+            end = ne + len(f[0]) if ne >= 0 else m.end()
+            if _is_quoted(line, m.start(), end):
+                got = True
+        checks.append((f"QUOTED {label}: {line[:52]!r} -> {got}", got == want))
+
+    quoted(
+        "prose quoting BASH-1",
+        'BASH-1 said "all 20 `scripts/*.sh`" beside a population of 39',
+        True,
+    )
+    quoted(
+        "a probe() fixture",
+        '    probe("BASH-1 glob", "all 20 `scripts/*.sh` run x", "y")',
+        True,
+    )
+    quoted(
+        "a REAL claim is NOT quoted",
+        "You do not own the other 36 `scripts/*.sh`. See section D.",
+        False,
+    )
+    quoted(
+        "an unquoted tally is NOT quoted",
+        "13 of the 15 `scripts/*.sh` exceed 100 lines",
+        False,
+    )
+    # The signal must survive the line-join, because the quote that
+    # opens this file's own docstring closes on the NEXT line.
+    quoted(
+        "quote spanning the join",
+        'this shape - "all 20' + " " + '`scripts/*.sh`" against 39',
+        True,
+    )
+
     bad = [label for label, ok in checks if not ok]
     for label, ok in checks:
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -615,6 +748,11 @@ def main() -> int:
         f"  ...of those, carrying a QUANTIFIER (all/every/none/only/"
         f"both/no): {len(quantified)}"
     )
+    print(
+        f'  ...of those, QUOTED - inside a `"`-run, so a quotation of a '
+        f"count\n     rather than a claim of one: "
+        f"{len([h for h in live if h.quoted])}"
+    )
     print()
 
     if args.tallies:
@@ -663,13 +801,15 @@ def main() -> int:
                 verdict = f"AGREES ({claim}) against {pop}"
             else:
                 verdict = f"CLAIMS {claim}, TRACKED {pop}  <-- CHECK"
+            if h.quoted:
+                verdict += "   <-- QUOTED"
             print(f"{h.path}:{h.line}  `{h.noun}`  {verdict}")
             print(f"    {h.text[:140]}")
         return 0
 
     if args.findings:
         for h in sorted(live, key=lambda h: (h.path, h.line)):
-            mark = "Q" if h.quantified else " "
+            mark = ("Q" if h.quantified else " ") + ("q" if h.quoted else " ")
             print(f"{mark} {h.path}:{h.line}: [{h.number} .. {h.noun}] {h.text[:110]}")
         return 0
 
