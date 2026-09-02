@@ -437,22 +437,33 @@ from R23:
 
 ## 7a.2 The shard plan: one robust finding, and what it does not support
 
-Three review rounds have run on this section. Each confirmed the same
-core finding and each found fresh defects in the softer claims around it.
-This version therefore CUTS most of them rather than repairing them a
-fourth time. What is left is what survived perturbation.
+Four review rounds have run. The core finding has survived every one and
+has been independently re-derived from the run payloads twice. The claims
+AROUND it have been wrong in every round, including in the round that
+tried to fix them by deletion - round 4 found that the cut deleted
+definitions of things still cited, and narrowed one correct number into a
+wrong one.
 
-### THE FINDING, and it was stress-tested rather than asserted
+### THE FINDING, re-derived independently twice
 
 **Sharding is necessary AND, at today's 12 lanes, a regression.**
 
 CI's floor is `max(slowest fixed job, LPT over harness lanes)`. `ci.yml`
 declares 16 jobs of which **12 are harness lanes** (`harness-*` at
 `:1649`-`:2132`); the other four are fixed and cannot absorb harness
-steps. Those four top out at 161s (Lint/types/tests 161, CodeQL 62,
-Static gates 52, wiring 19) and are not binding.
+steps. Their slowest draw across the three runs is 218s (`Lint, types,
+tests` drew 161/213/218), so they are not binding at any lane count
+considered here.
 
-Harness side, run 33630968540: **33 steps, 3311s, largest 298s.**
+Harness population, run 33630968540: every step inside a `harness-*` job
+with a duration **>= 5s**, excluding GitHub's own per-job wrapper steps
+(`Set up job`, `Checkout`, `Install uv`, `Set up Python`, `Post *`,
+`Complete job`). That rule yields **33 steps, 3311s, largest 298s**. It
+admits one `Install from the frozen lock` step at exactly 5.0s; a strict
+`> 5s` would give 32 steps / 3306s and change nothing.
+
+Per-lane setup is **13s**, measured as the job-minus-step delta on this
+run's U3 amputation lane: 271s job, 258s step.
 
 | lanes | unsharded | sharded |
 |---|---|---|
@@ -463,19 +474,18 @@ Harness side, run 33630968540: **33 steps, 3311s, largest 298s.**
 | 18+ | 311s | 240s |
 
 1. **Unsharded the floor is 311s at EVERY lane count** (`311 = 298 + 13`,
-   holding for k=12..33). The 298s U9 amputation step is indivisible and
-   sets the floor alone. No fan-out reaches 300s. Sharding is NECESSARY.
-2. **At 12 lanes sharding LOSES 12s.** It does not reduce total work; it
-   redistributes it and adds slightly. Below the point where the largest
-   step stops binding, that is a pure loss.
+   verified at k=12,13,14,16,18,20,33). The 298s U9 amputation step is
+   indivisible and sets the floor alone. No fan-out reaches 300s.
+   Sharding is NECESSARY.
+2. **At 12 lanes sharding LOSES 12s.** It redistributes work rather than
+   reducing it, and adds slightly.
 3. **Target 14 lanes: 277s, a 23s margin.**
 
-R3 perturbed the regression and it does not move: overhead at 0/0.5x/1x/2x
-gives +12/+13/+12/+12s; **setup at 6/8/13/15/20s gives +12s every time**,
-because setup is added to both columns and cancels - so the 13s constant
-cannot affect the sign or the crossing lane; re-anchoring U3 on this run's
-own draw gives +7s; a 3-run median population gives +23s. The sign is
-robust under every variation tried.
+The regression's sign survives perturbation: overhead at 0/0.5x/1x/2x
+gives **+13/+12/+12/+12s** (the +13 is at 0x), and setup at
+6/8/13/15/20s gives +12s at every value, because setup is added to both
+columns and cancels - so the 13s constant cannot affect the sign or the
+crossing lane.
 
 ### The per-harness arithmetic, and the part of it that is NOT measured
 
@@ -483,72 +493,93 @@ robust under every variation tried.
 
 | harness | B | R | overhead | divisible share | scale | k=1 | k=2 |
 |---|---|---|---|---|---|---|---|
-| U3 amputation | 14.47s | 153.11s | 26.4s | 0.925 | 1.567x | 304s | 163s |
-| U9 amputation | 82.79s | 60.93s | 31.3s | 0.527 | 1.703x | 298s | 219s |
+| U3 amputation | 14.47s | 153.11s | 26.4s | 0.9254 | 1.567x | 304s | 163s |
+| U9 amputation | 82.79s | 60.93s | 31.3s | 0.5270 | 1.703x | 298s | 219s |
 
-The divisible share is `(R+overhead)/(B+R+overhead)`, because the model
-divides `R+overhead` - **not `R/(B+R)`, which earlier versions of this
-table printed and which contradicted the formula eight lines below it.**
-That error understated U9's shardability by about 10 points.
+The divisible share is `(R+overhead)/(B+R+overhead)`, matching the
+formula ABOVE the table. Earlier versions printed `R/(B+R)` - 0.9137 and
+0.4239 - which contradicts it and understated U9's shardability by about
+10 points.
 
 `overhead` divides by `k` because it is per-row `uv run` cost
 (`check-u9-http-amputation.sh:186`); the per-invocation baseline at `:94`
 is inside B and must NOT be divided.
 
-**The k=2 column is FITTED, not measured, and this is the section's
-weakest number.** `scale` is derived as `k1/(B+R+overhead)`, so the k=1
-column closes BY CONSTRUCTION and carries no information. Across
-plausible overheads with k=1 pinned at 298s, U9's k=2 spans **209-235s**.
-The 219s is one point in that band. Nothing here has ever run sharded.
+**The k=2 column is FITTED, not measured.** `scale` is derived as
+`k1/(B+R+overhead)`, which regenerates 304.0 and 298.0 identically, so
+the k=1 column closes BY CONSTRUCTION and carries no information. Across
+a 0x-2x overhead sweep with k=1 pinned, U9's k=2 spans **209-235s**. The
+219s is one point in that band, and nothing here has ever run sharded.
 
-The four inputs B, R and both overheads are also not verifiable from this
-tree - they survive only as secondhand quotes inside `MEASURED-268`'s own
-"did NOT verify" section.
+B, R and both overheads are NOT verifiable from this tree - they survive
+only as secondhand quotes inside `MEASURED-268`'s own "did NOT verify"
+section. The instrument that would measure them is `#276`.
 
-### Claims WITHDRAWN, because they did not survive review
+### Claims WITHDRAWN
 
 - **The wall prediction (290-394s).** It pooled three floor-to-wall gaps
   and added them to a floor. Queue measured from `run.created_at` is
-  3-4s, not the gap; and runs 33614887374/33629034552 share all 16 job
-  names with each other while 33630968540 shares five, because #266
-  repacked between them - so the pool averaged two schedules. No wall
-  figure is asserted.
+  **3-5s** (3/5, 4/5, 4/5 across the three runs), not the gap; and runs
+  33614887374/33629034552 share all 16 job names with each other while
+  33630968540 shares five, because #266 repacked between them - so the
+  pool averaged two schedules.
 - **"Three independent computations agree on 14 lanes."** There are not
-  three. `MEASURED-268:402-407` explicitly disclaims its own 276s as
-  modelled on U3's ratio - the very model this section refutes. And 14
-  lanes is PACKING-bound, not shard-bound: it reads 276-277s whether
-  U9's shard costs 78.5s, 209s, 219.5s or 235s, so it cannot corroborate
-  the shard arithmetic at all.
-- **"The 1.814x / 1.567x scales are unreconciled."** They reconcile
-  completely and definitionally: `MEASURED-268:125` is `304/167.6`
-  (`B+R`), this section is `304/193.98` (`B+R+overhead`). Same run pair,
-  same numerator. Asserting an open disagreement was wrong.
-- **"The covdb option would change the picture."** Feeding its own
-  published numbers (2 x 78.5s shards plus a 141s map job) through this
-  LPT gives 308/293/**275**/240 against 323/294/**277**/245 - two seconds
-  at the 14-lane target. Past 12 lanes the wall stops being U9-bound,
-  which is this section's own finding. The option is real, unbuilt, and
-  worth far less than it sounded.
+  three: `MEASURED-268:402-407` explicitly disclaims its own 276s as
+  modelled on U3's ratio, the model this section refutes.
+  **A previous version supported this withdrawal with a second argument -
+  that 14 lanes reads 276-277s regardless of U9's shard cost - and that
+  invariance IS NOT REAL.** Measured on this section's own population, 14
+  lanes reads **263 / 275 / 277 / 280** for shard costs of 78.5 / 209 /
+  219.5 / 235s; on 3-run medians, **260 / 276 / 276 / 289**. The
+  withdrawal rests on the self-disclaimer alone.
+
+### RESTORED, because withdrawing it was wrong
+
+**The covdb hoist DOES change the picture**, and the previous version
+retracted that by scoring it only at the 14-lane target (275s against
+277s, two seconds) - the one lane count where it does not matter.
+
+At **12 lanes**, feeding its published numbers (2 x 78.5s shards plus a
+141s map job) through this LPT gives **307.5s against 311s unsharded**.
+That ERASES the +12s regression which is this section's headline claim.
+Withdrawing the option retracted a true statement about the picture the
+section is actually about.
+
+What IS withdrawn is only the stronger form: it is not worth a lane
+count, because at 14 lanes it buys two seconds.
+
+The cost side, restored: `check-u9-http-amputation.sh:90-92` makes the
+coverage map non-stale BY CONSTRUCTION, and hoisting it trades that for a
+SHA-keyed staleness guard. The option remains unbuilt and unmeasured.
 
 ### The one live disagreement with `MEASURED-268`
 
 It publishes the unsharded floor as **317s** where this section computes
-**311s**. That is a genuine difference and it is not reconciled here.
-Its 34-step / 3446s medians-over-three-runs population regenerates its
-317/276/252 exactly, so the gap is the POPULATION (one run versus three,
-33 steps versus 34), not an arithmetic error on either side.
+**311s**. The gap is **entirely the largest step**: U3 amputation's
+median across three runs is 304s, but in 33630968540 it drew 258s, so a
+one-run scoping and a three-run median disagree about which step is
+largest. It is NOT the step count or the work total - neither is binding
+at 12 lanes.
+
+`MEASURED-268:122` states its own population as **35 harness work steps,
+median sum 3442s**. Cite that, not a reconstruction.
 
 ### Where this section's own numbers are still soft
 
 - **The sharded column mixes runs.** The table is scoped to 33630968540,
-  where U3 amputation drew **258s**, but the shard column charges 2 x 163
-  derived from a 304s median in a different run. Re-anchored, 12 and 13
-  lanes read 318/288 rather than 323/294. **No conclusion moves** - the
-  regression and the crossing lane are unchanged - but the "ONE run,
-  deliberately" scoping is not true of that column.
-- The >= 5s population rule admits one `Install from the frozen lock`
-  step at exactly 5.0s, so the rule as written strictly yields 32/3306.
-- n=3 throughout for medians, with per-step swings to 3.2x.
+  where U3 amputation drew **258s**, while the shard column charges
+  2 x 163 derived from its 304s median in another run. Re-anchored, 12
+  and 13 lanes read 318/288. **No conclusion moves** - the regression and
+  the crossing lane are unchanged - but the one-run scoping is not true
+  of that column.
+- **The structure is right and n=1.** The table uses ONE run deliberately:
+  33630968540 is the only post-repack run, and averaging it with the
+  earlier two would mix two packings. Where medians over three runs are
+  used - the per-step swings, the largest-step attribution - they are n=3
+  with swings to 3.2x.
+- The largest step is a DIFFERENT step in each of the three runs:
+  **376s** (U3 controls), **304s** (U3 amputation), **298s** (U9
+  amputation).
 
 
 ## 7b. The three ci/237-audit items, settled
