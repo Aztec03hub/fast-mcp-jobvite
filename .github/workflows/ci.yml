@@ -1199,6 +1199,15 @@ jobs:
       - name: Every checked row floor EQUALS its harness's live row count
         run: python3 docs/reviews/check-row-floor-exactness.py
 
+      # THE SIXTEEN ARMS OF THE STEP ABOVE, run by nobody until this landed.
+      # #187 widened that checker's container from 25 members to 32, and a
+      # container change to a gate with its own control table is exactly the
+      # thing whose arms need running. It plants and removes one file under
+      # `src/` in a `finally` that its own arm A7 asserts, which is why it
+      # can share a job with its subject.
+      - name: The floor container's own arms
+        run: python3 docs/reviews/check-row-floor-exactness.py --self-test
+
       # WIRED GREEN, backlog zero. #85 fixed sixteen of these in one day and
       # my first pass found only five - the sweep stopped at the directory I
       # was editing, leaving eleven in this file, one of which (`grep -qE
