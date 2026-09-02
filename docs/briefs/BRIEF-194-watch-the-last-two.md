@@ -48,9 +48,12 @@ Hard rules:
 - **DERIVE EVERY ANCHOR FROM THE FILE.** A suggested `sed` is a claim
   about code: one in an earlier round named a variable that had been
   renamed and would have matched nothing.
-- **COMMIT YOUR WORKLOG before reporting done** and name the sha. **Do
-  NOT write a report's BASENAME in prose** - the brief-report gate reads
-  that as a citation and has gone red on three agents' briefs.
+- **COMMIT YOUR WORKLOG before reporting done** and name the sha. Write
+  it at `docs/worklogs/WORKLOG-194-watch-last-two.md`; that path is
+  already recorded as IN FLIGHT and the gate will demand the record line
+  be deleted once the file lands. **Do NOT write any OTHER report's
+  basename in prose** - the brief-report gate reads that as a citation
+  and has gone red on three agents' briefs.
 - **Correct this brief where it is wrong.** Every agent has.
 
 ## §B — Part 1: `probe-131-gate-state.sh` — a COMPUTED count IS watchable
