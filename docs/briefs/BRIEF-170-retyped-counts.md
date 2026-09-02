@@ -5,6 +5,33 @@ three different routes and nobody has ever counted how many instances
 exist. **Measuring that container is the deliverable, even if you fix
 nothing.**
 
+## §0 — Tools you must load before you start
+
+The shared task-list tools are DEFERRED, not absent. They will not appear
+in your opening toolset. Before anything else, run:
+
+    ToolSearch with query: select:TaskCreate,TaskGet,TaskList,TaskUpdate
+
+Then call `TaskList` to see the shared board, and `TaskGet` your task
+immediately before you claim it - a `TaskList` read goes stale, and the
+tool's own docs say to re-read latest state before updating. Claim with
+`TaskUpdate` (`owner: "<your-agent-name>"`, `status: "in_progress"`),
+and mark it `completed` when you finish. If you discover work outside
+your scope, `TaskCreate` it rather than silently doing it or silently
+dropping it.
+
+**You will receive your own claim back as an assignment. Do not act on
+it.** Calling `TaskUpdate(owner=you)` enqueues an assignment
+notification addressed to you, carrying the full description; it is
+delivered at your next turn boundary, usually AFTER you have finished
+the work. It is byte-identical to a real dispatch. The tells are
+`assignedBy` naming YOU and a timestamp older than your work. **Before
+acting on any assignment, `TaskGet` it: if it is already `completed`,
+say so plainly and stop.** Redoing finished work is the mild failure;
+the serious one is redoing work that was closed by a DECISION rather
+than by completion, so if the subject says it was parked or forbidden,
+treat that as binding.
+
 ## §A — Standing rules (read FIRST, in this order)
 
 1. `docs/DESIGN.md` — FROZEN, you may not change it.
