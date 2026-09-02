@@ -490,34 +490,64 @@ populations; `a849f7f` carries them plus the two above.
 **Every margin the 12-lane headline rests on is 0s to 8s** - the 2.0s
 win, the 0.00s wash under the overhead-deleted refit, the ~0.7s at the
 far end of U9's band, and the 8.0s re-anchored win. They are one to two
-orders of magnitude below the instrument's own run-to-run spread, so at
-12 lanes a 2.0s win and a wash are not distinguishable here. The 13-16 lane margins (-25.5s to -68.0s) and the 11-lane loss are
-the other way round - an order of magnitude ABOVE the spread - which is
-why they survive it and the 12-lane cell does not.
+orders of magnitude below the instrument's own run-to-run spread.
 
-What that does and does not overturn. The arithmetic is correct given its
-inputs. The large effects - the -68s at 16 lanes, and the 11-lane loss -
-are far enough above the spread that inverting them is implausible, but
-that is an argument from magnitude: **no lane table has been computed on
-`a849f7f` or `1636f56`**, so "they survive" is an expectation, not a
-measurement. The 12-lane margin does not survive even that test - it
-should be read as "no worse, and not measurably better on this data".
-`probe-273-packing.py` REFUSES on two of
-these three runs because it asserts this population; that refusal is the
-guard working, and it is the reason this paragraph exists rather than a
-silently restated number.
+**AND THAT TABLE HAS NOW BEEN COMPUTED ACROSS ALL THREE RUNS, WHICH
+SETTLES THE 12-LANE CELL AGAINST ITSELF.** An earlier version of this
+paragraph said no lane table existed on `a849f7f` or `1636f56`, so
+"the large effects survive" was an expectation rather than a
+measurement. `probe-273-packing.py` now fits MIN / MEDIAN / MAX per step
+across all three, and the deltas are:
 
-On medians the regime also flips back: largest 304 exceeds total/lanes
-(3323/12 = 276.9), so the instance is MAX-bound again and the 12-lane floor
-is ~317s including setup - **above the five-minute mandate**, which makes
-sharding the pole step necessary rather than marginal. See task #282.
+| lanes | MIN | MEDIAN | MAX | |
+|---|---:|---:|---:|---|
+| 11 | +27.5 | +15.0 | +10.0 | loses throughout |
+| 12 | **+19.0** | **-5.0** | **-12.7** | **SIGN FLIPS** |
+| 13 | **+1.5** | **-27.0** | **-37.0** | **SIGN FLIPS** |
+| 14 | -20.7 | -43.0 | -54.7 | wins throughout |
+| 15 | -28.0 | -55.0 | -69.0 | wins throughout |
+| 16 | -31.0 | -65.0 | -81.0 | wins throughout |
+
+So the expectation held for 11, 14, 15 and 16 - those signs are stable
+across the whole envelope. **It did NOT hold at 12 or 13.** The `-2.0s`
+this section publishes at 12 lanes is one draw from a range whose ends
+disagree about the direction, and 13 flips too at the MIN extreme. The
+12-lane cell should be read as **sign not established**, not as "no worse
+and not measurably better" - that phrasing conceded the magnitude while
+still assuming the direction.
+
+**The sharded column of that envelope is itself provisional.** `U3_SHARD`
+and `U9_SHARD` are still two constants fitted to ONE run and are not refit
+per fit, so a MIN-fit unsharded floor differenced against a single-run
+shard cost is two different measurements subtracted. The probe therefore
+withholds its WINS/loses verdict on every fit but MEDIAN. **No repack or
+shard decision at 12 or 13 lanes is supportable until that is closed;**
+see task #285.
+
+Two population defects in the older figures above, both in the reader
+rather than the runs: a `>= 5s` floor manufactured a step-count change
+when one step read 4s in two runs and 5s in a third, and a per-job
+dependency install was missing from the wrapper-exclusion list. Corrected,
+**all three runs carry the same 35 step names**, and that identity is
+asserted rather than counted - two runs can report the same count and
+contain different steps.
+
+On the corrected population the regime still flips back: the largest
+median step (304s) exceeds sum-of-medians over lanes (3413/12 = 284.4),
+so the instance is MAX-bound and the 12-lane floor is **317s** including
+setup - **above the five-minute mandate**, which makes sharding the pole
+necessary rather than marginal. (An earlier version derived that from
+`3323/12 = 276.9`, which is one run's total rather than the sum of
+medians; both reach 317 only because the largest step dominates the area
+term, and at 11 lanes or fewer that error would have been load-bearing.)
+See task #282.
 
 ### The bracket
 
 | lanes | unsharded LB / BEST | sharded LB / BEST | delta |
 |---|---|---|---|
 | 11 | 314.0 / 316.0 achieved | **333.1** / 334.0 | **+18.0s LOSES** |
-| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** |
+| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** (single-run fit; sign NOT established across runs - see above) |
 | 13 | 311.0 / **311.0 exhibited** | 283.8 / 285.5 | -25.5s |
 | 14 | 311.0 / **311.0 exhibited** | 264.5 / 275.0 | -36.0s |
 | 15 | 311.0 / **311.0 exhibited** | 247.7 / 256.0 | -55.0s |
