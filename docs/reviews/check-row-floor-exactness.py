@@ -53,20 +53,70 @@ Nothing about any harness is listed here. A harness whose shape cannot
 be read that way is an ERROR, never a skip: skipping is exactly how
 those eight went unchecked.
 
+**THE FOURTH CLAIM: THE CONTAINER IS A KIND, NOT A GLOB (#187).** The
+sentence above - "the exactness claim reaches the harnesses the control
+table names" - was the whole guarantee, and it rested on a second one
+that had quietly stopped holding: that the table's set EQUALS every
+harness carrying a floor. That equality was enforced over
+`scripts/*.sh`, and in one night three floors arrived outside it -
+`ROW_FLOOR=12` in `docs/reviews/probe-131-gate-state.sh`, a bare
+`floor = 14` in `docs/reviews/probe-wired-checker-amputation.py`, and
+`arm_floor = 9` in `scripts/check-secrets-baseline.py`. All three are
+wired into CI. None was missing from the table; all three were outside
+the CONTAINER by construction, so the equality had nothing to say and
+reported a clean pass over 25 of 29 members. **A container bounded by
+PATH plus SUFFIX decays the moment its members move**, which is #115's
+kind-not-path ruling arriving from the other side.
+
+So the population is now every tracked `.py`/`.sh` under
+`docs/reviews/` and `scripts/` - the same two directories #153 widened
+`check-checkers-are-wired.py` to - carrying an identifier whose NAME
+contains `floor` assigned an integer LITERAL. **The spelling is derived,
+not listed.** A list of the three live spellings would be blind to the
+fourth, and my own first selector was: it required a character before
+the word and could not see a bare `floor = 14`.
+
+Three consequences worth stating, because each is a bound rather than a
+guarantee:
+
+* **A fourth LOCATION is a finding, not an absence.** The same selector
+  runs over the whole repository and anything it finds outside the two
+  directories fails the run. That reads zero today, and the zero is
+  proved non-vacuous by `--self-test` arm A6, which plants a floor in
+  `src/` and requires the tripwire to see it.
+* **A floor of 0 is not a floor** - this repository's own rule, from
+  `scripts/lib/harness-result.sh`: *"Pass 0 as the floor for a harness
+  that has none; 0 is not a floor anything can breach."* Every zero
+  site must be registered WITH A REASON and every registration must
+  still resolve, so a harness whose floor regressed to 0 cannot leave
+  the population quietly.
+* **A row count that is COMPUTED at run time has no static answer, and
+  the table says so per file rather than skipping it.** Two members
+  build their count while running - one increments `TOTAL` from three
+  different helpers, the other is literally
+  `rows = len(ARMS) + 2 * halves`. **That is not a `.py` problem, which
+  is what it looks like: one of the two is a `.sh`.** They carry the
+  token `COMPUTED` in the table, so the equality still holds in both
+  directions and the default for a NEW member stays red. Task #193
+  closes the gap by asserting equality on the canonical line both
+  publish.
+
 **WHAT THIS STILL DOES NOT COVER, stated because a partial check selects
-for the form it cannot see.** The exactness claim reaches only the
-harnesses the control table names, and the agreement claim only those
-carrying BOTH floors. **The program prints all three counts on every
-run** - read them there rather than here, because the counts once
-written into this docstring were stale within hours of being typed. It
-also cannot tell a floor DERIVED from a run from one that was typed and
-happens to be right; only running the harness answers that.
+for the form it cannot see.** The agreement claim reaches only the
+harnesses carrying BOTH floors. The container's vocabulary is the WORD
+`floor`, so a floor named `MIN_ROWS` would be outside it - arm A3 pins
+that. **The program prints every count on every run** - read them there
+rather than here, because the counts once written into this docstring
+were stale within hours of being typed. It also cannot tell a floor
+DERIVED from a run from one that was typed and happens to be right;
+only running the harness answers that.
 """
 
 from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -74,14 +124,139 @@ CONTROLS = ROOT / "docs/reviews/check-row-floor-controls.sh"
 SCRIPTS = ROOT / "scripts"
 CI = ROOT / ".github/workflows/ci.yml"
 
-#: The floor as the harness declares it. Deliberately the same anchored
-#: form `check-row-floors.py` uses, so a harness cannot satisfy one
-#: checker and not the other.
-FLOOR_RE = re.compile(r"^\s*ROW_FLOOR=(\d+)\s*$", re.M)
+# =====================================================================
+# THE CONTAINER (#187). See the docstring section of the same name.
+# =====================================================================
+
+#: The same two directories and two suffixes that
+#: `check-checkers-are-wired.py` uses. Named here rather than imported
+#: because that file is a script, not a module, and a `sys.path` hack
+#: to reach it would be a worse coupling than two constants that a
+#: self-test arm compares.
+#:
+#: `FLOOR_RE`, an anchored `^\s*ROW_FLOOR=(\d+)\s*$`, used to sit here
+#: and is DELETED rather than left beside the new rule. It had three
+#: call sites, `FLOOR_ASSIGN` replaced all three, and a second floor
+#: regex kept "for the shell case" is the fix rebuilding its own defect
+#: one column over. `check-row-floors.py` still carries that spelling
+#: for its own narrower question, which is a different claim about a
+#: different set.
+CONTAINER_DIRS = ("docs/reviews", "scripts")
+CONTAINER_SUFFIXES = (".py", ".sh")
+
+#: A FLOOR ASSIGNMENT, and the vocabulary is DERIVED rather than listed.
+#: The three spellings live in the repository today are `ROW_FLOOR=12`,
+#: `arm_floor = 9` and a bare `floor = 14`; a list of those three would
+#: be blind to the fourth, which is the defect this whole file exists
+#: for one level up. So the rule is STRUCTURAL: an identifier whose name
+#: contains `floor`, assigned an integer LITERAL, as the whole of the
+#: line. `ROW_FLOOR=$TOTAL` is deliberately not matched - it equals the
+#: count by construction and passes with every row deleted, which
+#: `check-row-floors.py` records at its own `FLOOR` regex.
+#:
+#: `pre` may not carry a quote: that is what keeps a floor written
+#: INSIDE a string (`STUB_TAIL='... floor=1 ...'`, prose in a docstring)
+#: out of the population. Anchoring at `$` does most of that work
+#: already - a docstring sentence continues past the digits - but a
+#: quote check costs one clause and closes the rest.
+FLOOR_ASSIGN = re.compile(
+    r"^(?P<pre>[^#'\"\n]*?)\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+    r"\s*=\s*(?P<val>\d+)\s*(?:#.*)?$",
+    re.M,
+)
+
+#: A LITERAL ZERO IS NOT A FLOOR, and that is this repository's own
+#: published rule rather than a convenience invented here:
+#: `scripts/lib/harness-result.sh` says *"Pass 0 as the floor for a
+#: harness that has none; 0 is not a floor anything can breach, and it
+#: reads as absent"*, and `check-coverage-floors.py` acts on the same
+#: reading with a `if line_floor == 0: continue`.
+#:
+#: **A ZERO IS NOT SILENTLY DROPPED.** Every zero-valued floor site must
+#: appear here WITH ITS REASON, and every entry here must still resolve
+#: to a zero-valued site on disk - a stale exemption is as red as an
+#: unregistered zero. Without both directions this would be the named
+#: list the container was widened to abolish, and a harness whose floor
+#: regressed to 0 would leave the population looking like a pass.
+ZERO_IS_ABSENT: dict[tuple[str, str], str] = {
+    ("scripts/lib/harness-result.sh", "HR_FLOOR"): (
+        "the shared publisher's initialiser, not a harness's own floor. "
+        "It is set from the caller by `harness_result_ran <rows> "
+        "<floor>`, and the 0 it starts at is the documented spelling of "
+        "ABSENT - see the comment above `harness_result_ran`."
+    ),
+    ("docs/reviews/check-coverage-floors.py", "line_floor"): (
+        "a per-module accumulator reset inside the loop, then raised by "
+        "`max` over every family that applies. The 0 is the "
+        "no-family-matched case, and the next statement after the "
+        "raises is `if line_floor == 0: continue`."
+    ),
+    ("docs/reviews/check-coverage-floors.py", "branch_floor"): (
+        "the same accumulator for the branch column; only a module with "
+        "a DESIGN role ever raises it above 0, and 0 prints as `-`."
+    ),
+}
+
+
+def _tracked(dirs: tuple[str, ...]) -> list[str]:
+    """Tracked files under `dirs`, as repo-relative POSIX paths.
+
+    `git ls-files`, not a filesystem walk: an untracked scratch file an
+    agent left in a worktree is not part of the repository's container,
+    and three worktrees on this project are live at any moment.
+    """
+    done = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", *dirs],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode != 0:
+        raise SystemExit(f"git ls-files failed: {done.stderr.strip()}")
+    return [
+        p
+        for p in done.stdout.splitlines()
+        if pathlib.PurePath(p).suffix in CONTAINER_SUFFIXES
+    ]
+
+
+def floor_sites(
+    dirs: tuple[str, ...] = CONTAINER_DIRS,
+) -> list[tuple[str, str, int]]:
+    """Every `(path, identifier, value)` floor assignment in scope.
+
+    Zeroes included - the caller separates them, because a zero that
+    nobody has registered is a FINDING and dropping it here would be the
+    silent skip.
+    """
+    out: list[tuple[str, str, int]] = []
+    for rel in _tracked(dirs):
+        try:
+            text = (ROOT / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for m in FLOOR_ASSIGN.finditer(text):
+            if "floor" not in m.group("name").lower():
+                continue
+            out.append((rel, m.group("name"), int(m.group("val"))))
+    return sorted(out)
+
+
+def table_path(name: str) -> str:
+    """Column 1 of the table, as a repo-relative path.
+
+    A bare name still means `scripts/<name>` - 25 of the 29 rows are
+    written that way and rewriting them all would be a diff with no
+    reader. A member outside `scripts/` writes its path in full, which
+    is the form that made the container widening (#187) possible at all:
+    the table used to be a list of NAMES under one directory, so a floor
+    that moved to `docs/reviews/` could not be named in it even by hand.
+    """
+    return name if "/" in name else f"scripts/{name}"
 
 
 def _table() -> list[tuple[str, str, int]]:
-    """`(harness, row-invocation ERE, rows the ERE cannot match)`.
+    """`(harness PATH, row-invocation ERE, rows the ERE cannot match)`.
 
     Split from the LAST delimiters inward, not the first: one ERE in the
     table is `^control (MUT|AMP) `, and a `cut -f2` would truncate it at
@@ -99,8 +274,38 @@ def _table() -> list[tuple[str, str, int]]:
         rest = rest.rsplit("|", 1)[0]  # drop mode
         rest = rest.rsplit("|", 1)[0]  # drop the floor-breach exit code
         rest, extra = rest.rsplit("|", 1)
-        rows.append((name, rest, int(extra)))
+        rows.append((table_path(name), rest, int(extra)))
     return rows
+
+
+def static_rows(text: str, ere: str, extra: int) -> int:
+    """Rows the table's ERE finds in a harness's source.
+
+    **TWO COUNTING RULES, and the ERE itself says which one applies.**
+    By default every match is a row, which is what 25 shell harnesses
+    with a `^mutate "`-shaped opener need.
+
+    A `(?P<label>...)` group switches it to counting DISTINCT LABELS.
+    That exists because a harness may write one row at two mutually
+    exclusive sites: `probe-gate-swallowed-exceptions.py` has eight
+    `row(` calls and prints seven rows, because its E row is written
+    once in the try branch and once in the except; `check-secrets-
+    baseline.py` has eleven `arm(` calls and prints nine.
+    Counting sites there reports SLACK that does not exist, and the
+    honest correction is not a negative number in the EXTRA column -
+    that would be a hand-kept constant beside a container, the shape
+    this file exists to delete. The label is a signal the harnesses
+    already carry: they name their rows `A.`..`G.` and `C1`..`C9`
+    because a reader has to tell them apart.
+
+    **The group must be NAMED.** An unnamed group would have silently
+    changed the meaning of the two table EREs that already have one -
+    `^control (MUT|AMP) ` would have counted 2 instead of 15.
+    """
+    rx = re.compile(ere, re.M)
+    if "label" in rx.groupindex:
+        return len({m.group("label") for m in rx.finditer(text)}) + extra
+    return len(rx.findall(text)) + extra
 
 
 def _external_floors() -> dict[str, tuple[int, str]]:
@@ -208,31 +413,299 @@ def _container_gap(table: list[tuple[str, str, int]]) -> list[str]:
     existing per-row check would call it "not on disk" only if the
     whole file were missing.
     """
-    on_disk = {
-        p.name
-        for p in sorted(SCRIPTS.glob("*.sh"))
-        if FLOOR_RE.search(p.read_text(encoding="utf-8"))
-    }
+    sites = floor_sites()
+
+    gap: list[str] = []
+
+    # -- THE FOURTH-LOCATION TRIPWIRE ---------------------------------
+    # The container is bounded by two directories, and a bound nobody
+    # watches is how this file got its finding: `scripts/*.sh` was
+    # correct when it was written and silently stopped covering the set
+    # three floors later. So the SAME selector is run over the whole
+    # repository, and anything it finds outside `CONTAINER_DIRS` is a
+    # finding rather than an invisible non-member.
+    #
+    # It measures ZERO today, repo-wide, on 2026-09-01 - which is the
+    # only reason the container's two directories are the right two.
+    # That zero is proved non-vacuous by arm A6 of `--self-test`, which
+    # plants a floor in a third directory and watches this fire.
+    outside = [
+        (rel, name, val)
+        for rel, name, val in floor_sites((".",))
+        if (rel, name, val) not in sites
+    ]
+    for rel, name, val in outside:
+        gap.append(
+            f"{rel}: `{name} = {val}` is a floor in a FOURTH LOCATION - "
+            f"outside {', '.join(CONTAINER_DIRS)}. Either widen "
+            "CONTAINER_DIRS so this file's floor is covered like every "
+            "other, or move the harness. A floor outside the container "
+            "is not exempt; it is unwatched, which is the state #187 "
+            "found three CI-wired floors in."
+        )
+
+    # -- THE ZERO SITES, BOTH DIRECTIONS ------------------------------
+    zeros = {(rel, name) for rel, name, val in sites if val == 0}
+    for key in sorted(zeros - set(ZERO_IS_ABSENT)):
+        gap.append(
+            f"{key[0]}: `{key[1]}` is a floor of 0, and nothing in "
+            "ZERO_IS_ABSENT says why. A floor of 0 is satisfied by zero "
+            "rows, so it is either a harness whose floor was lost - the "
+            "exact silent direction this file exists for - or an "
+            "initialiser that means ABSENT, and only the second one may "
+            "be registered."
+        )
+    for key in sorted(set(ZERO_IS_ABSENT) - zeros):
+        gap.append(
+            f"{key[0]}: ZERO_IS_ABSENT registers `{key[1]}` as a "
+            "0-means-absent site and there is no such site on disk any "
+            "more. A stale exemption certifies whatever moved into its "
+            "place, so it is red rather than ignored."
+        )
+
+    on_disk = {rel for rel, _, val in sites if val > 0}
     if not on_disk:
-        return [
-            "NO harness in scripts/ carries a literal ROW_FLOOR. An empty "
+        dirs = ", ".join(f"{d}/" for d in CONTAINER_DIRS)
+        return gap + [
+            f"NO file under {dirs} carries a literal floor. An empty "
             "container and a fully-covered one are the same green, so this "
             "is a finding rather than a pass."
         ]
-    named = {name for name, _, _ in table}
-    gap = []
+
+    named = {path for path, _, _ in table}
+
     for missing in sorted(on_disk - named):
         gap.append(
-            f"{missing}: carries a ROW_FLOOR but the control table does not "
-            "name it, so its floor is never compared to a live row count. "
-            "Add it to TABLE in check-row-floor-controls.sh."
+            f"{missing}: carries a literal floor and the control table "
+            "does not name it, so its floor is never compared to a row "
+            "count. Add a row to TABLE in check-row-floor-controls.sh: "
+            "an ERE that matches its row openers, a `(?P<label>...)` ERE "
+            "if it writes one row at more sites than it prints, or the "
+            "literal token COMPUTED if its row count is built at run "
+            "time and no static count exists."
         )
     for extra in sorted(named - on_disk):
         gap.append(
             f"{extra}: named by the control table but carries no literal "
-            "ROW_FLOOR. One of the two is wrong."
+            "floor. One of the two is wrong."
         )
     return gap
+
+
+def self_test() -> int:
+    r"""Plant the defects this file's container is supposed to catch.
+
+        python3 docs/reviews/check-row-floor-exactness.py --self-test
+
+    **WHY THE ARMS ARE IN-PROCESS AND MUTATE ALMOST NOTHING.** Every arm
+    feeds a synthetic string to the same selector `main()` uses, or
+    calls `floor_sites()` with a narrowed directory tuple. Only A6
+    touches the tree, and it removes its plant in a `finally` that A7
+    then checks - so this can run in CI beside the checker itself, which
+    `check-row-floor-controls.sh` cannot because it must break its
+    subject.
+
+    **A6 IS THE ONE THAT MATTERS AND IT IS THE HARD ONE.** The
+    fourth-location tripwire reports zero repo-wide, and a zero with a
+    plausible story is exactly what shipped last time. A6 plants a floor
+    in a third directory and requires the tripwire to see it, which is
+    the difference between "there are none" and "I looked and there are
+    none".
+    """
+    arms: list[tuple[str, bool, str]] = []
+
+    def arm(name: str, ok: bool, meaning: str) -> None:
+        arms.append((name, ok, meaning))
+
+    def sites(text: str) -> list[tuple[str, int]]:
+        return [
+            (m.group("name"), int(m.group("val")))
+            for m in FLOOR_ASSIGN.finditer(text)
+            if "floor" in m.group("name").lower()
+        ]
+
+    # -- THE VOCABULARY IS DERIVED, NOT LISTED -----------------------
+    arm(
+        "A1 a spelling that exists NOWHERE in this repository is matched",
+        sites("GATE_FLOOR_V2 = 3\n") == [("GATE_FLOOR_V2", 3)],
+        "the three live spellings would be a list, and a list is blind "
+        "to the fourth - which is the whole finding of #187",
+    )
+    arm(
+        "A2 all three LIVE spellings are matched by the one rule",
+        sites("ROW_FLOOR=12\narm_floor = 9\n    floor = 14\n")
+        == [("ROW_FLOOR", 12), ("arm_floor", 9), ("floor", 14)],
+        "a bare `floor = 14` is the one my own first selector missed, "
+        "because it required a character before the word",
+    )
+
+    # -- THE BOUND, PINNED RATHER THAN ASSUMED ------------------------
+    arm(
+        "A3 NEGATIVE CONTROL: an identifier without `floor` is invisible",
+        sites("GATE_MINIMUM = 3\n") == [],
+        "this is the container's real bound and it is worth stating: "
+        "the vocabulary is the WORD, so a floor named `MIN_ROWS` would "
+        "be outside it. Not a defect to fix here - a limit to know.",
+    )
+    arm(
+        "A4 a computed floor is NOT a floor",
+        sites('ROW_FLOOR=$TOTAL\nROW_FLOOR="${ROW_FLOOR:-9}"\n') == [],
+        "`ROW_FLOOR=$TOTAL` equals the count by construction and passes "
+        "with every row deleted; `check-row-floors.py` refuses it too",
+    )
+    arm(
+        "A5 a floor inside prose or a comment is NOT a floor",
+        sites("# ROW_FLOOR=26 is what it used to be\n")
+        + sites("carried `ROW_FLOOR=26`. Five rows could have gone.\n")
+        + sites("STUB='echo \"rows=1 floor=1\"'\n")
+        == [],
+        "this file's own docstring names ROW_FLOOR=26 twice, and a "
+        "selector that read them would report the checker as a harness",
+    )
+
+    # -- THE FOURTH-LOCATION TRIPWIRE IS NOT VACUOUS ------------------
+    # THE PLANT IS THE POINT. The tripwire's zero has a story - the two
+    # container directories really are where the harnesses live - and a
+    # zero that explains itself is the shape that shipped last time.
+    planted = ROOT / "src" / "_probe_187_fourth_location.py"
+    fired = False
+    try:
+        planted.write_text("SMOKE_FLOOR = 3\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(ROOT), "add", "-N", str(planted)],
+            capture_output=True,
+            check=False,
+        )
+        fired = any(rel.endswith(planted.name) for rel, _, _ in floor_sites((".",)))
+    finally:
+        subprocess.run(
+            ["git", "-C", str(ROOT), "rm", "--cached", "-q", str(planted)],
+            capture_output=True,
+            check=False,
+        )
+        planted.unlink(missing_ok=True)
+    arm(
+        "A6 a floor planted in a THIRD directory is SEEN repo-wide",
+        fired,
+        "without this the tripwire's zero is a claim about where I "
+        "looked. The plant is removed in a `finally`, and A7 proves the "
+        "tree came back.",
+    )
+    arm(
+        "A7 the plant was REMOVED - the tree is as it was",
+        not planted.exists(),
+        "a harness that leaves its own mutation behind has cost this "
+        "project four measured incidents",
+    )
+    arm(
+        "A8 the same planted floor is NOT in the default container",
+        not any(rel.endswith(planted.name) for rel, _, _ in floor_sites()),
+        "if it were, A6 would be measuring the container rather than "
+        "the tripwire and both arms would pass for one reason",
+    )
+
+    # -- CONTAINER_DIRS IS LOAD-BEARING -------------------------------
+    both = {rel for rel, _, v in floor_sites() if v > 0}
+    scripts_only = {rel for rel, _, v in floor_sites(("scripts",)) if v > 0}
+    arm(
+        "A9 trimming CONTAINER_DIRS back to scripts/ LOSES members",
+        len(both - scripts_only) > 0,
+        f"{len(both - scripts_only)} member(s) live under docs/reviews/ "
+        "and would silently leave the population - the #187 defect "
+        "reproduced by shrinking the constant",
+    )
+
+    # -- THE TWO COUNTING RULES ---------------------------------------
+    control_rows = "control MUT a\ncontrol AMP b\ncontrol MUT c\n"
+    arm(
+        "A10 an UNNAMED group does not switch on distinct-label counting",
+        static_rows(control_rows, r"^control (MUT|AMP) ", 0) == 3,
+        "`^control (MUT|AMP) ` is a live table ERE; counting distinct "
+        "captures there would report 2 rows against a floor of 15",
+    )
+    two_sites_one_row = 'row(\n    "E. x",\n)\nrow(\n    "E. y",\n)\n'
+    arm(
+        "A11 a NAMED `label` group counts DISTINCT labels",
+        static_rows(two_sites_one_row, r'row\(\n\s*"(?P<label>[A-Z])\.', 0) == 1,
+        "two mutually exclusive sites print one row; counting sites "
+        "reports SLACK that does not exist",
+    )
+
+    # -- THE ZERO REGISTER, BOTH DIRECTIONS ---------------------------
+    real = dict(ZERO_IS_ABSENT)
+    try:
+        ZERO_IS_ABSENT.clear()
+        arm(
+            "A12 an UNREGISTERED zero floor is a finding",
+            any("floor of 0" in line for line in _container_gap(_table())),
+            "a floor of 0 is satisfied by zero rows, so a harness whose "
+            "floor was lost must not read as a non-member",
+        )
+        ZERO_IS_ABSENT.update(real)
+        ZERO_IS_ABSENT[("docs/reviews/nothing-here.py", "GONE_FLOOR")] = "stale"
+        arm(
+            "A13 a STALE registration is a finding",
+            any("no such site on disk" in line for line in _container_gap(_table())),
+            "an exemption that outlives its site certifies whatever moved in behind it",
+        )
+    finally:
+        ZERO_IS_ABSENT.clear()
+        ZERO_IS_ABSENT.update(real)
+
+    # -- THE TABLE/CONTAINER EQUALITY, BOTH DIRECTIONS ----------------
+    full = _table()
+    arm(
+        "A14 a member the TABLE does not name is a finding",
+        any(
+            "does not name it" in line
+            for line in _container_gap([r for r in full if "u7-resilience" not in r[0]])
+        ),
+        "this is R12-M1's claim and the direction that never announces itself",
+    )
+    arm(
+        "A15 a TABLE row with no floor on disk is a finding",
+        any(
+            "carries no literal floor" in line
+            for line in _container_gap([*full, ("scripts/ci-harness-gate.sh", "^x", 0)])
+        ),
+        "a table row pointing at a floorless file is just as wrong, and "
+        "the per-row check would only have caught a MISSING file",
+    )
+    arm(
+        "A16 the container is NOT empty",
+        len(both) > 0,
+        "an empty container and a fully-covered one are the same green",
+    )
+
+    failed = [a for a in arms if not a[1]]
+    for name, ok, meaning in arms:
+        print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
+
+    # THE ARM FLOOR. `failed == 0` is satisfied by zero arms - the exact
+    # defect R19 measured on `check-secrets-baseline.py`, in a file with
+    # no floor, which is one of the four members this widening exists
+    # for. Writing this self-test without one would have rebuilt that
+    # defect inside the fix for it.
+    #
+    # AND IT PUTS THIS FILE IN ITS OWN CONTAINER, which is the correct
+    # outcome rather than an awkward one: the checker is a tracked `.py`
+    # under `docs/reviews/` carrying a literal floor, so it needs a row
+    # in the control table like every other member - and a run of
+    # `main()` says so if it does not have one.
+    arm_floor = 16
+    status = "ok" if not failed and len(arms) >= arm_floor else "breach"
+    print(
+        f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
+        f"rows={len(arms)} floor={arm_floor} "
+        f"fired={len(arms) - len(failed)}/{len(arms)} status={status}"
+    )
+    if len(arms) < arm_floor:
+        print(
+            f"::error::{len(arms)} arms against a floor of {arm_floor} - "
+            "an arm was DELETED."
+        )
+        return 1
+    return 1 if failed else 0
 
 
 def main() -> int:
@@ -244,29 +717,64 @@ def main() -> int:
         return 2
 
     bad: list[str] = _container_gap(table)
-    for name, ere, extra in table:
-        path = SCRIPTS / name
+    for rel, ere, extra in table:
+        path = ROOT / rel
         if not path.exists():
-            bad.append(f"{name}: named by the control table but not on disk")
+            bad.append(f"{rel}: named by the control table but not on disk")
             continue
         text = path.read_text(encoding="utf-8")
-        found = FLOOR_RE.search(text)
-        if found is None:
-            bad.append(f"{name}: no literal ROW_FLOOR=<n>")
+        # THE FLOOR IS FOUND BY THE CONTAINER'S OWN RULE, not by
+        # `ROW_FLOOR=` alone: two members spell it `arm_floor = 9` and
+        # `floor = 14`, and an anchored `ROW_FLOOR` search would have
+        # reported them as carrying no floor - which is the finding
+        # this widening exists for, restated one column over.
+        declared = [(nm, val) for r, nm, val in floor_sites() if r == rel and val > 0]
+        if not declared:
+            bad.append(f"{rel}: no literal floor assignment")
             continue
-        floor = int(found.group(1))
-        rows = sum(1 for line in text.splitlines() if re.search(ere, line)) + extra
-        print(f"  {name:42} floor {floor:3}  rows {rows:3}")
+        if len(declared) > 1:
+            bad.append(
+                f"{rel}: {len(declared)} floor assignments "
+                f"({', '.join(n for n, _ in declared)}) and nothing says "
+                "which one the table's row count is about."
+            )
+            continue
+        floor = declared[0][1]
+
+        # COMPUTED: THE CHECKER SAYS SO PER FILE RATHER THAN SKIPPING.
+        # Two members build their row count at run time - `TOTAL` is
+        # incremented from three different helpers in one, and the other
+        # is literally `rows = len(ARMS) + 2 * halves`. No static count
+        # of source sites can reach either number: the first has nine
+        # increment sites and prints twelve rows.
+        #
+        # **THIS IS NOT THE `.py` PROBLEM IT LOOKS LIKE.** One of the
+        # two is a `.sh`. The axis is whether the row count is a
+        # property of the SOURCE at all, and for these it is not.
+        #
+        # The token is in the TABLE, not in a register beside it, so
+        # the container equality still holds in both directions and the
+        # DEFAULT for a new member stays RED. Task #193 closes the gap
+        # by asserting equality on the canonical line these two publish.
+        if ere.strip() == "COMPUTED":
+            print(
+                f"  {rel:52} floor {floor:3}  rows   ?  "
+                "COMPUTED at run time - no static count (#193)"
+            )
+            continue
+
+        rows = static_rows(text, ere, extra)
+        print(f"  {rel:52} floor {floor:3}  rows {rows:3}")
         if rows > floor:
             bad.append(
-                f"{name}: SLACK by {rows - floor}. It has {rows} rows and a "
+                f"{rel}: SLACK by {rows - floor}. It has {rows} rows and a "
                 f"floor of {floor}, so {rows - floor} row(s) can be deleted "
                 "without the floor noticing. This is the direction that "
                 "never announces itself."
             )
         elif rows < floor:
             bad.append(
-                f"{name}: floor {floor} exceeds its {rows} rows, so the "
+                f"{rel}: floor {floor} exceeds its {rows} rows, so the "
                 "harness cannot pass its own floor."
             )
 
@@ -276,6 +784,11 @@ def main() -> int:
     print("\n  --min-rows, against the rows the harness will actually print:")
     for name in sorted(set(external)):
         min_rows, row_re = external[name]
+        # `ci-harness-gate.sh` builds `scripts/$harness` itself, so the
+        # names on its lines are bare and always under scripts/. That is
+        # the gate's rule, not this checker's, so it stays a join on
+        # SCRIPTS rather than becoming a path.
+        rel = f"scripts/{name}"
         path = SCRIPTS / name
         if not path.exists():
             bad.append(f"{name}: ci.yml passes it --min-rows but it is not on disk")
@@ -309,11 +822,25 @@ def main() -> int:
                     "it prints, so this step cannot pass."
                 )
 
-        found = FLOOR_RE.search(text)
-        if found is None:
+        # THE SAME CONTAINER RULE AS CLAIM FOUR, not `ROW_FLOOR=` alone.
+        # This is the fix rebuilding its own defect one column over if
+        # it is left as it was: an anchored `ROW_FLOOR` search here
+        # would read a harness spelling its floor `arm_floor = 9` as
+        # carrying NO internal floor, skip the agreement check for it,
+        # and not say so - which is the shape #187 is about, on the
+        # layer #187 was not looking at.
+        internal_floors = [v for r, _, v in floor_sites() if r == rel and v > 0]
+        if not internal_floors:
+            continue
+        if len(internal_floors) > 1:
+            bad.append(
+                f"{name}: {len(internal_floors)} floor assignments, so "
+                "which one ci.yml's --min-rows should agree with is "
+                "undecidable here."
+            )
             continue
         paired += 1
-        internal = int(found.group(1))
+        internal = internal_floors[0]
         if internal != min_rows:
             bad.append(
                 f"{name}: ROW_FLOOR={internal} but ci.yml passes "
@@ -321,6 +848,26 @@ def main() -> int:
                 "about one number, and the lower one tolerates losing "
                 f"{abs(internal - min_rows)} row(s) the other catches."
             )
+
+    # THE CONTAINER CENSUS, PRINTED (#187). Never written into the
+    # docstring: the counts that were once typed into it went stale
+    # within hours, which the docstring itself now records.
+    sites = floor_sites()
+    zeros = sorted({(r, n) for r, n, v in sites if v == 0})
+    members = sorted({r for r, _, v in sites if v > 0})
+    named = {path for path, _, _ in table}
+    computed = sorted(p for p, e, _ in table if e.strip() == "COMPUTED")
+    dirs = ", ".join(f"{d}/" for d in CONTAINER_DIRS)
+    kinds = ", ".join(CONTAINER_SUFFIXES)
+    print(f"\nCONTAINER: tracked {kinds} under {dirs} carrying a literal floor")
+    print(f"  members (floor > 0)                                  {len(members):3}")
+    print(f"  named by the control TABLE - EQUAL both directions    {len(named):3}")
+    print(f"  of those, row count COMPUTED at run time (#193)       {len(computed):3}")
+    for rel in computed:
+        print(f"      {rel}")
+    print(f"  0-means-absent sites, each registered with a reason   {len(zeros):3}")
+    for rel, name in zeros:
+        print(f"      {rel}  `{name}`")
 
     print(f"\nHarnesses checked for exactness: {len(table)}")
     print(f"Harnesses carrying BOTH floors, checked for agreement: {paired}")
@@ -341,4 +888,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())
