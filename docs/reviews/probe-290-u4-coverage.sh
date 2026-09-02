@@ -45,6 +45,17 @@ cd "$REPO" || exit 3
 export PYTHONDONTWRITEBYTECODE=1
 ARM_TIMEOUT=900
 
+# shellcheck source=../../scripts/lib/verdict-guard.sh
+. "$REPO/scripts/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. This probe reads"
+  echo "         'no PASSED lines' as 'everything died', so without the guard a"
+  echo "         collection error or a timeout scores as a perfect kill (#254) - in"
+  echo "         BOTH arms, which would then agree and read as verdict-preserving."
+  echo "         A missing source is SILENT: 'command not found' is not fatal under"
+  echo "         'set -uo pipefail', so this check is the only thing that catches it."
+  exit 3
+}
+
 SUBJECT="src/fast_mcp_jobvite/services/jobvite_client.py"
 SUITE="tests/test_jobvite_client.py"
 # TWO MODES, one anchor list. The anchor list below is the thing that must not
@@ -120,15 +131,20 @@ PY
 }
 
 # The harness's own verdict, re-derived from the arm's artefacts rather than
-# retyped: verdict-guard.sh REFUSES any rc outside {0,1}, and below that the
-# harness reports the `^PASSED ` count as survivors.
+# retyped. The rc discrimination is NOT re-implemented here: it CALLS the same
+# `verdict_guard` the harnesses call, from scripts/lib/verdict-guard.sh, so a
+# change to what counts as a measurement reaches this probe too. An earlier
+# version of this function hand-rolled the identical `case` and drifted out of
+# the library's reach the moment either side changed - which is the defect this
+# whole probe exists to look for, one level up.
+#
+# The guard EXITS 5 rather than returning a string, and that is correct here.
+# Two arms cannot be compared when one of them never ran: a refusal in either
+# arm makes the comparison meaningless, not merely incomplete. Aborting says so;
+# a soft REFUSED row would let the run finish and publish a table with a hole.
 verdict_of() {
   local rc="$1" out="$2" n
-  case "$rc" in
-    0|1) ;;
-    124) echo "REFUSED(timeout)"; return ;;
-    *)   echo "REFUSED(rc=$rc)"; return ;;
-  esac
+  verdict_guard "$rc" "$out.raw" "$ARM_TIMEOUT"
   n=$(wc -l <"$out.pass")
   if [ "$n" -eq 0 ]; then echo "KILLED(survivors=0)"; else echo "SURVIVORS=$n"; fi
 }
