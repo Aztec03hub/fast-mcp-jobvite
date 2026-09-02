@@ -347,15 +347,30 @@ schedule still renders like a passing one.
 
 ## 9. What I did NOT verify
 
-- **No run of the new workflow shape has executed.** The ~3.5-4 min wall and
-  ~30-40 billed figures are (P). DO NOT PUSH stood for this whole task;
-  the first push is the positive control. Watch: all 16 jobs schedule
-  (GitHub's 20-concurrent free-tier ceiling leaves 4 of headroom),
-  wall-clock, billed minutes, and cold-cache behaviour - every (L)
-  figure here is warm-cache.
+- ~~**No run of the new workflow shape has executed.**~~ **IT HAS, AND THIS
+  ENTRY WAS STALE.** Run 33614887374 (head 0d2c945) executed the current
+  shape and went GREEN, 16/16 jobs. So the ~3.5-4 min and ~30-40 figures
+  are not merely (P) - they were superseded by measurement and are
+  retracted in section 7a. This bullet is kept struck through because a
+  "what I did NOT verify" list that still claims something unverified
+  AFTER it was verified is worse than one that never mentioned it: a
+  reader trusts this section precisely to know what is open.
+- **THE "20-CONCURRENT FREE-TIER CEILING" WAS NEVER CITED AND IS
+  CONTRADICTED BY OUR OWN DATA.** That number appears here with no
+  source. Run 33610211810's admission ladder was 3,3,3, nine at 4s, then
+  30, 51, 56 and 305 - twelve admitted together and four admitted one at
+  a time as others finished. If a limit was binding it was near TWELVE,
+  not twenty, and "4 of headroom" was arithmetic on a figure nobody
+  measured. What IS established: `plan.name` is "free" and the limit is
+  ORG-WIDE across the sibling repositories, so it is not this
+  repository's to spend and cannot be pinned from inside it.
 - **Runner-side timing of the converted harnesses.** The 1.5x
   local-to-runner scaling is one observed ratio (54-56s vs 83s suite),
-  not a law.
+  not a law - and R23 notes the comparison divides a JOB duration by a
+  HARNESS duration, which are different objects. Treat it as an order of
+  magnitude, not a coefficient.
+- **Cold-cache behaviour is still unmeasured.** Every (L) figure in this
+  document is warm-cache, and that has not changed.
 - **U9's A14-class residual on other harnesses.** I compared per-row
   killer counts against the green run for U9 (13 of 14 identical); for
   U0/U1/U4 the proof is the harness's own per-row verdict (every
