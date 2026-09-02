@@ -268,6 +268,9 @@ run_mutation "M15 the exception-message arm stops redacting" "$REDACT" \
 
 echo
 echo "########## RESULT: $PASS killed, $FAIL not killed"
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally killed "$PASS" "$((PASS + FAIL))"
 
 # THE ROW FLOOR. `FAIL -eq 0` is satisfied by a harness with no rows at
 # all: delete every `run_mutation` call and this prints "0 killed, 0 not

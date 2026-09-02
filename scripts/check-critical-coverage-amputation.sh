@@ -546,6 +546,9 @@ amputate "A20 a failed or ambiguous write is audited as a success" "$CANDIDATES"
 # THE GATE.
 # ---------------------------------------------------------------------------
 echo "########## ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally applied "$APPLIED" "$ROWS"
 echo "########## TOTAL SURVIVING ASSERTIONS: $TOTAL_SURVIVORS"
 echo "########## VACUOUS ROWS: $VACUOUS (declared survivors included)"
 echo "########## UNDECLARED VACUOUS ROWS: $UNEXPECTED_VACUOUS"

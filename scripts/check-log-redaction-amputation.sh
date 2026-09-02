@@ -249,6 +249,9 @@ amputate "A6  the probe's positive control opts in too" "$PROBE" \
 # ---------------------------------------------------------------------------
 echo "########## $ROWS/$ROW_FLOOR ROWS"
 echo "########## ROWS: $ROWS   ANCHORS APPLIED: $APPLIED"
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally applied "$APPLIED" "$ROWS"
 echo "########## TOTAL SURVIVING ASSERTIONS: $TOTAL_SURVIVORS"
 echo "########## VACUOUS ROWS: $VACUOUS"
 

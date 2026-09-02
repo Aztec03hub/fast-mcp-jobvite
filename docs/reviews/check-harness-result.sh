@@ -139,6 +139,103 @@ if [ "${#missing_ran[@]}" -ne 0 ]; then
   fail=1
 fi
 
+# ---- THE TALLY, AND THE SAME EQUALITY ONE LEVEL DOWN -----------------------
+# TASK #120. `scripts/ci-harness-gate.sh` no longer parses the three prose tally
+# shapes out of a harness's log; it reads `fired=`/`killed=`/`applied=` off the
+# canonical line. That only holds if every harness that PRINTS a tally also
+# PUBLISHES one - a harness printing the sentence and publishing nothing would
+# make its gate step fail, which is loud, but a harness publishing the WRONG
+# KIND would make the gate read an anchor count as a control count, which is not.
+#
+# So the same set equality as above, one level down and stated per kind:
+#
+#     { scripts that print a tally } == { scripts that publish that same tally }
+#
+# THE POPULATION IS FOUND BY THE PRINT STATEMENT, not by the phrase. Grepping
+# for the phrase alone matches this file, `ci-harness-gate.sh`, and
+# `scripts/lib/harness-result.sh`, all of which DISCUSS the three shapes at
+# length and print none of them - a defect grep finding its own documentation,
+# which has happened five times in this repository.
+#
+# AND `::error::` LINES ARE NOT TALLY LINES. Anchoring on `echo`/`printf` alone
+# was the first version and it named `ci-harness-gate.sh`, whose only match is
+# the DIAGNOSIS it prints when a tally is short - "only N of M controls fired".
+# A message about a failed tally is not a tally; the gate counts nothing and has
+# nothing to publish. Its sibling `ci-harness-gate-controls.sh` was named by the
+# same first version and that one was RIGHT: it prints its own `N/M controls
+# fired.` and now publishes it, which is why this is a filter on the line and
+# not an exemption for a file.
+tally_printing=0
+tally_publishing=0
+missing_tally=()
+wrong_kind=()
+orphan_tally=()
+
+for s in "${SCRIPTS[@]}"; do
+  f="$REPO/scripts/$s"
+
+  want=""
+  prints=$(grep -E '^[[:space:]]*(echo|printf)' "$f" | grep -v '::error::')
+  if grep -qE 'ANCHORS APPLIED' <<< "$prints"; then
+    want=applied
+  elif grep -qE 'RESULT: .*killed' <<< "$prints"; then
+    want=killed
+  elif grep -qE 'controls fired' <<< "$prints"; then
+    want=fired
+  fi
+
+  got=$(grep -oE '(^|[^_[:alnum:]])harness_result_tally [a-z]+' "$f" \
+        | grep -oE '[a-z]+$' | sort -u | tr '\n' ' ')
+  got="${got% }"
+
+  if [ -z "$want" ]; then
+    [ -z "$got" ] || orphan_tally+=("$s (publishes '$got' and prints no tally)")
+    continue
+  fi
+  tally_printing=$((tally_printing + 1))
+  if [ -z "$got" ]; then
+    missing_tally+=("$s (prints a '$want' tally, publishes none)")
+  elif [ "$got" != "$want" ]; then
+    wrong_kind+=("$s (prints '$want', publishes '$got')")
+  else
+    tally_publishing=$((tally_publishing + 1))
+  fi
+done
+
+echo "print a tally line                   : $tally_printing"
+echo "publish the MATCHING tally field     : $tally_publishing"
+
+if [ "$tally_printing" -eq 0 ]; then
+  echo "::error::ZERO scripts print a tally. Twenty-seven did when this check was"
+  echo "         written, so a zero here is an instrument failure - the print"
+  echo "         patterns stopped matching - not a clean repository."
+  fail=1
+fi
+if [ "${#missing_tally[@]}" -ne 0 ]; then
+  echo "::error::these harnesses print a tally that nothing publishes, so their"
+  echo "         ci.yml gate step cannot read it:"
+  printf '           %s\n' "${missing_tally[@]}"
+  echo "         Add \`harness_result_tally <kind> <n> <m>\` beside the echo."
+  fail=1
+fi
+if [ "${#wrong_kind[@]}" -ne 0 ]; then
+  echo "::error::these harnesses publish a tally of a DIFFERENT KIND from the one"
+  echo "         they print. The three names are not interchangeable - a gate"
+  echo "         would read one meaning's number under another meaning's flag:"
+  printf '           %s\n' "${wrong_kind[@]}"
+  fail=1
+fi
+if [ "${#orphan_tally[@]}" -ne 0 ]; then
+  echo "::error::these scripts publish a tally field with no tally line beside it."
+  echo "         The field is meant to carry the SAME counters the harness prints;"
+  echo "         with nothing printed there is no second reading to disagree with:"
+  printf '           %s\n' "${orphan_tally[@]}"
+  fail=1
+fi
+if [ "$tally_printing" -eq "$tally_publishing" ] && [ "${#orphan_tally[@]}" -eq 0 ]; then
+  echo "EQUAL: all $tally_printing tally-printing scripts publish the matching field."
+fi
+
 # ---- THE EQUALITY, stated as one comparison --------------------------------
 if [ "$sourcing" -eq "$total" ] && [ "$armed" -eq "$total" ] && [ "$reporting" -eq "$total" ]; then
   echo "EQUAL: all $total scripts in the container emit the canonical line."

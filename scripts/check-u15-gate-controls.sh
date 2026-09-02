@@ -165,6 +165,9 @@ POST_RC=$?
 TOTAL=$((FIRED + HELD))
 echo
 echo "${FIRED}/${TOTAL} controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "${FIRED}" "${TOTAL}"
 echo "post-run re-check of the real gate: exit=${POST_RC} (must be 0)"
 
 # THE ROW FLOOR. `TOTAL -gt 0` catches only TOTAL deletion, and here TOTAL

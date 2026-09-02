@@ -434,6 +434,9 @@ control "M23 a blank SecretStr is a credential" "$CONFIG" "MUTANT-M23" \
 
 echo
 echo "$FIRED/$TOTAL controls fired."
+# The canonical result line's tally, from the SAME two counters the line
+# above prints and the harness's own gate compares - never a recount.
+harness_result_tally fired "$FIRED" "$TOTAL"
 
 # THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness
 # whose rows were deleted - or whose rows stopped being counted - reports

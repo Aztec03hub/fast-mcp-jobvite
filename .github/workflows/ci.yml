@@ -933,20 +933,24 @@ jobs:
       - name: No SIGPIPE-prone pipeline judges a gate
         run: python3 docs/reviews/check-no-sigpipe-pipelines.py
 
+      # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
+      # for a reason that turned out to be FALSE. #120 first left this step
+      # inline, reasoning from the SOURCE that this harness prints
+      # anchor-failure vocabulary as part of passing - `DID NOT LAND` and
+      # `ANCHOR NOT UNIQUE` are both in it - and that `ci-harness-gate.sh` would
+      # therefore fail it for doing its job. Measured instead of assumed, on a
+      # real passing run: it prints NEITHER. The phrases are in its source and
+      # never reach its output, which is the exact distinction the gate's
+      # derive-then-grep design is built on, and reading the source alone is how
+      # you get it backwards. Its sibling `ci-harness-gate-controls.sh` DOES
+      # print both, so it stays inline below and this one does not.
+      #
+      # Wrapping it adds the second, independent layer: the inline form read only
+      # the exit code, so a harness whose own `FIRED -ne TOTAL` comparison was
+      # deleted would have passed. Run before wiring: exit 0,
+      # `fired=9/9`, tree clean.
       - name: Harness anchor checker controls, all fired
-        run: |
-          set -uo pipefail
-          # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
-          # pipefail` does NOT clear that. Under `-e` the ASSIGNMENT
-          # `out=$(cmd)` is itself the failing command, so the shell dies
-          # there and `rc=$?` never runs - every diagnostic branch below
-          # was unreachable, and the step exited with the checker's raw
-          # code. Measured: bash -e exits 2 and prints nothing; without
-          # -e the branch runs. This line is what makes `rc` reachable.
-          set +e
-          out=$(bash scripts/check-harness-anchors-controls.sh 2>&1); rc=$?
-          echo "$out"
-          [ "$rc" -eq 0 ] || { echo "::error::an anchor-checker control did not fire"; exit 1; }
+        run: bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
 
       # The gate every step below calls, exercised against stub harnesses that
       # replay recorded output. Twenty-three rows, every arm including the ones
@@ -1016,10 +1020,20 @@ jobs:
       - name: U7 resilience controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
 
+      # `--anchors-applied` ADDED BY #120. Its census asked, of every harness
+      # printing a tally, whether any gate reads it. These three printed
+      # `ROWS: N   ANCHORS APPLIED: M` and no step read it, while their five
+      # siblings' steps did - a difference nothing had decided, produced by the
+      # steps being written at different times. The tally was never decorative:
+      # each harness gates on it internally and exits 3 or 1, and each prints a
+      # vocabulary phrase the gate already greps for. What was missing is the
+      # SECOND, INDEPENDENT layer the other five have, which is what catches a
+      # harness whose own comparison is deleted. It costs nothing to add and it
+      # is the answer #120's Q2 reached for these three.
       - name: U7 resilience amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
-            --amputation --min-rows 22 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 22 --row-re '^########## A[0-9]+ '
 
       # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
       # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
@@ -1056,7 +1070,7 @@ jobs:
       - name: U9 HTTP hardening amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u9-http-amputation.sh \
-            --amputation --min-rows 14 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
 
       # ----- U12, get_job_feed - the one route whose URL is a secret -----
       # WIRED IN THE MERGE COMMIT. C5-I1 is a High and its arms are the reason
@@ -1094,7 +1108,7 @@ jobs:
       - name: U10 write amputation, every row applied
         run: |
           bash scripts/ci-harness-gate.sh check-u10-write-amputation.sh \
-            --amputation --min-rows 10 --row-re '^########## A[0-9]+ '
+            --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # ----- U14, the argument layer: the sweep over the input models -----
       # U14 MERGED WITH BOTH HARNESSES UNWIRED. They existed, they passed, and
