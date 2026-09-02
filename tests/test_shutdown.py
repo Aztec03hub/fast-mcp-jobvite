@@ -122,7 +122,29 @@ def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
     amputation showed that - the equivalent mutation killed it every
     time.
 
-    Three cycles, each required to exit inside the grace period.
+    **THE HANG IS NOT THE ASSERTION, and repeating it does not make it
+    one (#243).** Three cycles were still a coin flip, and the coin is
+    weighted by the machine: CI run 33610211810 reported
+    `[M12 no forced exit] SURVIVED` in 3.18s while the same mutation on
+    the same commit dies locally. The mechanism, measured: the AnyIO
+    stdin-reader thread - the non-daemon thread whose join is the whole
+    hang - is created about 7.5 ms AFTER the lifespan writes `opened`,
+    and `spawn_marker_server` returns the instant `opened` appears. A
+    SIGTERM delivered inside that window finds a single-threaded
+    process, so nothing blocks interpreter shutdown, the mutant exits
+    promptly, and every timing assertion above passes. Signalling as
+    soon as `opened` lands reproduces the survival 5 of 5 here.
+
+    **So the arm asserts the forced exit DIRECTLY.** `os._exit` skips
+    `atexit` handlers by definition; a normal interpreter shutdown runs
+    them. The entry script registers one that appends `atexit` to the
+    marker, so that line is present if and only if the process came
+    down through interpreter shutdown rather than through the `finally`
+    - which is the property, not a symptom of it, and it does not
+    depend on which thread happened to exist when the signal landed.
+
+    Three cycles, each required to exit inside the grace period AND to
+    exit without running interpreter shutdown.
     """
     cycles = 3
     for cycle in range(cycles):
@@ -142,6 +164,14 @@ def test_only_stdio_exercises_the_forced_exit(tmp_path: pathlib.Path) -> None:
             )
         assert time.monotonic() - started < GRACE_SECONDS
         assert "closed" in marker.read_text()
+        # THE ASSERTION THAT SURVIVES THE RACE. `atexit` in the marker
+        # means the interpreter finalised normally, which it cannot do
+        # if `main`'s `finally` called `os._exit`.
+        assert "atexit" not in marker.read_text(), (
+            f"cycle {cycle}: the process ran interpreter shutdown, so the "
+            f"forced exit in main()'s finally did not run. marker:\n"
+            f"{marker.read_text()}\noutput:\n{output.read_text()}"
+        )
 
 
 def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
@@ -158,6 +188,13 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
 
     assert "from fast_mcp_jobvite.__main__ import main" in MARKER_ENTRY
     assert "main(extra_lifespan=marker_lifespan)" in MARKER_ENTRY
+    # WITHOUT THE RECORDER, `assert "atexit" not in marker` above is
+    # vacuous - it would hold against a deleted forced exit for the
+    # reason that nothing writes the line any more (#243). This asserts
+    # the instrument still exists, so deleting it fails here rather
+    # than silently disarming the arm one file over.
+    assert "@atexit.register" in MARKER_ENTRY
+    assert 'fh.write("atexit' in MARKER_ENTRY
 
     source = pathlib.Path(
         pathlib.Path(__file__).resolve().parents[1]

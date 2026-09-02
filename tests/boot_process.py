@@ -37,7 +37,20 @@ import time
 #: Recording the PID here makes the assertion transport-independent and
 #: removes the dependency on a third-party log format. Downstream
 #: readers match the substring `opened`, which is unaffected.
+#:
+#: The `atexit` line is the stdio arm's REAL assertion (#243).
+#: `os._exit` skips `atexit` handlers by definition, so the line is
+#: written if and only if the process came down through normal
+#: interpreter shutdown - which is exactly what `main`'s
+#: `finally: os._exit(status)` exists to prevent. Before it, that arm
+#: could only observe the CONSEQUENCE of the missing forced exit: a
+#: hang, while a non-daemon AnyIO thread is joined. Whether that thread
+#: exists yet when the signal lands is a race the machine decides -
+#: measured at ~7.5 ms after `opened` here, and lost outright on a
+#: GitHub runner, where the mutation with the forced exit removed
+#: SURVIVED all three cycles in 3.18s.
 MARKER_ENTRY = """
+import atexit
 import os
 import pathlib
 import sys
@@ -47,6 +60,13 @@ from fastmcp.server.lifespan import lifespan
 from fast_mcp_jobvite.__main__ import main
 
 MARKER = pathlib.Path(sys.argv[1])
+
+
+@atexit.register
+def _record_normal_interpreter_shutdown():
+    with MARKER.open("a") as fh:
+        fh.write("atexit\\n")
+        fh.flush()
 
 
 @lifespan
