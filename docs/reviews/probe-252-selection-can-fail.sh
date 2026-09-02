@@ -49,7 +49,20 @@ for required in "$HARNESS" tests/test_audit.py tests/test_redaction.py; do
     exit 3
   }
 done
-OUT=/tmp/probe-252-arm.txt
+# PER PROCESS, and that is #262's finding rather than housekeeping. This used to
+# be the fixed path `/tmp/probe-252-arm.txt`. Seven worktrees on this box carry
+# this probe and `scripts/check-u3-audit-controls.sh`, and a second run of either
+# - another agent's, `ci-harness-gate.sh`'s, `probe-252-rc4-verdict-trap.sh`'s -
+# opens that ONE path with `>` while this one is still being read from it. The
+# two writers then hold independent offsets on the same inode, so the file fills
+# with NULs, `grep` reports `binary file matches` and prints NOTHING, `$sel_line`
+# comes back EMPTY, and the arm voids with "took the WIDE fallback" - a sentence
+# about a selection that was never read. WHICH arm voids is pure timing, which is
+# why the probe read 3/3, then 2/3, then 1/3 with a different arm each time.
+# MEASURED, both ways: 6 solo runs 0 voids; 3 runs against a replayed second
+# probe 2 voids; 3 runs of the SAME interference with the mktemp below, 0 voids
+# and 3/3. See docs/reviews/DIAG-262-probe-nondeterminism.md.
+OUT="$(mktemp /tmp/probe-252-arm-XXXXXX)"
 ARMS_RUN=0
 ARMS_PASSED=0
 
