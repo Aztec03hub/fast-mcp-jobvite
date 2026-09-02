@@ -27,6 +27,27 @@
 # PYTHONDONTWRITEBYTECODE=1 on every run, and the tree is restored from a
 # byte copy taken at the top (never `git checkout --`, which would revert
 # uncommitted work along with the amputation).
+#
+# EVERY MUTATION HEREDOC IS GUARDED, AND THE GUARD IS THE POINT (task #156).
+# `set -uo pipefail` below deliberately omits `-e` (ADR-0023) because the
+# measurement here IS the exit code of a suite expected to fail. That makes
+# reading the MUTATOR's exit code a manual obligation, and for 13 heredocs
+# nothing read it. Each is now followed by `[ $? -eq 0 ] || exit 1`, and each
+# reports its own non-landing in the vocabulary ci-harness-gate.sh derives
+# from this file.
+#
+# WHAT AN UNGUARDED NON-LANDING ACTUALLY DID, measured in
+# docs/reviews/probe-156-u1-landing-guard.sh rather than reasoned about: it
+# was NOT a silent green. Every declared MUST_DIE id is verified to pass on
+# the intact baseline below, so a row that fails to mutate leaves all of them
+# passing and prints each as an UNEXPECTED SURVIVOR. The harness went red
+# with a diagnosis that blamed the TESTS for being vacuous when the fault was
+# this file's anchor. A wrong diagnosis sends the next reader to the wrong
+# place, which is the failure this guard removes.
+#
+# The row that CAN still go quietly wrong is the one with more than one
+# operation - G and LN each apply two - where a half-landed amputation may
+# still kill every declared id. Both now check each operation separately.
 
 set -uo pipefail
 
@@ -315,14 +336,25 @@ report "B. config.py exists but is ZERO BYTES" "${MUST_B[@]}"
 python3 - "$CONFIG" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = re.sub(
+out = re.sub(
     r"    reasons: list\[str\] = \[\]\n(?:.*?\n)*?        raise ConfigurationError\(reasons\)\n",
     "    return\n",
     s,
     count=1,
 )
-p.write_text(s)
+if out == s:
+    print("  C: AMPUTATION DID NOT LAND - validate_settings()'s refusal block no")
+    print("     longer matches this anchor. The row would measure an INTACT tree.")
+    sys.exit(1)
+p.write_text(out)
 PY
+# `|| exit 1`, because the message alone is not the gate. Without it the row
+# would print DID NOT LAND and then run `report` anyway - publishing a result
+# measured against an INTACT tree, with the failure sitting one line below its
+# own diagnosis. Every heredoc below carries the same line; the reasoning is
+# here and not repeated. `set -e` is not an option (ADR-0023), so this read is
+# the whole mechanism. Same shape as check-u15-gate-amputation.sh:140.
+[ $? -eq 0 ] || exit 1
 report "C. validate_settings() refuses nothing" "${MUST_C[@]}"
 
 # --- D. the transport refusals are gone entirely --------------------------
@@ -332,9 +364,14 @@ report "C. validate_settings() refuses nothing" "${MUST_C[@]}"
 python3 - "$CONFIG" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = s.replace("    _check_transport(settings, reasons)\n", "")
-p.write_text(s)
+anchor = "    _check_transport(settings, reasons)\n"
+if s.count(anchor) != 1:
+    print("  D: AMPUTATION DID NOT LAND - the _check_transport call site occurs")
+    print(f"     {s.count(anchor)} times, not once. The row would measure an INTACT tree.")
+    sys.exit(1)
+p.write_text(s.replace(anchor, ""))
 PY
+[ $? -eq 0 ] || exit 1
 report "D. _check_transport is never called" "${MUST_D[@]}"
 
 # --- E. the rule TABLE is empty, not the code -----------------------------
@@ -343,21 +380,39 @@ report "D. _check_transport is never called" "${MUST_D[@]}"
 python3 - "$CONFIG" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = re.sub(r"TOOL_REQUIREMENTS: Final\[dict\[str, tuple\[str, \.\.\.\]\]\] = \{\n.*?\n\}",
-           "TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {}",
-           s, flags=re.S)
-p.write_text(s)
+# The count is checked on the table's OPENING LINE, not on the regex: this
+# `re.sub` carries no `count=`, so a pattern that matched twice would empty
+# two tables and still compare unequal to the original.
+opener = "TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {"
+if s.count(opener) != 1:
+    print("  E: AMPUTATION DID NOT LAND - the TOOL_REQUIREMENTS declaration occurs")
+    print(f"     {s.count(opener)} times, not once. The row would measure an INTACT tree.")
+    sys.exit(1)
+out = re.sub(r"TOOL_REQUIREMENTS: Final\[dict\[str, tuple\[str, \.\.\.\]\]\] = \{\n.*?\n\}",
+             "TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {}",
+             s, flags=re.S)
+if out == s:
+    print("  E: AMPUTATION DID NOT LAND - the TOOL_REQUIREMENTS table body no longer")
+    print("     matches this anchor. The row would measure an INTACT tree.")
+    sys.exit(1)
+p.write_text(out)
 PY
+[ $? -eq 0 ] || exit 1
 report "E. TOOL_REQUIREMENTS is an EMPTY table" "${MUST_E[@]}"
 
 # --- F. the tool allow-list is empty --------------------------------------
 python3 - "$CONFIG" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = s.replace("KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS",
-              "KNOWN_TOOLS: Final[frozenset[str]] = frozenset()")
-p.write_text(s)
+anchor = "KNOWN_TOOLS: Final[frozenset[str]] = READ_TOOLS | WRITE_TOOLS"
+if s.count(anchor) != 1:
+    print("  F: AMPUTATION DID NOT LAND - the KNOWN_TOOLS declaration occurs")
+    print(f"     {s.count(anchor)} times, not once. The row would measure an INTACT tree.")
+    sys.exit(1)
+p.write_text(s.replace(anchor,
+              "KNOWN_TOOLS: Final[frozenset[str]] = frozenset()"))
 PY
+[ $? -eq 0 ] || exit 1
 report "F. KNOWN_TOOLS is EMPTY" "${MUST_F[@]}"
 
 # --- G. the shutdown handler does not exist -------------------------------
@@ -366,12 +421,26 @@ report "F. KNOWN_TOOLS is EMPTY" "${MUST_F[@]}"
 python3 - "$MAIN" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = re.sub(r"def _install_shutdown_handler\(\) -> None:\n(?:.*?\n)*?    signal\.signal\(signal\.SIGTERM, _term\)\n",
-           "def _install_shutdown_handler() -> None:\n    return\n", s, count=1)
-s = re.sub(r"def _term\(signum: int, frame: FrameType \| None\) -> None:\n(?:.*?\n)*?    raise KeyboardInterrupt\n",
-           "", s, count=1)
-p.write_text(s)
+# TWO operations, checked SEPARATELY. Checking only that the file changed
+# would pass with one of the two applied, and a HALF amputation whose
+# declared ids happen to die anyway is the one shape that stays green while
+# measuring less than the row's label claims.
+out = re.sub(r"def _install_shutdown_handler\(\) -> None:\n(?:.*?\n)*?    signal\.signal\(signal\.SIGTERM, _term\)\n",
+             "def _install_shutdown_handler() -> None:\n    return\n", s, count=1)
+if out == s:
+    print("  G: AMPUTATION DID NOT LAND - the _install_shutdown_handler body anchor")
+    print("     moved. The row would measure a tree that still installs the handler.")
+    sys.exit(1)
+s, prev = out, out
+out = re.sub(r"def _term\(signum: int, frame: FrameType \| None\) -> None:\n(?:.*?\n)*?    raise KeyboardInterrupt\n",
+             "", s, count=1)
+if out == prev:
+    print("  G: AMPUTATION DID NOT LAND - the _term definition anchor moved. The row")
+    print("     would measure a tree that still defines the handler it claims to remove.")
+    sys.exit(1)
+p.write_text(out)
 PY
+[ $? -eq 0 ] || exit 1
 report "G. _term and the handler installation are GONE" "${MUST_G[@]}"
 
 # --- H. the whole finally block is gone -----------------------------------
@@ -380,9 +449,14 @@ import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
 s, n = re.subn(r"    finally:\n        sys\.stdout\.flush\(\)\n        sys\.stderr\.flush\(\)\n.*?\n        os\._exit\(status\)\n",
                "", s, count=1, flags=re.S)
-assert n == 1, "amputation H found nothing to remove; the anchor moved"
+# The message carries `DID NOT LAND` so ci-harness-gate.sh can gate on it:
+# that gate greps the output only for phrases this file's own source
+# contains, and "the anchor moved" is in none of its vocabulary, so H's
+# assertion fired into a run nothing downstream could read.
+assert n == 1, "H: AMPUTATION DID NOT LAND - the finally-block anchor moved"
 p.write_text(s)
 PY
+[ $? -eq 0 ] || exit 1
 report "H. the finally block (flush + os._exit) is GONE" "${MUST_H[@]}"
 
 # --- I. server.py builds a bare FastMCP -----------------------------------
@@ -391,10 +465,15 @@ report "H. the finally block (flush + os._exit) is GONE" "${MUST_H[@]}"
 python3 - "$SERVER" <<'PY'
 import pathlib, re, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
-s = re.sub(r"    composed = make_base_lifespan\(settings\)\n(?:.*?\n)*?    \)\n",
-           "    return FastMCP(name=SERVER_NAME)\n", s, count=1)
-p.write_text(s)
+out = re.sub(r"    composed = make_base_lifespan\(settings\)\n(?:.*?\n)*?    \)\n",
+             "    return FastMCP(name=SERVER_NAME)\n", s, count=1)
+if out == s:
+    print("  I: AMPUTATION DID NOT LAND - build_server's construction block no longer")
+    print("     matches this anchor. The row would measure an INTACT tree.")
+    sys.exit(1)
+p.write_text(out)
 PY
+[ $? -eq 0 ] || exit 1
 report "I. build_server returns a BARE FastMCP" "${MUST_I[@]}"
 
 
@@ -410,6 +489,7 @@ anchor = "\nconfigure_logging()\n"
 assert s.count(anchor) == 1, "J anchor is not unique"
 p.write_text(s.replace(anchor, "\n"))
 PY
+[ $? -eq 0 ] || exit 1
 report "J. configure_logging() is never called" "${MUST_J[@]}"
 
 # --- K. it is called and configures NOTHING -------------------------------
@@ -427,6 +507,7 @@ start = s.index(anchor)
 end = s.index("\n\n\nconfigure_logging()", start)
 p.write_text(s[:start] + "    return" + s[end:])
 PY
+[ $? -eq 0 ] || exit 1
 report "K. configure_logging() runs and configures NOTHING" "${MUST_K[@]}"
 
 # --- L. the record FILTER redacts nothing ---------------------------------
@@ -448,6 +529,7 @@ anchor = '    message = record.get("message")'
 assert s.count(anchor) == 1, "L anchor is not unique"
 p.write_text(s.replace(anchor, "    return True\n" + anchor))
 PY
+[ $? -eq 0 ] || exit 1
 report "L. the record filter returns without redacting" "${MUST_L[@]}"
 
 # --- N. the SINK-level redaction is bypassed ------------------------------
@@ -462,6 +544,7 @@ anchor = "        _redacting_sink(sys.stderr),"
 assert s.count(anchor) == 1, "N anchor is not unique"
 p.write_text(s.replace(anchor, "        sys.stderr,"))
 PY
+[ $? -eq 0 ] || exit 1
 report "N. the sink writes the serialised record without redacting it" "${MUST_N[@]}"
 
 # --- LN. BOTH redaction layers removed --------------------------------------
@@ -480,6 +563,7 @@ s = s.replace(filter_anchor, "    return True\n" + filter_anchor)
 s = s.replace(sink_anchor, "        sys.stderr,")
 p.write_text(s)
 PY
+[ $? -eq 0 ] || exit 1
 report "LN. BOTH the record filter and the sink redaction are gone" "${MUST_LN[@]}"
 
 # --- M. stdlib logging is never bridged into loguru -----------------------
@@ -488,11 +572,15 @@ python3 - "$MAIN" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]); s = p.read_text()
 anchor = "    logging.basicConfig("
-assert s.count(anchor) == 1, "J anchor is not unique"
+# This said "J anchor is not unique" - a copy-paste from row J. An assertion
+# that misnames its own row sends the reader to the wrong heredoc, and this
+# one is nine rows away from J.
+assert s.count(anchor) == 1, "M anchor is not unique"
 start = s.index(anchor)
 end = s.index("    )\n", start) + len("    )\n")
 p.write_text(s[:start] + "    return\n" + s[end:])
 PY
+[ $? -eq 0 ] || exit 1
 report "M. stdlib logging is never bridged into loguru" "${MUST_M[@]}"
 # The canonical result line's row count, from the harness's own
 # counter. This harness declares no ROW_FLOOR, so the floor is 0:

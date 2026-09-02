@@ -1,0 +1,1105 @@
+PROBE-START arm=B
+########## BASELINE - the intact tree
+============================= 97 passed in 38.38s ==============================
+  all declared MUST_DIE ids pass on the intact tree.
+
+########## A. config.py does not exist at all
+============================== 4 errors in 1.09s ===============================
+  every declared assertion died (2 of 2)
+  everything else: NOTHING passed against this tree
+
+########## B. config.py exists but is ZERO BYTES
+============================== 4 errors in 1.09s ===============================
+  every declared assertion died (2 of 2)
+  everything else: NOTHING passed against this tree
+
+########## C. validate_settings() refuses nothing
+=================== 33 failed, 64 passed in 66.66s (0:01:06) ===================
+  every declared assertion died (3 of 3)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## D. _check_transport is never called
+=================== 13 failed, 84 passed in 67.68s (0:01:07) ===================
+  every declared assertion died (3 of 3)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## E. TOOL_REQUIREMENTS is an EMPTY table
+======================== 57 failed, 40 passed in 38.64s ========================
+  every declared assertion died (2 of 2)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## F. KNOWN_TOOLS is EMPTY
+============================== 3 errors in 1.26s ===============================
+  every declared assertion died (2 of 2)
+  everything else: NOTHING passed against this tree
+
+########## G. _term and the handler installation are GONE
+======================== 6 failed, 91 passed in 36.56s =========================
+  every declared assertion died (2 of 2)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## H. the finally block (flush + os._exit) is GONE
+=================== 4 failed, 93 passed in 75.79s (0:01:15) ====================
+  every declared assertion died (2 of 2)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## I. build_server returns a BARE FastMCP
+================== 13 failed, 84 passed in 175.04s (0:02:55) ===================
+  every declared assertion died (3 of 3)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## J. configure_logging() is never called
+======================== 10 failed, 87 passed in 37.15s ========================
+  every declared assertion died (3 of 3)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+
+########## K. configure_logging() runs and configures NOTHING
+======================== 10 failed, 87 passed in 38.43s ========================
+  every declared assertion died (3 of 3)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+
+########## L. the record filter returns without redacting
+======================== 1 failed, 96 passed in 38.14s =========================
+  every declared assertion died (1 of 1)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_an_exception_carrying_a_credential_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## N. the sink writes the serialised record without redacting it
+======================== 1 failed, 96 passed in 37.69s =========================
+  every declared assertion died (1 of 1)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_a_third_party_log_line_is_redacted_at_the_sink
+    tests/test_logging_process.py::test_a_sink_this_project_did_not_install_sees_a_redacted_record
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## LN. BOTH the record filter and the sink redaction are gone
+======================== 3 failed, 94 passed in 36.52s =========================
+  every declared assertion died (1 of 1)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_python_dash_m_gets_the_same_configured_sink
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## M. stdlib logging is never bridged into loguru
+======================== 4 failed, 93 passed in 38.41s =========================
+  every declared assertion died (2 of 2)
+  everything else that passed (context, NOT a finding - these are
+  assertions this row's subject does not reach):
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_candidates-required0]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_candidate-required1]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[search_jobs-required2]
+    tests/test_config.py::test_each_row_of_the_matrix_refuses_each_of_its_own_variables[get_job_feed-required3]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_candidates-supplied0]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_candidate-supplied1]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[search_jobs-supplied2]
+    tests/test_config.py::test_each_row_starts_when_its_own_variables_are_present[get_job_feed-supplied3]
+    tests/test_config.py::test_a_candidate_search_deployment_is_not_asked_for_a_company_id
+    tests/test_config.py::test_an_unrecognised_tool_name_is_a_startup_failure
+    tests/test_config.py::test_a_recognised_tool_name_starts
+    tests/test_config.py::test_unset_tools_means_all_reads_and_never_the_write
+    tests/test_config.py::test_enable_writes_true_with_tools_unset_does_not_register_the_write
+    tests/test_config.py::test_naming_the_write_without_the_flag_does_not_register_it
+    tests/test_config.py::test_both_together_do_register_the_write
+    tests/test_config.py::test_http_without_tokens_is_a_startup_failure
+    tests/test_config.py::test_http_with_tokens_starts
+    tests/test_config.py::test_stdio_without_tokens_starts
+    tests/test_config.py::test_a_malformed_token_map_is_refused_without_echoing_it
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[-the empty string is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[   -a whitespace-only key is not a bearer token]
+    tests/test_config.py::test_an_empty_bearer_token_key_is_refused[\t\n-nor is one made of other whitespace]
+    tests/test_config.py::test_a_token_mapped_to_no_scopes_is_refused
+    tests/test_config.py::test_a_token_mapped_to_a_blank_scope_is_refused
+    tests/test_config.py::test_a_refusal_over_a_bad_key_never_echoes_the_token_map
+    tests/test_config.py::test_a_well_formed_token_map_still_boots
+    tests/test_config.py::test_loopback_addresses_are_recognised[127.0.0.1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[localhost]
+    tests/test_config.py::test_loopback_addresses_are_recognised[::1]
+    tests/test_config.py::test_loopback_addresses_are_recognised[[::1]]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[0.0.0.0]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[10.0.0.5]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[::]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[example.internal]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[127.0.0.1.evil.example]
+    tests/test_config.py::test_non_loopback_and_unrecognisable_hosts_are_not_loopback[]
+    tests/test_config.py::test_off_loopback_without_the_assertion_refuses
+    tests/test_config.py::test_off_loopback_with_the_assertion_starts
+    tests/test_config.py::test_the_default_loopback_bind_passes_validation
+    tests/test_config.py::test_the_tls_refusal_is_not_applied_on_stdio
+    tests/test_config.py::test_every_reason_is_named_not_just_the_first
+    tests/test_config.py::test_an_empty_value_is_treated_as_unset
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[   ]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\t]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[\n]
+    tests/test_config.py::test_a_whitespace_only_value_is_also_treated_as_unset[ \t \n ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[ ]
+    tests/test_config.py::test_a_directly_constructed_blank_secret_is_also_unset[\t]
+    tests/test_config.py::test_the_whole_committed_template_loads
+    tests/test_config.py::test_env_example_and_design_declare_the_same_variables
+    tests/test_config.py::test_settings_declares_exactly_the_template_variables
+    tests/test_config.py::test_server_json_declares_every_variable
+    tests/test_config.py::test_every_known_tool_declares_its_required_variables
+    tests/test_config.py::test_the_tool_names_are_the_five_of_the_design
+    tests/test_config.py::test_validate_settings_accepts_a_settings_object_directly
+    tests/test_boot.py::test_off_loopback_without_tls_exits_naming_the_reason
+    tests/test_boot.py::test_the_default_loopback_bind_starts_a_real_process
+    tests/test_boot.py::test_off_loopback_with_the_assertion_declared_starts
+    tests/test_boot.py::test_http_without_tokens_exits_rather_than_serving_openly
+    tests/test_boot.py::test_a_missing_credential_exits_naming_the_variable
+    tests/test_boot.py::test_the_refusal_status_is_the_sysexits_ex_config_number
+    tests/test_boot.py::test_an_unrecognised_tool_name_exits_naming_it
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_PORT-99999]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MCP_TRANSPORT-htp]
+    tests/test_boot.py::test_a_constrained_field_is_refused_not_raised[JOBVITE_MAX_RESULTS-0]
+    tests/test_boot.py::test_a_refusal_writes_nothing_to_stdout
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[stdio]
+    tests/test_boot.py::test_the_server_reaches_serving_on_both_transports[http]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[stdio]
+    tests/test_shutdown.py::test_sigterm_runs_lifespan_teardown[http]
+    tests/test_shutdown.py::test_only_stdio_exercises_the_forced_exit
+    tests/test_shutdown.py::test_the_shipped_entry_point_is_what_the_case_exercises
+    tests/test_shutdown.py::test_the_handler_does_not_read_ambient_state
+    tests/test_shutdown.py::test_a_crashing_mcp_run_exits_70_read_from_the_process
+    tests/test_shutdown.py::test_a_clean_stop_still_reports_zero
+    tests/test_server.py::test_mask_error_details_is_set_explicitly
+    tests/test_server.py::test_composed_lifespans_start_in_order_and_tear_down_in_reverse
+    tests/test_server.py::test_the_base_lifespan_publishes_the_settings
+    tests/test_server.py::test_create_server_builds_from_the_environment
+    tests/test_server.py::test_create_server_refuses_a_bad_environment
+    tests/test_server.py::test_main_returns_the_refusal_status_without_serving
+    tests/test_server.py::test_the_server_registers_exactly_the_enabled_tools
+    tests/test_server.py::test_a_server_with_no_enabled_tool_registers_nothing
+    tests/test_server.py::test_the_live_middleware_stack_is_five_and_the_fifth_is_injected
+    tests/test_server.py::test_no_input_model_produces_a_ref_for_the_middleware_to_inline
+    tests/test_logging_process.py::test_the_process_writes_the_mandated_audit_fields
+    tests/test_logging_process.py::test_a_failing_sink_fails_the_call_before_the_side_effect
+    tests/test_logging_process.py::test_the_same_script_against_a_writable_sink_does_not_fail
+    tests/test_logging_process.py::test_a_failing_sink_on_a_read_does_not_fail_the_read
+    tests/test_logging_process.py::test_a_failing_sink_after_a_write_returns_a_warning_not_an_error
+    tests/test_logging_process.py::test_the_process_publishes_no_credential_when_the_transport_fails
+
+########## END
+Every declared assertion died under its own amputation.
+The 'everything else that passed' lists are context, not findings.
+HARNESS-RESULT name=check-u1-boot-amputation.sh rows=15 floor=0 status=ok
