@@ -46,13 +46,21 @@ at all. It is wrong about the population doing job 1.
 ### Measured by KIND, not by a grep over a word
 
 Every ADR carries a `**Type:**` line, so the population can be partitioned without guessing. The
-partition AT ACCEPTANCE, recorded as the evidence for this ruling and NOT as a live figure - the
-set has grown since, and the command below is the live answer:
+partition **AS OF `d29937f`, AFTER the three outliers were normalised** - recorded as the evidence
+for this ruling and NOT as a live figure. The set has grown since; the command below is the live
+answer:
 
     19  Design change
     15  Deviation
     --
     34  total   (this ADR included)
+
+**THIS TABLE IS NOT THE ACCEPTANCE CENSUS AND SAID IT WAS.** It was labelled "AT ACCEPTANCE" until
+R20-M2 checked: at `e3b5c97` the partition read `17 / 14 / 1 Standards deviation / 1 Correction to
+a contract statement`, total 33. **The paragraph immediately below says exactly that**, so the ADR
+carried a table and a contradiction of it eight lines apart, and the label was the half nobody
+re-read. A tense fix is not a provenance fix: making a figure past-tense says WHEN it stopped being
+live, never WHICH moment produced it.
 
     grep -h '^\*\*Type:\*\*' docs/adr/[0-9]*.md | sort | uniq -c
 

@@ -90,10 +90,33 @@ reads as WIRED here, and "wired" must not be read as "gating".
 **THAT POPULATION HAS BEEN MEASURED AND IT IS ZERO.** GitHub runs every
 `run:` as `bash -e {0}`, so a failure anywhere fails the step unless the
 block turns errexit off - which makes the container small and enumerable
-rather than the whole file. **EVERY step in `ci.yml` that disables or
-bypasses errexit (`set +e` or `set -uo pipefail`) tests a status.** The
-property is stated; the digits are not, and the command below returns
-both of them in one line.
+rather than the whole file. **EVERY step the selector below picks tests
+a status.** The property is stated; the digits are not, and the command
+at the bottom of this docstring returns them.
+
+**THE SELECTOR IS A SUPERSET, AND SAYING OTHERWISE WAS WRONG (R20-L2).**
+It matches `set +e` OR `set -uo pipefail`, and this file described both
+as "disables or bypasses errexit". Only the first does. MEASURED, under
+the shell GitHub actually uses:
+
+    $ cat e1.sh                    $ cat e2.sh
+    set -uo pipefail               set +e
+    false                          false
+    echo REACHED                   echo REACHED
+
+    $ bash -e e1.sh   -> exit 1, nothing printed   errexit STILL ON
+    $ bash -e e2.sh   -> exit 0, REACHED           errexit OFF
+
+`set -uo pipefail` sets nounset and pipefail and touches errexit not at
+all; under `bash -e` the shell still dies at the first failure. So those
+steps were never members of the population this paragraph is about.
+
+**THE ZERO SURVIVES BECAUSE A SUPERSET CAN ONLY ADD FALSE MEMBERS**, and
+every one of them tested a status anyway. What was wrong is the sentence
+telling the next reader what the container IS - and a reader who trusts
+it would conclude that `set -uo pipefail` is a way to turn errexit off,
+which is the opposite of true and the kind of belief that ships a step
+whose failure is silent.
 
 **NO COUNT IS WRITTEN HERE, AND THAT IS THE THIRD REMEDY THIS SENTENCE
 HAS HAD.** It said "of 94 steps", which was the NAMED-step count and a
