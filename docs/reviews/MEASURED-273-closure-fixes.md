@@ -38,12 +38,13 @@ when it was first written.
 
 **Row 3's R=60 cell depends on which U3 shard value you feed it, not on
 the search.** 138.6 - round 6's published figure - gives **305.60**;
-138.62, which is what `§7a.2:545` says this section itself computes,
-gives **305.62**. Both reproduce exactly at every budget, and the two
-values are indistinguishable from R=400 onward. `§7a.2:539` prints
-305.62 and this row prints 305.60 because they use different inputs, not
-because either was carried forward unrun. Stated here so the two files
-cannot be read as disagreeing.
+138.62 - which `§7a.2`'s "The model INPUTS reproduced exactly" paragraph
+says is what that section itself computes - gives **305.62**. Both
+reproduce exactly at every budget, and the two are indistinguishable from
+R=400 onward. `§7a.2`'s own budgets table prints 305.62 and this row
+prints 305.60 because they feed different inputs, not because either was
+carried forward unrun. Stated in both files so they cannot be read as
+disagreeing.
 
 **Row 3 is also not converged at R=10000.** It holds 304.00 from R=400
 through R=10000 and then falls to **303.00** at R=40000, stable to
@@ -67,14 +68,15 @@ host, timing `best()` itself:
 | the whole 6-row, 2-column table | 53.7 ms | 355 ms | 8.81 s |
 
 The earlier "8-10s" estimates were invented, and so was the **11ms** this
-file published in their place: no reading of any quantity gives 11ms. One
-cell at R=400 is 22.4ms; the whole table is 355ms. At the `RESTARTS =
+file published in their place: it matches neither quantity above at any
+of the three budgets. One cell at R=400 is 22.4ms; the whole table is
+355ms. At the `RESTARTS =
 10000` the probe now ships, the table costs 8.81s and the wall is 13.5s,
 so search - not the `gh api` call - now dominates. That is affordable on a
 hand-run probe nothing gates, and it is the price of the 11-lane cell
 being converged.
 
-## The 11-lane row is a PROVED LOSS
+## The 11-lane row is a proved loss UNDER THE FITTED SHARD COSTS
 
 Adding lane 11 - which the review prescribed so `§7a.2:480-481` could cite
 the probe - prints a row nobody predicted:
@@ -153,7 +155,19 @@ its inputs are one historical GitHub run.
 | `EXPECT_TOTAL = 3300` | - | `REFUSING: total is 3311s, not 3300s.` exit 1 |
 | checker Members / WIRED / UNWIRED / unexplained | 149 / 75 / 74 / 0 | 149 / 75 / 74 / 0 |
 | checker `--self-test` | 35/35 | 35/35 |
-| `ruff check` + `format --check` | - | clean |
+| `ruff check` + `format --check` | - | exit 0, exit 0 |
+
+Re-verified in the closure round, at `RESTARTS = 10000`:
+
+| check | result |
+|---|---|
+| both guard arms, one at a time | `REFUSING` before any table row, exit 1 each; file restored byte-identical (sha256 unchanged) |
+| every printed cell, R = 1 ... 40000 | only `s11` moves past R=200; it settles at 334.0 from R=10000 to R=100000 |
+| `:440`'s "12 lanes and above and nowhere else" | lanes 2-20 at R=2000: sharded wins at every lane >= 12, loses at every lane <= 11, no exceptions |
+| `> 5s` strict filter | 32 steps / 3306s; the boundary is one `Install from the frozen lock` at exactly 5.0s |
+| 12-16 unsharded gaps | 0.000 at all five, so `=` is correct |
+| 12-16 sharded gaps | 2.617 / 1.685 / 10.529 / 8.293 / 3.000, so `~` is correct |
+| the `a849f7f` run row | 35 steps / 3323s / largest 304s on run 33629034552 |
 
 `WIRED` is unchanged, so no member moved WIRED -> EXEMPT. Member count is
 unchanged because M3 edits an entry that already existed on this branch;
@@ -171,13 +185,15 @@ the review's 148 -> 149 is the branch-vs-`main` delta, not this change.
 3. Its unsettled item "R6's search is still marginally ahead" on the
    overhead-deleted refit is settled: 311.00 is reached at 10000 restarts,
    which costs 552ms for that cell. Budget, not search quality.
-4. `§7a.2:605` (was `d314283:545`) "282.0 at 13 lanes" is **281.00**
+4. `§7a.2`'s "re-deriving U3's shard from the 258s it actually DREW"
+   bullet (`d314283:545`) said "282.0 at 13 lanes"; it is **281.00**
    converged - 284.00 at R=60, 283.00 at R=400, 281.00 from R=10000
    through R=100000. An earlier version of this file reported it as
    "confirmed as 283.00", which was the unconverged R=400 reading, and
    that correction was never carried into `§7a.2` itself.
    `fix/7a2-two-packers` now fixes the line in place; this entry and that
    line were written in the same change so they cannot diverge again.
-5. Its L3's sibling `§7a.2:605` "a 12-lane best of 304.0 - a 7.0s win" is
+5. Its L3's sibling in that same bullet, "a 12-lane best of 304.0 - a
+   7.0s win", is
    likewise unconverged: 303.00 at R=40000 and R=100000, an 8.0s win.
    Fixed on `fix/7a2-two-packers` in the same change.
