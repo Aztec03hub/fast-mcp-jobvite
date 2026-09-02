@@ -88,9 +88,30 @@ conversion is what fixes it in all three, not a rescue of a lost message.
 
 ## What is NOT measured here
 
-- **Only `check-pytest-bounded.sh` was driven to a real exit 2.** The other two hunks are unproved.
-  `check-committed-file-types.py` needs a `git ls-files` failure, and `check-adr-numbers.py` needs
-  an absent ADR directory; neither was staged.
+- ~~**Only `check-pytest-bounded.sh` was driven to a real exit 2.**~~ **DISCHARGED.** All three
+  hunks are now driven to a real exit 2 by `docs/reviews/probe-236-exit-2-preconditions.sh`, which
+  stages both preconditions this section said were unstaged, and reads each script's OWN exit code:
+
+      A1 amputated: cwd is not a git repo            rc=2  PASS
+          > committed-file-type gate FAILED TO RUN: git ls-files -z exited 128:
+          >   fatal: not a git repository (or any of the parent directories): .git
+          > Failing closed: the commit is blocked.
+      A2 control:   cwd IS the repo                  rc=0  PASS  (549 files checked)
+      B1 amputated: no docs/adr under ROOT           rc=2  PASS
+          > NO ADR DIRECTORY at .../skel/docs/adr. Exiting 2, not 0.
+      B2 control:   docs/adr restored under ROOT     rc=0  PASS  (ADRs: 35, 0001-0035)
+      arms=4 passed=4 failed=0
+
+  Neither arm needs a stub, which matters because a stubbed `git` would prove only that the probe
+  can fake a failure. `check-committed-file-types.py`'s `git()` helper runs `["git", *args]` with
+  **no `-C`**, so it inherits the working directory and a genuinely non-git cwd makes `git ls-files`
+  exit 128 for real. `check-adr-numbers.py` derives `ROOT` from `__file__/../../..`, so a skeleton
+  tree reproduces the absent directory exactly.
+
+  Each amputated arm is PAIRED WITH A CONTROL exiting 0 on the same invocation, because this very
+  document recorded (ARM 4c) that the correct exit code produced by the wrong mechanism passes a
+  reviewer who only asks "does it exit 2?". Without the pair, an arm exiting 2 because the probe is
+  broken is indistinguishable from the hunk working.
 - **Nothing was applied to `ci.yml`.** These arms ran the body text as a file, not as a workflow
   step. Everything else about the shell was made faithful (see ARM 4).
 - `#232`'s biggest open question stands: whether 45 is the complete set of `ci.yml` script
