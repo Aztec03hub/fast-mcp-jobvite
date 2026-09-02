@@ -956,7 +956,7 @@ jobs:
           #
           # A ratchet. Raise it when tests are added; lowering it is a visible diff
           # that has to be defended. 413 measured at the merge of fix/m5-exception-detail.
-          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 887
+          printf '%s\n' "$out" | bash scripts/check-suite-floor.sh 888
 
       # The negative arm of §8 #11 - removing the fastmcp-slim pin must fail to
       # resolve - performs a real resolve, so it is deselected from the offline
@@ -1038,6 +1038,28 @@ jobs:
       # probe-r6-breaker-reset.py, which imports httpx2. Under a bare
       # interpreter that row reports "could not import" and the harness
       # correctly refuses a partial run.
+      # ---------------------------------------------------------------
+      # THE 41 STEPS BELOW CARRYING `if: github.event_name == 'schedule'
+      # || github.event_name == 'workflow_dispatch'` ARE THE MUTATION AND
+      # AMPUTATION HARNESSES. They were 4969s of this job's 5191s. They
+      # no longer run on a push.
+      #
+      # THE CADENCE IS WEEKLY, NOT NIGHTLY. The only cron in this file is
+      # `0 0 * * 0` - Sundays. I claimed "nightly at 06:00 UTC" in the
+      # commit that moved them (5699c31) and it was FALSE: my nightly
+      # cron was lost when I reverted this file and redid the edit, and I
+      # never re-read the trigger block to check. Found by blackthorn-ci
+      # auditing my change rather than accepting it.
+      #
+      # THE RESIDUAL, STATED BECAUSE IT IS THE COST OF THE SPEED: a
+      # change to src/ is NOT harness-checked until the next Sunday. Up
+      # to six days where a broken guard is caught by nothing. The
+      # remedy when that matters is one command, not a wait:
+      #     gh workflow run ci.yml --ref <branch>
+      # which is measured to run them - dispatch 33603287997 executed 37
+      # harness steps with 0 skipped, against 41 skipped on push
+      # 33602855436.
+      # ---------------------------------------------------------------
       - name: Docs-lint amputations, every row caught
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: uv run --frozen python docs/reviews/probe-docs-lint-amputation.py

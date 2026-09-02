@@ -45,7 +45,12 @@ JOB_IF_CONTEXTS = frozenset(
     {"github", "needs", "vars", "inputs", "always", "success", "failure", "cancelled"}
 )
 
-CONTEXT = re.compile(r"\b([a-z]+)\s*\.")
+# `(?<!\.)` is load-bearing: a context is the HEAD of a dotted path,
+# and without the lookbehind this read `lanes` and `outputs` out of
+# the valid job-level `needs.lanes.outputs.harness` and flagged it
+# (#237). The finding this exists for is unaffected: `secrets` heads
+# its path.
+CONTEXT = re.compile(r"(?<!\.)\b([a-z]+)\s*\.")
 JOB_NAME = re.compile(r"^  (?P<name>[A-Za-z_][\w-]*):\s*$")
 JOB_KEY = re.compile(r"^    (?P<key>[a-z-]+):(?P<value>.*)$")
 
@@ -112,6 +117,28 @@ def test_the_parser_sees_the_structure_it_assumes() -> None:
 
     ci = _job_keys(WORKFLOWS / "ci.yml")
     assert len(ci) >= 2, f"parser found {len(ci)} jobs in ci.yml; it has more than that"
+
+
+def test_the_context_finder_reads_only_the_head_of_a_path() -> None:
+    """The positive AND negative control for `CONTEXT` (#237).
+
+    The pre-fix regex extracted every `word.` token, so the valid
+    job-level expression `needs.<job>.outputs.<name>` - whose `needs`
+    context the allowlist above explicitly permits - was flagged on its
+    path segments. Both directions are pinned: the regex must still see
+    `secrets` heading R3-H1's exact expression, and must see nothing
+    forbidden in a needs-outputs path.
+    """
+    r3h1 = "${{ secrets.MIRROR_TOKEN != '' }}"
+    assert "secrets" in set(CONTEXT.findall(r3h1)), (
+        "the regex no longer sees `secrets` heading R3-H1's expression; "
+        "every check below is blind to the defect this module exists for"
+    )
+    valid = "${{ needs.lanes.outputs.harness == 'true' }}"
+    assert set(CONTEXT.findall(valid)) - JOB_IF_CONTEXTS == set(), (
+        "a path segment of a valid needs-outputs expression reads as a "
+        "context; job-level fan-out via `needs` becomes impossible"
+    )
 
 
 @pytest.mark.parametrize("path", workflows(), ids=lambda p: p.name)
