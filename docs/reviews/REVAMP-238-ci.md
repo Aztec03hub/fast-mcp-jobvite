@@ -303,19 +303,32 @@ MEASURED INSTEAD - and the first replacement for this claim was ALSO
 wrong, so this is the second. That version said "EIGHT controls
 harnesses were already selecting one test per row". Both halves are
 wrong: it is SIXTEEN of thirty-one, and it does not follow the
-controls/amputation split. Five AMPUTATIONS select (suite-floor,
-u1-boot, u15-gate, u4-client, u9-http) and three CONTROLS are bare
-(u11-advisory, u15-gate, u3-audit).
+controls/amputation split. FOUR AMPUTATIONS select (suite-floor,
+u1-boot, u4-client, u9-http) and three CONTROLS are bare
+(u11-advisory, u15-gate, u3-audit). **Both u15-gate harnesses are
+bare** - `check-u15-gate-amputation.sh:70` passes `"$SUITE_REL"`, which
+is the bare form by the rule stated above.
+
+The tie, so the next rewrite of this paragraph cannot break it in
+silence: the population is 15 controls and 16 amputations. Three bare
+controls leaves 12 selecting controls, and **12 + 4 = 16**, which is the
+total in the line above. An earlier version of this sentence said five
+amputations, and 12 + 5 = 17 contradicted its own total two lines up -
+the total was derived and the split beside it was not.
 
 The property is the per-row pytest ARGUMENT, not a flag and not a
 filename: BARE only when that argument is exactly `$SUITE` or
-`$SUITE_REL`. Derived two ways that agree - over every
-`scripts/check-*.sh` carrying `ROW_TIMEOUT`, and independently over
-ci.yml's invocation list:
+`$SUITE_REL`. Derived THREE ways that agree, by three readers who did not share a
+population or a rule - over every `scripts/check-*.sh` carrying
+`ROW_TIMEOUT`; independently over ci.yml's invocation list; and a third
+time keyed on the single pytest invocation guarded by `$ROW_TIMEOUT`,
+which excludes each harness's BASELINE by construction rather than by
+hand. Three independent instruments agreeing is the evidence here; one
+instrument re-run three times would not have been:
 
     SELECTS 16    BARE 15    (31 harnesses; none run no pytest)
 
-Five selectors no `$selector` grep finds, which is why every earlier
+Six selectors no `$selector` grep finds, which is why every earlier
 count was wrong: `"$SUITE::$want"` (u4-controls:124 - it CONTAINS
 `$SUITE`, so a substring grep reads the tightest selector in the tree as
 bare), `$sel` (u4-amputation, u9-amputation), `"${must_die[@]}"`

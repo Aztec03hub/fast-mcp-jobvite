@@ -28,7 +28,31 @@
 # arms run. My first version had `-e` here and turned that gate red.
 set -uo pipefail
 
-REPO=/home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite
+# DERIVED, never hardcoded. R23-M5 asked for this and only half of that
+# finding was applied - the `want_re` mechanism landed at a389c79 and this
+# line did not. R25 then MEASURED the consequence: it moved BOTH subjects out
+# of its own worktree and this probe still printed `arms=4 passed=4 failed=0`
+# and exited 0, because it was reading a DIFFERENT tree - the shared checkout,
+# by absolute path. A probe that cannot fail when its subject is deleted is
+# the exact vacuity its own arms exist to catch, rebuilt one line above them.
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd) || {
+    echo "REFUSING: could not derive REPO from ${BASH_SOURCE[0]}" >&2; exit 2; }
+
+# AND THE DERIVED ROOT IS NOT ENOUGH ON ITS OWN. With REPO derived, a deleted
+# subject makes python3 exit 2 for "can't open file" - the WANTED code by the
+# WRONG mechanism, which is what MEASURED-236's own ARM 4c documents and what
+# R23 caught this probe doing once already. So the subjects are asserted to
+# EXIST before any arm runs, and their absence is a refusal, not a pass.
+for subject in "$REPO/scripts/check-committed-file-types.py" \
+               "$REPO/docs/reviews/check-adr-numbers.py"; do
+    [ -s "$subject" ] || {
+        echo "REFUSING: subject not found at $subject" >&2
+        echo "         Every arm below would exit 2 for a missing file and" >&2
+        echo "         report PASS. That is the defect this probe demonstrates." >&2
+        exit 2
+    }
+done
+
 WORK=$(mktemp -d) || { echo "REFUSING: mktemp -d failed" >&2; exit 2; }
 [ -d "$WORK" ] || { echo "REFUSING: no work directory" >&2; exit 2; }
 trap 'rm -rf "$WORK"' EXIT
