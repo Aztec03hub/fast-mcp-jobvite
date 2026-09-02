@@ -23,22 +23,27 @@
 # the NEXT change, not by themselves. That is why the gate belongs on
 # pull requests against origin/main, where a PR's own commits are not
 # yet on the trunk. See the checker's docstring, "the one-merge lag".
+#
+# 2026-09-01, +5: the #116 merge (203e5af) and its four commits. They
+# were pushed before this ratchet existed and became visible the moment
+# a stale local origin/main was fetched - the backlog above had been
+# measured against 9e04411, five behind the trunk. No round covers them.
+#
+# 2026-09-01, +15: everything pushed past ccbdaae while R16 was
+# reading it - #161's secret-scan fix, #157's mirror change, and my
+# own handoff and protocol commits. R16 declined to claim them and
+# was right to: it never opened them. They belong to whoever pushed
+# them, which is me.
 0b149b9 PARTIAL Handoff at 09477ee: the CI protection rule, MEASURED und
 0b72ea2 PARTIAL Make closing idle workers a Tier-1 obligation, not an af
 105a979 PARTIAL R10-M1: the design drifted from its declared freeze, and
-1fa7b5e PARTIAL R12-M2: scripts/ was outside the type gate, wired checke
-20d5763 PARTIAL Brief #144+#145, and mark the NINTH instance - which is 
-306dfe7 PARTIAL #125: wire the two unwired checkers that were green, 18 
+20d5763 PARTIAL Brief #144+#145, and mark the NINTH instance - which is
+306dfe7 PARTIAL #125: wire the two unwired checkers that were green, 18
 328ffec PARTIAL #121: gate the no-errexit invariant, which had been hand
-3411812 PARTIAL Widen two citations, refuse a third, and clear the red m
-40aca53 PARTIAL R11-M2: the design says the throttle is not implemented;
-41150a1 PARTIAL #104: the sweep - 34 rows, 0 refused, 14 survivors; and 
 52363e4 PARTIAL PREAMBLE: teach PATHS too, or the next split round rebui
-56f6900 PARTIAL Handoff written against compaction: state, rulings, and 
+56f6900 PARTIAL Handoff written against compaction: state, rulings, and
 5c391d9 PARTIAL Record what the first two Tier-1 runs measured, before c
-5e45709 PARTIAL R11-H1: ADR-0030 had no code half, and its tests handed 
-6abcf1c PARTIAL Brief review round R13 over the 18 trunk commits nobody 
-6be403a PARTIAL docs/README: the three coupling gates DO run in CI, and 
+6abcf1c PARTIAL Brief review round R13 over the 18 trunk commits nobody
 6de45e9 PARTIAL The process list is shared, so it is other people's data
 7f0b1c5 PARTIAL PREAMBLE: derive the freeze SHA, and I nearly inverted t
 89aceee PARTIAL task139: fix 23 of 46 unresolved section citations in th
@@ -46,48 +51,37 @@
 9b00879 PARTIAL Brief the remainder of #115, and refuse to resume the st
 a824d54 PARTIAL Record the two environment traps the first Tier-1 dispat
 a881344 PARTIAL Merge review/r9 (#108): 73/73 bounded, and TWO gates tha
-afd2937 PARTIAL R11-H2: two of the three PDEATHSIG guards had no arm tha
 b1086e8 PARTIAL My AUDIT-SHAPES brief named the wrong section, and I edi
 b3d9ff8 PARTIAL #107 brief: one canonical HARNESS-RESULT line, and the d
-c5dc463 PARTIAL #127 #128 #129: assert the audit PHASE at every call sit
 cca19be PARTIAL PROTOCOL: the task tools are DEFERRED, not absent - my c
-cd7e211 PARTIAL Promote the #139 measurement script; delete the one-shot
-d3fbe22 PARTIAL task139: re-derive the unresolved-reference population f
-d402d01 PARTIAL docs/README: point readers at DESIGN-FREEZE.txt, not at 
-dc913b3 PARTIAL Write down the three-tier orchestration protocol before 
+dc913b3 PARTIAL Write down the three-tier orchestration protocol before
 e119e75 PARTIAL The handoff's own 15 was a DISPLAY CAP, and I read it as
 e3780b4 PARTIAL PREAMBLE: a code review must declare the range it covere
-ece3dbd PARTIAL R11 M3, M1, L1, N1: a wrong sentence, a retyped constant
 ee20c94 PARTIAL Brief #142 as the first TIER-1 dispatch, to test the pro
-ee84ab7 PARTIAL R12-L2 + N1: a count beside a growing container, and my 
 f2a7bce PARTIAL Merge review/r11 (#123): ADR-0030 gets its code half, an
 fc622e9 PARTIAL Protocol: what runs 3-5 measured, and the reviewer-befor
 ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
-#
-# 2026-09-01, +5: the #116 merge (203e5af) and its four commits. They
-# were pushed before this ratchet existed and became visible the moment
-# a stale local origin/main was fetched - the backlog above had been
-# measured against 9e04411, five behind the trunk. No round covers them.
-b567974 PARTIAL #143: lint-clean the applier, update CONTRIBUTING's job
-c6e3cda PARTIAL #151 R1: two Highs closed, and H2 was my prose being fal
-#
-# 2026-09-01, +15: everything pushed past ccbdaae while R16 was
-# reading it - #161's secret-scan fix, #157's mirror change, and my
-# own handoff and protocol commits. R16 declined to claim them and
-# was right to: it never opened them. They belong to whoever pushed
-# them, which is me.
-0256438 NONE PROTOCOL: the assignment echo is more dangerous than the
-0b90c2a NONE fix(secrets): gate on the finding set, not on the baseli
-2d886a4 NONE Merge #157's tail: what happens when the token EXISTS, w
-3aad1a3 NONE Rewrite the handoff, which was wrong a THIRD time - and
-3cf6fa4 NONE Answer the question I had only answered for today: what
-3d7a82f NONE R1-M6: the control's BASELINE arm asserted the TRUNK was
-401689e NONE Examine the three leftover branches that three handoffs
-4aca097 NONE Mirror on a daily schedule, not on every push - 213 min
-5fb7a6f NONE Merge fix/161-secret-baseline: the trunk's red is closed
-6e07131 NONE Merge fix/157-mirror-minutes: the job billed 213 minutes
-a00d2ac NONE docs(secrets): the findings, and CONTRIBUTING gains both
-a3fc38f NONE Correct my own header: the currency check would NOT have
-c276a45 NONE test(secrets): the end-to-end arms, and the gate's own f
-d0fce2a NONE Record #157 with its numbers, its controls and four corr
-ffd36c7 NONE #155 re-measured exactly, and the handoff was wrong a FO
+0256438 PARTIAL PROTOCOL: the assignment echo is more dangerous than the
+0b90c2a PARTIAL fix(secrets): gate on the finding set, not on the baseli
+3aad1a3 PARTIAL Rewrite the handoff, which was wrong a THIRD time - and
+3cf6fa4 PARTIAL Answer the question I had only answered for today: what
+3d7a82f PARTIAL R1-M6: the control's BASELINE arm asserted the TRUNK was
+401689e PARTIAL Examine the three leftover branches that three handoffs
+4aca097 PARTIAL Mirror on a daily schedule, not on every push - 213 min
+a00d2ac PARTIAL docs(secrets): the findings, and CONTRIBUTING gains both
+a3fc38f PARTIAL Correct my own header: the currency check would NOT have
+c276a45 PARTIAL test(secrets): the end-to-end arms, and the gate's own f
+d0fce2a PARTIAL Record #157 with its numbers, its controls and four corr
+ffd36c7 PARTIAL #155 re-measured exactly, and the handoff was wrong a FO
+03da258 NONE docs(reviews): extend R16 to 2d886a4 after the trunk mov
+298ce89 NONE Merge fix/156-u1-boot-guards: the defect was a MISDIAGNO
+2b3fa4d NONE Record the ref shape the docstring did not have: it can 
+2eb2d2a PARTIAL Brief R17: the complementary round R15 asked for, with R
+3a5dbe9 PARTIAL Handoff: the trunk is 2d886a4 and the red is closed, unc
+6d8d02a NONE R16-N1: rewrite the docstring a mechanical reflow damage
+76863bb NONE The positive control, all three arms, and the review for
+96249f5 NONE Merge R16's extension: it READ the 15 and therefore clai
+b84b77d NONE Guard all 13 mutation heredocs in the U1 amputation harn
+c545ead PARTIAL Record the 15 commits I pushed while R16 was reading, wi
+e5c7aeb NONE #165 (R16-H1): the trap counters could not see a trap sp
+e61a668 PARTIAL docs(reviews): R16 over the 86 uncovered trunk commits, 
