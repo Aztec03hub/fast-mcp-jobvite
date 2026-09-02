@@ -29,3 +29,4 @@
 # Add it in the same commit as the brief; delete it when the report
 # lands, which the gate will demand.
 REVIEW-R21.md  2026-09-02 IN FLIGHT: review-r21 is dispatched and BRIEF-R21-since-r20.md names this report. Designed to EXPIRE - when the report lands the gate fails with "a recorded entry now resolves" and this line must go.
+WORKLOG-194-watch-last-two.md  2026-09-02 IN FLIGHT: suborch-194 is dispatched and BRIEF-194-watch-the-last-two.md names this worklog. Recorded AT DISPATCH per this file's routine; delete it when the worklog lands.
