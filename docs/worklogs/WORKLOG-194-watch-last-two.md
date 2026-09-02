@@ -326,6 +326,62 @@ second run.
 
 ---
 
+## The merge with main, and what it proved for free
+
+Merged `main` (`507fceb`) in at `fb6483e`, and re-ran everything AFTER
+the merge rather than before.
+
+**The regression warning I was sent named the WRONG BRANCH.** The `-149`
+on `check-brief-report-refs-controls.sh` and `-22` on
+`probe-mirror-zero-refs.sh` belong to `fix/194-floor-firing-container`
+(`7ab914c`), the abandoned earlier attempt recorded under Housekeeping
+below. My branch forked at `ed8bc60`, and `8aa9150`, `5bcdb45` and
+`b7b58b0` are all already ancestors of it
+(`git merge-base --is-ancestor`), so neither `b7b58b0`'s rc=2 refusal nor
+`5bcdb45`'s bare-name exit 2 was ever at risk here.
+
+**ONE conflict, and taking either whole side was wrong.** In
+`brief-report-refs-known-missing.txt`: kept main's `WORKLOG-208` and
+`FINDINGS-213` records, took main's deletion of `REVIEW-R21` (it landed),
+took my deletion of `WORKLOG-194` (it lands here). Taking HEAD drops two
+live records; taking main re-records a worklog the same merge commits.
+`ci.yml` auto-merged and `git diff main` over it is +16/-0, so #214's
+work is intact — checked, not assumed.
+
+**MAIN WAS ALREADY RED ON THREE GATES**, measured on plain `507fceb`:
+the brief-report gate (`WORKLOG-208-orphan-leads.md` tracked AND still
+recorded), `check-checkers-are-wired.py`
+(`probe-stale-branch-regression.sh` unwired and unexplained), and
+`probe-wired-checker-amputation.py` as a consequence of the second. None
+was fixed here — each is a one-line change in a file another agent is
+holding.
+
+### THE TRAP IN REVERSE, and it is why S4 alone is not enough
+
+Main's red is a free positive control. `probe-wired-checker-amputation.py`
+reports there:
+
+    arms=14 failures=2
+    HARNESS-RESULT rows=14 floor=14 fired=12/14 status=breach
+
+**The FLOOR is satisfied — `rows=14` against `floor=14` — and only the
+TALLY catches it.** That is the exact mirror of the case this task was
+about, where the tally reads full and only the floor catches the loss.
+Neither assertion can see the other's case:
+
+| what went wrong | `rows` vs `floor` | `fired=` |
+|---|---|---|
+| a row was DELETED | **catches it** | reads FULL, blind |
+| a row FAILED | satisfied, blind | **catches it** |
+
+Both have to be asserted, and both now are — S4 for the first column,
+`verdict()`'s `if failures` branch (armed by S7) for the second.
+
+**The `--self-test` stayed GREEN while `main()` went RED**, which is the
+property that lets it share a job with its own subject: it is in-process
+and never runs the checker, so the floor claim is isolated from the
+subject's health.
+
 ## Housekeeping
 
 - `docs/reviews/brief-report-refs-known-missing.txt`: the
