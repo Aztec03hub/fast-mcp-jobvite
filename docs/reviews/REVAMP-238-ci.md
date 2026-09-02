@@ -438,8 +438,9 @@ from R23:
 ## 7a.2 The shard plan: a bracket, and the one input that decides it
 
 Seven review rounds. The DIRECTION holds **at 12 lanes and above** and
-nowhere else: at 11 lanes sharding provably LOSES, by at least 17.1s, and
-that row was found by the same round that extended this table to reach it.
+nowhere else: at 11 lanes sharding provably LOSES **under the fitted
+shard costs**, by at least 17.0s, and that row was found by the same
+round that extended this table to reach it.
 An earlier version of this sentence said "no reviewer has constructed a
 case where sharding loses" - true of every row then computed, and promoted
 to a general claim it had not earned. The MAGNITUDE has been wrong in both
@@ -470,25 +471,44 @@ pooled with them):
 | run | steps | total | largest |
 |---|---|---|---|
 | `dcb2725` | 33 | 3311s | 298s |
-| `a849f7f` | 34 | 3318s | 304s |
+| `a849f7f` | 35 | 3323s | 304s |
 | `1636f56` | 33 | 3492s | 333s |
+
+Row 2 read `34 / 3318s` until this round re-ran it. The script that built
+it keyed a per-step table by step NAME, and `a849f7f` is the one run of
+the three with a repeated name - `Install from the frozen lock` appears
+twice - so one step was silently dropped. The other `+1` is a genuinely
+new step, `U15 gate amputation, every row applied`. A dict keyed by
+something that is not unique loses rows without erroring, which is why
+the count and the total are asserted in the probe and were not here.
 
 Per-step spread over the 33 steps common to all three reaches **118s** on
 `U9 HTTP hardening amputation` (201-319s) and 75s on `U3 audit amputation`
-(258-333s). **Every margin adjudicated in this section is 0.5s to 8s.**
-They are one to two orders of magnitude below the instrument's own
-run-to-run spread, so a 2.0s win and a wash are not distinguishable here.
+(258-333s). Those 33 are exactly `dcb2725`'s and `1636f56`'s whole
+populations; `a849f7f` carries them plus the two above.
+
+**Every margin the 12-lane headline rests on is 0s to 8s** - the 2.0s
+win, the 0.00s wash under the overhead-deleted refit, the ~0.7s at the
+far end of U9's band, and the 8.0s re-anchored win. They are one to two
+orders of magnitude below the instrument's own run-to-run spread, so at
+12 lanes a 2.0s win and a wash are not distinguishable here. The 13-16 lane margins (-25.5s to -68.0s) and the 11-lane loss are
+the other way round - an order of magnitude ABOVE the spread - which is
+why they survive it and the 12-lane cell does not.
 
 What that does and does not overturn. The arithmetic is correct given its
-inputs, and the LARGE effects survive: the -68s at 16 lanes, and the 11-lane
-loss. The 12-lane margin does not - it should be read as "no worse, and not
-measurably better on this data". `probe-273-packing.py` REFUSES on two of
+inputs. The large effects - the -68s at 16 lanes, and the 11-lane loss -
+are far enough above the spread that inverting them is implausible, but
+that is an argument from magnitude: **no lane table has been computed on
+`a849f7f` or `1636f56`**, so "they survive" is an expectation, not a
+measurement. The 12-lane margin does not survive even that test - it
+should be read as "no worse, and not measurably better on this data".
+`probe-273-packing.py` REFUSES on two of
 these three runs because it asserts this population; that refusal is the
 guard working, and it is the reason this paragraph exists rather than a
 silently restated number.
 
 On medians the regime also flips back: largest 304 exceeds total/lanes
-(3318/12 = 276.5), so the instance is MAX-bound again and the 12-lane floor
+(3323/12 = 276.9), so the instance is MAX-bound again and the 12-lane floor
 is ~317s including setup - **above the five-minute mandate**, which makes
 sharding the pole step necessary rather than marginal. See task #282.
 
@@ -496,11 +516,20 @@ sharding the pole step necessary rather than marginal. See task #282.
 
 | lanes | unsharded LB / BEST | sharded LB / BEST | delta |
 |---|---|---|---|
+| 11 | 314.0 / 316.0 achieved | **333.1** / 334.0 | **+18.0s LOSES** |
 | 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** |
 | 13 | 311.0 / **311.0 exhibited** | 283.8 / 285.5 | -25.5s |
 | 14 | 311.0 / **311.0 exhibited** | 264.5 / 275.0 | -36.0s |
 | 15 | 311.0 / **311.0 exhibited** | 247.7 / 256.0 | -55.0s |
 | 16 | 311.0 / **311.0 exhibited** | 240.0 / 243.0 | -68.0s |
+
+The 11-lane row is the only one whose exhibited unsharded packing does not
+MEET its own lower bound - 316.0 against an LB of 314.0 - so it is
+"achieved" but, unlike 12-16, not proved optimal. It is also the only row
+whose verdict is a LOSS, and it is included because the DIRECTION sentence
+opening this section and the paragraph below both rest on it: it
+previously appeared only in prose while the probe printed it. All sharded
+BESTs are searched upper bounds at `RESTARTS = 10000`.
 
 **"Exhibited", not "provably optimal".** An earlier version claimed that a
 max-bound instance makes greedy LPT provably optimal. **That is false**,
@@ -514,33 +543,83 @@ construction and it does not generalise.
 The unsharded cells stop being provable at **11 lanes**: 3311/11 = 301.0
 exceeds 298, so the instance is no longer max-bound (LB 314, best 316.0).
 
-**And 11 lanes is where sharding LOSES.** Sharded LB 333.1 against an
-EXHIBITED unsharded 316.0: `+19.5s loses`. This is not a search artefact
-and no budget can overturn it - a lower bound above an achieved schedule
-settles the question. It is the one row that bounds the direction claim
-above, and it was invisible until the table was extended by a single lane.
+**And 11 lanes is where sharding LOSES.** Sharded LB **333.05** against
+an EXHIBITED unsharded **316.00**: a bound of **17.05s**. This is not a
+search artefact and no budget can overturn it - a lower bound above an
+achieved schedule settles the question. (The probe's own delta column
+reads `+18.0s loses` at `RESTARTS = 10000`, and read `+19.5s` at 400;
+that figure is a difference of two searched values and is
+budget-dependent. The 17.05s bound is not.) It is the one row that bounds
+the direction claim above, and it was invisible until the table was
+extended by a single lane.
 
-### ONE PACKER AT TWO BUDGETS - the "two searches" never existed
+**Budget-independent is not input-independent, and this row is only the
+first.** Like every sharded figure here it is conditional on the FITTED
+shard costs: the entire bound is `sum(sharded)/11`, and the 209.6s
+separating the sharded pool from the unsharded one is fitted overhead.
+Measured across the range `#278` contests:
 
-Every sharded figure here is an UPPER BOUND produced by a search, so the
-LOWER of two results is the better evidence: a packing that exists is a
-packing that exists.
+| shard model | sum(sharded) | s_LB(11) | against exhibited unsharded 316.00 |
+|---|---|---|---|
+| as published (163.3 / 219.5) | 3520.6 | 333.05 | **+17.05s, loses** |
+| overhead-deleted refit (165.12 / 234.83), below | 3554.9 | 336.17 | **+20.17s, loses** |
+| zero shard overhead (each step halved) | 3311.0 | 314.00 | **-2.00s, the bound REVERSES** |
+
+Re-fitting in `#278`'s direction widens the loss; deleting the overhead
+term entirely inverts it, and not only as a bound - an exhibited
+zero-overhead packing reaches **315.00**, a 1.0s win against the 316.00.
+`#278` measures that term at **130ms** against the **2.24-2.64s** this
+model fits, a factor of 17-20, so the reversing end of the range is the
+one the evidence currently points at rather than a hypothetical. **The
+honest statement is: at 11 lanes sharding loses at ANY SEARCH BUDGET
+given the fitted shard costs, and that loss reverses at the low end of
+the range those costs are contested over.** It is settled against the
+search and unsettled against the inputs.
+
+### ONE PACKER AT SEVERAL BUDGETS - the "two searches" never existed
+
+Every sharded BEST here is an UPPER BOUND produced by a search - the LB
+column is not, and is arithmetic - so between two BESTs the LOWER is the
+better evidence: a packing that exists is a packing that exists.
 
 An earlier version of this section ran under the heading "TWO PACKERS, AND
 MINE IS THE WEAKER ONE" and tabulated four quantities where a reviewer's
-search beat this one. **There was never a second packer.** It is the same
-code, and the only difference is the module constant `RESTARTS`. Raise it
-and all four close:
+search beat this one. All four figures close exactly when `RESTARTS` is
+raised, which is what one packer at two budgets looks like: it is the
+same code, and the only difference is the module constant. **No second
+implementation was ever exhibited, and the "two searches" reading was
+supplied rather than observed** - the inference is strong, but it is an
+inference about someone else's run, not an observation of their code.
+Raise the budget and all four close:
 
-| quantity | R=60 | R=400 | R=10000 | round 6 |
-|---|---|---|---|---|
-| 12-lane sharded best | 310.50 | **309.00** | 309.00 | 309.00 |
-| re-anchored 12-lane win | 6.50 | **8.00** | 8.00 | 8.00 |
-| U3 refit from 258s, 12-lane | 305.62 | **304.00** | 304.00 | 304.00 |
-| overhead-deleted, 12-lane | 316.00 | 311.12 | **311.00** | 311.00 |
+| quantity | R=60 | R=400 | R=10000 | R=40000 | round 6 |
+|---|---|---|---|---|---|
+| 12-lane sharded best | 310.50 | **309.00** | 309.00 | 309.00 | 309.00 |
+| re-anchored 12-lane win | 6.50 | **8.00** | 8.00 | 8.00 | 8.00 |
+| U3 refit from 258s, 12-lane | 305.62 | 304.00 | 304.00 | **303.00** | 304.00 |
+| overhead-deleted, 12-lane | 316.00 | 311.12 | **311.00** | 311.00 | 311.00 |
 
-The whole disagreement cost **11 milliseconds** of extra search on a probe
-nothing gates. The probe now runs at `RESTARTS = 400`.
+Two things the R=40000 column adds, both measured this round.
+
+**Row 3 never actually converged**, here or in round 6: it holds 304.00
+from R=400 to R=10000 and then falls to 303.00, stable to R=100000. Both
+instruments agreed on an unconverged reading. Rows 1, 2 and 4 are
+converged - 309.00, 8.00 and 311.00 are unchanged from R=10000 through
+R=100000.
+
+**Row 3's R=60 cell is decided by an input, not by the search.** It reads
+305.62 with this section's U3 shard of 138.62 and 305.60 with round 6's
+rounded 138.6, and the two are indistinguishable from R=400 onward.
+`MEASURED-273-closure-fixes.md` records 305.60 for that reason; the files
+do not disagree.
+
+The whole disagreement cost **355 milliseconds** of search - the measured
+cost of the entire six-row table at `RESTARTS = 400`, against 53.7ms at
+R=60 (median of 5). The "11 milliseconds" this table previously claimed
+matches neither quantity measured here at any of the three budgets, and
+was estimated rather than timed - as were the "~8s" and "~10s" before it. The probe now runs at `RESTARTS =
+10000`, where the table costs 8.81s, because the 11-lane sharded cell was
+still falling at 400; see `probe-273-packing.py:93-103`.
 
 **The model INPUTS reproduced exactly all along** - U3's 138.62s shard
 against 138.6, U9's overhead-deleted 234.83 against 234.8, U3's 165.12
@@ -595,16 +674,26 @@ propagating that into this cell. Round 6 propagated it:
 
 **So at 12 lanes the honest answer is: between a 2.0s win and a wash,
 decided entirely by a term this repository measures at 130ms and this
-model fits at 2.24-2.64s.** It is not a regression under any input tried.
-It is also not reliably a win.
+model fits at 2.24-2.64s.** At 12 lanes it is not a regression under any
+input tried. It is also not reliably a win. That scope matters: the same
+sweep applied to the 11-lane row DOES flip its sign, so "no input tried
+makes it worse" is a claim about this cell and not about the section.
 
 Two other re-derivations both move the answer TOWARD sharding, which is
 why the direction survives:
 
-- re-deriving U3's shard from the 258s it actually DREW gives 138.6s per
-  shard, a 12-lane best of 304.0 - a 7.0s win - and 282.0 at 13 lanes;
+- re-deriving U3's shard from the 258s it actually DREW gives 138.62s per
+  shard, a 12-lane best of **303.0** - an 8.0s win - and **281.0** at 13
+  lanes. This line read "304.0 ... and 282.0" for four rounds. 282.0 was
+  never any budget's reading; 304.0 and the 283.0 that
+  `MEASURED-273-closure-fixes.md` once proposed in place of 282.0 are
+  both R=400 readings of a search that had not converged. Converged:
+  13 lanes is 284.0 at R=60, 283.0 at R=400 and 281.0 from R=10000 to
+  R=100000; 12 lanes is 303.0 from R=40000 to R=100000;
 - re-anchoring to U3's three-run median (below) widens the 12-lane win to
-  8.0s.
+  8.0s - the same figure as the bullet above, reached by a different
+  route (that one lowers the sharded best, this one raises the unsharded
+  floor to 317.0). The coincidence is not a transcription.
 
 ### The re-anchoring caveat was wrong in both directions - and it resolves the `MEASURED-268` disagreement
 
@@ -632,7 +721,9 @@ The shard costs 163.3s and 219.5s are FITTED. `scale` is derived as
 `k1/(B+R+overhead)`, so the k=1 column closes by construction and carries
 no information. U9's k=2 spans 209-235s across the overhead sweep, and
 `#278` argues the term should be near zero, which is the case that takes
-the 12-lane win to nothing.
+the 12-lane win to nothing **and reverses the 11-lane loss**. Both of
+this section's headline cells rest on that one fitted term, in opposite
+directions, and `#278` is where it gets settled.
 
 Nothing has ever run sharded. `#270`, the gate that reds any sharded step,
 is not yet mergeable. And nothing in the tree consumes `HARNESS_SHARDS`
