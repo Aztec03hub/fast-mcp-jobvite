@@ -24,7 +24,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CHECKER="$ROOT/docs/reviews/check-brief-report-references.py"
 PY=(uv run --frozen python)
 
-ROW_FLOOR=9
+ROW_FLOOR=11
 ROWS=0
 FIRED=0
 
@@ -64,15 +64,35 @@ row() {  # row <label> <checker> <expected-rc>
   fi
 }
 
-amputate() {  # amputate <name> <sed-expr> -> path to a maimed copy
-  local out="$tmp/amp-$1.py"
-  sed "$2" "$CHECKER" > "$out"
-  if cmp -s "$out" "$CHECKER"; then
-    echo "  FAIL amputation '$1' CHANGED NOTHING - anchor not found"
+# Sets the global AMP. It must NOT be called as `amp=$(amputate ...)`:
+# command substitution runs it in a SUBSHELL, so its ROWS increment is
+# discarded and its FAIL message is captured into the variable instead
+# of printed. The first version of this file did exactly that, and A11
+# silently never ran - a harness losing a row is the failure this whole
+# file exists to make impossible.
+AMP=""
+amputate() {  # amputate <name> <sed-expr> ; sets AMP, returns 0/1
+  AMP="$tmp/amp-$1.py"
+  sed "$2" "$CHECKER" > "$AMP"
+  if cmp -s "$AMP" "$CHECKER"; then
+    echo "  FAIL amputation '$1' CHANGED NOTHING - ANCHOR NOT FOUND"
     ROWS=$((ROWS + 1))
     return 1
   fi
-  printf '%s' "$out"
+  return 0
+}
+
+# Every arm that changes the fixture brief restores it, so an arm can
+# never inherit the previous arm's world.
+fixture_default() {
+  cat > "$tmp/briefs/BRIEF-fixture.md" <<'EOF'
+See `docs/reviews/REVIEW-PRESENT.md` and also REVIEW-ABSENT.md.
+EOF
+}
+fixture_longer_name() {
+  cat > "$tmp/briefs/BRIEF-fixture.md" <<'EOF'
+See `docs/CODE-REVIEW-CHECKLIST.md`, which is not a report citation.
+EOF
 }
 
 echo "########## positives"
@@ -112,26 +132,46 @@ record "REVIEW-ABSENT.md  ok"
 row "A6 empty listing -> 1 (not 2)" "$CHECKER" 1
 printf 'docs/reviews/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
 
+# A10 - A LONGER NAME MUST NOT MATCH ITS TAIL. This is the arm for a
+# FALSE FINDING I published: `docs/CODE-REVIEW-CHECKLIST.md` exists and
+# is cited by two briefs, and without a left boundary the pattern read
+# it as `REVIEW-CHECKLIST.md`, which never has. The fixture cites only
+# the longer name, so a correct checker sees NO report citation at all.
+fixture_longer_name
+record ""
+row "A10 longer name not matched by its tail -> 0" "$CHECKER" 0
+fixture_default
+
 echo "########## amputations"
 
 # A7 - delete the unrecorded-dangling branch; A1 must go green.
-if amp=$(amputate unrecorded 's/^    if unrecorded:$/    if False:/'); then
+if amputate unrecorded 's/^    if unrecorded:$/    if False:/'; then
   record ""
-  row "A7 AMP unrecorded -> A1 survives at 0" "$amp" 0
+  row "A7 AMP unrecorded -> A1 survives at 0" "$AMP" 0
 fi
 
 # A8 - delete the resolved branch; A3 must go green.
-if amp=$(amputate resolved 's/^    if resolved:$/    if False:/'); then
-  record "REVIEW-PRESENT.md  wrongly recorded; it is tracked" \
+if amputate resolved 's/^    if resolved:$/    if False:/'; then
+  record 'REVIEW-PRESENT.md  wrongly recorded; it is tracked' \
          'REVIEW-ABSENT.md  recorded, so only resolved can fire'
-  row "A8 AMP resolved -> A3 survives at 0" "$amp" 0
+  row "A8 AMP resolved -> A3 survives at 0" "$AMP" 0
 fi
 
 # A9 - delete the uncited branch; A4 must go green.
-if amp=$(amputate unreferenced 's/^    if unreferenced:$/    if False:/'); then
-  record "REVIEW-ABSENT.md  ok" "REVIEW-NOBODY-CITES.md  stale line"
-  row "A9 AMP unreferenced -> A4 survives at 0" "$amp" 0
+if amputate unreferenced 's/^    if unreferenced:$/    if False:/'; then
+  record 'REVIEW-ABSENT.md  ok' 'REVIEW-NOBODY-CITES.md  stale line'
+  row "A9 AMP unreferenced -> A4 survives at 0" "$AMP" 0
 fi
+
+# A11 - delete the LEFT BOUNDARY; A10 must go red. Without this arm the
+# lookbehind can be removed and nothing notices, which is exactly how
+# the false finding shipped in the first place.
+fixture_longer_name
+if amputate boundary '/(?<!/d'; then
+  record ""
+  row "A11 AMP left boundary -> A10 goes red at 1" "$AMP" 1
+fi
+fixture_default
 
 status=ok
 if [ "$FIRED" -ne "$ROWS" ] || [ "$ROWS" -lt "$ROW_FLOOR" ]; then

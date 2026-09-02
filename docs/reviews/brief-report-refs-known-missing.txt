@@ -11,5 +11,5 @@
 #
 # Gate: docs/reviews/check-brief-report-references.py
 
-REVIEW-CHECKLIST.md  NEVER EXISTED as a file, so far as any history shows - no ref carries it and `git log --all --diff-filter=A` finds no add. Cited by BASH-STANDARD.md and CODE-REVIEW-R2.md as though it were one. Found by this checker's first run, not by a reader, in two documents that have each been read many times.
 WORKLOG-187-floor-container.md  IN FLIGHT, not missing: `suborch-187` is running and this is the worklog its brief tells it to write. This line is designed to EXPIRE - the moment that worklog is committed, the checker fails with "a recorded entry now resolves" and the line must be deleted. That is the record deleting itself rather than accumulating.
+REVIEW-R20.md  IN FLIGHT, same shape: `review-r20` is dispatched and its brief names this report. Delete this line when the report lands. Two in-flight entries at once is what this record is for - the alternative is a gate that goes red every time an agent is dispatched, which is a gate that gets switched off.

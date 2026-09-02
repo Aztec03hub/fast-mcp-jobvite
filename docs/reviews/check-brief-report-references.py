@@ -74,7 +74,19 @@ RECORD = ROOT / "docs/reviews/brief-report-refs-known-missing.txt"
 # The KIND is a report the briefs treat as a deliverable: a review, a
 # worklog or a findings document. Matched by NAME, not by directory, so
 # a citation that omits the path is still a citation.
+#
+# THE LEFT BOUNDARY IS LOAD-BEARING AND ITS ABSENCE PUBLISHED A FALSE
+# FINDING. Without `(?<![A-Za-z0-9._-])` this matches the TAIL of a
+# longer name: `docs/CODE-REVIEW-CHECKLIST.md`, which exists and is
+# cited by two briefs, was reported as `REVIEW-CHECKLIST.md`, which
+# never has. I put that in a commit message and told another agent, who
+# then searched four places for a file whose real name I had truncated
+# and correctly found nothing - confirming my false finding rather than
+# catching it, because we were both searching for the string my
+# instrument produced. An anchor is not decoration; a pattern with a
+# free left edge selects for names it was never shown.
 REF = re.compile(
+    r"(?<![A-Za-z0-9._-])"
     r"(?:docs/(?:reviews|worklogs)/)?"
     r"((?:REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+\.md)"
 )
