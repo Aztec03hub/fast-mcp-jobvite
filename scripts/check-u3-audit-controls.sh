@@ -92,7 +92,7 @@ COVDB="$(mktemp /tmp/u3-controls-covdb-XXXXXX)"
 # writers then hold independent offsets on one inode and $BASE_OUT/$MUT_OUT/
 # $SEL_OUT stop describing THIS run.
 #
-# $MUT_OUT is the dangerous one: `run_mutation`'s `^(FAILED|ERROR) [^ ]*$want`
+# $MUT_OUT is the dangerous one: `run_mutation`'s `FAILED`/`ERROR` awk
 # branch reads a VERDICT out of it. A rival truncating it inside a row's window
 # costs this run a kill it really made; a rival WRITING there writes the very
 # `FAILED <nodeid>` lines that grep accepts, which is a false kill manufactured
@@ -341,7 +341,21 @@ PY
   # short summary; an erroring test prints `ERROR <nodeid>`. Matching those two
   # forms - rather than the whole log - is what stops pytest's own diagnostics
   # from being read as a verdict about the code.
-  elif grep -qE "^(FAILED|ERROR) [^ ]*$want" "$MUT_OUT"; then
+  #
+  # AND THE NAME IS A LITERAL, NOT A PATTERN. This used to be
+  # `grep -qE "^(FAILED|ERROR) [^ ]*$want"`, which interpolates a TEST NAME
+  # into an extended regular expression: a parametrised id like
+  # `test_x[1]` would have matched the CHARACTER `1` and not the literal
+  # `[1]`, so this row could report a kill against a DIFFERENT test and miss
+  # the real one. #264 measured the hazard as real and unreachable today (0 of
+  # 681 names carry a metacharacter); this is the hardening, not a live bug.
+  # `awk`'s `index()` is a literal substring operator - a signal the language
+  # already carries - so there is no escaping to get wrong, and the name
+  # arrives through ENVIRON rather than `-v` because `-v` DOES process
+  # backslash escapes and would rebuild the defect one column over.
+  # `$2` is the node id: `[^ ]*` in the old form said the same thing.
+  # Proved both ways in docs/reviews/probe-289-ere-interpolation.sh.
+  elif w="$want" awk '($1=="FAILED"||$1=="ERROR") && index($2,ENVIRON["w"]) {f=1} END{exit !f}' "$MUT_OUT"; then
     echo "$id: killed by $want"
     PASS=$((PASS + 1))
   else

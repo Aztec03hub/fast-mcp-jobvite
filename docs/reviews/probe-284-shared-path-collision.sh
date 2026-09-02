@@ -47,7 +47,7 @@ WANT="test_arm1_the_killer_that_was_neutered"
 # shipped code rather than about a string in this file.
 HARNESS=scripts/check-u4-client-controls.sh
 [ -f "$HARNESS" ] || { echo "ABORT: $HARNESS not found from $REPO_ROOT"; exit 3; }
-if ! grep -q 'grep -qE "\^FAILED \$SUITE::\$want" "\$MUT_OUT"' "$HARNESS"; then
+if ! grep -qF '$1=="FAILED" && index($2,ENVIRON["w"])==1' "$HARNESS"; then
   echo "ABORT: could not find the verdict grep in $HARNESS. If the harness"
   echo "changed shape this probe is measuring nothing, and says so rather"
   echo "than passing on a stale copy."

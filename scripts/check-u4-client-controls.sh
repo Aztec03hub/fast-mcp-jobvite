@@ -59,7 +59,7 @@ SUITE="tests/test_jobvite_client.py"
 # Two worktrees on one machine run these harnesses concurrently, and a fixed
 # path gives both the SAME INODE: independent `>` offsets leave a NUL hole,
 # `grep` then reports "binary file matches" on STDERR and returns an EMPTY
-# capture at exit 0. $MUT_OUT is the dangerous one - the `^FAILED $SUITE::$want`
+# capture at exit 0. $MUT_OUT is the dangerous one - the `FAILED <nodeid>` awk
 # branch below reads a VERDICT out of it, so a rival WRITING there writes the
 # very lines that grep accepts and this run reports a kill it never made.
 # Reproduced both ways in docs/reviews/probe-284-shared-path-collision.sh; #262
@@ -158,7 +158,20 @@ PY
   fi
 
   # The NAMED test must be among the failures. A red suite is not enough.
-  if grep -qE "^FAILED $SUITE::$want" "$MUT_OUT"; then
+  #
+  # AND THE NODE ID IS A LITERAL, NOT A PATTERN. This used to be
+  # `grep -qE "^FAILED $SUITE::$want"`, which interpolates BOTH a file path and
+  # a TEST NAME into an extended regular expression: the `.py` in $SUITE
+  # matched any character, and a parametrised name like `test_x[1]` would have
+  # matched the CHARACTER `1` rather than the literal `[1]`. #264 measured the
+  # hazard as real and unreachable today (0 of 681 names carry a
+  # metacharacter); this is the hardening, not a live bug. `awk`'s `index()`
+  # is a literal substring operator - a signal the language already carries -
+  # and `==1` reproduces the old `^`-anchor by demanding the match start at
+  # the node id's first character. ENVIRON, not `-v`: `-v` processes backslash
+  # escapes and would rebuild the defect one column over.
+  # Proved both ways in docs/reviews/probe-289-ere-interpolation.sh.
+  if w="$SUITE::$want" awk '$1=="FAILED" && index($2,ENVIRON["w"])==1 {f=1} END{exit !f}' "$MUT_OUT"; then
     echo "$id: KILLED by $want"
     PASS=$((PASS + 1))
   else
