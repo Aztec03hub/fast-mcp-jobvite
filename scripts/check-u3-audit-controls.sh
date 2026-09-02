@@ -82,10 +82,35 @@ SUITE="tests/test_audit.py tests/test_redaction.py tests/test_logging_process.py
 # `scripts/check-u9-http-amputation.sh` (COVDB at :93, map build at :94-95) and
 # `scripts/check-u4-client-amputation.sh` (:88-90).
 COVDB="$(mktemp /tmp/u3-controls-covdb-XXXXXX)"
+# PER PROCESS, for the same reason as $COVDB above and as #262's $OUT, and this
+# is #262's review finding rather than housekeeping. These three used to be the
+# fixed paths under /tmp named u3-base, u3-mut and u3-sel .txt. EVERY worktree
+# of this repo on this box carries this harness (82 of 82 today, 75 of 77 an
+# hour earlier - the number moves, the direction does not; DIAG-262 §3.1 has
+# the derivation), and four scripts invoke it, so a second concurrent run
+# opening the same path with `>` is the normal state here. Two
+# writers then hold independent offsets on one inode and $BASE_OUT/$MUT_OUT/
+# $SEL_OUT stop describing THIS run.
+#
+# $MUT_OUT is the dangerous one: `run_mutation`'s `^(FAILED|ERROR) [^ ]*$want`
+# branch reads a VERDICT out of it. A rival truncating it inside a row's window
+# costs this run a kill it really made; a rival WRITING there writes the very
+# `FAILED <nodeid>` lines that grep accepts, which is a false kill manufactured
+# from another process's bytes. Both were reproduced - see
+# docs/reviews/DIAG-262-probe-nondeterminism.md §5.2.
+#
+# Written ONCE into a variable and read everywhere, so `run_mutation`'s pytest
+# redirect and its verdict grep cannot drift apart the way a repeated literal
+# can. Deliberately NOT a line-number cite: this comment outlives the offsets.
+BASE_OUT="$(mktemp /tmp/u3-base-XXXXXX)"
+MUT_OUT="$(mktemp /tmp/u3-mut-XXXXXX)"
+SEL_OUT="$(mktemp /tmp/u3-sel-XXXXXX)"
 # `harness_result_emit` FIRST. `lib/harness-result.sh` armed an EXIT trap at
 # source time and bash has no trap stack, so this trap REPLACES it - chaining
 # the emitter into the front is what keeps an abort from rendering as silence.
-trap 'harness_result_emit; rm -f "$COVDB"' EXIT
+# The mktemp'd files are removed here too: a per-RUN name that is never deleted
+# is unbounded accretion, which is a different defect from the shared one.
+trap 'harness_result_emit; rm -f "$COVDB" "$BASE_OUT" "$MUT_OUT" "$SEL_OUT"' EXIT
 
 PASS=0
 FAIL=0
@@ -124,7 +149,7 @@ echo "########## BASELINE - the intact tree"
 # baseline it was never meant to satisfy.
 COVERAGE_FILE="$COVDB" timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
   -p no:cacheprovider --cov --cov-context=test --cov-report= --cov-fail-under=0 \
-  >/tmp/u3-base.txt 2>&1
+  >"$BASE_OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -134,10 +159,10 @@ if [ "$baseline_rc" -eq 124 ]; then
 fi
 if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact suite is red; every row below would be meaningless."
-  tail -20 /tmp/u3-base.txt
+  tail -20 "$BASE_OUT"
   exit 3
 fi
-tail -1 /tmp/u3-base.txt
+tail -1 "$BASE_OUT"
 echo
 
 # ---------------------------------------------------------------------------
@@ -263,7 +288,7 @@ PY
   # `$sel` is the covering node-id list derived above, or the whole `$SUITE` on
   # the wide fallback. Unquoted on purpose - it is a LIST, and quoting it would
   # hand pytest one impossible node id.
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rf >/tmp/u3-mut.txt 2>&1
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rf >"$MUT_OUT" 2>&1
   local rc=$?
   if [ "$rc" -eq 124 ]; then
     echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
@@ -304,7 +329,7 @@ PY
     echo "$id: THE SELECTION DID NOT RUN (pytest rc=$rc). Not a kill and not a"
     echo "  survivor - the named test never executed, so this row measured"
     echo "  nothing. pytest said:"
-    grep -E "^ERROR|no tests ran|Interrupted" /tmp/u3-mut.txt | sed 's/^/      /' | head -3
+    grep -E "^ERROR|no tests ran|Interrupted" "$MUT_OUT" | sed 's/^/      /' | head -3
     FAIL=$((FAIL + 1))
     return
   fi
@@ -316,12 +341,12 @@ PY
   # short summary; an erroring test prints `ERROR <nodeid>`. Matching those two
   # forms - rather than the whole log - is what stops pytest's own diagnostics
   # from being read as a verdict about the code.
-  elif grep -qE "^(FAILED|ERROR) [^ ]*$want" /tmp/u3-mut.txt; then
+  elif grep -qE "^(FAILED|ERROR) [^ ]*$want" "$MUT_OUT"; then
     echo "$id: killed by $want"
     PASS=$((PASS + 1))
   else
     echo "$id: the selected tests went red, but NOT at $want - a coincidence, not a control"
-    grep -E '^FAILED' /tmp/u3-mut.txt | sed 's/^/      /' | head -5
+    grep -E '^FAILED' "$MUT_OUT" | sed 's/^/      /' | head -5
     FAIL=$((FAIL + 1))
   fi
 }
@@ -465,13 +490,13 @@ if [ "$SEL_ROWS" -gt 0 ]; then
     exit 3
   fi
   if ! timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "${SELECTORS[@]}" \
-       --collect-only -q -p no:cacheprovider >/tmp/u3-sel.txt 2>&1; then
+       --collect-only -q -p no:cacheprovider >"$SEL_OUT" 2>&1; then
     echo "########## A DERIVED NODE ID DOES NOT RESOLVE ON THE INTACT TREE."
     echo "The coverage map named a test that pytest will not collect, so at"
     echo "least one row narrowed to a selector that could not run what it"
     echo "aimed at. ${#SELECTORS[@]} id(s) from $SEL_ROWS selecting row(s)."
     echo "pytest, on the restored tree:"
-    tail -20 /tmp/u3-sel.txt
+    tail -20 "$SEL_OUT"
     exit 3
   fi
   # The count is id SLOTS, not distinct ids - rows overlap, so the same test is
