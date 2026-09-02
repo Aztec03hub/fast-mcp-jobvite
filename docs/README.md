@@ -19,7 +19,7 @@ that no longer match their own stated state. Counted nothing here on purpose.)*
 
 | Document | What it is |
 |---|---|
-| [`adr/`](adr/) | The decision records, each citing the clause it deviates from. `adr/README.md` explains the two jobs an ADR does here. From ADR-0012 each carries a `Type:` field. |
+| [`adr/`](adr/) | The decision records, each citing the clause it deviates from. `adr/README.md` explains the two jobs an ADR does here. Each carries a `Type:` field. |
 | [`DECISIONS.md`](DECISIONS.md) | D1-D17, what was decided and the evidence behind it. |
 | [`data-inventory.md`](data-inventory.md) | The Article 30 record of processing. Names the language-model host as a downstream processor, which is the disclosure a conventional integration does not make. |
 | [`research/`](research/) | Seven reports: the Jobvite API surface and client contract, FastMCP capabilities, two executed runtime spikes, the binding standards, the licensing survey. `STANDARDS.md` carries the **dismissal register** §13's freeze procedure re-tests. |

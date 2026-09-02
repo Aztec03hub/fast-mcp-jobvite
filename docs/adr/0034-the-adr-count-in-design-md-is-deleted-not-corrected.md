@@ -1,7 +1,7 @@
 # ADR-0034: DESIGN.md's ADR count is DELETED, not corrected, and "all" was the worse half
 
 **Status:** Accepted (orchestrator, 2026-09-02)
-**Type:** Correction to a count that is false about its own subject
+**Type:** Design change
 
 > `DESIGN.md:2063` and `:2067` say **"all eleven ADRs"** and **"eleven ADRs exist"**. There are
 > **33**. And the count is the smaller error: **"all"** is false independently of it, because the
@@ -37,16 +37,26 @@ at all. It is wrong about the population doing job 1.
 
 Every ADR carries a `**Type:**` line, so the population can be partitioned without guessing:
 
-    17  Design change
-    14  Deviation
-     1  Standards deviation
-     1  Correction to a contract statement ...
+    19  Design change
+    15  Deviation
     --
-    33  total
+    34  total   (this ADR included)
 
-**Fifteen of thirty-three do job 1.** Seventeen do job 2. A word-grep would have said 16 - `deviat`
-appears in ADRs that merely discuss the concept - which is why the `Type:` line is the instrument
-and the grep is not.
+**Fifteen of thirty-four do job 1.** A word-grep would have said 16 - `deviat` appears in ADRs that
+merely discuss the concept - which is why the `Type:` line is the instrument and the grep is not.
+
+**THAT TABLE IS NOT WHAT I FIRST WROTE, AND THE DIFFERENCE IS A DEFECT THIS ADR CAUSED.** The census
+at acceptance read `17 / 14 / 1 Standards deviation / 1 Correction to a contract statement...`, and
+this ADR added a fifth spelling of its own. Naming `Type: Deviation` in a FROZEN document made that
+field load-bearing, and **`ADR-0023` - a real deviation from `devops/bash.md:36-41` - was spelled
+`Standards deviation` and so fell outside the very selector written to include it.** The sentence
+written to stop a false claim about ADRs was false about one ADR, by one word. Found by
+`suborch-170` verifying the fix rather than accepting it.
+
+The three outliers are normalised to the two values `docs/adr/README.md:12` already publishes, in
+the commit that carries this paragraph: `ADR-0023` to `Deviation` (its body argues exactly that),
+`ADR-0022` and this ADR to `Design change` (a correction to the design IS a change to it). The
+published vocabulary is unchanged; the ADRs now conform to it.
 
 Six of the seventeen are unambiguous, and reading them is what settles it rather than the tally:
 **ADR-0019** (a citation to a `§5.4` that does not exist), **ADR-0021** (`approval_state`'s
@@ -74,15 +84,22 @@ fourth site of one claim.
 
 - `docs/DESIGN.md` changes, so **the freeze SHA is re-derived** and `docs/DESIGN-FREEZE.txt` is
   updated in the same commit. That is what this ADR exists to authorise.
-- The two-job distinction is preserved verbatim. **This ADR changes no design decision**, which is
-  why it is a correction and not a Design change.
+- The two-job distinction is preserved verbatim. **This ADR changes no design decision** - it
+  removes a false claim - but it is typed `Design change` rather than inventing a third value,
+  because a correction to the design is a change to it and the vocabulary is published.
+- **THE SELECTOR IS NOW LOAD-BEARING.** A frozen document names `Type: Deviation`, so a new ADR
+  spelling that field a fifth way silently falls outside a sentence in `DESIGN.md`. Whether that
+  deserves a checker is NOT ruled here: a gate over a vocabulary is worth having only once someone
+  has decided the vocabulary is final, and `Both` is published and used by nobody.
 - A reader who wants the count runs `ls docs/adr/[0-9]*.md | wc -l`, or partitions it with the
   `Type:` line. The document no longer offers a stale answer to a question a command answers.
 
 ## What this ADR does NOT do
 
-- It does not rule on whether `Type: Design change` and `Type: Deviation` are the right two classes.
-  They are the classes in use; naming them is not endorsing them.
+- It does not rule on whether `Type: Design change` and `Type: Deviation` are the right two classes,
+  nor on `Both`, which `docs/adr/README.md:12` publishes and no ADR uses. They are the classes in
+  use; naming them is not endorsing them, and normalising three outliers onto them is conforming to
+  a published list rather than choosing it.
 - It does not sweep the other 2,361 live candidates `suborch-170` measured. Those are reported in
   `docs/reviews/FINDINGS-170-retyped-counts.md`, in three outcome classes plus a fourth that report
   identified - **a historical justification inside a live file**, where the digit is evidence for a

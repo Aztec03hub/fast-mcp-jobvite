@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 
-**Type:** Correction to a contract statement that an implementer can satisfy while shipping the defect it was written to prevent
+**Type:** Design change
 
 ## Context
 

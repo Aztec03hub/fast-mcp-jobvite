@@ -1,7 +1,7 @@
 # ADR-0023: the harnesses run `set -uo pipefail`, where `bash.md:40` mandates `set -euo pipefail`
 
 **Status:** Accepted (orchestrator, 2026-08-29)
-**Type:** Standards deviation
+**Type:** Deviation
 
 > Fifteen scripts in `scripts/*.sh` omit `-e` from the strict-mode line that
 > `standards/devops/bash.md` makes mandatory. This ADR records that as a **deviation, not
