@@ -277,6 +277,14 @@ harness_result_ran "$HR_COUNTED_ROWS" 0
 # `killed`: survivors are this harness's OUTPUT and are not a failure, so
 # there is no kill tally to report - what CAN silently go wrong is a row
 # whose anchor stopped matching, and that is what this counts.
+# PRINTED BESIDE THE FIELD, in the phrasing every other
+# anchors-applied harness uses. check-harness-result.sh requires the
+# set that PUBLISHES a tally to equal the set that PRINTS one: a
+# published field with nothing printed has no second reading to
+# disagree with, which is the whole point of publishing it. This was
+# invisible on #152's branch because the field only appears once the
+# --anchors-applied flag is wired, and ci.yml was contended there.
+echo "########## ROWS: $HR_COUNTED_ROWS   ANCHORS APPLIED: $HR_APPLIED"
 harness_result_tally applied "$HR_APPLIED" "$HR_COUNTED_ROWS"
 echo "########## TOTAL SURVIVING ASSERTIONS ACROSS ALL AMPUTATIONS: $TOTAL_SURVIVORS"
 echo "(Survivors are the OUTPUT. Read each one and say why it survived.)"

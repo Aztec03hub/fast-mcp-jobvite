@@ -1103,6 +1103,22 @@ jobs:
       - name: No SIGPIPE-prone pipeline judges a gate
         run: python3 docs/reviews/check-no-sigpipe-pipelines.py
 
+      # WIRED WITH THE FLAGS IT READS, not after them. #152 wrote this
+      # checker AND the three --anchors-applied/--result-killed flags
+      # above in the same change, and could not wire either half because
+      # ci.yml was contended. A field with no reader is inoperative code;
+      # so the fields and the flags land together, in this commit.
+      - name: A harness that diagnoses a landing failure publishes it
+        run: python3 docs/reviews/check-landing-published.py
+
+      # NOT ROUTED THROUGH ci-harness-gate.sh, deliberately: that takes a
+      # bare harness NAME under scripts/, so a docs/reviews path resolves
+      # to scripts/docs/reviews/... and exits 2. It prints its own
+      # "controls fired: N passed, M failed" and exits 1 on any failure,
+      # 2 on zero arms, so it needs no --min-rows.
+      - name: Stranded-mutation control
+        run: bash docs/reviews/control-stranded-mutation.sh
+
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
       # for a reason that turned out to be FALSE. #120 first left this step
       # inline, reasoning from the SOURCE that this harness prints
@@ -1460,14 +1476,14 @@ jobs:
         run: bash scripts/ci-harness-gate.sh check-u3-audit-controls.sh --result-killed
 
       - name: U3 audit amputation harness ran every row
-        run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --min-rows 10 --row-re '^########## A[0-9]+ '
+        run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # The guard that floors the suite size is itself a thing that can silently
       # stop working, and it would fail in exactly the way it exists to catch:
       # quietly, with everything green. `--require` is what checks it put back
       # the script it mutated.
       - name: Suite-floor guard amputation, every row killed
-        run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --require 'post-run re-check of the real script: exit=0'"
+        run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --result-killed --require 'post-run re-check of the real script: exit=0'"
 
       - name: U4 client mutation controls, all killed
         run: bash scripts/ci-harness-gate.sh check-u4-client-controls.sh --result-killed
@@ -1477,7 +1493,7 @@ jobs:
       # counted 12 while 17 ran - a gate reporting the number of rows it can SEE,
       # which is how a row goes missing without a red run.
       - name: U4 client amputation harness ran every row
-        run: bash scripts/ci-harness-gate.sh check-u4-client-amputation.sh --amputation --min-rows 17 --row-re '^########## A[0-9]+[a-z]* '
+        run: bash scripts/ci-harness-gate.sh check-u4-client-amputation.sh --amputation --anchors-applied --min-rows 17 --row-re '^########## A[0-9]+[a-z]* '
 
       - name: Secret scan hook runs clean
         # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,

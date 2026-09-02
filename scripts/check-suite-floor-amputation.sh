@@ -122,6 +122,12 @@ echo "$fired/$total amputations killed a test."
 # `fired` counts amputations that KILLED A TEST, which is the meaning
 # `harness_result_tally killed` names. A recount here would be a second copy
 # free to disagree with the two readers above and below it.
+# PRINTED IN THE CANONICAL PHRASING TOO. The prose line above says the
+# same thing in this harness's own words; check-harness-result.sh keys on
+# `RESULT: ... killed`, so without this line the field is published with
+# no recognised tally beside it. Both read the SAME two counters - a
+# recount here would be a third copy free to disagree.
+echo "########## RESULT: $fired killed, $((total - fired)) not killed"
 harness_result_tally killed "$fired" "$total"
 
 # Post-run re-check of the real script, the same requirement the coupling
