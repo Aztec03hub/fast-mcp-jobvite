@@ -365,6 +365,71 @@ about how hard it looked.
    authored `Tue Sep 1 22:29:48 2026 -0500`. Not acted on; noted so the
    next reader is not confused by a future-dated raise.
 
+## §4b — SECOND SWEEP: the floor and tally nouns, and the answer is CLEAN
+
+Dispatched by Tier 0 as the highest-value remainder, on the reasoning
+that `rows`/`arms`/`controls`/`citations` are where this project's floors
+live and **a stale one there is a floor carrying slack**. Measured at
+`b0040fd`.
+
+**The four nouns hold 619 live candidates** (`rows` 303, `arms` 190,
+`controls` 69, `citations` 57). Reading 619 sentences is not the answer;
+the answer is that a sub-class of them has a **mechanical derivation
+nothing in the tree currently reads.** `check-row-floors.py` compares a
+harness's internal `ROW_FLOOR` against `ci.yml`'s `--min-rows`, and
+`check-row-floor-exactness.py` compares the floor against the table.
+**Neither reads the PROSE.** So `--tallies` was built to compare a
+docstring's claimed count against the floor declared in the same file.
+
+**RESULT: 17 prose tallies in 11 files, and NOT ONE IS STALE.**
+
+- 10 agree exactly with their file's own `ROW_FLOOR`.
+- 7 differ, and **every one of the 7 is a dated narrative** — a class D
+  sentence already carrying the remedy class D prescribes. The largest
+  delta, `scripts/check-u7-resilience-controls.sh:557`, claims 26 against
+  `ROW_FLOOR=31` and says so itself: *"this harness printed '26/26
+  controls fired.' at 2b31e82, and that number went five rows stale
+  WITHOUT FAILING ANYTHING"*, then re-derives 31 two ways. Verified
+  independently: `grep -cE '^mutate "'` returns **31**, matching the
+  floor.
+
+**SO THE HARNESS FAMILY ALREADY APPLIES THE CLASS-D REMEDY, SYSTEMATICALLY.**
+That is the finding. The class Tier 0 ruled in was not invented for this
+report — the harnesses had converged on it independently, and the four
+documents in §2 are where it has not reached.
+
+### The zero is proved non-vacuous, and two false-positive classes were killed first
+
+**An empty finding list is a claim about the selector.** So:
+
+- **POSITIVE CONTROL (self-test arm 19):** a synthetic stale
+  `26 controls` is planted against `check-u7-resilience-controls.sh`'s
+  real floor and **must come back as `(floor 31, claimed 26)`**. It does.
+  The plant is synthetic rather than a tree mutation deliberately — a
+  harness that edits its own repository has to prove it restored, and
+  this proves the same property with nothing to restore.
+- **NEGATIVE CONTROL (arm 20):** a file declaring no `ROW_FLOOR` yields
+  **no tally**, rather than a `0` that would read as agreement.
+
+And the first two runs of `--tallies` were **wrong in the alarming
+direction**, which is why the clean result is only reportable now:
+
+1. **38 tallies, of which 14 were shell positionals.** `local
+   label="$1" file="$2" old="$3" new="$4"` sits one line above
+   `ROWS=$((ROWS + 1))` in nine amputation harnesses, so `$3` and `$4`
+   were read as "3 rows" and "4 rows" against floors of 14 and 20 —
+   deltas of −17 and −16, the top of the sorted list, every one a
+   variable.
+2. **Then 24, of which 7 were assignments.** `ROWS=0` beside `APPLIED=0`
+   read as a claim of "0 rows"; worse, **`ROW_FLOOR=15` was read as a
+   claim about the very floor it defines** — the instrument agreeing
+   with itself, which is the one agreement that proves nothing.
+
+Both are now self-test arms (16, 17, 18). **Had I reported the first
+run, I would have filed fourteen findings against nine harnesses that
+are all correct** — the mirror image of the wrap defect in §0, and in the
+more damaging direction.
+
 ## §5 — WHAT I COULD NOT SETTLE (separate from what I did not attempt)
 
 **COULD NOT SETTLE:**
@@ -397,6 +462,13 @@ about how hard it looked.
 
 **NOT ATTEMPTED, and stated so it is not mistaken for an absence:**
 
+- **`citations` (57 live) was NOT swept.** It was in Tier 0's list of
+  four and `--tallies` does not reach it: a citation count has no
+  `ROW_FLOOR` to compare against, and its real derivation is
+  `check-design-citations.py`'s inventory — which is exactly what F4
+  used. F4 is therefore the one citation-count finding, not the sweep of
+  that noun. **`arms` was reached only where the file declares a floor**;
+  arm counts in review prose were not.
 - **2,333 of the 2,361 live candidates were not individually derived.**
   Only the 28 GLOB candidates have a mechanical derivation; the rest
   ("222 rows", "148 arms", "77 gates") name sets that need a human to

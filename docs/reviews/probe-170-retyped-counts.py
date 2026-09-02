@@ -186,7 +186,15 @@ _NUM = r"(?:\d{1,6}(?:,\d{3})*|" + "|".join(NUMBER_WORDS + QUANTIFIERS) + r")"
 #: line number and a range endpoint are citations, not counts, and this
 #: repository has 847 of the former. `/` drops the second half of
 #: `20/20`, whose first half is already a candidate.
-NUMBER_TOKEN = re.compile(r"(?<![\w.,:/-])(" + _NUM + r")(?![\w-])", re.IGNORECASE)
+#: `$` and `{` also drop a SHELL POSITIONAL. `local label="$1" file="$2"
+#: old="$3" new="$4"` sits one line above `ROWS=$((ROWS + 1))` in nine
+#: amputation harnesses, and `$3`/`$4` were being read as "3 rows" and
+#: "4 rows" - 14 confident false tallies, every one of them a variable.
+#: `=` drops an ASSIGNMENT: `ROWS=0` beside `APPLIED=0` was read as a
+#: claim of "0 rows" in six harnesses, and `ROW_FLOOR=15` was read as
+#: the very claim it is the derivation FOR - the instrument agreeing
+#: with itself, which is the one agreement that proves nothing.
+NUMBER_TOKEN = re.compile(r"(?<![\w.,:/${=-])(" + _NUM + r")(?![\w-])", re.IGNORECASE)
 
 #: One token: a backticked span, or a run of word/path characters.
 TOKEN = re.compile(r"`[^`]+`|[\w./*+-]+")
@@ -382,6 +390,55 @@ def derive_globs(hits: list[Hit]) -> list[tuple[Hit, int, int, int | None]]:
     return out
 
 
+#: A harness's own declared floor. Same pattern `check-row-floors.py`
+#: uses, deliberately - two readers of one literal must not disagree
+#: about what a floor looks like.
+FLOOR = re.compile(r"^\s*ROW_FLOOR=(\d+)\s*$", re.M)
+
+#: Nouns whose claims sit beside a FLOOR, so a stale one means a floor
+#: carrying slack rather than merely a wrong sentence.
+TALLY_NOUNS = {"rows", "arms", "controls"}
+
+
+def derive_tallies(hits: list[Hit]) -> list[tuple[Hit, int, int]]:
+    """Prose tallies in a file that declares its own `ROW_FLOOR`.
+
+    **THIS IS THE HALF NO GATE COVERS.** `check-row-floors.py` compares
+    a harness's internal `ROW_FLOOR` against `ci.yml`'s `--min-rows`,
+    and `check-row-floor-exactness.py` compares the floor against the
+    table. **Neither reads the PROSE.** A docstring saying "34/34 rows"
+    beside `ROW_FLOOR=20` is either a stale sentence or a floor carrying
+    fourteen rows of slack, and nothing in the tree can tell which - so
+    this reports the disagreement rather than picking a side.
+
+    A claim that differs from the floor is NOT automatically wrong: most
+    of these sentences are about a different set (arms of one control,
+    rows of a table elsewhere). That is exactly why this reports.
+    """
+    floors: dict[str, int] = {}
+    out: list[tuple[Hit, int, int]] = []
+    for h in hits:
+        if h.noun not in TALLY_NOUNS:
+            continue
+        if h.path not in floors:
+            try:
+                text = (ROOT / h.path).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                floors[h.path] = -1
+                continue
+            found = FLOOR.search(text)
+            floors[h.path] = int(found.group(1)) if found else -1
+        floor = floors[h.path]
+        if floor < 0:
+            continue  # the file declares no floor: nothing to compare
+        try:
+            claimed = int(h.number.replace(",", ""))
+        except ValueError:
+            continue  # a quantifier, not a tally
+        out.append((h, floor, claimed))
+    return out
+
+
 def _self_test() -> int:
     """The selector must find a planted instance and reject a decoy.
 
@@ -413,6 +470,11 @@ def _self_test() -> int:
     # checked here through the same join `scan()` performs.
     wrapped = "13 of the 15" + " " + "`scripts/*.sh` exceed 100 lines"
     probe("hard wrap", wrapped, "scripts/*.sh")
+    # THE TALLY FALSE POSITIVES, both of which produced CONFIDENT WRONG
+    # NUMBERS against a real ROW_FLOOR before they were excluded.
+    probe("shell positional", 'old="$3" new="$4"   ROWS=$((ROWS + 1))', None)
+    probe("assignment", "APPLIED=0 ROWS=0", None)
+    probe("floor assignment", "ROW_FLOOR=15 ROWS=$((PASS + FAIL))", None)
     # A decoy: a number with no plural noun after it at all.
     probe("no plural", "the exit code was 2 and nothing else", None)
     # A decoy: the noun is too far away to be its noun.
@@ -443,6 +505,41 @@ def _self_test() -> int:
         ("docs/worklogs/anything is a record", is_record("docs/worklogs/WHATEVER.md"))
     )
 
+    # POSITIVE CONTROL FOR `--tallies`. Every one of the 17 real tallies
+    # either agrees with its floor or is an explicitly dated narrative,
+    # so the finding list is EMPTY - and an empty finding list is a
+    # claim about the selector until a planted defect is required back.
+    # The plant is synthetic rather than a tree mutation on purpose: a
+    # harness that edits its own repository has to prove it restored,
+    # and this proves the same property with nothing to restore.
+    real = ROOT / "scripts/check-u7-resilience-controls.sh"
+    if real.exists():
+        planted = Hit(
+            "scripts/check-u7-resilience-controls.sh",
+            1,
+            "26",
+            "controls",
+            False,
+            "26/26 controls fired",
+        )
+        got = derive_tallies([planted])
+        checks.append(
+            (
+                f"PLANTED a stale '26 controls' against that file's real "
+                f"ROW_FLOOR -> {[(f, c) for _, f, c in got]}",
+                len(got) == 1 and got[0][1] == 31 and got[0][2] == 26,
+            )
+        )
+        # And the negative half: a file with NO floor yields nothing,
+        # rather than a zero that looks like agreement.
+        nofloor = Hit("README.md", 1, "26", "controls", False, "x")
+        checks.append(
+            (
+                "a file declaring NO ROW_FLOOR yields no tally, not a 0",
+                derive_tallies([nofloor]) == [],
+            )
+        )
+
     bad = [label for label, ok in checks if not ok]
     for label, ok in checks:
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -461,6 +558,12 @@ def main() -> int:
         "--derive",
         action="store_true",
         help="derive the true figure for every GLOB candidate",
+    )
+    ap.add_argument(
+        "--tallies",
+        action="store_true",
+        help="prose row/arm/control counts against the file's own "
+        "ROW_FLOOR - the half no gate reads",
     )
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
@@ -514,6 +617,30 @@ def main() -> int:
     )
     print()
 
+    if args.tallies:
+        tallies = derive_tallies(live)
+        tally_files = {h.path for h, _, _ in tallies}
+        print(
+            f"PROSE TALLIES in a file declaring its own ROW_FLOOR, at "
+            f"{sha}: {len(tallies)} in {len(tally_files)} files"
+        )
+        print(
+            "  A claim differing from the floor is NOT automatically "
+            "wrong - most\n   are about a different set. It is either a "
+            "stale sentence or a floor\n   carrying slack, and no gate "
+            "reads either.\n"
+        )
+        for h, floor, claimed in sorted(
+            tallies, key=lambda r: (-abs(r[2] - r[1]), r[0].path, r[0].line)
+        ):
+            mark = "==" if claimed == floor else f"delta {claimed - floor:+d}"
+            print(
+                f"{h.path}:{h.line}  claims {claimed} {h.noun}, "
+                f"ROW_FLOOR={floor}  [{mark}]"
+            )
+            print(f"    {h.text[:130]}")
+        return 0
+
     if args.derive:
         rows = derive_globs(live)
         print(f"GLOB candidates with a DERIVED population, at {sha}: {len(rows)}")
@@ -522,7 +649,7 @@ def main() -> int:
             "mechanical; every\n   other noun needs a human to say "
             "which set it names)\n"
         )
-        for h, git_n, shell_n, claimed in sorted(
+        for h, git_n, shell_n, claim in sorted(
             rows, key=lambda r: (r[0].path, r[0].line)
         ):
             pop = (
@@ -530,12 +657,12 @@ def main() -> int:
                 if git_n == shell_n
                 else f"{git_n} (git) / {shell_n} (shell glob)"
             )
-            if claimed is None:
+            if claim is None:
                 verdict = f"QUANTIFIER `{h.number}` over {pop} tracked"
-            elif claimed in (git_n, shell_n):
-                verdict = f"AGREES ({claimed}) against {pop}"
+            elif claim in (git_n, shell_n):
+                verdict = f"AGREES ({claim}) against {pop}"
             else:
-                verdict = f"CLAIMS {claimed}, TRACKED {pop}  <-- CHECK"
+                verdict = f"CLAIMS {claim}, TRACKED {pop}  <-- CHECK"
             print(f"{h.path}:{h.line}  `{h.noun}`  {verdict}")
             print(f"    {h.text[:140]}")
         return 0
