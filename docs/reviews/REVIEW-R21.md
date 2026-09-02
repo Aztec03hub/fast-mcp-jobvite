@@ -543,26 +543,47 @@ give `run()` an optional briefs-dir argument so A21/A22 can use `row`, and
   composed the expected `name=` from a path-qualified `$TARGET`. The two facts
   were introduced separately and never joined, exactly as the comment says.
 
-- **The four merges.** `b9b59dd` and `cd8c938` are clean; `73dd717` and
-  `7197271` are covered above.
+- **The four merges.** `b9b59dd` and `cd8c938` are clean. `7197271` is
+  covered in M1 above; `73dd717` is covered in the correction below,
+  which is where its combined diff is finally read.
 
   > **CORRECTION, 2026-09-02, by the orchestrator ruling #231B.** This bullet
   > used to say *"`git show --cc` on all four produces an empty combined diff,
   > i.e. every file in each result matches one parent - no third version was
   > invented at any merge."* **That is false, and one command shows it:**
-  > `git show --cc 73dd717 | wc -c` returns **11376**, and the combined diff
-  > carries a third version of `docs/briefs/BRIEF-199-ratchet-defects.md`
-  > present in neither parent. The two CLEAN verdicts are correct and are kept
-  > - `check-merge-invented.py` independently reports `invented=0` for both
-  > `b9b59dd` and `cd8c938`. What is removed is the UNIVERSAL, which this
-  > report's own §2 had already contradicted by naming `73dd717` as one of the
-  > two "covered above".
+  > `git show --cc --format= 73dd717 | wc -c` returns **7226**, and the combined
+  > diff carries a third version of `docs/briefs/BRIEF-199-ratchet-defects.md`
+  > present in neither parent. **`--format=` is load-bearing**: without it the
+  > commit message is in the count, which is where this correction's own first
+  > version got 11376. 7226 is what `check-merge-invented.py` prints as
+  > `cc=7226B` and what `#222` recorded. The two CLEAN verdicts are correct and
+  > are kept - the detector independently reports `invented=0` for both
+  > `b9b59dd` and `cd8c938`. What is removed is the UNIVERSAL.
+  >
+  > **AND THIS REPORT DID NOT CONTRADICT ITSELF ELSEWHERE, WHICH IS WORSE.** The
+  > first version of this note said item 2 of *"Corrections to the brief"* had
+  > already contradicted the universal. It does not: it corrects the BRIEF's
+  > merge COUNT to four and ends *"I ran `git show --cc` on all four"* - this
+  > report asserting it ran the very command that refutes it. Found by
+  > `review-231b`, which also measured that the two passages are ten headings
+  > apart, not the eighteen first claimed.
   >
   > The correction is here rather than in a later document because this
   > sentence is load-bearing: this report's whole-tree
   > `REVIEW-COVERS: c749334..80463a5` is what clears `73dd717` in
   > `check-review-coverage.py`, so a reader reaches a coverage green through
   > this claim. See #231B for the ruling it produced.
+  >
+  > **WHY THIS IS A RIDER AND NOT A REWRITE, which #93 would otherwise
+  > forbid.** #93 governs a stale ADDRESS - a citation that rotted as the
+  > tree moved, where the original wording was right when written. This
+  > sentence was FALSE THE DAY IT WAS WRITTEN, and the bullet above it is
+  > rewritten in place accordingly. What is kept as a dated block is the
+  > EVIDENCE and the provenance, because a reader who finds a coverage
+  > green through this document needs to know it was corrected and by
+  > what measurement. `docs/reviews` is deliberately NOT in the live
+  > gate's RECORD_PATHS, so a review document here is work, not an
+  > unedited record.
 
 - **Counts in the 26 commit messages that DO derive**, each re-run:
   `grep -lE 'git show [0-9a-f]{7}:docs/DESIGN\.md' docs/adr/00*.md` -> 5;

@@ -439,10 +439,14 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "'invented' lines while the sentence is unchanged. Wiring it "
         "as-is would fail the build on formatting. Whether "
         "merge-invented content should be GATED, and at what "
-        "threshold, is Tier 0's ruling and is open on task #222; the "
-        "instrument ships first so the ruling is made on a "
-        "measurement. It carries `--strict` for the day that ruling "
-        "arrives, and `--self-test` plus `--synthetic-test` are "
+        "threshold, WAS Tier 0's ruling and is now MADE: RULING-231B "
+        "refuses --strict as a zero-demand and adopts a set-ratchet "
+        "over (merge, path) pairs. WHAT IS OPEN IS THE BASELINE, NOT "
+        "THE RULING. It is not written because 109 of the 122 invented "
+        "lines are genuine content, measured by review-231b, and nobody "
+        "has READ one of them as prose - a baseline over an unread "
+        "population records noise as accepted debt. Wiring follows the "
+        "baseline. --strict, --self-test and --synthetic-test are all "
         "runnable now."
     ),
     "measure-xref-population.py": (
