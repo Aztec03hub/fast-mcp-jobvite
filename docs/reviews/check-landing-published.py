@@ -119,8 +119,44 @@ PUBLISHES_TALLY = re.compile(r"^\s*harness_result_tally\s+\w+\s", re.M)
 # restore
 # `cp`, then the disposition), so 5 covers them with a line to spare.
 DISPOSITION_WINDOW = 5
-FATAL = re.compile(r"^\s*(exit\s+\d+|sys\.exit\(\d*\)|die\b)")
+# A disposition is FATAL wherever it appears on the line, not only at
+# its start. The `|| exit 1` guard #156 put after all 13 of
+# check-u1-boot-amputation.sh's heredocs is the standard shape here,
+# and an anchored `^\s*exit` cannot see it - the line begins with `[`.
+#
+# FOUND BY INVERTING THIS CHECK, which is the point of the inversion:
+# the first run reported row H's `assert n == 1, "...DID NOT LAND"` as
+# an undisposed branch. Reading the site showed the assert raises,
+# python exits nonzero, and the guard three lines later exits 1. The
+# branch was disposed of; the DETECTOR could not see the disposition.
+# Reported as a defect it would have sent someone to "fix" a harness
+# that #156 had just made correct - the misdiagnosis shape #156 itself
+# found one layer down.
+FATAL = re.compile(r"(^\s*(exit\s+\d+|sys\.exit\(\d*\)|die\b)|\|\|\s*exit\s+\d+)")
 NONFATAL = re.compile(r"^\s*return\b")
+
+
+#: Files whose landing VOCABULARY is data, not a diagnosis. `ci-harness-
+#: gate.sh` holds the array of phrases every harness is checked against,
+#: so its own lines match the detector while diagnosing nothing. It is
+#: the READER of these diagnostics, not a producer.
+#:
+#: Measured rather than assumed: it holds 6 matching lines, 2 of them
+#: comments already excluded, and 4 are the VOCABULARY entries at 74-77.
+#: It is NOT excluded by the tally check - its only
+#: `harness_result_tally` occurrence is inside an `echo`, so the
+#: anchored PUBLISHES_TALLY does not match. I expected the early return
+#: to cover it and it does not; R16 was right.
+EXEMPT_VOCABULARY: dict[str, str] = {
+    "ci-harness-gate.sh": (
+        "holds the VOCABULARY array every harness's diagnostics are "
+        "matched against. Its lines are the phrase list itself, not a "
+        "branch that diagnoses a landing failure."
+    ),
+}
+assert all(v.strip() for v in EXEMPT_VOCABULARY.values()), (
+    "a blank reason is not an exemption"
+)
 
 
 def container() -> list[Path]:
@@ -138,8 +174,10 @@ def container() -> list[Path]:
     return [Path(f) for f in out if not f.startswith("scripts/lib/")]
 
 
-def findings_for(path: Path) -> list[tuple[int, str]]:
+def findings_for(path: Path) -> list[tuple[int, str, str]]:
     """Landing diagnostics whose branch neither exits nor is counted."""
+    if path.name in EXEMPT_VOCABULARY:
+        return []
     text = path.read_text()
     if PUBLISHES_TALLY.search(text):
         # The harness publishes a named tally, so a non-landing row
@@ -155,7 +193,7 @@ def findings_for(path: Path) -> list[tuple[int, str]]:
         return []
 
     lines = text.splitlines()
-    out: list[tuple[int, str]] = []
+    out: list[tuple[int, str, str]] = []
     for i, line in enumerate(lines):
         if not LANDING_DIAGNOSTIC.search(line):
             continue
@@ -167,11 +205,174 @@ def findings_for(path: Path) -> list[tuple[int, str]]:
         if line.lstrip().startswith("#"):
             continue
         window = lines[i + 1 : i + 1 + DISPOSITION_WINDOW]
+        # REPORT UNLESS POSITIVELY DISPOSED OF (R16-M2). This used to
+        # report only when the window held a `return`, so a branch that
+        # printed the diagnostic and FELL THROUGH was neither fatal nor
+        # counted, and was not reported - while the docstring above
+        # states the invariant as "either FATAL or publishes a tally".
+        # The prose was right and the code enforced the narrower half.
+        #
+        # Measured both ways with a planted TRACKED script: fall-through
+        # gave 0 findings at exit 0; the same file with `return 1` gave
+        # 1 finding at exit 1.
         if any(FATAL.search(w) for w in window):
             continue
-        if any(NONFATAL.search(w) for w in window):
-            out.append((i + 1, line.strip()))
+        shape = (
+            "returns" if any(NONFATAL.search(w) for w in window) else "falls through"
+        )
+        out.append((i + 1, line.strip(), shape))
     return out
+
+
+def self_test() -> int:
+    """Prove the inverted rule sees both shapes, in a scratch clone.
+
+    EVERY ARM ASSERTS THE POPULATION SIZE, not just the finding count.
+    R16's own arm for this finding was VACUOUS because `container()`
+    reads `git ls-files` and its plant was UNTRACKED - the scan saw 37
+    scripts and none of them was the fixture, so "0 findings" said
+    nothing. Only the printed count told it. That is #163's trap and it
+    has now bitten twice, so the size is asserted here rather than
+    trusted.
+
+    Nothing in the working tree is written: the fixtures are committed
+    into a throwaway `git archive` clone.
+    """
+    import shutil
+    import subprocess
+    import tarfile
+    import tempfile
+
+    # THREE parents: this file is docs/reviews/<name>.py, so two lands
+    # in docs/ and the archive extracts a tree with no docs/reviews in
+    # it. The first version did exactly that and died on the copy.
+    root = Path(__file__).resolve().parent.parent.parent
+    fall = (
+        "#!/usr/bin/env bash\n"
+        "harness_result_ran 1 0\n"
+        'if [ "$n" -ne 1 ]; then\n'
+        '  echo "DID NOT LAND - the anchor moved"\n'
+        "fi\n"
+        "echo done\n"
+    )
+    results: list[tuple[bool, str, str]] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp) / "w"
+        work.mkdir()
+        # NO SHELL. `git archive | tar -x` needs a pipeline, and a
+        # shell=True call in a checker is both an S602 finding and a
+        # quoting hazard for a path nobody controls. Archive to a file,
+        # extract with the stdlib.
+        bundle = Path(tmp) / "tree.tar"
+        subprocess.run(
+            ["git", "-C", str(root), "archive", "-o", str(bundle), "HEAD"],
+            check=True,
+        )
+        with tarfile.open(bundle) as tar:
+            tar.extractall(work, filter="data")
+        shutil.copy(__file__, work / "docs/reviews/check-landing-published.py")
+        # `container()` reads `git ls-files`, so the scratch tree must
+        # be a real repository or every fixture is invisible and arms
+        # passes on an empty population - the exact vacuity this
+        # self-test exists to rule out.
+        for cmd in (
+            ["git", "-C", str(work), "init", "-q"],
+            ["git", "-C", str(work), "add", "-A"],
+            [
+                "git",
+                "-C",
+                str(work),
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-qm",
+                "base",
+            ],
+        ):
+            subprocess.run(cmd, check=True, capture_output=True)
+
+        def run() -> tuple[int, str]:
+            done = subprocess.run(
+                [sys.executable, "docs/reviews/check-landing-published.py"],
+                cwd=work,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return done.returncode, done.stdout + done.stderr
+
+        # THE BASELINE COMES FROM THE CHECKER'S OWN OUTPUT, not from
+        # `git ls-files scripts/*.sh`. My first version used the latter
+        # and expected 39 where the checker scans 38: `container()`
+        # excludes `scripts/lib/`, so the two populations differ by
+        # exactly the sourced library. Comparing a count to a DIFFERENT
+        # instrument's count is the 80-vs-78 shape, in the arm whose
+        # whole job is to prove the population is right.
+        base_rc, base_out = run()
+        base_match = re.search(r"(\d+) scripts scanned", base_out)
+        if base_rc != 0 or not base_match:
+            print("  BROKEN CONTROL: the unmutated clone is not clean")
+            print(f"    exit {base_rc}: {base_out.strip()[:200]}")
+            return 1
+        base = int(base_match.group(1))
+
+        for label, body, want_rc in (
+            ("A1 a FALL-THROUGH diagnostic is reported", fall, 1),
+            (
+                "A2 the same branch made fatal is not",
+                # `exit 1` ON ITS OWN LINE. FATAL matches a line START
+                # or a `|| exit N`; `echo "..."; exit 1` is NEITHER, and
+                # my first fixture used exactly that - so A2 reported a
+                # failure that was really my fixture not being fatal at
+                # all. A control's fixture is as much a subject as the
+                # code it tests.
+                fall.replace(
+                    '  echo "DID NOT LAND - the anchor moved"\n',
+                    '  echo "DID NOT LAND - the anchor moved"\n  exit 1\n',
+                ),
+                0,
+            ),
+        ):
+            (work / "scripts/zz-selftest-fixture.sh").write_text(body)
+            subprocess.run(
+                ["git", "-C", str(work), "add", "-A"], check=True, capture_output=True
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(work),
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "user.name=t",
+                    "commit",
+                    "-qm",
+                    "fixture",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            rc, out = run()
+            scanned = re.search(r"(\d+) scripts scanned", out)
+            n = int(scanned.group(1)) if scanned else -1
+            tracked = n == base + 1
+            results.append(
+                (
+                    rc == want_rc and tracked,
+                    label,
+                    f"exit {rc} (want {want_rc}); scanned {n}, expected"
+                    f" {base + 1} - the fixture IS in the population: {tracked}",
+                )
+            )
+
+    for ok, label, detail in results:
+        print(f"  {'PASS' if ok else 'FAIL'}  {label}: {detail}")
+    passed = sum(1 for ok, _, _ in results if ok)
+    print(f"\n{passed}/{len(results)} arms passed.")
+    return 0 if passed == len(results) else 1
 
 
 def main() -> int:
@@ -188,7 +389,7 @@ def main() -> int:
 
     total = 0
     for path in sorted(files):
-        for lineno, snippet in findings_for(path):
+        for lineno, snippet, shape in findings_for(path):
             total += 1
             print(
                 f"::error file={path},line={lineno}::{path}:{lineno} "
@@ -196,7 +397,7 @@ def main() -> int:
             )
             print(f"    {snippet}")
             print(
-                "    The branch `return`s, so the row is counted as having run "
+                f"    The branch {shape}, so the row is counted as having run "
                 "with an anchor that never landed."
             )
             print(
@@ -219,4 +420,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        raise SystemExit(self_test())
     sys.exit(main())
