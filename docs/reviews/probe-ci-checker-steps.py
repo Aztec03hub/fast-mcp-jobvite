@@ -125,6 +125,42 @@ tolerate a nonzero exit on purpose - `check-clause-citations.py` and
 sibling is absent, which is the normal local state - so lifting their
 invocation would manufacture a false RED out of a configuration
 difference, the first failure in this file's own opening.
+
+## And running CI's steps is not enough, because of what a FLAG hides
+
+Reading the blocks makes this probe run the whole-tree gate. It does
+NOT help anyone who runs a checker by hand, which is what actually
+happened: `check-committed-file-types.py` bare selects the STAGED set,
+empty on a clean tree, examines nothing, exits 0. `--all` selects every
+TRACKED file. Same script, same green, different question.
+
+So for every checker `ci.yml` invokes WITH arguments, this runs the
+same checker WITHOUT them and compares. Different exit codes FAIL:
+one form is green and the other red on this tree right now, so a bare
+local run is not asking CI's question. Same exit code with different
+output is REPORTED and not failed - that is the state `--all` was in
+for all 127 commits before the tree finally broke, and it is worth
+seeing without being a defect by itself.
+
+**IT FOUND A SECOND INSTANCE, AND NOBODY HAD LOOKED.** CI runs
+`check-harness-anchors.py --self-check --floor 458`. `--floor`
+DEFAULTS TO 0, so the bare form enforces no floor and runs no
+self-check: if a parser shape stopped matching and the resolved count
+fell from 458 to 10, the bare form prints `all 10 anchors resolve. OK`
+and exits 0, with every row those 448 anchors covered now unchecked.
+The flag's own help text says so - *"the count drops and every row it
+covered goes unchecked WITH THE RUN STILL GREEN"* - which makes the
+checker the documentation of the defect its own bare invocation has.
+`CONTRIBUTING.md` runs it without `--floor` on purpose, because the
+floor is meant to live in `ci.yml` and nowhere else. That reasoning is
+right and the consequence was unwatched; this arm watches it by
+DERIVING the flag from the workflow rather than retyping it.
+
+The container is enumerated rather than listed - every `check-*.py`
+invocation line in `ci.yml` - and the count, what it could not reach,
+and what it refused as tree-mutating are all printed, because a
+hand-kept list of "the checkers that take a flag" is blind to the one
+nobody adds to it.
 """
 
 from __future__ import annotations
