@@ -32,7 +32,12 @@ and the prose points here.
 
 **It also makes the sharpest sub-claim checkable for the first time.**
 "Four of them inside the ADR documenting that defect class" was
-verifiable by nobody; with rows carrying a `Where` column it is a grep.
+verifiable by nobody, and **THIS FILE DOES NOT SETTLE IT EITHER.** That
+sentence read *"with rows carrying a `Where` column it is a grep"* until
+the grep was run. It returns ZERO, and the zero is a corpus exclusion
+rather than a measurement - see "What this register does NOT cover"
+below. A claim about how to check a claim is itself a claim, and this one
+was written without being executed.
 
 ## The arithmetic, and how to re-check it without trusting these rows
 
@@ -75,6 +80,34 @@ Two kinds are tracked separately, because they fail differently:
 (that is a broken reference, which a gate already catches), and a
 CORRECT range carrying only a boundary nit — both verdict documents
 below count those separately and so does this file.
+
+## What this register does NOT cover, and why its zero is not a zero
+
+**EVERY ROW COMES FROM ONE OF TWO SWEEPS, AND NEITHER SWEPT `docs/adr/`.**
+`CITATION-READ-VERDICTS.md` read `tests/`; `CITATION-READ-SRC-VERDICTS.md`
+read `src/` and `scripts/` and says so in its own first line. The `Where`
+column across all 31 rows takes exactly six values:
+
+    18  `src/`          9  `tests/`        1  `tests/` + `src/`
+     1  two sites       1  a report        1  a comment
+
+**No row names an ADR, and no row CAN**, because no round has ever read
+one for this defect. So:
+
+    grep '^| WS-' WRONG-SUBJECT-REGISTER.md | grep -i adr   ->  0 rows
+
+is a statement about the sweep's boundary, not about ADRs. **It is a
+clean zero that explains itself**, which is the shape this project has
+learned to distrust: the answer arrives with a plausible story attached
+and the story is about the instrument.
+
+**THE SUB-CLAIM IS THEREFORE NEITHER CONFIRMED NOR REFUTED HERE.** ADRs
+carry 64 `DESIGN.md:N` citations across 19 files today
+(`grep -rhoE 'DESIGN\.md:[0-9]+(-[0-9]+)?' docs/adr/*.md | wc -l`).
+Settling "four of them inside the ADR" means READING those, because
+wrong-subject is not greppable by construction - a wrong-subject
+citation resolves, which is the entire defect. That is tracked as its
+own task rather than left as an implication of this file's silence.
 
 ## The register
 
