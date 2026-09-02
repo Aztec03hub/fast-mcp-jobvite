@@ -464,37 +464,65 @@ both scale factors appear nowhere outside the table above. They are
 coherent with the scripts and nothing more. A committed measurement
 script is owed.
 
-### The floor is `max(largest step, work/lanes)`, and that changes everything
+### The floor is `max(fixed job, LPT over harness lanes)`
 
-The first version of this section named a "235s step floor" and treated
-it as the constraint. That is wrong: a floor is the LARGER of the biggest
-indivisible step and the total work spread over the lanes. Measured over
-the three 16-job runs - 44 packable steps, **3719s of total work**,
-largest single step 304s:
+The first version of this section named a "235s step floor" and treated it
+as the constraint. That is wrong twice over, and the second error was
+mine after the review, caught before it shipped.
 
-| lanes | work/lanes | LPT today | LPT sharded |
-|---|---|---|---|
-| 12 | 310s | 325s | **347s (WORSE)** |
-| 13 | 286s | 317s | 322s |
-| 14 | 266s | 317s | 300s |
-| 15 | 248s | 317s | **276s** |
-| 16 | 232s | 317s | 263s |
-| 20 | 186s | 317s | 248s |
+A floor is the LARGER of the biggest indivisible thing and the work
+spread over the lanes. My first correction packed all 44 packable steps
+into N lanes - but `ci.yml` declares 16 jobs of which only **12 are
+harness lanes** (the `harness-*` keys at `:1649`-`:2132`), and the other
+four are FIXED jobs whose steps cannot be redistributed into harness
+lanes:
 
-Two facts fall out, and neither was visible from the largest step alone:
+| fixed job | duration |
+|---|---|
+| Lint, types, tests | 161s |
+| CodeQL | 62s |
+| Static gates, supply chain and links | 52s |
+| The wiring checker can still fail | 19s |
 
-1. **Unsharded, the floor is hard-stopped at 317s at EVERY lane count.**
-   Past 13 lanes, adding lanes does nothing: the 304s U3 amputation step
-   is indivisible and sets the floor by itself. No amount of packing or
-   fan-out reaches 300s. **Sharding is therefore NECESSARY.**
-2. **At today's 12 lanes, sharding is a REGRESSION** - 325s to 347s.
-   Sharding does not reduce total work; it slightly increases it
-   (3719s -> 3742s) and redistributes it. Below the point where the
-   largest step stops binding, that trade is a loss.
+Folding their steps into the packable pool inflated the total work and so
+inflated the lane count needed. The correct shape is
+`wall = max(slowest fixed job, LPT over harness steps)`. The fixed side
+tops out at 161s and is not binding.
 
-So the plan is `shard AND raise the lane count`, and it crosses 300s at
-**15 lanes (276s)**. Shipping the shards alone against the current 12
-lanes would make CI slower and look like the shard work failed.
+Harness side, from run 33630968540: **33 steps, 3311s, largest 298s.**
+
+| lanes | unsharded | sharded |
+|---|---|---|
+| 12 (today) | 311s | **323s - REGRESSION** |
+| 13 | 311s | 294s |
+| 14 | 311s | **277s** |
+| 16 | 311s | 245s |
+| 18+ | 311s | 240s |
+
+Two things fall out, and neither is visible from the largest step alone:
+
+1. **Unsharded, the floor is 311s at EVERY lane count.** Past 12, adding
+   lanes does nothing: the 298s U9 amputation step is indivisible and
+   sets the floor by itself. No packing or fan-out reaches 300s.
+   **Sharding is NECESSARY.**
+2. **At today's 12 lanes, sharding is a REGRESSION** - 311s to 323s.
+   Sharding does not reduce total work; it redistributes it and slightly
+   increases it. Below the point where the largest step stops binding,
+   that trade is a loss.
+
+So the plan is `shard AND raise the lane count`. It crosses 300s at 13
+lanes, but **14 is the target**: 294s leaves 6s of margin against
+per-step swings measured up to 3.2x. Past 18 lanes the floor stops
+falling at 240s - two sharded harnesses are exhausted there, and further
+gains need more sharding or less work.
+
+Shipping the shards alone against the current 12 lanes would make CI
+slower and read as the shard work having failed.
+
+**This table uses ONE run, deliberately.** 33630968540 is the only
+post-repack run; the earlier two share all 16 job names with each other
+and only five with it, so averaging them would mix two schedules. The
+structure is right and n=1.
 
 ### The earlier wall prediction is WITHDRAWN
 
