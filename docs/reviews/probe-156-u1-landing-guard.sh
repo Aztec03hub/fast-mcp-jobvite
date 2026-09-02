@@ -116,8 +116,13 @@ rc=$?
 echo "----------------------------------------------------------------"
 echo "arm=$arm harness exit=$rc   (NOT the verdict - read the lines below)"
 echo "  rows run (########## lines):     $(grep -c '^########## ' "$OUT")"
-echo "  UNEXPECTED SURVIVOR lines:       $(grep -c 'UNEXPECTED SURVIVOR' "$OUT")"
-echo "  landing diagnostics:             $(grep -c -E 'DID NOT LAND|anchor is not unique' "$OUT")"
+# ANCHORED AT THE START OF THE DIAGNOSTIC, not a bare substring. The first
+# version of this counter said 4 for arm A0 when the true number is 3: the
+# fourth hit was the harness's own closing paragraph, which tells the reader
+# to "Search this output for 'UNEXPECTED SURVIVOR'". A grep for a defect
+# pattern finds the prose about the defect.
+echo "  UNEXPECTED SURVIVOR lines:       $(grep -c '^  UNEXPECTED SURVIVOR: ' "$OUT")"
+echo "  landing diagnostics:             $(grep -c -E '^ *[A-Z]+: AMPUTATION DID NOT LAND|AssertionError:.*anchor is not unique' "$OUT")"
 echo "  row C reached report():          $(grep -c '^########## C\. ' "$OUT")"
 echo "--- the lines that decide the arm ---"
 grep -n -E 'DID NOT LAND|anchor is not unique|UNEXPECTED SURVIVOR|^########## C\.|^HARNESS-RESULT' "$OUT" \

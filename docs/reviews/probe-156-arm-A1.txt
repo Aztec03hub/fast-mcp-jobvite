@@ -1,0 +1,18 @@
+PROBE-START arm=A1
+########## BASELINE - the intact tree
+============================= 97 passed in 38.68s ==============================
+  all declared MUST_DIE ids pass on the intact tree.
+
+########## A. config.py does not exist at all
+============================== 4 errors in 1.12s ===============================
+  every declared assertion died (2 of 2)
+  everything else: NOTHING passed against this tree
+
+########## B. config.py exists but is ZERO BYTES
+============================== 4 errors in 1.13s ===============================
+  every declared assertion died (2 of 2)
+  everything else: NOTHING passed against this tree
+
+  C: AMPUTATION DID NOT LAND - validate_settings()'s refusal block no
+     longer matches this anchor. The row would measure an INTACT tree.
+HARNESS-RESULT name=check-u1-boot-amputation.sh rows=0 floor=0 status=refused
