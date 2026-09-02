@@ -1310,11 +1310,12 @@ def _sources(text: str, lib: str) -> bool:
     #: 94 real source lines in this repository and reported every one of
     #: them as unsourced - a wrong 100% that looked exactly like a wrong
     #: 0% would have, which is why both directions get a control.
-    return re.search(rf"(?m)^\s*(?:\.|source)\s+[^\n]*{re.escape(lib)}", text) is not None
+    pattern = rf"(?m)^\s*(?:\.|source)\s+[^\n]*{re.escape(lib)}"
+    return re.search(pattern, text) is not None
 
 
 def _calls(text: str, func: str) -> bool:
-    """Is `func` used in COMMAND POSITION, rather than named as data?
+    r"""Is `func` used in COMMAND POSITION, rather than named as data?
 
     **A BARE NAME SEARCH IS A FALSE POSITIVE MACHINE, MEASURED.** The
     first form of this check reported
@@ -1369,8 +1370,9 @@ def _calls(text: str, func: str) -> bool:
     #: are syntax errors, both need a `;` or a newline first - so a
     #: name following one is always data. MEASURED: with `)` included,
     #: `docs/reviews/check-harness-result.sh` was reported as calling
-    #: `harness_result_ran`, from the ERE `'(^|[^_[:alnum:]])harness_result_ran '`
-    #: at its `:133`, which is the checker's SEARCH PATTERN for that call.
+    #: `harness_result_ran`, from the ERE
+    #: `'(^|[^_[:alnum:]])harness_result_ran '` at its `:133`, which
+    #: is the checker's SEARCH PATTERN for that call.
     #: `!` is not a word, so `\b` cannot bound it. It only means
     #: negation when a blank follows - `!cmd` is history expansion -
     #: so the blank is required as a zero-width lookahead, leaving the
@@ -1383,7 +1385,7 @@ def _calls(text: str, func: str) -> bool:
 
 
 def library_functions() -> dict[str, str]:
-    """Every `scripts/lib/` function name, mapped to its file's basename.
+    """Every `scripts/lib/` function name, mapped to its file basename.
 
     Split out of `unsourced_library_calls` so the `^PASSED ` arm below
     derives the guard's NAME from the library that defines it rather
@@ -1476,8 +1478,9 @@ def unguarded_passed_verdicts() -> list[str]:
 
     So the rule is asked of the tree instead. The population is
     DERIVED - any container `.sh` whose text greps `^PASSED ` - and the
-    guard's function names are derived from `scripts/lib/verdict-guard.sh`,
-    so neither half is a list that misses the file nobody thought of.
+    guard's function names are derived from
+    `scripts/lib/verdict-guard.sh`, so neither half is a list that
+    misses the file nobody thought of.
 
     Returns EVERY container-relative path that reads a `^PASSED `
     verdict without the guard, ratcheted or not. The caller partitions
@@ -1507,7 +1510,7 @@ def unguarded_passed_verdicts() -> list[str]:
 
 
 def unsourced_library_calls() -> list[tuple[str, str, str]]:
-    """Scripts that CALL a `scripts/lib/` function without sourcing its file.
+    """Scripts that CALL a `scripts/lib/` function without sourcing it.
 
     **THIS IS THE FAILURE THAT ACTUALLY HAPPENED, AND EVERY OTHER
     INSTRUMENT WAS GREEN FOR IT.** #254 lifted a guard out of one
@@ -1901,9 +1904,7 @@ def self_test() -> int:
     for body, must_match in call_rows:
         got = _calls(body, subject)
         if got != must_match:
-            failures.append(
-                f"_calls(`{body}`) is {got}, want {must_match}"
-            )
+            failures.append(f"_calls(`{body}`) is {got}, want {must_match}")
 
     lib = _GUARD_LIB
     source_rows: list[tuple[str, bool]] = [
@@ -1914,14 +1915,12 @@ def self_test() -> int:
         # satisfied `_sources` with the real source line deleted -
         # planted, rc=0, nothing named. This row is the fix's control
         # and it fails the moment `strip_heredocs` stops stripping.
-        (f'cat >/dev/null <<\'DOC\'\n. "$d/lib/{lib}"\nDOC\n', False),
+        (f"cat >/dev/null <<'DOC'\n. \"$d/lib/{lib}\"\nDOC\n", False),
     ]
     for body, must_match in source_rows:
         got = _sources(strip_comments(strip_heredocs(body)), lib)
         if got != must_match:
-            failures.append(
-                f"_sources(`{body!r}`) is {got}, want {must_match}"
-            )
+            failures.append(f"_sources(`{body!r}`) is {got}, want {must_match}")
 
     # 10. THE `^PASSED ` ARM, ALL THREE DIRECTIONS, ON SYNTHETIC BODIES.
     #     A script that reads the verdict and does NOT guard must be
@@ -2095,7 +2094,11 @@ def main() -> int:
     violators = unguarded_passed_verdicts()
     violating = {pathlib.PurePath(p).name for p in violators}
     known_open = sorted(violating & set(PASSED_VERDICT_WITHOUT_GUARD))
-    new_open = [p for p in violators if pathlib.PurePath(p).name not in PASSED_VERDICT_WITHOUT_GUARD]
+    new_open = [
+        p
+        for p in violators
+        if pathlib.PurePath(p).name not in PASSED_VERDICT_WITHOUT_GUARD
+    ]
     stale_open = sorted(set(PASSED_VERDICT_WITHOUT_GUARD) - violating)
 
     if known_open:
