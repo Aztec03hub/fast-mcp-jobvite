@@ -91,3 +91,32 @@ aa893a2 NONE #116: bind each timeout bound to one name, used by the c
 6fe2d73 NONE #116: bring both new checkers under the lint and type ga
 3d9445c NONE #116: the worklog, with the counts that corrected my bri
 203e5af NONE Merge fix/116-timeouts: 70 retyped seconds figures deriv
+#
+# 2026-09-01, +23: the five-branch merge (#143 #146 #147 #152 and
+# the #151 review fix) and everything under it, including this
+# file's own previous commit. THE GATE WORKING AS DESIGNED, not a
+# defect: rev-list enumerates every commit a push ADDS, so a merge
+# of N leaves N+1 outstanding. No round covers them.
+0510900 NONE docs(reviews): the #147 report, with four corrections to
+091526b NONE Merge fix/147-ci-step-selection: the block bucket goes 3
+0a81660 NONE Merge fix/152-publishers: three harnesses publish their
+1abebc1 NONE #143: the worklog, with the ledger, the corrections and
+24b26d7 NONE Merge fix/146-131-stranded: the timeout branch checks it
+2b245d3 NONE #152: gate the invariant that survived reading every lan
+3700c93 NONE #152: the u3-audit handover step RUN, exit 0, applied=10
+5028cae NONE #152: reflow the checker to the W505 72-column limit
+649aba9 NONE #146/#131 control: 26 arms, and A2 amputates the fix to
+6d2fca1 NONE fix(probe): read the multi-line blocks instead of refusi
+7149b14 NONE #130: an amputation that CRASHED and read as a survivor,
+8be39b4 NONE #143: consolidate design-gates, supply-chain and links i
+9422844 NONE #143: correct my own CodeQL claim with the number I had
+9989fd8 NONE #152: worklog - the discriminator, the two searches I re
+a865573 NONE feat(probe): assert a checker's bare form is not a weake
+b567974 NONE #143: lint-clean the applier, update CONTRIBUTING's job
+c6e3cda NONE #151 R1: two Highs closed, and H2 was my prose being fal
+ccbdaae NONE Wire what four branches could each only half-do, and pri
+d0741c9 NONE #146 F1+F2 and #131: the timeout branch checks the tree,
+d342e25 NONE #143: remove the REVIEW-COVERS line I had drafted, and s
+e3cd28e NONE WORKLOG #146/#131: what I measured, what my brief got wr
+f742da4 NONE #152: three harnesses computed a tally and published non
+fc6c508 NONE Merge fix/143-ci-minutes: three jobs become one, 634 ->

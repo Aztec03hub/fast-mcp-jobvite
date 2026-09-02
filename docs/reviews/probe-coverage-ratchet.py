@@ -58,6 +58,13 @@ leaves the edit behind for the next run to blame on someone else - the
 defect of #131 and #146, which I reproduced by hand tonight by timing
 out my own probe and stranding its two plant files.
 
+**BASELINE TESTS THE INSTRUMENT, NOT THE TRUNK'S CURRENCY (R1-M6).**
+It builds a backlog from what the checker measures right now. My first
+version asserted the COMMITTED backlog was current, which made this
+control red after every push - a control red by construction, which is
+the defect #151 removes, relocated one artifact over. Staleness is the
+checker's job to report; a control's job is to prove the checker works.
+
 Exit 0 = every arm behaved as claimed. Exit 1 = one did not.
 """
 
@@ -104,6 +111,27 @@ def entries(text: str) -> list[str]:
     ]
 
 
+def derive_backlog(work: pathlib.Path) -> str:
+    """A backlog matching what the checker measures right now.
+
+    Built by ASKING THE CHECKER what is outstanding and reformatting its
+    own report, so the BASELINE arm tests the instrument rather than the
+    trunk's currency. This is NOT a `--write-backlog`: it writes only
+    into a temporary directory, and the committed backlog stays a human
+    act in a diff. The distinction is the whole reason the checker has
+    no such flag - see its docstring.
+    """
+    empty = work / "derive-empty.txt"
+    empty.write_text("# nothing recorded\n", encoding="utf-8")
+    reported = run(empty).stdout
+    lines: list[str] = []
+    for raw in reported.splitlines():
+        parts = raw.split()
+        if len(parts) >= 3 and len(parts[0]) == 7 and parts[1] in ("NONE", "PARTIAL"):
+            lines.append(raw.strip())
+    return "# derived for this arm only\n" + "\n".join(lines) + "\n"
+
+
 def main() -> int:
     """Run every arm against a temporary copy and report."""
     source = BACKLOG.read_text(encoding="utf-8")
@@ -118,18 +146,33 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         work = pathlib.Path(tmp)
 
-        # BASELINE. The committed backlog must already agree with the
-        # measurement, or every arm below is measuring a tree that was
-        # broken before the probe touched it.
-        copy = work / "baseline.txt"
-        copy.write_text(source, encoding="utf-8")
-        done = run(copy)
+        # BASELINE. Prove the CHECKER can reach exit 0 at all, so the
+        # eight arms below are not all passing against an
+        # already-broken instrument.
+        #
+        # IT DOES NOT ASSERT THE COMMITTED BACKLOG IS CURRENT (R1-M6).
+        # My first version did, and that made this control RED AFTER
+        # EVERY PUSH: the trunk gains commits, the committed backlog has
+        # not been topped up yet, and the arm fails for a reason that is
+        # not a defect in anything it tests. Wire that probe and you get
+        # a control red by construction after every merge - which is the
+        # exact defect #151 exists to remove, relocated one artifact
+        # over. It is the same mistake as ratcheting NONE and leaving
+        # PARTIAL, made a second time in the same afternoon.
+        #
+        # So the arm builds a backlog from what the checker measures
+        # RIGHT NOW and requires exit 0 against that. Staleness is the
+        # CHECKER's job to report, and it does; a control's job is to
+        # prove the checker still works.
+        current = work / "current.txt"
+        current.write_text(derive_backlog(work), encoding="utf-8")
+        done = run(current)
         results.append(
             (
                 done.returncode == 0,
                 "BASELINE",
-                f"the committed backlog agrees with the trunk: exit"
-                f" {done.returncode} (want 0)",
+                f"the checker reaches exit 0 against a backlog matching"
+                f" what it measures: exit {done.returncode} (want 0)",
             )
         )
 
