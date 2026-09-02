@@ -150,8 +150,9 @@ I noted at the time that x2.7 would have landed ~296s and MET the mandate,
 and declined to claim it. That was the right call for the wrong reason: the
 problem is not which of the four to pick, it is that **a single factor is the
 wrong instrument**. It is the same error REVAMP-238 made with a flat 1.5x,
-and I reproduced it in the opposite direction. The table above is superseded
-by the per-step ratios below and is kept only so the spread is in the record.
+and I reproduced it in the opposite direction. The four ratios in THIS block
+are superseded by the nine per-step ratios in the table ABOVE them, and are
+kept only so the spread is in the record.
 
 `runnerB` is that step in run 33614887374 (G). Each step is scaled by **its
 own** ratio, not one global factor - the ratios span 1.13x to 1.92x and no
