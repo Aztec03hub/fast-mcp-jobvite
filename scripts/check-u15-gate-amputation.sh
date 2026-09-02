@@ -31,6 +31,16 @@ ROW_TIMEOUT=900
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
 
+# ONLY 0 AND 1 ARE MEASUREMENTS (#283). This harness read `^PASSED ` lines
+# for its verdict while handling nothing but rc=124, so a collection error,
+# an internal error, a usage error or a missing interpreter produced an empty
+# output file and was scored as `survivors: NONE` - the best result it can
+# print. Measured on this file, not reasoned about: row E exited 127
+# (`env: 'timeout': No such file or directory`) and this harness reported
+# `survivors: NONE`, `status=ok`, exit 0.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE_REL="scripts/check-committed-file-types.py"
 SUITE_REL="tests/test_file_type_gate.py"
@@ -62,6 +72,24 @@ ROWS=0
 # floor nobody checks" shape the floor itself exists to catch.
 ROW_FLOOR=5
 
+# A ROW MAY DECLARE THAT ITS AMPUTATION MAKES THE SUITE UNCOLLECTABLE, and
+# then it must PROVE it. Row A deletes the gate script the suite loads at
+# module scope, so pytest cannot collect and exits 2 with no `^PASSED ` lines
+# - the exact shape verdict_guard refuses. Refusing it would be wrong: the
+# import failure IS the death. So the row declares the error it expects as a
+# grep -E pattern, and the row is accepted only when pytest printed that
+# pattern; a SyntaxError from a broken amputation prints something else and
+# still goes to the guard. Set immediately before the `report` call; `report`
+# consumes and clears it, so it cannot leak into the next row.
+#
+# The same ten lines live at the single call site in
+# scripts/check-u1-boot-amputation.sh, deliberately NOT in
+# scripts/lib/verdict-guard.sh: docs/reviews/check-checkers-are-wired.py
+# derives "is this script guarded" from the function names that library
+# defines, so a second name there would let a script that calls only the
+# weaker one count as guarded.
+EXPECT_UNCOLLECTABLE=""
+
 report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   local label="$1" tree="$2" pathenv="${3:-$PATH}"
   ROWS=$((ROWS + 1))
@@ -70,17 +98,37 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
       "$SUITE_REL" -p no:cacheprovider -q -o addopts="" -rA \
       >"$WORK/out.txt" 2>&1 )
   local row_rc=$?
-  tail -1 "$WORK/out.txt"
-  # A HANG READS AS A PERFECT ROW. Survivors are parsed from `^PASSED` lines,
-  # and a run that never finished prints none - so a timeout would report
+  # A HANG READS AS A PERFECT ROW, and so does every other way of not
+  # running. Survivors are parsed from `^PASSED` lines, and a run that never
+  # collected prints none - so a timeout, a collection error, an internal
+  # error, a usage error or a missing binary would all report
   # "survivors: NONE", which is this harness's BEST possible result. That is
-  # the silent direction, so it gets named rather than inferred.
-  if [ "$row_rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. It produced no"
-    echo "  PASSED lines, so 'survivors: NONE' below would be an artifact of"
-    echo "  the hang and not a measurement. No verdict is emitted for it."
-    return 1
+  # the silent direction, so it is refused rather than inferred. The order is
+  # rc -> guard -> verdict: a guard downstream of the verdict annotates it
+  # instead of guarding it (scripts/lib/verdict-guard.sh). There is no
+  # restore step here - each row runs in its own built tree under $WORK.
+  if [ -n "$EXPECT_UNCOLLECTABLE" ]; then
+    local want="$EXPECT_UNCOLLECTABLE"
+    EXPECT_UNCOLLECTABLE=""
+    if { [ "$row_rc" -ne 2 ] && [ "$row_rc" -ne 4 ]; } \
+       || ! grep -qE -- "$want" "$WORK/out.txt"; then
+      echo "  REFUSING: this row DECLARED an uncollectable suite - pytest 2 or 4"
+      echo "  with /$want/ in the output - and did not get it (rc=$row_rc)."
+      echo "  The declared failure mode did not occur, so nothing below would be"
+      echo "  a measurement of this row. The last 20 lines of its output:"
+      sed 's/^/    /' "$WORK/out.txt" | tail -20
+      exit 5
+    fi
+    tail -1 "$WORK/out.txt"
+    echo "  UNCOLLECTABLE BY DESIGN, ASSERTED: pytest exited $row_rc having printed"
+    echo "    /$want/"
+    echo "  Nothing could run, so this row's kill is the import failure itself"
+    echo "  and not an absence of PASSED lines."
+    echo
+    return 0
   fi
+  verdict_guard "$row_rc" "$WORK/out.txt" "$ROW_TIMEOUT"
+  tail -1 "$WORK/out.txt"
   local survivors
   survivors=$(grep -E '^PASSED ' "$WORK/out.txt" | sed 's/^PASSED //' || true)
   if [ -z "$survivors" ]; then
@@ -113,6 +161,11 @@ echo
 
 # --- A. the gate script is GONE --------------------------------------------
 build_tree "$WORK/A"; rm -f "$WORK/A/$GATE_REL"
+# The suite loads the gate with importlib AT MODULE SCOPE, so deleting it
+# makes the module uncollectable: pytest exits 2 and prints no PASSED lines.
+# Declared, so the guard accepts it as the row's kill only when pytest
+# actually names the missing file.
+EXPECT_UNCOLLECTABLE="FileNotFoundError.*check-committed-file-types\.py"
 report "A. the gate script does not exist at all" "$WORK/A"
 
 # --- B. the gate script exists and is ZERO BYTES ----------------------------
@@ -198,7 +251,13 @@ mkdir -p "$WORK/nogit"
 # `python3` here is the CHOSEN interpreter, not the ambient one - the row's
 # subject is "git is absent", and symlinking a python without pytest would
 # make it fail for the wrong reason and read as a finding about git.
-for tool in sh env sed grep cat; do
+# `timeout` IS ON THIS LIST BECAUSE `report` INVOKES IT (#280). This directory
+# is the row's ENTIRE PATH, and the five names here omitted the one binary the
+# row's own command line names one screen above. `env` could not find it, the
+# row exited 127 without ever starting pytest, and the harness printed
+# `survivors: NONE` - its best possible result - for a row that ran nothing.
+# The list is what the ROW executes, not what the SUBJECT executes.
+for tool in sh env sed grep cat timeout; do
   src=$(command -v "$tool") && ln -sf "$src" "$WORK/nogit/$tool"
 done
 ln -sf "$(command -v "${PY[0]}")" "$WORK/nogit/python3"

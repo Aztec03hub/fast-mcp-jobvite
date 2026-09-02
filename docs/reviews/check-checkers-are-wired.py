@@ -829,41 +829,46 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     "verdict-guard.sh": (
         "a sourced LIBRARY holding the one copy of the non-measurement "
         "guard (#254). No shebang, no `__main__`, executed by nothing: "
-        "thirteen amputation harnesses source it and call it, and each "
+        "FIFTEEN amputation harnesses source it and call it, and each "
         "of those is a wired step. THE POPULATION IS NOW ASKED OF THE "
         "TREE AND NOT STATED HERE AT ALL - see "
-        "`unguarded_passed_verdicts` in this file. This sentence has "
-        "been wrong twice about it. First as a hand-kept count: the "
-        "opening draft said `fourteen` twice against a real thirteen. "
-        "Then as a RULE, which is what the count was replaced with so "
-        "it could not decay - *'every amputation harness whose verdict "
-        "reads `^PASSED ` sources it'* - and the rule was false on the "
-        "day it shipped. Measured at fb9cad2 over the sixteen "
+        "`unguarded_passed_verdicts` in this file, and read the count "
+        "in this sentence as history rather than as the gate. This "
+        "sentence has been wrong twice about it. First as a hand-kept "
+        "count: the opening draft said `fourteen` twice against a real "
+        "thirteen. Then as a RULE, which is what the count was replaced "
+        "with so it could not decay - *'every amputation harness whose "
+        "verdict reads `^PASSED ` sources it'* - and the rule was false "
+        "on the day it shipped. Measured at fb9cad2 over the sixteen "
         "scripts/*-amputation.sh: FOURTEEN read a `^PASSED ` verdict, "
-        "not thirteen. Twelve of the thirteen adopters do "
-        "(check-u9-http-amputation.sh reads `^FAILED ` instead, :233), "
-        "and so do check-u1-boot-amputation.sh (:162) and "
-        "check-u15-gate-amputation.sh (:85), which source nothing and "
-        "call nothing. THREE amputation harnesses are outside the "
-        "adopter set, not one, and only one of the three was a "
-        "decision: check-suite-floor-amputation.sh, whose verdict reads "
-        "`tail -1` for `failed` (:73) and treats the ABSENCE of that "
-        "word as a SURVIVOR (:93), so a collection error there fails "
-        "CLOSED - verified, and it needs no change. The other two carry "
-        "the live #254 defect: each guards only `rc -eq 124` "
-        "(u15 :78-83, u1-boot :150-159) and falls through on rc=2/3/4 "
-        "to print `survivors: NONE`. They are #283, they are NOT fixed "
-        "on this branch, and they are on the "
-        "PASSED_VERDICT_WITHOUT_GUARD ratchet below so every run of "
-        "this checker prints them. A restated rule is still prose; the "
-        "reason there is now an ARM is that prose is what failed here "
-        "twice. The library exists so the guard is not thirteen copies "
-        "that drift, and docs/reviews/check-checkers-are-wired.py also "
-        "refuses a script that CALLS a scripts/lib/ function without "
-        "sourcing the file that defines it - the silent form of this "
-        "dependency failing. docs/reviews/probe-254-amputation-rc.sh is "
-        "the library's behavioural control and is deliberately hand-run "
-        "- see its entry above."
+        "not thirteen. Twelve of the thirteen adopters did "
+        "(check-u9-http-amputation.sh reads `^FAILED ` instead), and so "
+        "did check-u1-boot-amputation.sh and "
+        "check-u15-gate-amputation.sh, which sourced nothing and called "
+        "nothing. THREE amputation harnesses were outside the adopter "
+        "set, not one, and only one of the three was a decision: "
+        "check-suite-floor-amputation.sh, whose verdict reads `tail -1` "
+        "for `failed` and treats the ABSENCE of that word as a "
+        "SURVIVOR, so a collection error there fails CLOSED - verified, "
+        "and it needs no change. THE OTHER TWO ARE NOW FIXED (#283): "
+        "both source this library and call the guard between their "
+        "restore and their `^PASSED ` parse, so "
+        "PASSED_VERDICT_WITHOUT_GUARD is EMPTY and the arm below "
+        "reports zero violations rather than two open ones. Each also "
+        "carries a per-row `EXPECT_UNCOLLECTABLE` declaration, because "
+        "a row whose amputation DELETES the module the suite imports "
+        "exits 2 or 4 by design; those rows name the import error they "
+        "expect and are refused when pytest prints anything else, which "
+        "is the discrimination a bare rc test cannot make. A restated "
+        "rule is still prose; the reason there is now an ARM is that "
+        "prose is what failed here twice. The library exists so the "
+        "guard is not fifteen copies that drift, and "
+        "docs/reviews/check-checkers-are-wired.py also refuses a script "
+        "that CALLS a scripts/lib/ function without sourcing the file "
+        "that defines it - the silent form of this dependency failing. "
+        "docs/reviews/probe-254-amputation-rc.sh is the library's "
+        "behavioural control and is deliberately hand-run - see its "
+        "entry above."
     ),
     "harness-result.sh": (
         "a sourced LIBRARY holding the one canonical HARNESS-RESULT "
@@ -1422,40 +1427,23 @@ _PASSED_VERDICT = re.compile(r"(?m)\bgrep\b[^\n]*\^PASSED ")
 #: Scripts that read a `^PASSED ` verdict WITHOUT the guard, each with
 #: its reason. Reported on every run and NOT fatal.
 #:
-#: **THIS IS A RATCHET OVER A SET, AND THE TWO ENTRIES ARE OPEN
-#: DEFECTS, NOT DECISIONS.** A gate on a moving trunk that demands a
-#: zero is red by construction on the day it lands, and this file's own
-#: closing note says why that is the wrong shape: "wire it - after
-#: measuring it GREEN, because a gate that lands red is one people
-#: learn to ignore". So the two live instances are named here, with
-#: their ticket, and printed under a heading that calls them open -
-#: switched-off and broken must not render identically. Anything NOT
-#: in this dict fails the build, which is the arm's whole point: the
-#: next harness to grow a `^PASSED ` verdict cannot arrive unguarded.
+#: **THIS IS A RATCHET OVER A SET, AND IT IS NOW EMPTY.** A gate on a
+#: moving trunk that demands a zero is red by construction on the day
+#: it lands, so the two live instances were named here with their
+#: ticket while they were open, and printed under a heading that
+#: called them open - switched-off and broken must not render
+#: identically. Both were fixed in the same commit that emptied this
+#: dict: `check-u1-boot-amputation.sh` and
+#: `check-u15-gate-amputation.sh` now source the guard library and
+#: call the guard before their `^PASSED ` parse (#283).
 #:
-#: Emptying this dict is the fix. Editing it to add a third entry is
-#: not - a new violator is a red gate, and that is the ratchet.
-PASSED_VERDICT_WITHOUT_GUARD: dict[str, str] = {
-    "check-u1-boot-amputation.sh": (
-        "OPEN DEFECT, #283 - not a decision. Guards only `rc -eq 124` "
-        "(:150-159) and then parses `^PASSED ` at :162, so a pytest "
-        "rc=2/3/4 falls through and renders as `survivors: NONE - no "
-        "assertion passed against this tree`: the perfect-kill reading "
-        "#254 exists to forbid. Its row runs an explicit `must_die[@]` "
-        "node-id list, so rc=4 from an id that no longer resolves is "
-        "reachable. NOT fixed on this branch by instruction - #283, "
-        "#280 and #254's H3 are three separate open defects in this "
-        "file being sequenced into one later change."
-    ),
-    "check-u15-gate-amputation.sh": (
-        "OPEN DEFECT, #283 - not a decision. The same shape: only "
-        "`row_rc -eq 124` is handled (:78-83) and `:85` then parses "
-        "`^PASSED `. Held for the same sequencing reason as the entry "
-        "above; #280 covers DIFFERENT defects in these two files "
-        "(u15's `timeout` symlink omission, u1-boot's parametrised "
-        "`MUST_F[0]`), so it is not the ticket for this gap."
-    ),
-}
+#: EMPTY IS THE FIX, NOT A REASON TO DELETE THE ARM. Anything NOT in
+#: this dict fails the build, which is the arm's whole point: the next
+#: harness to grow a `^PASSED ` verdict cannot arrive unguarded.
+#: Adding an entry is a deliberate, visible loosening and needs a
+#: ticket in the reason; a new violator with no entry is a red gate,
+#: and that is the ratchet.
+PASSED_VERDICT_WITHOUT_GUARD: dict[str, str] = {}
 
 
 def unguarded_passed_verdicts() -> list[str]:
