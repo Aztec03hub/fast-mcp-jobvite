@@ -49,9 +49,39 @@ for required in "$HARNESS" tests/test_audit.py tests/test_redaction.py; do
     exit 3
   }
 done
-OUT=/tmp/probe-252-arm.txt
+# PER PROCESS, and that is #262's finding rather than housekeeping. This used to
+# be the fixed path `/tmp/probe-252-arm.txt`. EVERY worktree of this repo on
+# this box carries this probe and `scripts/check-u3-audit-controls.sh` - 82 of
+# 82 today, 75 of 77 an hour before that, so DIAG-262 §3.1 records the
+# derivation and not the literal - and a second run of either
+# - another agent's, `ci-harness-gate.sh`'s, `probe-252-rc4-verdict-trap.sh`'s -
+# opens that ONE path with `>` while this one is still being read from it. The
+# two writers then hold independent offsets on the same inode, so the file fills
+# with NULs, `grep` reports `binary file matches` and prints NOTHING, `$sel_line`
+# comes back EMPTY, and the arm voids with "took the WIDE fallback" - a sentence
+# about a selection that was never read. WHICH arm voids is pure timing, which is
+# why the probe read 3/3, then 2/3, then 1/3 with a different arm each time.
+# MEASURED, both ways: 6 solo runs 0 voids; 3 runs against a replayed second
+# probe 2 voids; 3 runs of the SAME interference with the mktemp below, 0 voids
+# and 3/3. See docs/reviews/DIAG-262-probe-nondeterminism.md.
+OUT="$(mktemp /tmp/probe-252-arm-XXXXXX)"
+# CHAINED, not naive. `lib/harness-result.sh` armed `trap harness_result_emit
+# EXIT` at source time and bash has no trap stack, so a bare `trap 'rm -f
+# "$OUT"' EXIT` here would REPLACE the emitter and an abort would render as
+# silence. Calling the emitter first is what this repository already does at
+# `scripts/check-u3-audit-controls.sh` (the $COVDB trap) and at
+# `docs/reviews/probe-252-rc4-verdict-trap.sh:82`, and it is what #262's own
+# §5.2 prescribes for the siblings. The mktemp above fixes a SHARED path; left
+# untrapped it would swap that for a per-RUN one that is never deleted, and
+# four such files had already accreted at ~21KB apiece before this line existed.
+trap 'harness_result_emit; rm -f "$OUT"' EXIT
 ARMS_RUN=0
 ARMS_PASSED=0
+# The tally check above. 15 is the harness's own row count (it prints
+# `rows=15 floor=15`); 14 is that minus the one killer each arm neuters.
+# Hardcoded on purpose: if the harness grows a row this stops matching and
+# REFUSES, which is the loud failure, not a silent re-baseline.
+EXPECT_KILLED=killed=14/15
 
 # Refuse a dirty test tree rather than measure someone's edit and then
 # `git checkout --` it away. `git status --porcelain`, not `git diff`, because
@@ -114,7 +144,39 @@ PY
   verdict_line=$(grep -E "^$row " "$OUT" | grep -v ': SELECTOR ' | tail -1)
   echo "  selector: $sel_line"
   echo "  verdict : $verdict_line"
-  echo "  harness : rc=$harness_rc  $(grep -E '^HARNESS-RESULT' "$OUT" | tail -1)"
+  local result_line killed
+  result_line=$(grep -E '^HARNESS-RESULT' "$OUT" | tail -1)
+  echo "  harness : rc=$harness_rc  $result_line"
+
+  # THE TALLY THIS PROBE ALREADY PRINTED AND NEVER CHECKED - #262 review, H1.
+  #
+  # The arm below passes when the row stops saying `killed by`. A harness that
+  # lost that row for ANY OTHER reason renders identically, so the arm passes
+  # VACUOUSLY - which is the precise failure this probe exists to rule out (see
+  # the header: "a selection that could never fail would produce exactly the
+  # same fifteen greens"). An arm that cannot fail is not a control.
+  #
+  # The discriminator is arithmetic. Each arm neuters exactly ONE killer, so
+  # the harness must lose exactly ONE kill: killed=14/15, observed in every
+  # clean run of this probe. A different tally means the harness this arm read
+  # was not the harness this arm aimed at - contaminated by a concurrent run,
+  # or aborted before all fifteen rows - and a measurement that was not made
+  # must REFUSE, not pass. Same exit 2 and `status=refused` as the void
+  # branches below, for the same reason.
+  #
+  # MEASURED, before the mktemp in check-u3-audit-controls.sh landed: this
+  # probe under a rival truncating the then-shared /tmp/u3-mut.txt printed
+  # killed=12/15, 13/15, 13/15 and still reported `ARMS: 3/3 passed`,
+  # `status=ok`, rc=0. A silent green over three corrupted measurements.
+  killed=$(printf '%s' "$result_line" | grep -oE 'killed=[0-9]+/[0-9]+')
+  if [ "$killed" != "$EXPECT_KILLED" ]; then
+    echo "  ARM VOID: the harness reported ${killed:-<no tally on the result line>},"
+    echo "  not $EXPECT_KILLED. One neutered killer costs exactly one kill, so any"
+    echo "  other tally means this arm measured a harness that was contaminated"
+    echo "  or cut short. REFUSING rather than reporting a pass it did not"
+    echo "  measure. See task #262."
+    exit 2
+  fi
 
   # The row must still be SELECTING - a wide fallback here would mean the arm
   # measured the fallback rather than the selection.
