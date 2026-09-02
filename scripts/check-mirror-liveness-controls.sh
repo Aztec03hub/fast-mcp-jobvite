@@ -193,8 +193,23 @@ transport() {
 # also removes `python3` - the first version of the NO-GH row exited 127 with
 # "python3: No such file or directory" and was measuring the shell, not the
 # checker.
+# A stub that SUCCEEDS and returns something that is not JSON. R19 tripwired
+# `_gh` and found this branch reached by ZERO rows: the two arms above cover
+# "no gh" and "gh refused", and `_gh` has THREE producers. A gh that exits 0
+# with a proxy error page, an HTML login redirect, or a truncated body is the
+# one that looks most like success from the outside, which is why it is the
+# one worth an arm.
+mkdir -p "$WORK/badjson"
+cat >"$WORK/badjson/gh" <<'STUB'
+#!/usr/bin/env bash
+# Exit 0 - the call SUCCEEDED - with a body no parser accepts.
+echo "<html>You must sign in</html>"
+STUB
+chmod +x "$WORK/badjson/gh"
+
 transport "NO-GH     no gh on PATH reaches _gh and says so" "$WORK/empty" 4 "not on PATH"
 transport "GH-FAILS  a refusing gh is reported, not swallowed" "$WORK/bin:/usr/bin:/bin" 4 "exited 1"
+transport "BAD-JSON  a gh that exits 0 with a non-JSON body" "$WORK/badjson:/usr/bin:/bin" 4 "unparseable JSON"
 
 echo "AMPUTATIONS - delete the rule, require the finding to disappear:"
 
@@ -259,7 +274,7 @@ harness_result_tally fired "$FIRED" "$TOTAL"
 # rows stopped being counted reports fully green. DERIVED: 11 positive and
 # unmeasurable rows plus 3 amputations, counted from the calls above at the
 # commit that adds them.
-ROW_FLOOR=16
+ROW_FLOOR=17
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
