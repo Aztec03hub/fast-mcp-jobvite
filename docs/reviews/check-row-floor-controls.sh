@@ -214,7 +214,25 @@ esac
 if [ "$MODE" = static ]; then
   echo "REFUSED: $TARGET is a mode=static row."
   echo "  This control mutates bash and reads a bash library's canonical line."
-  echo "  $TARGET is not bash, so an arm here would measure the interpreter."
+  # THE REASON IS DERIVED, NOT ASSUMED. This block used to print "is not
+  # bash" for EVERY static row, which is FALSE for the two that are
+  # `.sh`: `probe-131-gate-state.sh` is bash and its actual blocker is
+  # that its row count is COMPUTED at run time, so no static count
+  # exists to predict. A refusal that misdiagnoses is worse than a bare
+  # one - a reader told "not bash" about a `.sh` file stops believing
+  # the tool, and the two members have DIFFERENT reasons that need
+  # DIFFERENT remedies.
+  if [ "$ROW_RE" = COMPUTED ]; then
+    echo "  Its row count is COMPUTED at run time, so this control has no"
+    echo "  static count to predict and cannot say what a deletion should"
+    echo "  produce. It could still be watched by reading rows=N from a"
+    echo "  first run - that mode does not exist yet."
+  fi
+  case "$TARGET" in
+    *.py) echo "  It is Python; this control mutates bash, so an arm here"
+          echo "  would measure the interpreter. It needs its own --self-test,"
+          echo "  the shape check-row-floor-exactness.py already uses." ;;
+  esac
   echo "  Its EXACTNESS is checked - check-row-floor-exactness.py names it."
   echo "  Its FIRING is not watched by anything yet; that is task #194."
   exit 4

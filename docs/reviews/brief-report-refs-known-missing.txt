@@ -21,4 +21,11 @@
 # only grows stops being read.
 #
 # Gate: docs/reviews/check-brief-report-references.py
-
+#
+# ROUTINE, learned by hitting it three times: DISPATCHING AN AGENT WHOSE
+# BRIEF NAMES ITS REPORT REDS THIS GATE UNTIL THE REPORT LANDS. That is
+# correct - the brief IS citing a file that does not exist yet - but the
+# line belongs here at DISPATCH time, not after the gate catches you.
+# Add it in the same commit as the brief; delete it when the report
+# lands, which the gate will demand.
+REVIEW-R21.md  2026-09-02 IN FLIGHT: review-r21 is dispatched and BRIEF-R21-since-r20.md names this report. Designed to EXPIRE - when the report lands the gate fails with "a recorded entry now resolves" and this line must go.
