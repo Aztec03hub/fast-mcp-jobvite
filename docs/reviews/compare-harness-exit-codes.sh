@@ -58,8 +58,19 @@ if grep -qE 'rc=(124|125|137) ' "$BEFORE" "$AFTER"; then
   exit 3
 fi
 
-b_names=$(awk '{print $1}' "$BEFORE" | sort -u)
-a_names=$(awk '{print $1}' "$AFTER"  | sort -u)
+# `#`-PREFIXED LINES ARE THE LEDGER'S COMPLETENESS BANNER, NOT ROWS. The probe
+# writes one at the end of every pass (task #146, F2) so that a caller reading
+# only the file can see that a row is MISSING rather than passing - a timeout is
+# never recorded, which makes an unmeasured harness invisible among the rows.
+#
+# Stripped HERE and not merely tolerated: `awk '{print $1}'` over a banner
+# yields the literal `#`, which would appear in both name sets, survive the
+# intersection, and be printed as a compared harness whose before and after
+# codes are empty strings. Equal empty strings compare EQUAL, so it would not
+# even show up as MOVED - it would silently inflate the coverage numerator by
+# one and let `n_both -eq total` pass one row early.
+b_names=$(grep -v '^#' "$BEFORE" | awk '{print $1}' | sort -u)
+a_names=$(grep -v '^#' "$AFTER"  | awk '{print $1}' | sort -u)
 both=$(comm -12 <(printf '%s\n' "$b_names") <(printf '%s\n' "$a_names"))
 n_both=$(printf '%s\n' "$both" | grep -c . || true)
 
