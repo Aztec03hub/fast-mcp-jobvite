@@ -15,9 +15,34 @@ control that must pass. A probe with only the arm the author expected is
 the failure mode this project has paid for repeatedly - it cannot tell a
 real result from an instrument that always says the same thing.
 
-Run: `python3 docs/reviews/check-plan-measurements.py` Exit 0 = every
-measurement the plan cites still reproduces. Non-zero = a plan claim has
-gone stale, and the plan is what needs fixing, not this script.
+Run: `python3 docs/reviews/check-plan-measurements.py`
+
+Three exit codes, and the third one is load-bearing:
+
+- **0** - every measurement the plan cites still reproduces.
+- **1** - a plan claim has gone stale, and the plan is what needs
+  fixing, not this script.
+- **2** - `.venv` is absent, so the probes had no interpreter carrying
+  this project's dependencies and NOTHING was judged. Run
+  `uv sync --frozen`.
+
+**Exit 2 exists because its absence cost a task (#221).** This file used
+to fall back to `sys.executable` when `.venv` was missing, run the
+probes under an interpreter without pytest plugins or project
+dependencies, and report the resulting failures as `[STALE] M3` and
+`[STALE] M4` at exit 1 - the same word and the same code it uses for a
+genuinely stale plan claim. Two agents then read that as evidence that
+the INVOKING interpreter decides the verdict, because `python3` gave two
+STALE rows where `uv run --frozen python` gave four passes.
+
+Neither interpreter was the cause. `uv run` SYNCS `.venv` as a side
+effect, and the old fallback then found it. Held constant at
+`/usr/bin/python3`, the verdict still flipped on `.venv` alone: rc=1
+with two STALE without it, rc=0 with it. The interpreter never mattered;
+the venv always did, and a silent fallback made an environment fault
+indistinguishable from a finding.
+
+`--self-test` runs three arms over that refusal.
 
 **M4 WAS EXPECTED TO FAIL, AND NO LONGER DOES.** It is the eleventh
 collision, found by round 7 and independently reproduced: a real defect
@@ -40,7 +65,57 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VENV_PY = REPO_ROOT / ".venv" / "bin" / "python"
-PYTHON = str(VENV_PY if VENV_PY.exists() else sys.executable)
+PYTHON = str(VENV_PY)
+
+#: An unmet PRECONDITION, never a verdict. 0 means every plan
+#: measurement reproduces and 1 means one does not; a third code is the
+#: only way to say "this script never got to judge anything". The
+#: sibling precedent is `check-coverage-floors.py`, which exits 2 with
+#: "coverage.json does not exist. Run:" rather than reporting a floor
+#: it could not measure.
+EXIT_NO_VENV = 2
+
+
+def select_python(venv_py: Path) -> str:
+    """Return the interpreter the probes run under, or refuse.
+
+    **THIS USED TO FALL BACK TO `sys.executable` AND THAT FALLBACK WAS
+    THE DEFECT (#221).** The probes install pytest plugins and import
+    project dependencies; an interpreter without them fails M3 and M4
+    for a reason that has nothing to do with the plan. The old line
+    reported that as `[STALE]` - the SAME word this file uses for "a
+    plan claim no longer holds" - and exited 1.
+
+    So the script answered a question it had not measured, and the
+    answer was indistinguishable from a real finding. It cost this
+    project a whole task: `#221` was raised on the reading that the
+    INVOKING interpreter decides the verdict, because `python3` gave
+    `[STALE] M3, [STALE] M4` where `uv run --frozen python` gave four
+    passes. Both observations were real. The cause was neither
+    interpreter: `uv run` SYNCS `.venv` as a side effect, and this line
+    then found it. Held constant at `/usr/bin/python3`, the verdict
+    still flips on `.venv` alone - rc=1 with two STALE without it, rc=0
+    with it.
+
+    A missing venv is now a refusal with its own exit code, so a
+    precondition failure can never again be read as a stale plan.
+    """
+    if venv_py.exists():
+        return str(venv_py)
+    print(
+        f"{venv_py} does not exist, so the plan probes have no interpreter\n"
+        f"carrying this project's dependencies. Run:\n\n"
+        f"    uv sync --frozen\n\n"
+        f"Refusing rather than reporting [STALE] for a missing venv: that would\n"
+        f"be a claim about the environment wearing the words of a claim about\n"
+        f"the plan.",
+        file=sys.stderr,
+    )
+    #: `raise SystemExit("text")` would print AND exit 1 - the verdict
+    #: code. The exit code is the whole point here, so it is passed as
+    #: an int and the message goes to stderr separately.
+    raise SystemExit(EXIT_NO_VENV)
+
 
 FIXTURE_PLUGIN = (
     "import pytest\n\n\n@pytest.fixture\ndef mock_transport():\n    return 'MT'\n"
@@ -282,8 +357,57 @@ PROBES = [
 KNOWN_OPEN: set[str] = set()
 
 
-def main() -> int:
-    print(f"Re-running {len(PROBES)} plan measurements with {PYTHON}\n")
+def self_test() -> int:
+    """Two arms over the refusal; a one-armed guard proves nothing.
+
+    The treatment arm is the one that matters: with the venv ABSENT the
+    function must refuse with `EXIT_NO_VENV`, not return an interpreter.
+    Before #221 there was no refusal to test - the absent case returned
+    `sys.executable` and the probes ran anyway.
+    """
+    failures: list[str] = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        present = Path(tmp) / "python"
+        present.write_text("#!/bin/sh\n")
+        if select_python(present) != str(present):
+            failures.append("A1 present venv: did not return the venv interpreter")
+
+        absent = Path(tmp) / "nowhere" / "bin" / "python"
+        try:
+            select_python(absent)
+        except SystemExit as exc:
+            if exc.code != EXIT_NO_VENV:
+                failures.append(
+                    f"A2 absent venv: exit {exc.code!r}, want {EXIT_NO_VENV}"
+                )
+        else:
+            failures.append(
+                "A2 absent venv: returned an interpreter instead of refusing"
+            )
+
+    #: A3 is the distinguishability arm. `EXIT_NO_VENV` exists only to
+    #: be unequal to the two verdict codes; if it ever collides, a
+    #: missing venv reads as a stale plan again and #221 is back.
+    if EXIT_NO_VENV in (0, 1):
+        failures.append("A3 exit code collides with a verdict code")
+
+    for f in failures:
+        print(f"FAIL {f}")
+    if failures:
+        return 1
+    print("check-plan-measurements self-test: 3 arms, all pass")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if "--self-test" in args:
+        return self_test()
+    #: Refuses before a single probe runs, so `PYTHON` above is never a
+    #: path that does not exist by the time `_pytest` reaches it.
+    python = select_python(VENV_PY)
+    print(f"Re-running {len(PROBES)} plan measurements with {python}\n")
     unexpected = 0
     for label, probe in PROBES:
         ok, detail = probe()
