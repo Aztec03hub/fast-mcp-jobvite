@@ -24,7 +24,7 @@
 # `git status --porcelain` is printed at the end for the reader to check.
 set -uo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 3
 export PYTHONDONTWRITEBYTECODE=1
 

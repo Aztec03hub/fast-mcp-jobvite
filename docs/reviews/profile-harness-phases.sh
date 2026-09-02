@@ -54,7 +54,7 @@ PYTEST_TIMEOUT=900
 
 REPS="${REPS:-3}"
 SUITE="${SUITE:-tests}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 3
 export PYTHONDONTWRITEBYTECODE=1
 
