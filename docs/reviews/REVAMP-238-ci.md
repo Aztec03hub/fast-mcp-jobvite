@@ -222,118 +222,67 @@ This section predicted a ~3.5-4 min wall and said so as (P), adding that
 measurement; these will be too." They were. Run `33610211810` (head
 `cb625f3`) is that measurement, read from the API:
 
-    MEASURED wall, run 33610211810:  846s = 14.10 min   (G)
-    MEASURED wall, run 33614887374:  431s =  7.18 min   (G)
-    -- and the difference between them is NOT this repository. See
-       "the 306s is queue" below: the first run waited 305s for
-       runners and the second waited 5s. The STRUCTURAL wall is
-       431s; 14.10 min was one bad draw and must not be quoted as
-       the cost of this shape.
-    MEASURED billed:            4204s = 70.1 job-min over 16 jobs  (G)
+    RAW, run 33614887374 (0d2c945), GREEN:  wall 431s, 16/16 jobs   (G)(1)
+    RAW, run 33610211810 (cb625f3), FAILED: wall 846s, pre-cov shape (G)(1)
 
-    against
-    PREDICTED wall:             ~3.5-4 min  (P)  -> wrong by ~3.7x
-    PREDICTED billed:           ~30-40 job-min (P) -> wrong by ~2x
+`(1)` MEANS ONE DRAW, VARIANCE UNMEASURED. It is on both figures on
+purpose. Every number this section has had to retract was quoted without
+it.
 
-The mandate is under 5 minutes. This shape MISSES it by 2.8x. The revamp
-made CI complete and correct on one trigger, which was its other goal,
-and did not make it fast.
+## 7a. Five rewrites, and what this section is now allowed to claim
 
-Per job, prediction against measurement:
+This section has been rewritten FIVE times in one day. Reviews R23 found
+errors that survived rewrites one through four, and the last of them was
+in the correction itself. The pattern is the finding: **each rewrite
+replaced a number with a better number instead of asking what the run
+behind it could support.**
 
-    predicted            measured   job
-    ~201s                    198s   Lint, types, tests        <- accurate
-    190s (G)                 499s   Harness U3 controls       <- 2.6x
-    ~195s                    258s   Harness U9 amputation     <- 1.3x
-    ~180s                    216s   Harness U4 client         <- 1.2x
-    67s / 44s / 17s   65s/49s/23s   codeql / static / wiring  <- accurate
-    "<= ~3 min" for every other harness job:
-                             540s   Harness U5 + U8           <- the POLE
-                             459s   Harness U10 + U12
-                             425s   Harness U6 + U7 + U9 controls
-                             368s   Harness U0 + critical-path coverage
-                             358s   Harness U14 + caps + redaction
-                             343s   Harness U3 amputation
+So this version states measurements and ONE identity, and stops.
 
-Three things the prediction got structurally wrong, not just numerically:
+**THE IDENTITY, which is what actually explains run 1:**
 
-1. **It named the wrong pole.** The model assumed the test job set the
-   wall at ~201s. The test job was the ONE accurate figure in the table -
-   and it is now the 11th longest job. The pole is a harness job at 540s,
-   2.7x the predicted pole. Every conclusion resting on "the test job is
-   the pole" is void.
+    wall = max over jobs j of (queue_j + duration_j)
 
-2. **The 1.5x runner scaling was too low.** Derived from this run:
-   u9-amputation 132s L -> 258s = 1.95x; u4 118s L -> 216s = 1.83x. The
-   real factor is ~1.9x. Applying 1.5x understated every (P) in the table
-   by about a quarter before any other error.
+For run 33610211810 the maximum is `Harness U5 + U8`: 305 + 540 = 845
+against a wall of 845. That is provable from ONE run and needs no
+comparison.
 
-3. **The catch-all line hid the whole problem.** "every other harness job
-   <= ~3 min" covered six jobs, and all six broke it, up to 3x. A single
-   bound asserted over an unenumerated set is where this prediction
-   failed - the six jobs it declined to name are exactly the six that
-   sank it.
+**WHY THE TWO-RUN ARGUMENT I PUBLISHED WAS CIRCULAR.** I wrote that
+`maxQ` tracked `gap` in both runs and concluded the gap was queue. R23
+asked whether the two could agree by construction, and they do. In run 1
+the longest-running job, the longest-QUEUED job and the LAST-TO-FINISH
+job are all the same job - verified, all three are `Harness U5 + U8` -
+and when they coincide, `gap = wall - pole` IS `q_pole` IS `maxQ` as
+arithmetic. 305-against-306 was never evidence. Run 2 is degenerate the
+other way: its maxQ job is NOT its pole, and all sixteen queues sit at
+4-5s, so any statistic over them is about 5. Neither row discriminated.
+The conclusion was right; the argument for it was not.
 
-One figure was labelled (G), a real runner measurement, and is 2.6x out:
-Harness U3 controls, predicted 190s and measured 499s. That job contains
-exactly one harness, `check-u3-audit-controls.sh`, so the gap is not job
-composition. Either the (G) label was wrong or the step changed under it.
-Unresolved, and it matters, because a wrong (G) is worse than a wrong (P):
-the whole labelling scheme exists so a reader can tell which numbers were
-observed.
+**WHAT THE TWO RUNS DO AND DO NOT SETTLE.**
 
-**The 306s is QUEUE, and it is transient.** This paragraph previously
-carried a hypothesis - that the gap was runner queueing against a
-CONCURRENCY CEILING - and warned that if so, adding jobs would make the
-wall worse. Run 33614887374 settles it, and settles it the other way.
-Two runs, the same 16 jobs and the same workflow structure:
+- Run 1's admission ladder is 3,3,3, nine at 4s, then 30, 51, 56, 305.
+  Twelve admitted together and four admitted one at a time as others
+  finish is what a limit near twelve looks like WHEN IT BINDS.
+- Run 2 admitted all sixteen within 5s. That kills "the limit ALWAYS
+  binds". It cannot establish "there is no limit" - which is what I
+  wrote, and it was wrong.
+- `plan.name` is "free" and hosted concurrency is org-wide across the
+  sibling repositories, so the limit is not this repository's to spend
+  and cannot be pinned from inside it.
 
-    run    wall  pole   gap  maxQ  billed
-    first   846   540   306   305    4204
-    second  431   425     6     5    3973
+**431s IS NOT "THE STRUCTURAL WALL", AND CALLING IT THAT WAS 846's
+MISTAKE IN REVERSE.** Between the two runs the same jobs varied 0.62x to
+1.65x, and the pole CHANGED IDENTITY - `Harness U5 + U8` in run 1,
+`Harness U6 + U7 + U9 controls` in run 2. One sample of a varying
+quantity is a draw. This section warned against quoting 14.10 and then
+four lines later quoted 7.18 as structure.
 
-`gap` is wall minus the longest single job. `maxQ` is the largest
-per-job queue wait, job start minus run start, read from
-`/actions/runs/{id}/jobs`. maxQ tracks gap almost exactly in BOTH rows -
-305 against 306, then 5 against 6 - so the gap is queue wait and nothing
-else.
-
-**AND THE 306s IS ONE JOB, not a spread.** #244 read the per-job waits:
-twelve jobs started within 4s, three more at 30s/51s/56s, and Harness
-U5+U8 waited 305s. Its `q_own` is 304s, so it was created with the rest
-and simply got no runner. 846 = 305 queued + 540 running, and the pole
-was the job queued longest.
-
-**WHAT NEITHER RUN ESTABLISHES IS A CEILING.** I first wrote here that
-sixteen jobs getting runners in 5s meant "there is no ceiling at
-sixteen". That over-claims from one draw, and #244 over-claimed the
-other way from its own single draw ("observed capacity: 12"). One clean
-draw no more disproves a ceiling than one bad draw proves one; both
-statements are withdrawn.
-
-What the two runs DO establish, and it is the more useful claim: hosted
-concurrency here is SHARED AND VARIABLE. `GET /orgs/evolvconsulting`
-reports `plan.name = "free"`, whose hosted-runner concurrency is an
-ORG-WIDE limit shared with the sibling repositories - it is not this
-repository's to spend. So the same 16-job shape can cost 305s of queue
-or 5s depending on what the rest of the org is doing, and no measurement
-taken from inside this repo can pin the number.
-
-That is enough to settle the lever without a ceiling: WIDENING THE
-FAN-OUT IS A BET ON A SHARED RESOURCE WE DO NOT CONTROL AND CANNOT
-MEASURE. Cutting row cost is not.
-
-Two things follow, and the second is a correction to this document's own
-headline. Widening the fan-out is NOT ruled out by a ceiling, though two
-draws prove only that we saw one bad queue and one clean one, so headroom
-is UNMEASURED rather than confirmed. And the mandate's real target is the
-431s wall with its 425s pole, not 14.10 min: the pole needs to fall below
-roughly 295s, a 1.44x cut, where the inflated figure implied 2.8x.
-
-The lever preference follows from the same table. Cutting ROW COST helps
-in both the queued and the unqueued case; adding JOBS helps only in the
-unqueued one. So the 17 bare invocations below are the first lever
-whichever way the queue falls.
+**THE MANDATE TARGET IS NOT ONE JOB.** Run 2's durations, descending:
+425, 386, 362, 357, 350, 333, 329, 328, 308, 213, ... **NINE of sixteen
+already exceed 295s.** Cutting only the largest moves the wall to ~391s,
+not to 300s. Any "cut the pole by 1.44x" framing - mine - names the
+wrong object. And it assumes a ~5s queue: under run 1's 305s wait no
+cut of any size reaches a 300s wall.
 
 **~~What is left un-taken~~ - WRONG, AND THE ERROR WAS A BROKEN PROXY.**
 This paragraph said half the harness invocations "never received the
