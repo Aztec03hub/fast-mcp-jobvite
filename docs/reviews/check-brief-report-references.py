@@ -47,10 +47,48 @@ every allowlist this project has built. That is not theoretical here:
 the entry for an in-flight worklog is designed to go red the moment the
 agent commits it, which is how it deletes itself.
 
+**RULED: THIS GATE CANNOT TELL A CITATION FROM A QUOTATION, AND THAT
+FALSE POSITIVE IS ACCEPTED.** Its population is every report name
+written in a brief, so a brief DISCUSSING a lost report - including this
+one's own brief - is inside the population and goes red for naming it.
+That happened twice in one hour, independently, to Tier 0 and to
+`suborch-199`, on the same sentence in `BRIEF-199-ratchet-defects.md`.
+
+The remedy is to REWRITE THE PROSE: describe the report instead of
+writing its basename, and let the file's git history hold the names.
+Both instances were fixed that way in under a minute, which is the whole
+argument - the failure is loud, immediate, and cheap.
+
+**THREE FIXES CONSIDERED AND REFUSED:**
+
+- **An `EXEMPT` marker.** Refused on measurement, not taste: this
+  project already deployed a bare-substring marker and watched it
+  inflate a population from 47 to 61 PURELY FROM PROSE ABOUT THE MARKER.
+  The most careful writers - the ones who document the mechanism - widen
+  the hole fastest. `suborch-199` argued the same and was right.
+- **A syntax split**, counting only path-qualified forms as citations
+  and treating a bare basename as prose. Refused because it is FALSE
+  HERE: `suborch-199` measured six names cited BOTH ways, so the bare
+  form carries real citations and the split would drop them.
+- **Recording the name in the ratchet.** Refused because that file's own
+  header says recording is not a waiver, and a waiver for a file that
+  NEVER EXISTED is the one thing it must not hold.
+
+**WHAT MAKES THE FALSE POSITIVE TOLERABLE** is that it is confined to
+one directory and one habit. A brief is written once and read by an
+agent; a red here costs a sentence. Compare the defect it exists to
+catch: a 28KB report written into a worktree, declared destroyed, and
+recoverable only because someone looked in a third place.
+
 Re-derive the population without trusting this file:
 
     grep -rhoE '(REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+[.]md' \
-      docs/briefs/*.md | sort -u
+      docs/briefs | sort -u
+
+`grep -r` over the DIRECTORY, not `docs/briefs/*.md`: the glob stops
+at the top level and the gate no longer does. A re-derivation recipe
+that reads a narrower population than the gate is how the two drift
+apart without either looking wrong.
 """
 
 from __future__ import annotations
@@ -59,6 +97,7 @@ import argparse
 import re
 import subprocess
 import sys
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -87,13 +126,18 @@ RECORD = ROOT / "docs/reviews/brief-report-refs-known-missing.txt"
 # free left edge selects for names it was never shown.
 REF = re.compile(
     r"(?<![A-Za-z0-9._-])"
-    r"(?:docs/(?:reviews|worklogs)/)?"
+    r"(docs/(?:reviews|worklogs)/)?"
     r"((?:REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+\.md)"
 )
 
 
-def tracked_basenames(listing: Path | None = None) -> set[str] | None:
-    """Every tracked file's basename, or None if git could not be read.
+def tracked_index(listing: Path | None = None) -> tuple[set[str], set[str]] | None:
+    """(tracked paths, tracked basenames), or None if git is unreadable.
+
+    BOTH are returned because a citation naming a PATH is a stronger
+    claim than one naming a file, and the gate was answering the weaker
+    question for every citation - including the 20 of 22 that had said
+    exactly where the file lives.
 
     None and empty must stay distinguishable: an empty set would make
     every reference dangling and the report would be spectacular and
@@ -114,30 +158,67 @@ def tracked_basenames(listing: Path | None = None) -> set[str] | None:
         except (OSError, subprocess.CalledProcessError):
             return None
         raw = out.stdout.split("\0")
-    return {p.rsplit("/", 1)[-1] for p in raw if p.strip()}
+    paths = {p for p in raw if p.strip()}
+    return paths, {p.rsplit("/", 1)[-1] for p in paths}
 
 
-def read_record(record: Path) -> dict[str, str]:
-    """Map each recorded name to the reason it is unresolvable."""
+WELL_FORMED = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+\S")
+
+
+def read_record(record: Path) -> tuple[dict[str, str], list[str]]:
+    """Map each recorded name to its reason; list the MALFORMED lines.
+
+    A LINE WITH NO REASON WAS ACCEPTED SILENTLY, in a file whose own
+    header says "Recording a line is NOT a waiver". `partition("  ")` on
+    a bare `REVIEW-X.md` returns `("REVIEW-X.md", "", "")`: the name was
+    recorded, the reason was empty, and nothing looked at it. A bare
+    name IS a waiver: it suppresses the error and argues nothing.
+    Measured before the fix: a record holding only the bare name
+    `REVIEW-ABSENT.md` exited 0.
+
+    THE DATE IS NOT A SECOND GATE, IT IS THE AGE MADE VISIBLE. Nothing
+    here expires a line on a timer, deliberately: a check that goes red
+    on a schedule is red by construction and gets switched off. The date
+    is required so the summary can print how old each excuse is - the
+    fact a human needs, and the one the line did not carry.
+
+    A SINGLE-SPACE separator was already safe and still is: it makes the
+    whole line the NAME, which then matches no citation and trips two
+    loud branches. Only the no-reason form was silent, so only it was
+    the defect.
+    """
     if not record.exists():
-        return {}
+        return {}, []
     out: dict[str, str] = {}
-    for line in record.read_text().splitlines():
+    malformed: list[str] = []
+    for n, line in enumerate(record.read_text().splitlines(), 1):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         name, _, reason = line.partition("  ")
-        out[name.strip()] = reason.strip()
-    return out
+        reason = reason.strip()
+        if not WELL_FORMED.match(reason):
+            malformed.append(f"line {n}: {line}")
+        out[name.strip()] = reason
+    return out, malformed
 
 
-def cited(briefs: Path) -> dict[str, set[str]]:
-    """Map each cited basename to the briefs citing it."""
+def cited(briefs: Path) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """(basename -> citing briefs, basename -> the PATHS they wrote).
+
+    `rglob`, not `glob`: a brief filed one directory down was invisible,
+    which is how a gate quietly stops covering things. There are no
+    subdirectories under docs/briefs today, so this changes NOTHING
+    now - it changes what happens the first time somebody makes one.
+    """
     refs: dict[str, set[str]] = {}
-    for p in sorted(briefs.glob("*.md")):
+    paths: dict[str, set[str]] = {}
+    for p in sorted(briefs.rglob("*.md")):
         for m in REF.finditer(p.read_text()):
-            refs.setdefault(m.group(1), set()).add(p.name)
-    return refs
+            refs.setdefault(m.group(2), set()).add(p.name)
+            if m.group(1):
+                paths.setdefault(m.group(2), set()).add(m.group(1) + m.group(2))
+    return refs, paths
 
 
 def main() -> int:
@@ -147,25 +228,63 @@ def main() -> int:
     ap.add_argument("--tracked", type=Path, default=None)
     args = ap.parse_args()
 
-    names = tracked_basenames(args.tracked)
-    if names is None:
+    index = tracked_index(args.tracked)
+    if index is None:
         print("::error::could not read `git ls-files`, so NOTHING was checked.")
         print("This is a refusal, not a pass - an unreadable index would")
         print("otherwise make every reference look dangling.")
         return 2
+    tracked_paths, names = index
 
-    refs = cited(args.briefs)
-    record = read_record(args.record)
+    refs, cited_paths = cited(args.briefs)
+    record, malformed = read_record(args.record)
+
+    # A MALFORMED RECORD IS A BROKEN INSTRUMENT, NOT A FAILING SUBJECT.
+    # Exit 2 for the same reason an unreadable index does: the gate
+    # cannot say anything about the briefs until its own record parses.
+    if malformed:
+        print("::error::A RECORDED LINE IS NOT WELL FORMED, so NOTHING was checked.")
+        for m in malformed:
+            print(f"  {m}")
+        print("Every line must read:  <basename>  <ISO date> <reason>")
+        print("A name with no reason is a waiver, and that file's own")
+        print("header says recording a line is NOT a waiver. The date is")
+        print("there so the summary can print the age of the excuse.")
+        return 2
 
     dangling = {n: s for n, s in refs.items() if n not in names}
+
+    # THE PATH A BRIEF WROTE IS A CLAIM, AND IT IS MECHANICAL TO CHECK.
+    # Not recordable on purpose: unlike a missing report, a file in the
+    # wrong place is fixed by correcting one of the two, never excused.
+    misplaced = {
+        n: sorted(c for c in cp if c not in tracked_paths)
+        for n, cp in sorted(cited_paths.items())
+        if n in names and any(c not in tracked_paths for c in cp)
+    }
     unrecorded = sorted(set(dangling) - set(record))
     resolved = sorted(n for n in record if n in names)
     unreferenced = sorted(n for n in record if n not in refs)
 
-    print(f"Briefs scanned:            {len(list(args.briefs.glob('*.md')))}")
+    print(f"Briefs scanned:            {len(list(args.briefs.rglob('*.md')))}")
     print(f"Report names cited:        {len(refs)}")
     print(f"Cited but not in the repo: {len(dangling)}")
+    print(f"Cited at the wrong path:   {len(misplaced)}")
     print(f"Recorded as known-missing: {len(record)}")
+    # THE DISPLAY MUST NOT ASSUME THE REFUSAL ABOVE RAN. It wrote
+    # `reason.split()[0]` and raised IndexError on an empty reason - the
+    # exact input #199 is about. A16 could not see it (the refusal fires
+    # first) and A19, which amputates the refusal, did: the crash was
+    # rc=1 where the pre-fix behaviour is rc=0. A guard that only holds
+    # while its neighbour holds is not a guard.
+    for n, reason in sorted(record.items()):
+        stamp = reason.split(maxsplit=1)
+        today = datetime.now(tz=UTC).date()
+        try:
+            added = date.fromisoformat(stamp[0] if stamp else "")
+        except ValueError:
+            continue
+        print(f"  recorded {(today - added).days:>4}d ago  {n}")
 
     failed = False
 
@@ -179,6 +298,17 @@ def main() -> int:
         print(f"  {args.record}")
         print("with the reason it cannot be committed. Recording it is not a")
         print("waiver - it is a statement that the loss is known and accepted.")
+
+    if misplaced:
+        failed = True
+        print()
+        print("::error::A BRIEF CITES A REPORT AT A PATH IT IS NOT AT.")
+        for n, bad in misplaced.items():
+            real = sorted(t for t in tracked_paths if t.rsplit("/", 1)[-1] == n)
+            for c in bad:
+                print(f"  {c}   is actually at {', '.join(real)}")
+        print("Fix the brief, or move the report. This is not recordable:")
+        print("the file exists, so there is nothing to excuse.")
 
     if resolved:
         failed = True
@@ -201,8 +331,9 @@ def main() -> int:
 
     print()
     print("Every report a brief cites is committed, or recorded as lost.")
-    print("NOTE: this proves the FILE EXISTS. It does not prove the file is")
-    print("the report the brief meant, and it cannot: a brief cites a name.")
+    print("NOTE: this proves the file EXISTS, and - where the brief wrote a")
+    print("path - that it is THERE. It still cannot prove the file is the")
+    print("report the brief meant: that is identity, and a citation is a name.")
     return 0
 
 

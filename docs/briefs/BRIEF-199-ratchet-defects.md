@@ -63,17 +63,26 @@ no owner, and no way for a line to age out.
 
 R20 also established the sharper half: **the "designed to expire"
 mechanism does not fire by itself.** It goes red and WAITS FOR A HUMAN.
-A human cleared it three times tonight - one phantom name that a regex
-invented, one in-flight worklog, and one in-flight review report - and
-**the record is empty right now**, which is both the proof the design
-works and the proof that it needs someone.
+A human cleared it three times tonight - the truncated name retracted at
+`1985471`, `WORKLOG-187-floor-container.md`, `REVIEW-R20.md` - and **the
+record is empty right now**, which is both the proof the design works
+and the proof that it needs someone.
 
-(Those three are NAMED in the git history of
-`brief-report-refs-known-missing.txt`, not here. Writing a report's
-BASENAME into a brief makes the brief CITE it, and this gate then
-requires it to exist - which is exactly what happened when this brief
-first named them: it went red on its own prose. That is the gate being
-right, and it is worth knowing before you widen the selector in #200.)
+**AND THIS SENTENCE MADE THE GATE RED, TWICE, INDEPENDENTLY.** Writing
+the first of those three names out in full was itself a citation of a
+report that exists nowhere, so this brief - a file in `docs/briefs/` -
+put the gate it is about into failure the moment it was committed.
+`suborch-199` hit it on its base and Tier 0 hit it on `main` within the
+same hour; both fixed it the same way, by naming the retraction instead
+of the name. Recording it would have been a waiver for a file that never
+existed.
+
+**A gate whose population is "every report name written in a brief"
+cannot tell a CITATION from a QUOTATION, and the brief discussing it is
+inside the population.** That is a finding about the gate, not about
+this sentence. It is now RULED - see the checker's docstring - and the
+ruling is that the false positive is ACCEPTED: no marker, no exemption,
+no syntax split. Worth knowing before you touch the selector in #200.
 
 WHAT TO DECIDE, and I am not pre-deciding it: a reason could be
 REQUIRED, or a date could be required and lines aged out, or the file

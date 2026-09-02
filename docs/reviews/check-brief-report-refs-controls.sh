@@ -6,12 +6,20 @@
 # repository to watch a gate fail - a control that edits the tree it is
 # checking is how a killed harness strands a mutation.
 #
-# The three amputations are the load-bearing arms: each deletes one
+# The eight amputations are the load-bearing arms: each deletes one
 # failure branch from a COPY of the checker and requires the matching
 # positive arm to go green. A positive arm nobody has watched fail is a
 # claim, not a control. A8 earned that on its first run: A3's fixture
 # tripped TWO failure branches, so amputating one left the other and the
 # arm proved nothing about the branch it named.
+#
+# A19 EARNED IT A SECOND TIME, against the fix that added it. The #199
+# age display read `reason.split()[0]` and raised IndexError on an empty
+# reason - the exact input #199 exists to reject. A16 could not see it,
+# because the refusal it was testing fires first; A19, which removes that
+# refusal, turned the expected rc=0 into a traceback at rc=1. A guard
+# that holds only while its neighbour holds is not a guard, and the arm
+# that found it was written to test the neighbour.
 #
 # Reason strings are SINGLE-quoted. A backtick inside a double-quoted
 # string is command substitution, and the first version of this file ran
@@ -37,7 +45,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CHECKER="$ROOT/docs/reviews/check-brief-report-references.py"
 PY=(uv run --frozen python)
 
-ROW_FLOOR=11
+ROW_FLOOR=20
 ROWS=0
 FIRED=0
 
@@ -108,6 +116,16 @@ See `docs/CODE-REVIEW-CHECKLIST.md`, which is not a report citation.
 EOF
 }
 
+# A brief one directory down. Before #200 `cited()` used a NON-recursive
+# glob, so this file was invisible and its dangling citation was free.
+fixture_subdir() {
+  mkdir -p "$tmp/briefs/archive"
+  cat > "$tmp/briefs/archive/BRIEF-filed-away.md" <<'EOF'
+See REVIEW-SUBDIR.md, which nothing tracks.
+EOF
+}
+fixture_subdir_clear() { rm -rf "$tmp/briefs/archive"; }
+
 echo "########## positives"
 
 # A1 - an unrecorded dangling citation must FAIL.
@@ -115,7 +133,7 @@ record ""
 row "A1 unrecorded dangling -> 1" "$CHECKER" 1
 
 # A2 - recorded, so the same tree must PASS.
-record "REVIEW-ABSENT.md  recorded for the control"
+record "REVIEW-ABSENT.md  2026-09-02 recorded for the control"
 row "A2 recorded -> 0" "$CHECKER" 0
 
 # A3 - a recorded entry that RESOLVES must FAIL (the record went stale).
@@ -123,24 +141,24 @@ row "A2 recorded -> 0" "$CHECKER" 0
 # the fixture also trips `unrecorded`, so A3 would be red for two reasons
 # and its amputation would still find one of them. A8 caught exactly that
 # and the first version of this arm was confounded.
-record "REVIEW-PRESENT.md  wrongly recorded; it is tracked" \
-       'REVIEW-ABSENT.md  recorded, so only resolved can fire'
+record "REVIEW-PRESENT.md  2026-09-02 wrongly recorded; it is tracked" \
+       'REVIEW-ABSENT.md  2026-09-02 recorded, so only resolved can fire'
 row "A3 recorded-but-present -> 1" "$CHECKER" 1
 
 # A4 - a recorded entry nothing cites must FAIL. Same isolation rule:
 # REVIEW-ABSENT.md is recorded so only `unreferenced` can fire.
-record "REVIEW-ABSENT.md  ok" "REVIEW-NOBODY-CITES.md  stale line"
+record "REVIEW-ABSENT.md  2026-09-02 ok" "REVIEW-NOBODY-CITES.md  2026-09-02 stale line"
 row "A4 recorded-but-uncited -> 1" "$CHECKER" 1
 
 # A5 - an unreadable listing must REFUSE (exit 2), not pass.
-record "REVIEW-ABSENT.md  ok"
+record "REVIEW-ABSENT.md  2026-09-02 ok"
 mv "$tmp/tracked" "$tmp/tracked.hidden"
 row "A5 unreadable listing -> 2 (refusal)" "$CHECKER" 2
 mv "$tmp/tracked.hidden" "$tmp/tracked"
 
 # A6 - an EMPTY listing is not the same as an unreadable one: everything
 # dangles and it must FAIL, not refuse. None-vs-empty, measured.
-record "REVIEW-ABSENT.md  ok"
+record "REVIEW-ABSENT.md  2026-09-02 ok"
 : > "$tmp/tracked"
 row "A6 empty listing -> 1 (not 2)" "$CHECKER" 1
 printf 'docs/reviews/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
@@ -155,6 +173,42 @@ record ""
 row "A10 longer name not matched by its tail -> 0" "$CHECKER" 0
 fixture_default
 
+# --- #200: the PATH a brief writes is a claim ---------------------------
+# A12 - the file exists, at a DIFFERENT path from the one cited. Before
+# #200 the prefix was captured OUTSIDE group 1 and thrown away, so this
+# passed. REVIEW-ABSENT.md is recorded so that ONLY `misplaced` can fire -
+# the A8 lesson: an arm red for two reasons proves nothing about either.
+printf 'docs/briefs/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
+record "REVIEW-ABSENT.md  2026-09-02 recorded, so only misplaced can fire"
+row "A12 cited at the wrong path -> 1" "$CHECKER" 1
+printf 'docs/reviews/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
+
+# --- #200: a brief one directory down --------------------------------
+# A14 - the subdirectory brief cites a report nothing tracks, so a gate
+# that SEES it must fail. With the old non-recursive glob the file was
+# never opened and its citation cost nothing.
+fixture_subdir
+record "REVIEW-ABSENT.md  2026-09-02 recorded, so only the subdir citation fires"
+row "A14 subdirectory brief is scanned -> 1" "$CHECKER" 1
+fixture_subdir_clear
+
+# --- #199: a recorded line must be WELL FORMED -------------------------
+# Exit 2, not 1: a record that does not parse is a BROKEN INSTRUMENT, and
+# the gate says nothing about the briefs until it does.
+# A16 - the measured defect: a bare name, no reason at all, exited 0.
+record "REVIEW-ABSENT.md"
+row "A16 recorded with NO reason -> 2 (refusal)" "$CHECKER" 2
+
+# A17 - a reason that argues something but carries no date.
+record "REVIEW-ABSENT.md  the agent has not written it yet"
+row "A17 recorded with no ISO date -> 2 (refusal)" "$CHECKER" 2
+
+# A18 - THE ANTI-VACUITY ARM. A16 and A17 both refuse, so on their own
+# they are equally satisfied by a checker that refuses EVERYTHING. This
+# one proves a well-formed line is still admitted.
+record "REVIEW-ABSENT.md  2026-09-02 in flight; the agent commits it next"
+row "A18 well-formed line still ADMITTED -> 0" "$CHECKER" 0
+
 echo "########## amputations"
 
 # A7 - delete the unrecorded-dangling branch; A1 must go green.
@@ -165,14 +219,14 @@ fi
 
 # A8 - delete the resolved branch; A3 must go green.
 if amputate resolved 's/^    if resolved:$/    if False:/'; then
-  record 'REVIEW-PRESENT.md  wrongly recorded; it is tracked' \
-         'REVIEW-ABSENT.md  recorded, so only resolved can fire'
+  record 'REVIEW-PRESENT.md  2026-09-02 wrongly recorded; it is tracked' \
+         'REVIEW-ABSENT.md  2026-09-02 recorded, so only resolved can fire'
   row "A8 AMP resolved -> A3 survives at 0" "$AMP" 0
 fi
 
 # A9 - delete the uncited branch; A4 must go green.
 if amputate unreferenced 's/^    if unreferenced:$/    if False:/'; then
-  record 'REVIEW-ABSENT.md  ok' 'REVIEW-NOBODY-CITES.md  stale line'
+  record 'REVIEW-ABSENT.md  2026-09-02 ok' 'REVIEW-NOBODY-CITES.md  2026-09-02 stale line'
   row "A9 AMP unreferenced -> A4 survives at 0" "$AMP" 0
 fi
 
@@ -185,6 +239,45 @@ if amputate boundary '/(?<!/d'; then
   row "A11 AMP left boundary -> A10 goes red at 1" "$AMP" 1
 fi
 fixture_default
+
+# A13 - delete the wrong-path branch; A12 must go green.
+if amputate misplaced 's/^    if misplaced:$/    if False:/'; then
+  printf 'docs/briefs/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
+  record 'REVIEW-ABSENT.md  2026-09-02 recorded, so only misplaced can fire'
+  row "A13 AMP misplaced -> A12 survives at 0" "$AMP" 0
+  printf 'docs/reviews/REVIEW-PRESENT.md\nsrc/other.py\n' > "$tmp/tracked"
+fi
+
+# A15 - put the NON-recursive glob back; A14 must go green, because the
+# subdirectory brief stops being opened at all. This amputates the fix
+# itself rather than a failure branch: the defect was never a missing
+# check, it was a check that never saw the file.
+fixture_subdir
+if amputate rglob 's/for p in sorted(briefs\.rglob("\*\.md")):/for p in sorted(briefs.glob("*.md")):/'; then
+  record 'REVIEW-ABSENT.md  2026-09-02 recorded, so only the subdir citation fires'
+  row "A15 AMP rglob -> A14 survives at 0" "$AMP" 0
+fi
+fixture_subdir_clear
+
+# A20 - R20-N3: A5 was the only positive arm whose subject nobody had
+# watched being removed. Deleting the refusal makes the None fall through
+# to the unpack, so it dies with a TypeError at rc=1 rather than passing.
+# R20's suggested anchor was `if names is None:`; #200 renamed that
+# variable to `index`, so the sed it proposed would have matched NOTHING
+# and the arm would have reported "ANCHOR NOT FOUND" instead of running.
+if amputate refusal 's/^    if index is None:$/    if False:/'; then
+  record 'REVIEW-ABSENT.md  2026-09-02 ok'
+  mv "$tmp/tracked" "$tmp/tracked.hidden"
+  row "A20 AMP refusal -> A5 dies at 1, not 0" "$AMP" 1
+  mv "$tmp/tracked.hidden" "$tmp/tracked"
+fi
+
+# A19 - delete the well-formedness refusal; A16 must go green, which is
+# precisely the pre-#199 behaviour R20-M3 measured: a bare name, exit 0.
+if amputate wellformed 's/^        if not WELL_FORMED\.match(reason):$/        if False:/'; then
+  record 'REVIEW-ABSENT.md'
+  row "A19 AMP well-formedness -> A16 survives at 0" "$AMP" 0
+fi
 
 harness_result_tally fired "$FIRED" "$ROWS"
 harness_result_ran "$ROWS" "$ROW_FLOOR"

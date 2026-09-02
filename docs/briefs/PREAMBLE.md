@@ -13,8 +13,19 @@ The shared task-list tools are DEFERRED, not absent - they will not be in your o
 
 `TaskList`, then `TaskGet` your task immediately before claiming it - a `TaskList` read goes stale.
 Claim with `TaskUpdate` (`owner: "<your-agent-name>"`, `status: "in_progress"`), and mark it
-`completed` when you finish. Work you find outside your scope gets a `TaskCreate`, never a silent
-fix and never a silent drop.
+`completed` when you finish.
+
+**Work you find outside your scope is REPORTED - never a silent fix and never a silent drop.**
+Whether you also file it as a task depends on a mandate your brief either grants or does not:
+a REVIEWER's brief says findings go on the board and they do; a sub-orchestrator's does not,
+because deciding what becomes a task is Tier 0's call and `PROTOCOL-sub-orchestrators.md` rules
+it so. **If your brief is silent, report it and do not create it.**
+
+That sentence read *"gets a `TaskCreate`"* flatly until `suborch-199` found it contradicting
+`PROTOCOL-sub-orchestrators.md` and, correctly, followed the PROTOCOL. **Two canon documents
+disagreeing about what an agent should do RIGHT NOW is worse than either being wrong**, because
+the agent has to pick one and its choice is invisible afterwards. The obligation is REPORTING;
+the mechanism is the brief's to grant.
 
 **You will receive your own claim back as an assignment. Do not act on it.** `TaskUpdate(owner=you)`
 enqueues a notification delivered at a later turn boundary - usually after the work is done -

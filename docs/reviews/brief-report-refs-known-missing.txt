@@ -1,9 +1,20 @@
 # Reports a brief cites that are not tracked in this repository.
 #
-# One line per report:  <basename>  <reason>
+# One line per report:  <basename>  <ISO date> <reason>
+#
+# THE SEPARATOR IS TWO SPACES and the reason must begin with the date the
+# line was added. Both are ENFORCED - a line that does not parse makes the
+# gate refuse with exit 2, the broken-instrument code, rather than pass.
 #
 # Recording a line is NOT a waiver. It says the state is known and
-# accepted, and that nobody should spend another hour looking.
+# accepted, and that nobody should spend another hour looking. A bare
+# name with no reason WAS accepted silently until #199, which is exactly
+# a waiver: it suppressed the error and argued nothing.
+#
+# THE DATE DOES NOT EXPIRE THE LINE. Nothing here goes red on a timer -
+# a check that fails by the calendar is red by construction and gets
+# switched off. The date is here so the gate can print how old each
+# excuse is, which is the fact this file could not previously carry.
 #
 # THE RECORD MUST SHRINK. A line whose report becomes tracked is an
 # ERROR, and so is a line nothing cites any more. An excuse list that
