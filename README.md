@@ -12,6 +12,24 @@ allow-listed.
 > The remaining tools - `get_job_feed`, `search_candidates`, `get_candidate` and the single gated
 > write - are later units, and this paragraph changes again when each lands.
 
+> **AND IT HAS NEVER TALKED TO JOBVITE.** Nobody who built this held a Jobvite credential.
+> Jobvite publishes no API documentation and operates no sandbox, so **no success response
+> from Jobvite has ever been observed by this project.** Error-path fixtures are byte-exact
+> recordings of real transport; every success-path fixture is synthetic, and every success
+> response shape is a hypothesis derived from third-party clients and Jobvite's 2014-era v1
+> docs.
+>
+> So read the green badge precisely: **a passing suite proves this client is internally
+> consistent. It does not prove this client speaks Jobvite.** The specific things still
+> unobserved - the response envelope keys, whether `start` is 0- or 1-based (three
+> third-party clients disagree, and a wrong answer silently skips or duplicates a record on
+> every page), whether the 500-item page cap is real or truncates silently, and the
+> record-level not-found shape - are enumerated with their test rows in
+> [`docs/CREDENTIAL-CHECKLIST.md`](docs/CREDENTIAL-CHECKLIST.md).
+>
+> `tests/credentialed/` holds the arms that settle it. They are deselected by marker rather
+> than skipped, and CI `--collect-only`s them so they cannot rot before a key exists.
+
 ## Quickstart
 
 No Jobvite account is required. The placeholder credentials below are never sent anywhere; the
