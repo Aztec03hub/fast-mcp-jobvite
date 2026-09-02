@@ -173,6 +173,15 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "`AuditPhase.X`. Same reason as the row container above: it "
         "edits `src/` per row and runs the suite each time."
     ),
+    "probe-156-u1-landing-guard.sh": (
+        "runs check-u1-boot-amputation.sh THREE times against scratch "
+        "copies - pre-fix with a moved anchor, post-fix with a moved "
+        "anchor, and post-fix intact - and scores on WHICH lines appear, "
+        "because two of the three arms exit 1 and mean opposite things. "
+        "It must move an anchor to measure anything, so it cannot share "
+        "a job with the harness it controls. Run by hand when that "
+        "harness's rows change; 3/3 arms as of 2026-09-01."
+    ),
     "probe-audit-shape-controls.py": (
         "plants three `emit(...)` call sites into `src/` to prove the "
         "sweep's population is derived and not cached. It must break "
