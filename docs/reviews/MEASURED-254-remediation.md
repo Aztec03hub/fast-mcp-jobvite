@@ -237,23 +237,47 @@ concurrent run of the static checkers against a tree a harness owned produced
 two false `STALE ANCHOR` findings against `check-u12-jobfeed-amputation.sh`
 that vanished when the tree was quiet.
 
-| Harness | `verdict_guard` call | run rc | time | canonical line |
-|---|---|---|---|---|
-| `check-u3-audit-amputation.sh` | `:185` | 0 | — | `rows=10 floor=0 applied=10/10 status=ok` |
-| `check-u4-client-amputation.sh` | `:201` | 0 | 79s | `rows=17 floor=0 applied=17/17 status=ok` |
-| `check-body-cap-amputation.sh` | `:154` | 0 | 26s | `rows=5 floor=5 status=ok` |
-| `check-log-redaction-amputation.sh` | `:161` | 0 | 3s | `rows=6 floor=6 applied=6/6 status=ok` |
-| `check-u12-jobfeed-amputation.sh` | `:143` | 0 | 18s | `rows=10 floor=0 applied=10/10 status=ok` |
-| `check-u8-candidates-amputation.sh` | `:143` | 0 | 31s | `rows=14 floor=14 applied=14/14 status=ok` |
-| `check-u10-write-amputation.sh` | `:150` | 0 | 24s | `rows=10 floor=0 applied=10/10 status=ok` |
-| `check-u14-arguments-amputation.sh` | `:150` | 0 | 24s | `rows=16 floor=0 applied=16/16 status=ok` |
-| `check-u5-jobs-amputation.sh` | `:160` | 0 | 28s | `rows=14 floor=14 applied=14/14 status=ok` |
-| `check-u6-paging-amputation.sh` | `:158` | 0 | 4s | `rows=11 floor=11 applied=11/11 status=ok` |
-| `check-u7-resilience-amputation.sh` | `:163` | 0 | 69s | `rows=22 floor=0 applied=22/22 status=ok` |
-| `check-u9-http-amputation.sh` | `:209` | 0 | 136s | `rows=14 floor=0 applied=14/14 status=ok` |
-| `check-critical-coverage-amputation.sh` | `:176` | 0 | 81s | `rows=20 floor=20 applied=20/20 status=ok` |
+**THE CALL-SITE COLUMN IS REGENERATED, NOT HAND-COPIED, AND THAT IS THE
+FIX FOR HOW IT BROKE.** Round 1 wrote thirteen line numbers by hand. Round
+2's own H1 remedy then inserted a seven-line `|| { ...; exit 3; }` block
+above every one of them (five for `check-body-cap-amputation.sh`, whose
+guard also moved in the same change), so all thirteen citations in this
+table were wrong the moment the fix they document landed - and
+`check-design-citations.py` was rc=0 throughout, because it only checks
+that the cited line EXISTS. That is the same blindness this document
+already worked around at the `A10` citation below, where it recorded a
+durable row label beside the number. The durable anchor here is the
+COMMAND, stated with its sha, because every one of these thirteen files
+holds exactly ONE `verdict_guard` call and it is always the one inside
+`amputate()`:
 
-Thirteen harnesses carry the guard, all green.
+```bash
+git grep -n '^\s*verdict_guard ' fb9cad2 -- scripts/     # 13 lines, one per adopter
+```
+
+Anyone reading this table on a later tree should re-run that against their
+own sha rather than trust the numbers below, which are pinned to `fb9cad2`
+and are a snapshot by construction.
+
+| Harness | `verdict_guard` call @ `fb9cad2` | anchor | run rc | time | canonical line |
+|---|---|---|---|---|---|
+| `check-u3-audit-amputation.sh` | `:192` | sole call, in `amputate()` | 0 | — | `rows=10 floor=0 applied=10/10 status=ok` |
+| `check-u4-client-amputation.sh` | `:208` | sole call, in `amputate()` | 0 | 79s | `rows=17 floor=0 applied=17/17 status=ok` |
+| `check-body-cap-amputation.sh` | `:159` | sole call, in `amputate()` | 0 | 26s | `rows=5 floor=5 status=ok` |
+| `check-log-redaction-amputation.sh` | `:168` | sole call, in `amputate()` | 0 | 3s | `rows=6 floor=6 applied=6/6 status=ok` |
+| `check-u12-jobfeed-amputation.sh` | `:150` | sole call, in `amputate()` | 0 | 18s | `rows=10 floor=0 applied=10/10 status=ok` |
+| `check-u8-candidates-amputation.sh` | `:150` | sole call, in `amputate()` | 0 | 31s | `rows=14 floor=14 applied=14/14 status=ok` |
+| `check-u10-write-amputation.sh` | `:157` | sole call, in `amputate()` | 0 | 24s | `rows=10 floor=0 applied=10/10 status=ok` |
+| `check-u14-arguments-amputation.sh` | `:157` | sole call, in `amputate()` | 0 | 24s | `rows=16 floor=0 applied=16/16 status=ok` |
+| `check-u5-jobs-amputation.sh` | `:167` | sole call, in `amputate()` | 0 | 28s | `rows=14 floor=14 applied=14/14 status=ok` |
+| `check-u6-paging-amputation.sh` | `:165` | sole call, in `amputate()` | 0 | 4s | `rows=11 floor=11 applied=11/11 status=ok` |
+| `check-u7-resilience-amputation.sh` | `:170` | sole call, in `amputate()` | 0 | 69s | `rows=22 floor=0 applied=22/22 status=ok` |
+| `check-u9-http-amputation.sh` | `:216` | sole call, in `amputate()` | 0 | 136s | `rows=14 floor=0 applied=14/14 status=ok` |
+| `check-critical-coverage-amputation.sh` | `:183` | sole call, in `amputate()` | 0 | 81s | `rows=20 floor=20 applied=20/20 status=ok` |
+
+Thirteen harnesses carry the guard, all green. The `run rc`, `time` and
+`canonical line` columns are round 1's measurements and are NOT restated
+here - only the call-site column was repointed, because only it moved.
 
 `check-u9-http-amputation.sh` is included even though its inference reads
 `^FAILED ` rather than `^PASSED `, so a non-measurement rc renders as
@@ -454,8 +478,17 @@ checker is itself `UNWIRED_BY_DECISION`, so this costs CI nothing.
 ## What I did NOT verify
 
 - The `--amputation` gate step was driven to rc=5 with a ONE-ROW derivative,
-  not with the full ten-row `ci.yml:1667` invocation. The rc=5 arm's message
-  and exit code are measured; the ten-row cost is not.
+  not with the full ten-row invocation at the `ci.yml` step named
+  **`U3 audit amputation harness ran every row`**. The rc=5 arm's message
+  and exit code are measured; the ten-row cost is not. (Round 3 drove the full
+  step: rc=0, 190s, `ROWS: 10 ANCHORS APPLIED: 10`.)
+
+  This citation used to read `ci.yml:1667`, and it was four lines short at
+  `fb9cad2` - `:1667` is `- name: Install from the frozen lock`; the step name
+  is `:1670` and its `run:` is `:1671`. Merging this branch onto local `main`
+  moves the gate to `:1673`, so the number got worse on landing while the step
+  name did not move at all. Same remedy as the conversion table above: cite the
+  ANCHOR, not the offset.
 - `check-u15-gate-amputation.sh` and `check-u1-boot-amputation.sh` were run
   once each with the guard and once without. I did not enumerate WHICH of their
   rows can legitimately produce a non-0/1 rc — only that row A of each does.
@@ -618,12 +651,52 @@ adopter uses, which removed the duplication as well.
 ### L1 — a hand-kept count in prose, decayed
 
 `check-checkers-are-wired.py` said "fourteen amputation harnesses" against a real
-thirteen, and this document said "fourteen harness runs". Both corrected, and
-both restated so they cannot decay again: the exemption now states the POPULATION
-AS A RULE (*"every amputation harness whose verdict reads `^PASSED `"*) with the
-count marked *"thirteen today"*, and names
-`check-suite-floor-amputation.sh` as the deliberate non-member with its reason.
-This document now points at its tables instead of restating their totals.
+thirteen, and this document said "fourteen harness runs". Both corrected. Round 2
+then restated the exemption's population AS A RULE (*"every amputation harness
+whose verdict reads `^PASSED ` sources it"*, count marked *"thirteen today"*),
+naming `check-suite-floor-amputation.sh` as **the** deliberate non-member.
+
+**THAT RULE WAS FALSE ON THE DAY IT SHIPPED, and round 3 measured it.** A rule is
+not automatically more durable than a count - it is just a claim that fails
+somewhere else. Derived at `fb9cad2` over the sixteen `scripts/*-amputation.sh`:
+
+```bash
+git grep -n "grep -E '\^PASSED '" fb9cad2 -- scripts/   # 15 lines, 14 files
+git grep -l 'verdict-guard.sh'    fb9cad2 -- scripts/   # 13 adopters
+```
+
+**FOURTEEN** harnesses read a `^PASSED ` verdict, not thirteen: twelve of the
+thirteen adopters (`check-u9-http-amputation.sh` reads `^FAILED ` at `:233`
+instead), plus `check-u1-boot-amputation.sh:162` and
+`check-u15-gate-amputation.sh:85`, which source nothing and call nothing. So
+**three** amputation harnesses sit outside the adopter set, not one, and only one
+of the three was a decision:
+
+- `check-suite-floor-amputation.sh` - a genuine, verified non-member. Its verdict
+  reads `tail -1` for `failed` (`:73`) and treats the ABSENCE of that word as a
+  SURVIVOR (`:93`), so a non-measurement rc reads as alarming rather than as a
+  perfect kill. It fails CLOSED and needs no change.
+- `check-u15-gate-amputation.sh` - handles only `row_rc -eq 124` (`:78-83`) and
+  then parses `^PASSED ` at `:85`. rc=2/3/4 falls through and prints
+  `survivors: NONE`.
+- `check-u1-boot-amputation.sh` - the same shape at `:150-159` / `:162`.
+
+The last two are the live #254 defect, in the very sentence that claimed no such
+instance existed. They are **#283**. They are deliberately NOT fixed on this
+branch: #283, #280 and #254's own H3 are three separate open defects in those two
+files being sequenced into one later change, and #280 covers DIFFERENT defects
+there (u15's `timeout` symlink omission, u1-boot's parametrised `MUST_F[0]`).
+
+**The remedy is not a third restatement.** `check-checkers-are-wired.py` now
+carries a DERIVED arm, `unguarded_passed_verdicts()`: it fails any container
+`.sh` whose text greps `^PASSED ` and that does not call a function defined in
+`scripts/lib/verdict-guard.sh`, unless the file is on the short, reasoned
+`PASSED_VERDICT_WITHOUT_GUARD` ratchet - which today holds exactly u1-boot and
+u15-gate, prints both under an `OPEN` heading on every run, and fails if an entry
+stops naming a violation. Both halves are derived from the tree: the population
+from the `^PASSED ` shape, the guard's name from the library that defines it.
+Neither is a list that can miss the file nobody thought of. This document now
+points at its tables instead of restating their totals.
 
 ### L2 — a single-machine timing stated as a flat number
 
@@ -643,12 +716,30 @@ This section found two live defects on main last round. Round 2's list:
   u1-boot's `MUST_F[0]` at `:215` is a parametrised id that `KNOWN_TOOLS` feeds
   — but the 16 survivors and the row-F rc=4 are R2's measurements, not mine.
   They belong to #280.
-- The pairing check's KNOWN CEILING is stated in its docstring rather than
-  discovered later: a call written as `x=$(func ...)` is not in command position
-  and would be missed. No adopter uses that form; these libraries are called for
-  their side effects and their exit code.
-- I did not re-drive the full ten-row `ci.yml:1667` gate invocation; the rc=5
-  arm was driven with a one-row derivative, as in round 1.
+- ~~The pairing check's KNOWN CEILING is `x=$(func ...)`.~~ **RETRACTED, round 3
+  measured it False.** `_calls` returns True for `g=$(verdict_guard ...)` - the
+  `(` of `$(` is already in its segment class - and the mutation was planted and
+  CAUGHT. The stated tradeoff (that widening to catch it would re-admit the `sed`
+  string) was false for the same reason: nothing needed widening. A ceiling the
+  code does not have is worse than an unstated one, because it invites a change
+  that buys nothing and costs the false positive the class was trimmed to avoid.
+  The REAL remaining ceilings, now stated in the docstring and each pinned by a
+  `self_test` row, are two: `` g=`verdict_guard ...` `` (backtick substitution)
+  and `x=1 verdict_guard a b c` (env-var prefix). `if`/`while`/`until`/`!` were
+  also missed and have been ADDED to the alternation - they are keywords, so `\b`
+  bounds them as it already did `then`/`else`/`do`, and they cannot re-admit the
+  `sed` string. No call site in this repository uses any of the five forms today.
+- The `_sources` docstring claimed the membership test asks the question bash
+  asks, because "comments are stripped". True and not sufficient: heredoc bodies
+  were not stripped, so a `cat <<'DOC'` block carrying a line-start
+  `. ".../lib/verdict-guard.sh"` satisfied `_sources` with the REAL source line
+  deleted - planted, rc=0, nothing named. A false GREEN on the founding defect.
+  Closed: `strip_heredocs` now runs before `strip_comments` for both shell arms,
+  via one shared `script_body`, with a control row in `self_test`. Over-stripping
+  can only produce a false 'unsourced', which is a loud wrong red.
+- I did not re-drive the full ten-row gate invocation at the
+  `U3 audit amputation harness ran every row` step; the rc=5 arm was driven with
+  a one-row derivative, as in round 1. (Round 3 DID drive it, rc=0 in 190s.)
 - I did not re-run the full CI workflow.
 
 ## Escalation attempts

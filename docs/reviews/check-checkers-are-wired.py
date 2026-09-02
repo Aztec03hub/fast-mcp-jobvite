@@ -829,22 +829,41 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     "verdict-guard.sh": (
         "a sourced LIBRARY holding the one copy of the non-measurement "
         "guard (#254). No shebang, no `__main__`, executed by nothing: "
-        "every amputation harness whose verdict reads `^PASSED ` sources "
-        "it - thirteen today - and each of those is a wired step. THE "
-        "POPULATION IS STATED AS A RULE AND THE COUNT ONLY AS OF TODAY: "
-        "the first draft of this sentence said `fourteen` twice against a "
-        "real thirteen, which is a hand-kept figure decaying where no step "
-        "looks. check-suite-floor-amputation.sh is the amputation harness "
-        "deliberately NOT in that set - its verdict reads `tail -1` for "
-        "`failed` and treats the ABSENCE as a FINDING, so a collection "
-        "error there fails CLOSED. The library exists so the guard is not "
-        "thirteen copies that drift, and "
-        "docs/reviews/check-checkers-are-wired.py itself now refuses a "
-        "script that CALLS a scripts/lib/ function without sourcing the "
-        "file that defines it - the silent form of this dependency "
-        "failing. docs/reviews/probe-254-amputation-rc.sh is the "
-        "library's behavioural control and is deliberately hand-run - see "
-        "its entry above."
+        "thirteen amputation harnesses source it and call it, and each "
+        "of those is a wired step. THE POPULATION IS NOW ASKED OF THE "
+        "TREE AND NOT STATED HERE AT ALL - see "
+        "`unguarded_passed_verdicts` in this file. This sentence has "
+        "been wrong twice about it. First as a hand-kept count: the "
+        "opening draft said `fourteen` twice against a real thirteen. "
+        "Then as a RULE, which is what the count was replaced with so "
+        "it could not decay - *'every amputation harness whose verdict "
+        "reads `^PASSED ` sources it'* - and the rule was false on the "
+        "day it shipped. Measured at fb9cad2 over the sixteen "
+        "scripts/*-amputation.sh: FOURTEEN read a `^PASSED ` verdict, "
+        "not thirteen. Twelve of the thirteen adopters do "
+        "(check-u9-http-amputation.sh reads `^FAILED ` instead, :233), "
+        "and so do check-u1-boot-amputation.sh (:162) and "
+        "check-u15-gate-amputation.sh (:85), which source nothing and "
+        "call nothing. THREE amputation harnesses are outside the "
+        "adopter set, not one, and only one of the three was a "
+        "decision: check-suite-floor-amputation.sh, whose verdict reads "
+        "`tail -1` for `failed` (:73) and treats the ABSENCE of that "
+        "word as a SURVIVOR (:93), so a collection error there fails "
+        "CLOSED - verified, and it needs no change. The other two carry "
+        "the live #254 defect: each guards only `rc -eq 124` "
+        "(u15 :78-83, u1-boot :150-159) and falls through on rc=2/3/4 "
+        "to print `survivors: NONE`. They are #283, they are NOT fixed "
+        "on this branch, and they are on the "
+        "PASSED_VERDICT_WITHOUT_GUARD ratchet below so every run of "
+        "this checker prints them. A restated rule is still prose; the "
+        "reason there is now an ARM is that prose is what failed here "
+        "twice. The library exists so the guard is not thirteen copies "
+        "that drift, and docs/reviews/check-checkers-are-wired.py also "
+        "refuses a script that CALLS a scripts/lib/ function without "
+        "sourcing the file that defines it - the silent form of this "
+        "dependency failing. docs/reviews/probe-254-amputation-rc.sh is "
+        "the library's behavioural control and is deliberately hand-run "
+        "- see its entry above."
     ),
     "harness-result.sh": (
         "a sourced LIBRARY holding the one canonical HARNESS-RESULT "
@@ -979,6 +998,48 @@ def strip_comments(body: str) -> str:
     gate whose job is to find things nobody wired.
     """
     return re.sub(r"(?m)(?<!\$)#.*$", "", body)
+
+
+#: A heredoc, from its `<<`/`<<-` opener to its terminator on a line of
+#: its own. Non-greedy and both ends anchored, so it takes ONE body and
+#: not everything between the first opener and the last terminator.
+_HEREDOC = re.compile(r"(?ms)<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1.*?^\s*\2\s*$")
+
+
+def strip_heredocs(body: str) -> str:
+    """Drop heredoc bodies, so quoted DATA does not read as a command.
+
+    **MEASURED, AND IT IS THE FALSE-GREEN DIRECTION.** `strip_comments`
+    above closes the mention-shaped false positive for `#` lines, and
+    the `_sources` docstring claimed on that basis that the question
+    asked is the one bash answers. It was not, in one shape: a heredoc
+    body is inert text, but a `. "$d/lib/verdict-guard.sh"` line inside
+    one starts at a line start and satisfied `_sources`. Planted at
+    `check-u12-jobfeed-amputation.sh` with the REAL source line deleted
+    and the call left in place - the checker returned rc=0 and named
+    nothing. That is the founding #254 defect surviving the instrument
+    built to catch it.
+
+    Nothing in this repository was close to it, so this is a latent
+    hole rather than a live one - which is exactly when it is cheap to
+    close. Stripping is deliberately blunt, as it is for comments: an
+    unterminated opener or a `<<` inside a quoted string over-strips,
+    and over-stripping can only ever produce a FALSE 'unsourced' - a
+    loud wrong red, never a quiet wrong green.
+    """
+    return _HEREDOC.sub("", body)
+
+
+def script_body(rel: str) -> str:
+    """The inert text of a shell file removed: comments AND heredocs.
+
+    **ONE preparation, used by BOTH shell arms.** The two arms below
+    ask different questions of the same bytes, and a stripper wired
+    into only one of them is this file's own recurring defect - a fix
+    that rebuilds itself one column over. Heredocs first: a `#` inside
+    a heredoc body must not truncate the line the terminator is on.
+    """
+    return strip_comments(strip_heredocs((ROOT / rel).read_text()))
 
 
 #: Shell operators that END one command and begin the next. A step body
@@ -1236,7 +1297,12 @@ def _sources(text: str, lib: str) -> bool:
 
     So the question asked here is the one bash answers: is there a `.`
     or `source` COMMAND naming this file. Comments are stripped before
-    it is asked.
+    it is asked, AND SO ARE HEREDOC BODIES - see `strip_heredocs`. The
+    docstring here used to say only "comments are stripped", which was
+    true and not sufficient: a heredoc body carrying a line-start
+    source line satisfied this test with the real source line deleted,
+    measured and now closed. Callers must prepare the text with
+    `script_body`; this function does not strip anything itself.
     """
     #: `[^\n]*` and NOT `\S*`: the argument is
     #: `"$(dirname "${BASH_SOURCE[0]}")/lib/<file>"`, which contains a
@@ -1263,12 +1329,39 @@ def _calls(text: str, func: str) -> bool:
     `; & | ( ) { }` or a `then`/`else`/`do`. Inside `sed 's/^func /'`
     the name follows `/^`, which is none of those.
 
-    KNOWN CEILING, stated rather than discovered later: a call written
-    as the right-hand side of a command substitution assignment
-    (`x=$(func ...)`) is not matched. No adopter uses that form - these
-    libraries are called for their side effects and their exit code -
-    and widening to catch it would re-admit the `sed` string this
-    docstring exists to explain. Revisit if one ever does.
+    **THE CEILING THIS DOCSTRING USED TO NAME WAS NOT ONE, MEASURED.**
+    It said a call written as the right-hand side of a command
+    substitution assignment (`x=$(func ...)`) is not matched, and that
+    widening to catch it would re-admit the `sed` string. Both halves
+    are false: the `(` of `$(` is already in the segment class below,
+    so `g=$(verdict_guard ...)` returns True today - planted as a
+    mutation and CAUGHT - and nothing therefore needs widening. A
+    stated ceiling that the code does not have is worse than none: it
+    invites a widening that would buy nothing and cost the false
+    positive the class was trimmed to avoid.
+
+    KNOWN CEILING, as it actually stands, and measured in the
+    `_calls` control rows of `self_test`:
+
+      g=`verdict_guard 1 x 1`     backtick substitution - the segment
+                                  class holds `` ` `` for the `$(`
+                                  form's sake but a backtick OPENS a
+                                  substitution here, and the name
+                                  follows it directly with no operator
+                                  between, so the leading-boundary
+                                  test never fires.
+      x=1 verdict_guard a b c     an env-var prefix. The name is in
+                                  command position, but what precedes
+                                  it is an assignment word, not an
+                                  operator.
+
+    `if`/`while`/`until`/`!` WERE in this list and are not any more -
+    they are keywords, so `\b` bounds them exactly as it does
+    `then`/`else`/`do`, and adding them cannot re-admit the `sed`
+    string (`/^` is not a keyword). No call site in this repository
+    uses any of these five forms today; that is a fact about the tree,
+    not a property of the regex, which is why both remaining ceilings
+    are named rather than left to be discovered.
     """
     #: `)` and `}` are deliberately NOT in this set, and that is a
     #: correctness point rather than a concession. Bash cannot start a
@@ -1278,8 +1371,139 @@ def _calls(text: str, func: str) -> bool:
     #: `docs/reviews/check-harness-result.sh` was reported as calling
     #: `harness_result_ran`, from the ERE `'(^|[^_[:alnum:]])harness_result_ran '`
     #: at its `:133`, which is the checker's SEARCH PATTERN for that call.
-    pattern = rf"(?m)(?:^|[;&|(]|\bthen\b|\belse\b|\bdo\b)\s*{re.escape(func)}\b"
+    #: `!` is not a word, so `\b` cannot bound it. It only means
+    #: negation when a blank follows - `!cmd` is history expansion -
+    #: so the blank is required as a zero-width lookahead, leaving the
+    #: `\s*` below to consume it.
+    pattern = (
+        rf"(?m)(?:^|[;&|(]|!(?=\s)|\bthen\b|\belse\b|\bdo\b"
+        rf"|\bif\b|\bwhile\b|\buntil\b)\s*{re.escape(func)}\b"
+    )
     return re.search(pattern, text) is not None
+
+
+def library_functions() -> dict[str, str]:
+    """Every `scripts/lib/` function name, mapped to its file's basename.
+
+    Split out of `unsourced_library_calls` so the `^PASSED ` arm below
+    derives the guard's NAME from the library that defines it rather
+    than spelling `verdict_guard` into a second place. A hardcoded
+    identifier in the second arm would go silent on the day somebody
+    renames the function - and go silent in the arm whose entire
+    purpose is to notice a guard that is not there.
+    """
+    #: `name() {` at the start of a line - the one form every
+    #: definition in `scripts/lib/` uses. A definition indented inside
+    #: another function is not a library export.
+    definition = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{", re.M)
+    libs: dict[str, str] = {}
+    for path in sorted((ROOT / "scripts" / "lib").glob("*.sh")):
+        for func in definition.findall(path.read_text()):
+            libs[func] = path.name
+    return libs
+
+
+#: The library whose functions make a `^PASSED ` verdict safe. Named
+#: once, here, because it is the arm's SUBJECT - the function names
+#: themselves are derived from it.
+_GUARD_LIB = "verdict-guard.sh"
+
+#: A verdict inferred from `^PASSED ` lines: any `grep` whose pattern
+#: is `^PASSED `. This is the SHAPE OF THE DEFECT (#254), not a list of
+#: the files that have it. `check-suite-floor-amputation.sh` is not in
+#: this population and needs no exemption to stay out of it: its
+#: verdict reads `tail -1` for `failed` (`:73`, `:93`) and treats the
+#: ABSENCE of that word as a SURVIVOR, so a non-measurement rc reads as
+#: alarming rather than as a perfect kill. It fails CLOSED, which is
+#: why the rule can be about `^PASSED ` and not about amputation
+#: harnesses in general.
+_PASSED_VERDICT = re.compile(r"(?m)\bgrep\b[^\n]*\^PASSED ")
+
+#: Scripts that read a `^PASSED ` verdict WITHOUT the guard, each with
+#: its reason. Reported on every run and NOT fatal.
+#:
+#: **THIS IS A RATCHET OVER A SET, AND THE TWO ENTRIES ARE OPEN
+#: DEFECTS, NOT DECISIONS.** A gate on a moving trunk that demands a
+#: zero is red by construction on the day it lands, and this file's own
+#: closing note says why that is the wrong shape: "wire it - after
+#: measuring it GREEN, because a gate that lands red is one people
+#: learn to ignore". So the two live instances are named here, with
+#: their ticket, and printed under a heading that calls them open -
+#: switched-off and broken must not render identically. Anything NOT
+#: in this dict fails the build, which is the arm's whole point: the
+#: next harness to grow a `^PASSED ` verdict cannot arrive unguarded.
+#:
+#: Emptying this dict is the fix. Editing it to add a third entry is
+#: not - a new violator is a red gate, and that is the ratchet.
+PASSED_VERDICT_WITHOUT_GUARD: dict[str, str] = {
+    "check-u1-boot-amputation.sh": (
+        "OPEN DEFECT, #283 - not a decision. Guards only `rc -eq 124` "
+        "(:150-159) and then parses `^PASSED ` at :162, so a pytest "
+        "rc=2/3/4 falls through and renders as `survivors: NONE - no "
+        "assertion passed against this tree`: the perfect-kill reading "
+        "#254 exists to forbid. Its row runs an explicit `must_die[@]` "
+        "node-id list, so rc=4 from an id that no longer resolves is "
+        "reachable. NOT fixed on this branch by instruction - #283, "
+        "#280 and #254's H3 are three separate open defects in this "
+        "file being sequenced into one later change."
+    ),
+    "check-u15-gate-amputation.sh": (
+        "OPEN DEFECT, #283 - not a decision. The same shape: only "
+        "`row_rc -eq 124` is handled (:78-83) and `:85` then parses "
+        "`^PASSED `. Held for the same sequencing reason as the entry "
+        "above; #280 covers DIFFERENT defects in these two files "
+        "(u15's `timeout` symlink omission, u1-boot's parametrised "
+        "`MUST_F[0]`), so it is not the ticket for this gap."
+    ),
+}
+
+
+def unguarded_passed_verdicts() -> list[str]:
+    """Scripts that infer a verdict from `^PASSED ` without the guard.
+
+    **THIS ARM EXISTS BECAUSE THE RULE IT REPLACES WAS PROSE, AND THE
+    PROSE WAS FALSE ON THE DAY IT SHIPPED.** The `verdict-guard.sh`
+    exemption stated the population as a rule so it could not decay
+    into a stale count - *"every amputation harness whose verdict reads
+    `^PASSED ` sources it"* - and named
+    `check-suite-floor-amputation.sh` as **the** harness deliberately
+    outside the set. Measured at `fb9cad2`: FOURTEEN harnesses read a
+    `^PASSED ` verdict, thirteen adopters do not all read one
+    (`check-u9-http-amputation.sh` reads `^FAILED `), and TWO more -
+    `check-u1-boot-amputation.sh` and `check-u15-gate-amputation.sh` -
+    read `^PASSED ` with no guard at all. Restating a count as a rule
+    does not make the rule true; it just moves where the error lives.
+
+    So the rule is asked of the tree instead. The population is
+    DERIVED - any container `.sh` whose text greps `^PASSED ` - and the
+    guard's function names are derived from `scripts/lib/verdict-guard.sh`,
+    so neither half is a list that misses the file nobody thought of.
+
+    Returns EVERY container-relative path that reads a `^PASSED `
+    verdict without the guard, ratcheted or not. The caller partitions
+    it against `PASSED_VERDICT_WITHOUT_GUARD` - which is what lets a
+    ratchet entry whose file has since been FIXED be reported as
+    stale, rather than sitting there excusing a defect that is gone.
+    """
+    guards = [f for f, lib in library_functions().items() if lib == _GUARD_LIB]
+    if not guards:
+        raise SystemExit(
+            f"scripts/lib/{_GUARD_LIB} defines no functions, so this arm "
+            "has nothing to look for and would report every `^PASSED ` "
+            "reader as clean. BROKEN INSTRUMENT, not a green."
+        )
+
+    problems: list[str] = []
+    for rel in container():
+        if not rel.endswith(".sh") or rel.startswith("scripts/lib/"):
+            continue
+        body = script_body(rel)
+        if not _PASSED_VERDICT.search(body):
+            continue
+        if any(_calls(body, func) for func in guards):
+            continue
+        problems.append(rel)
+    return problems
 
 
 def unsourced_library_calls() -> list[tuple[str, str, str]]:
@@ -1310,20 +1534,12 @@ def unsourced_library_calls() -> list[tuple[str, str, str]]:
 
     Returns (caller, function, library-basename) triples.
     """
-    #: `name() {` at the start of a line - the one form every
-    #: definition in `scripts/lib/` uses. A definition indented inside
-    #: another function is not a library export.
-    definition = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{", re.M)
-    libs: dict[str, str] = {}
-    for path in sorted((ROOT / "scripts" / "lib").glob("*.sh")):
-        for func in definition.findall(path.read_text()):
-            libs[func] = path.name
-
+    libs = library_functions()
     problems: list[tuple[str, str, str]] = []
     for rel in container():
         if not rel.endswith(".sh") or rel.startswith("scripts/lib/"):
             continue
-        stripped = strip_comments((ROOT / rel).read_text())
+        stripped = script_body(rel)
         for func, lib in sorted(libs.items()):
             if not _calls(stripped, func) or _sources(stripped, lib):
                 continue
@@ -1660,7 +1876,88 @@ def self_test() -> int:
     if wired_now & excused_now or wired_now & unexplained_now:
         failures.append("the buckets overlap; a member is counted twice")
 
-    total = 8 + len(spellings)
+    # 9. `_calls` AND `_sources`, ROW BY ROW, BOTH DIRECTIONS. The
+    #    `_calls` docstring named a ceiling the code did not have
+    #    (`x=$(func ...)`, asserted as NOT matched, measured as
+    #    matched) and stayed wrong for as long as nobody drove the
+    #    function directly. A prose claim about a regex is a claim
+    #    nothing checks. These rows ARE the ceiling statement now: the
+    #    two False rows at the end are the ceiling, and the next person
+    #    to widen the alternation finds out here which way they moved
+    #    it.
+    subject = "verdict_guard"
+    call_rows: list[tuple[str, bool]] = [
+        (f'  {subject} "$rc" "$OUT" 1', True),
+        (f'g=$({subject} "$rc" "$OUT" 1)', True),
+        (f"if {subject} 1 x 1; then :; fi", True),
+        (f"while {subject} 1 x 1; do :; done", True),
+        (f"until {subject} 1 x 1; do :; done", True),
+        (f"! {subject} 1 x 1", True),
+        (f"sed 's/^{subject} /XX/' f", False),
+        (f"echo {subject}", False),
+        (f"g=`{subject} 1 x 1`", False),
+        (f"x=1 {subject} a b c", False),
+    ]
+    for body, must_match in call_rows:
+        got = _calls(body, subject)
+        if got != must_match:
+            failures.append(
+                f"_calls(`{body}`) is {got}, want {must_match}"
+            )
+
+    lib = _GUARD_LIB
+    source_rows: list[tuple[str, bool]] = [
+        (f'. "$(dirname "${{BASH_SOURCE[0]}}")/lib/{lib}"', True),
+        (f"# shellcheck source=lib/{lib}", False),
+        (f'echo ". lib/{lib}"', False),
+        # THE L3 ROW. A heredoc body carrying a line-start source line
+        # satisfied `_sources` with the real source line deleted -
+        # planted, rc=0, nothing named. This row is the fix's control
+        # and it fails the moment `strip_heredocs` stops stripping.
+        (f'cat >/dev/null <<\'DOC\'\n. "$d/lib/{lib}"\nDOC\n', False),
+    ]
+    for body, must_match in source_rows:
+        got = _sources(strip_comments(strip_heredocs(body)), lib)
+        if got != must_match:
+            failures.append(
+                f"_sources(`{body!r}`) is {got}, want {must_match}"
+            )
+
+    # 10. THE `^PASSED ` ARM, ALL THREE DIRECTIONS, ON SYNTHETIC BODIES.
+    #     A script that reads the verdict and does NOT guard must be
+    #     named; one that guards must not; one on the ratchet must not.
+    #     Driven through the same `_PASSED_VERDICT` / `_calls` pair
+    #     `unguarded_passed_verdicts` uses, so a widening of either
+    #     shows up here.
+    unguarded_body = "survivors=$(grep -E '^PASSED ' \"$OUT\" | sed 's/^PASSED //')"
+    guarded_body = f'{subject} "$rc" "$OUT" 1\n{unguarded_body}'
+    if not _PASSED_VERDICT.search(unguarded_body):
+        failures.append("_PASSED_VERDICT does not match a real survivor extraction")
+    if _PASSED_VERDICT.search("grep -E '^FAILED ' \"$OUT\""):
+        failures.append("_PASSED_VERDICT matches a `^FAILED ` verdict")
+    if _calls(unguarded_body, subject):
+        failures.append(f"an unguarded body reads as calling {subject}")
+    if not _calls(guarded_body, subject):
+        failures.append(f"a guarded body does not read as calling {subject}")
+
+    # 10b. THE RATCHET MUST HOLD REAL, NON-EMPTY REASONS, and every
+    #      entry must name a container member. An entry whose reason is
+    #      blank excuses a live defect with nothing a reader can weigh.
+    member_names = {pathlib.PurePath(p).name for p in paths}
+    for name, reason in PASSED_VERDICT_WITHOUT_GUARD.items():
+        if not reason.strip():
+            failures.append(f"ratchet entry {name} has an empty reason")
+        if name not in member_names:
+            failures.append(f"ratchet entry {name} is not a container member")
+
+    total = (
+        8
+        + len(spellings)
+        + len(call_rows)
+        + len(source_rows)
+        + 4
+        + 2 * len(PASSED_VERDICT_WITHOUT_GUARD)
+    )
     # NAME THE CONTAINER BESIDE THE COUNT (R14 review, L-1). This
     # walks EVERY workflow; probe-ci-checker-steps.py pins ci.yml
     # alone. Both were right and neither said so, so 80 vs 78 read
@@ -1785,6 +2082,53 @@ def main() -> int:
             "nothing wrong and shellcheck at --severity=warning does not\n"
             "follow a source. Add the `. .../lib/<file>` line, and give it\n"
             "a `|| { ...; exit 3; }` so a missing library is loud too."
+        )
+
+    #: PARTITIONED, AND THE KNOWN HALF IS PRINTED WHETHER OR NOT
+    #: ANYTHING FAILS. The ratchet's entries are open defects; a run
+    #: that mentioned them only when a THIRD one appeared would make
+    #: "two known holes" and "no holes" render identically on the
+    #: terminal - the shape that let 119 consecutive red CI runs read
+    #: as normal. And the reverse direction is a finding too: an entry
+    #: whose file has since been FIXED must be reported stale, or the
+    #: ratchet only ever loosens.
+    violators = unguarded_passed_verdicts()
+    violating = {pathlib.PurePath(p).name for p in violators}
+    known_open = sorted(violating & set(PASSED_VERDICT_WITHOUT_GUARD))
+    new_open = [p for p in violators if pathlib.PurePath(p).name not in PASSED_VERDICT_WITHOUT_GUARD]
+    stale_open = sorted(set(PASSED_VERDICT_WITHOUT_GUARD) - violating)
+
+    if known_open:
+        print(f"\n{len(known_open)} script(s) read a `^PASSED ` verdict WITHOUT the")
+        print("guard - KNOWN AND OPEN, ratcheted, not a decision:")
+        for name in known_open:
+            print(f"  OPEN     {name}: {PASSED_VERDICT_WITHOUT_GUARD[name]}")
+
+    if new_open:
+        problems = True
+        print(f"\n{len(new_open)} script(s) infer a verdict from `^PASSED ` lines")
+        print("without calling the guard, and are not on the ratchet:")
+        for rel in new_open:
+            print(f"  {rel}")
+        print(
+            "\nA `^PASSED ` verdict reads the ABSENCE of passing lines as\n"
+            "'every assertion died' - a perfect kill. A run that never\n"
+            "measured (pytest rc=2/3/4, or a timeout) produces exactly that\n"
+            "absence, so the harness publishes its most reassuring possible\n"
+            "verdict for a row that ran nothing (#254). Source\n"
+            f"scripts/lib/{_GUARD_LIB} and call the guard BEFORE the\n"
+            "`^PASSED ` parse - or, if this script genuinely fails closed,\n"
+            "add it to PASSED_VERDICT_WITHOUT_GUARD with the reason."
+        )
+
+    if stale_open:
+        problems = True
+        print(f"\n{len(stale_open)} ratchet entry(s) no longer name a violation:")
+        for name in stale_open:
+            print(f"  {name}")
+        print(
+            "The file was fixed, renamed or deleted. Delete the entry - a\n"
+            "ratchet that only ever loosens is a list of excuses."
         )
 
     if unknown:
