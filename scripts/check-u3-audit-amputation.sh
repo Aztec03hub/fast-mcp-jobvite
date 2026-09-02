@@ -150,16 +150,56 @@ PY
 
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
-  if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
-    echo "  not a survivor: no verdict below is a measurement of this row."
-  fi
 
+  # RESTORE FIRST, ALWAYS. Every refusal below happens AFTER the tree is
+  # clean, because exiting with an amputation still applied leaves the next
+  # reader a mutated checkout and no note saying why.
   git checkout -- "$file"
   if ! git diff --quiet -- "$file"; then
     echo "  RESTORE FAILED - $file still differs from the commit. STOPPING."
     exit 3
   fi
+
+  # ONLY 0 AND 1 ARE MEASUREMENTS (#254).
+  #
+  # This harness reads its verdict by counting `^PASSED ` lines, and treats
+  # "no PASSED lines" as "every assertion died", i.e. a successful kill. That
+  # inference is only valid if pytest actually COLLECTED and RAN the suite.
+  #
+  # It fails OPEN, not closed. A collection error (rc=2), an internal error
+  # (rc=3), a usage error (rc=4) or a timeout (rc=124) all produce an output
+  # file with no `PASSED ` lines in it, so the loudest possible breakage is
+  # reported as the cleanest possible result: "survivors: NONE".
+  #
+  # Nothing made that safe. rc=2 and rc=4 are simply unreachable TODAY
+  # because this harness passes a bare `$SUITE` rather than a per-row
+  # selector, so there is no node id to mistype and no coverage map to be
+  # missing. That is an accident of the current arguments, not a property of
+  # the code - the sibling controls harness DID acquire a selector, and it
+  # DID produce exactly this false verdict (#263, fixed at c03a3a3).
+  #
+  # The timeout branch already knew: it printed "no verdict below is a
+  # measurement of this row" and then let the verdict be printed and counted
+  # anyway. It is folded in here rather than left as a second, weaker guard.
+  case "$rc" in
+    0|1) ;;
+    124)
+      echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED."
+      echo "  REFUSING: an unfinished row has no verdict. A timeout produces the"
+      echo "  same empty output as a perfect kill, so continuing would count it"
+      echo "  as one. Raise ROW_TIMEOUT (currently ${ROW_TIMEOUT}s) or fix what"
+      echo "  is hanging, then re-run."
+      exit 5
+      ;;
+    *)
+      echo "  REFUSING: pytest exited $rc, which is not a measurement."
+      echo "  This harness reads 'no PASSED lines' as 'everything died', so a"
+      echo "  collection error (2), internal error (3) or usage error (4) would"
+      echo "  be counted as a successful kill. The last 20 lines of its output:"
+      sed 's/^/    /' "$OUT" | tail -20
+      exit 5
+      ;;
+  esac
 
   tail -1 "$OUT" | sed 's/^/  /'
   local survivors
