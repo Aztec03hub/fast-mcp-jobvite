@@ -437,10 +437,14 @@ from R23:
 
 ## 7a.2 The shard plan: a bracket, and the one input that decides it
 
-Six review rounds. The DIRECTION has survived every one - no reviewer has
-constructed a case where sharding loses. The MAGNITUDE has been wrong in
-both directions, and round 6 found that the section never propagated its
-own stated uncertainty into the cell its headline rests on.
+Seven review rounds. The DIRECTION holds **at 12 lanes and above** and
+nowhere else: at 11 lanes sharding provably LOSES, by at least 17.1s, and
+that row was found by the same round that extended this table to reach it.
+An earlier version of this sentence said "no reviewer has constructed a
+case where sharding loses" - true of every row then computed, and promoted
+to a general claim it had not earned. The MAGNITUDE has been wrong in both
+directions, and round 6 found that the section never propagated its own
+stated uncertainty into the cell its headline rests on.
 
 ### The population, reproduced by three reviewers
 
@@ -452,11 +456,41 @@ sixteen jobs are harness lanes (`ci.yml:1649`-`:2132`); the other four are
 fixed and top out at 161s in this run.
 
 **Per-lane setup is taken as 13s, and that is a CHERRY-PICKED lane.** This
-run's twelve lanes read **8-17s, median 12**, and `MEASURED-268:122` in
+run's twelve lanes read **8-17s, median 11.5**, and `MEASURED-268:122` in
 full says "mean of 12 observations spanning 6-15s". So no figure below is
 exact to a tenth: the unsharded floor is **306-315s**, not 311.0. The
 constant is added to BOTH columns, so it cannot affect any delta - which
 is why the comparisons below survive it and the absolute numbers do not.
+
+**THIS POPULATION IS ONE RUN, AND CI HAS SINCE MOVED OFF IT.** Measured
+across the three most recent green runs that share a code base (the fourth
+straddles the U3 per-row selection landing at `5f46303` and cannot be
+pooled with them):
+
+| run | steps | total | largest |
+|---|---|---|---|
+| `dcb2725` | 33 | 3311s | 298s |
+| `a849f7f` | 34 | 3318s | 304s |
+| `1636f56` | 33 | 3492s | 333s |
+
+Per-step spread over the 33 steps common to all three reaches **118s** on
+`U9 HTTP hardening amputation` (201-319s) and 75s on `U3 audit amputation`
+(258-333s). **Every margin adjudicated in this section is 0.5s to 8s.**
+They are one to two orders of magnitude below the instrument's own
+run-to-run spread, so a 2.0s win and a wash are not distinguishable here.
+
+What that does and does not overturn. The arithmetic is correct given its
+inputs, and the LARGE effects survive: the -68s at 16 lanes, and the 11-lane
+loss. The 12-lane margin does not - it should be read as "no worse, and not
+measurably better on this data". `probe-273-packing.py` REFUSES on two of
+these three runs because it asserts this population; that refusal is the
+guard working, and it is the reason this paragraph exists rather than a
+silently restated number.
+
+On medians the regime also flips back: largest 304 exceeds total/lanes
+(3318/12 = 276.5), so the instance is MAX-bound again and the 12-lane floor
+is ~317s including setup - **above the five-minute mandate**, which makes
+sharding the pole step necessary rather than marginal. See task #282.
 
 ### The bracket
 
@@ -478,33 +512,59 @@ to 16. The lower bound and an achieved schedule meet; that is a proof by
 construction and it does not generalise.
 
 The unsharded cells stop being provable at **11 lanes**: 3311/11 = 301.0
-exceeds 298, so the instance is no longer max-bound (LB 314, best 316).
+exceeds 298, so the instance is no longer max-bound (LB 314, best 316.0).
 
-### TWO PACKERS, AND MINE IS THE WEAKER ONE
+**And 11 lanes is where sharding LOSES.** Sharded LB 333.1 against an
+EXHIBITED unsharded 316.0: `+19.5s loses`. This is not a search artefact
+and no budget can overturn it - a lower bound above an achieved schedule
+settles the question. It is the one row that bounds the direction claim
+above, and it was invisible until the table was extended by a single lane.
+
+### ONE PACKER AT TWO BUDGETS - the "two searches" never existed
 
 Every sharded figure here is an UPPER BOUND produced by a search, so the
-LOWER of two results is the better evidence - a packing that exists is a
-packing that exists. Two independent searches have run and they do not
-agree:
+LOWER of two results is the better evidence: a packing that exists is a
+packing that exists.
 
-| quantity | my packer | round 6's | which is evidence |
-|---|---|---|---|
-| 12-lane sharded best | 310.50 | **309.00** | R6 - it exhibited a better schedule |
-| re-anchored 12-lane win | 6.50 | **8.00** | R6 |
-| U3 refit from 258s, 12-lane | 305.62 | **304.00** | R6 |
-| overhead-deleted, 12-lane | 316.00 | **311.00** | R6 |
+An earlier version of this section ran under the heading "TWO PACKERS, AND
+MINE IS THE WEAKER ONE" and tabulated four quantities where a reviewer's
+search beat this one. **There was never a second packer.** It is the same
+code, and the only difference is the module constant `RESTARTS`. Raise it
+and all four close:
 
-**The model INPUTS reproduce exactly** - I re-derived U3's 138.62s shard
-against R6's 138.6, U9's overhead-deleted 234.83 against 234.8, U3's
-165.12 against 165, and the re-anchored unsharded floor of 317.00 against
-317.0. The disagreement is entirely in the SEARCH, not the arithmetic.
+| quantity | R=60 | R=400 | R=10000 | round 6 |
+|---|---|---|---|---|
+| 12-lane sharded best | 310.50 | **309.00** | 309.00 | 309.00 |
+| re-anchored 12-lane win | 6.50 | **8.00** | 8.00 | 8.00 |
+| U3 refit from 258s, 12-lane | 305.62 | **304.00** | 304.00 | 304.00 |
+| overhead-deleted, 12-lane | 316.00 | 311.12 | **311.00** | 311.00 |
 
-So the figures above are R6's, attributed, and mine are recorded as the
-weaker bound. **This matters most in the overhead-deleted row**: my 316.00
-would read as a 5s LOSS, and it is not evidence of one - R6 exhibited
-311.00, so the true value is at most that, and the honest reading of that
-case is a wash rather than a regression. A worse search result is a fact
-about the instrument, not about CI.
+The whole disagreement cost **11 milliseconds** of extra search on a probe
+nothing gates. The probe now runs at `RESTARTS = 400`.
+
+**The model INPUTS reproduced exactly all along** - U3's 138.62s shard
+against 138.6, U9's overhead-deleted 234.83 against 234.8, U3's 165.12
+against 165, and the re-anchored unsharded floor 317.00 against 317.0.
+That is what made the diagnosis possible: identical inputs and divergent
+outputs point at the search, and the search's only free parameter is its
+budget.
+
+**Two errors are recorded here rather than deleted.** First, two runs of
+one stochastic algorithm were reported as two implementations disagreeing;
+nothing in the outputs said "different packer" and that reading was
+supplied, not observed. Second, having decided the other instrument was
+better, the question that would have settled it - *what parameter differs?*
+- was never asked. Attributing a figure one cannot reproduce is correct and
+is what let the next round find this, but attribution is not a substitute
+for resolution.
+
+**The lesson that survives the retraction.** A weaker search result is a
+fact about the BUDGET, not about CI. The overhead-deleted row is the case
+that mattered: read at `R=60` it gives 316.00, a 5s LOSS against an exact
+311.0, and publishing that would have inverted the conclusion. Converged it
+is 311.00 - a wash. **Before comparing two instruments, raise the budget
+until the numbers stop moving; a comparison of unconverged searches
+measures the budgets.**
 
 ### THE MANDATE IS REACHABLE, and an earlier version of this section denied
 it while printing the numbers
