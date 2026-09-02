@@ -596,15 +596,29 @@ Measured across the range `#278` contests:
 | zero shard overhead (each step halved) | 3311.0 | 314.00 | **-2.00s, the bound REVERSES** |
 
 Re-fitting in `#278`'s direction widens the loss; deleting the overhead
-term entirely inverts it, and not only as a bound - an exhibited
+term ENTIRELY inverts it, and not only as a bound - an exhibited
 zero-overhead packing reaches **315.00**, a 1.0s win against the 316.00.
-`#278` measures that term at **130ms** against the **2.24-2.64s** this
-model fits, a factor of 17-20, so the reversing end of the range is the
-one the evidence currently points at rather than a hypothetical. **The
-honest statement is: at 11 lanes sharding loses at ANY SEARCH BUDGET
-given the fitted shard costs, and that loss reverses at the low end of
-the range those costs are contested over.** It is settled against the
-search and unsettled against the inputs.
+
+**But zero is not where `#278` puts it, and an earlier version of this
+paragraph treated those as the same endpoint.** It argued that because
+`#278` measures 130ms against the 2.24-2.64s fitted here, the *reversing*
+end of the range is where the evidence points. That inference is
+REFUTED by measurement: charging the remainder per-step at **130ms**, the
+11-lane figures read **+14.0 / +22.0 / +23.0** across MIN / MEDIAN / MAX -
+**the loss gets LARGER, not smaller**, and 12 lanes worsens with it. Only
+the exact-zero row reverses, and nothing measured argues for exact zero.
+
+The residual has since been measured per run from CI's own logs at
+**1.26-2.08s per invocation** - between `#278`'s 130ms and this model's
+2.24-2.64s, because the two time different things. On the quantity that
+actually drives the cell, U9's divisible share measures **0.4203-0.4664**:
+`#278`'s 0.431 sits INSIDE that range and this section's 0.5270 sits
+ABOVE every run.
+
+**The honest statement is: at 11 lanes sharding loses at ANY SEARCH BUDGET
+given the fitted shard costs, and it loses HARDER, not less, everywhere in
+the contested range except exact zero.** It is settled against the search,
+and against the inputs it is settled everywhere the evidence reaches.
 
 ### ONE PACKER AT SEVERAL BUDGETS - the "two searches" never existed
 
@@ -747,13 +761,29 @@ And the consequence runs the other way from the caveat: re-anchored, the
 
 ### What remains unmeasured
 
-The shard costs 163.3s and 219.5s are FITTED. `scale` is derived as
-`k1/(B+R+overhead)`, so the k=1 column closes by construction and carries
-no information. U9's k=2 spans 209-235s across the overhead sweep, and
-`#278` argues the term should be near zero, which is the case that takes
-the 12-lane win to nothing **and reverses the 11-lane loss**. Both of
-this section's headline cells rest on that one fitted term, in opposite
-directions, and `#278` is where it gets settled.
+The shard costs 163.3s and 219.5s were FITTED to one run, and have since
+been **re-fitted per run from CI's own logs**. `scale` cancels out of the
+2-shard cost entirely - it is a scale-free fraction of the observed
+unsharded time - so the per-run refit never needed absolute seconds from
+any local profile. Measured at n=3:
+
+| harness | MIN | MEDIAN | MAX | old constant |
+|---|---:|---:|---:|---:|
+| U3 2-shard | 140.8 | 165.4 | 181.5 | 163.3 |
+| U9 2-shard | 154.9 | **236.2** | 251.2 | **219.5** |
+
+**U9's published constant was 16.7s too low at the step that binds** - it
+flattered sharding in precisely the disputed cell. With the refit, 13
+lanes becomes a determinate WIN and 11 a determinate LOSS; **12 lanes
+still flips sign**, though its envelope narrows from 31.7s to 9.0s and its
+median is now **-1.0s**. A one-second margin on an instrument whose spread
+on a single step is 118s is not a result. **Closing 12 needs a sharded run
+to EXIST, not a better fit of these three.** See `#285`.
+
+What genuinely cannot be recovered from the logs: per-row wall time. All
+14 U9 banners and the `HARNESS-RESULT` land within 5ms of each other
+across a 298s step, because Actions timestamps are receive times and
+stdout arrives in one buffered flush.
 
 Nothing has ever run sharded. `#270`, the gate that reds any sharded step,
 is not yet mergeable. And nothing in the tree consumes `HARNESS_SHARDS`
