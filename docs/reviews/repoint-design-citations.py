@@ -110,9 +110,30 @@ def parse(
     """
     moves: dict[tuple[str, int], dict[tuple[int, int], tuple[int, int]]] = {}
     unreadable: list[str] = []
+    records: list[str] = []
     for line in text.splitlines():
         m = _MOVED.match(line)
         if not m:
+            continue
+        # #203/#207: AN ADR IS A RECORD AND ITS CITATIONS ARE NOT
+        # REPOINTED. An ADR states what was decided against the design
+        # AS IT STOOD; moving its citations rewrites the evidence for a
+        # decision already taken.
+        #
+        # MEASURED, and this is why the rule exists. `b0e86b8`
+        # repointed ADR-0017's qualified citation `489-490 -> 495-496`
+        # - correct at that moment - and could not see the SAME range
+        # cited BARE three lines later, because this tool's report
+        # requires a filename. `DESIGN.md` then moved again, so today
+        # the repointed half is wrong and the untouched half is still
+        # exactly what its author cited. THE HALF NOBODY REPOINTED IS
+        # THE HALF THAT STILL MEANS WHAT IT SAID.
+        #
+        # THE SKIP IS PRINTED, NOT SILENT. A switched-off behaviour and
+        # a broken one must not look identical - that shape hid 119 red
+        # mirror runs on this project.
+        if m["file"].startswith("docs/adr/"):
+            records.append(f"  RECORD, not repointed: {m['file']}:{m['lineno']}")
             continue
         cited_in = pathlib.Path(REPO_ROOT / m["file"])
         try:
@@ -137,6 +158,11 @@ def parse(
         new_e = int(m["ne"]) if m["ne"] else new_s
         key = (m["file"], int(m["lineno"]))
         moves.setdefault(key, {})[(old_s, old_e)] = (new_s, new_e)
+    if records:
+        print(f"\n{len(records)} citation(s) in docs/adr/ are RECORDS and are")
+        print("NOT repointed - see docs/adr/README.md. This is a deliberate")
+        print("skip, printed so it cannot be mistaken for the tool failing:")
+        print("\n".join(records))
     return moves, unreadable
 
 
