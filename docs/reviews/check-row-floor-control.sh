@@ -29,7 +29,18 @@ B="$(mktemp)"
 # worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
 # and this guard waves it through. Measured: modify + `git add` gives
 # `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
-if [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
+# THE ONE SANCTIONED BYPASS, AND IT IS NAMED. `probe-floor-checker-planted-
+# defect.sh` is the negative control FOR this file: it plants a defect into the
+# subject on purpose and needs this control to measure the planted version.
+# It used to get that by STAGING the plant, because the guard here was
+# `git diff --quiet` and `git add` made the worktree match the index - the
+# blindness was the mechanism, written down in that probe's header as if it
+# were a technique. Widening the guard broke it, which is how the coupling was
+# found. An opt-in the caller must set BY NAME is the same capability with the
+# dependency declared, so the next person to harden this guard sees who relies
+# on it instead of discovering it from a red probe.
+if [ "${ROW_FLOOR_CONTROL_ALLOW_PLANTED:-0}" != "1" ] &&
+   [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
   echo "ABORT: $S has uncommitted changes (staged or not); refusing to"
   echo "       measure someone else's tree"
   rm -f "$B"

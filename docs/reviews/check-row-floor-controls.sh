@@ -170,7 +170,18 @@ S="$REPO/scripts/$TARGET"
 # worktree to the INDEX, so a file edited and then `git add`-ed reads CLEAN
 # and this guard waves it through. Measured: modify + `git add` gives
 # `git diff --quiet` exit 0 and `--porcelain` a non-empty `M `.
-if [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
+# THE ONE SANCTIONED BYPASS, AND IT IS NAMED. `probe-floor-checker-planted-
+# defect.sh` is the negative control FOR this file: it plants a defect into the
+# subject on purpose and needs this control to measure the planted version.
+# It used to get that by STAGING the plant, because the guard here was
+# `git diff --quiet` and `git add` made the worktree match the index - the
+# blindness was the mechanism, written down in that probe's header as if it
+# were a technique. Widening the guard broke it, which is how the coupling was
+# found. An opt-in the caller must set BY NAME is the same capability with the
+# dependency declared, so the next person to harden this guard sees who relies
+# on it instead of discovering it from a red probe.
+if [ "${ROW_FLOOR_CONTROL_ALLOW_PLANTED:-0}" != "1" ] &&
+   [ -n "$(git -C "$REPO" status --porcelain -- "$S")" ]; then
   echo "ABORT: $S has uncommitted changes (staged or not); refusing to"
   echo "       measure someone else's tree"
   exit 3
@@ -279,9 +290,17 @@ rc=$?
 
 cp "$B" "$S"
 cmp -s "$S" "$B" && echo "restored: byte-identical to the backup"
+# AGAINST THE INDEX, AND THE MESSAGE USED TO SAY "HEAD" - it was wrong.
+# `git diff` compares the worktree to the INDEX, and that is the right
+# question HERE for two reasons. The restore above is `cp` from a backup
+# taken at start, so "restored" means "back to what it was", not "back to
+# HEAD". And this control is itself run under
+# `probe-floor-checker-planted-defect.sh`, which STAGES a planted defect
+# before invoking it - so under that probe the correct post-state really
+# does differ from HEAD, and a HEAD comparison would fail every arm.
 git -C "$REPO" diff --quiet -- "$S" \
-  && echo "restored: and identical to the commit" \
-  || { echo "::error::RESTORE FAILED - $S still differs from HEAD"; exit 9; }
+  && echo "restored: and identical to the index" \
+  || { echo "::error::RESTORE FAILED - $S still differs from the index"; exit 9; }
 
 echo "--- the harness's canonical result line ---"
 # ONE LINE, PARSED BY FIELD NAME. Task #107.
