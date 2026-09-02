@@ -385,10 +385,19 @@ ROW_FLOOR=14
 # Ported from 84d4959 (R24-H1), which was written, reviewed and never landed.
 # The same shape already sits on main in check-u3-audit-controls.sh, arrived at
 # from the other direction by #252's per-row selection work.
-if [ "${#SELECTORS[@]}" -ne "$TOTAL" ]; then
+# `-eq 0` FIRST, and it is not redundant with the mismatch test beside it
+# (R249-L2). At TOTAL=0 - every `mutate` call deleted - `0 -ne 0` is FALSE, so
+# the mismatch arm alone passes, `pytest "${SELECTORS[@]}" --collect-only` runs
+# with NO node ids, collects the WHOLE suite, exits 0, and the success line
+# below announces a check that asked nothing. `check-u3-audit-controls.sh:461`
+# carries this guard for the same reason; dropping it was this port's own
+# defect, not one inherited from 84d4959.
+if [ "$TOTAL" -eq 0 ] || [ "${#SELECTORS[@]}" -ne "$TOTAL" ]; then
   echo "########## RECORDED ${#SELECTORS[@]} SELECTORS FOR $TOTAL ROWS."
-  echo "A row ran without recording its selector, so the check below cannot"
-  echo "cover every row and its pass would mean less than it claims."
+  echo "The check below covers exactly the selectors it is handed. At zero rows"
+  echo "it would collect the whole suite and pass having asked nothing; at a"
+  echo "mismatch it cannot cover every row. Either way its pass would mean less"
+  echo "than it claims. Fix the harness."
   exit 3
 fi
 timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "${SELECTORS[@]}" \
@@ -404,6 +413,8 @@ if [ "$sel_rc" -ne 0 ]; then
   echo "has been reporting a verdict without ever running its killer."
   echo "pytest, on the restored tree:"
   tail -20 "$OUT"
+  echo "Any row above whose target appears in those ERROR lines printed a"
+  echo "verdict it did not earn - read the target, not the verdict."
   exit 3
 fi
 echo "########## ALL $TOTAL SELECTORS RESOLVE (one intact-tree process)"
