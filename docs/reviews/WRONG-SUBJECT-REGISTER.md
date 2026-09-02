@@ -30,24 +30,28 @@ argument that citations go wrong often enough to justify a checker.
 Delete it and the argument goes too. So the container gets built instead,
 and the prose points here.
 
-**It also makes the sharpest sub-claim checkable for the first time.**
+**It also settles the sharpest sub-claim, at the third attempt.**
 "Four of them inside the ADR documenting that defect class" was
-verifiable by nobody, and **THIS FILE DOES NOT SETTLE IT EITHER.** That
-sentence read *"with rows carrying a `Where` column it is a grep"* until
-the grep was run. It returns ZERO, and the zero is a corpus exclusion
-rather than a measurement - see "What this register does NOT cover"
-below. A claim about how to check a claim is itself a claim, and this one
-was written without being executed.
+verifiable by nobody. This file's first answer read *"with rows carrying
+a `Where` column it is a grep"* — written without being executed, and
+the grep returns ZERO. Its second answer, after #191, was that the zero
+was a **corpus exclusion** rather than a measurement, because no round
+had read `docs/adr/`. **#196 read it, and the answer is still zero — but
+now it is a measurement.** Two rows entered the register from ADRs
+(WS-32, WS-33) and neither is in the ADR the claim names. Three
+different answers to one question, and only the third came from reading
+the documents it is about.
 
 ## The arithmetic, and how to re-check it without trusting these rows
 
-    31  rows                                  grep -c '^| WS-'
+    33  rows                                  grep -c '^| WS-'
     10  cite CITATION-READ-VERDICTS.md        its own tally line :32 says WRONG 10
     19  cite CITATION-READ-SRC-VERDICTS.md    its own tally line :33 says WRONG 19
+     2  cite CITATION-READ-ADR-VERDICTS.md    its own tally says WRONG 2
      1  cites BOTH  (WS-04)
      3  cite neither (WS-29, WS-30, WS-31)
 
-    10 + 19 - 1 = 28 distinct ranges,  + 3 = 31 rows
+    10 + 19 - 1 = 28 distinct ranges,  + 3 = 31,  + 2 (WS-32, WS-33) = 33 rows
 
 **Two instruments, same answer**: the row provenance and the verdict
 documents' own summary tables agree without being joined to each other.
@@ -81,33 +85,48 @@ Two kinds are tracked separately, because they fail differently:
 CORRECT range carrying only a boundary nit — both verdict documents
 below count those separately and so does this file.
 
-## What this register does NOT cover, and why its zero is not a zero
+## What this register does NOT cover
 
-**EVERY ROW COMES FROM ONE OF TWO SWEEPS, AND NEITHER SWEPT `docs/adr/`.**
-`CITATION-READ-VERDICTS.md` read `tests/`; `CITATION-READ-SRC-VERDICTS.md`
-read `src/` and `scripts/` and says so in its own first line. The `Where`
-column across all 31 rows takes exactly six values:
+**`docs/adr/` IS NOW COVERED. It was the exclusion this section existed to
+name, and #196 closed it.** `CITATION-READ-VERDICTS.md` read `tests/`;
+`CITATION-READ-SRC-VERDICTS.md` read `src/` and `scripts/`;
+`CITATION-READ-ADR-VERDICTS.md` read all 64 `DESIGN.md:N` citations across
+the 19 ADRs that carry one. The `Where` column across all 33 rows now
+takes eight values:
 
     18  `src/`          9  `tests/`        1  `tests/` + `src/`
      1  two sites       1  a report        1  a comment
+     2  an ADR  (WS-32, WS-33)
 
-**No row names an ADR, and no row CAN**, because no round has ever read
-one for this defect. So:
+So `grep '^| WS-' | grep -i adr` returns **2**, and the two rows are a
+measurement rather than a boundary. **The previous zero was a corpus
+exclusion**, which is the shape this project has learned to distrust: the
+answer arrives with a plausible story attached and the story is about the
+instrument.
 
-    grep '^| WS-' WRONG-SUBJECT-REGISTER.md | grep -i adr   ->  0 rows
+**WHAT THE ADR ROUND FOUND, AND WHY THE SUB-CLAIM STILL DOES NOT DERIVE.**
+Of the 64 ADR citations: **2 WRONG, 46 DRIFTED, 14 CORRECT, 2 boundary
+nits.** Only the 2 WRONG are rows here - a DRIFTED citation was right when
+written and is a repoint, not a misreading, and folding the two together
+would triple this register with a different defect.
 
-is a statement about the sweep's boundary, not about ADRs. **It is a
-clean zero that explains itself**, which is the shape this project has
-learned to distrust: the answer arrives with a plausible story attached
-and the story is about the instrument.
+**The qualifier "four of them inside the ADR documenting that defect
+class" measured ZERO.** That ADR is ADR-0019. It carries exactly four
+`DESIGN.md` citations - which is very likely where the digit came from -
+and **all four are DRIFTED, none is wrong-subject.** The two real ones are
+in ADR-0013 and ADR-0014, neither of which is the ADR the claim names.
+**The sub-claim is now REFUTED rather than uncheckable**, and the ruling
+on what to do with the sentence is Tier 0's.
 
-**THE SUB-CLAIM IS THEREFORE NEITHER CONFIRMED NOR REFUTED HERE.** ADRs
-carry 64 `DESIGN.md:N` citations across 19 files today
-(`grep -rhoE 'DESIGN\.md:[0-9]+(-[0-9]+)?' docs/adr/*.md | wc -l`).
-Settling "four of them inside the ADR" means READING those, because
-wrong-subject is not greppable by construction - a wrong-subject
-citation resolves, which is the entire defect. That is tracked as its
-own task rather than left as an implication of this file's silence.
+### The exclusion that REPLACES it, so this section does not go quiet again
+
+**Only the `DESIGN.md:N` SPELLING was read.** `docs/adr/` also carries **58
+bare `:NNN` citations across 16 files**, and **7 ADRs (0002, 0008, 0009,
+0011, 0015, 0023, 0030) carry a bare form and no `DESIGN.md:N` form at
+all** - so they were outside #196's sweep entirely. A bare form inherits
+its document from the surrounding prose, so it cannot be attributed by
+grep. **That is the next unread corpus, and naming it here is the whole
+point of this section.**
 
 ## The register
 
@@ -144,6 +163,8 @@ own task rather than left as an implication of this file's silence.
 | WS-29 | XREF | `§16.3` | corrected | a report | `362350c`, found by the new cross-reference gate |
 | WS-30 | RANGE | `207-212` | `207-229` | a comment | #132, fixed at `fe237d5` |
 | WS-31 | RANGE | `692-697` | `681-687` | two sites | #133, fixed at `fe237d5` |
+| WS-32 | RANGE | `1223` | `1351` | `docs/adr/0013-secret-absence-case-needs-a-pairing.md:13` | #196 `CITATION-READ-ADR-VERDICTS.md` W-1 - names the `.gitignore` §8 case while quoting the secret case |
+| WS-33 | RANGE | `1763` | `1899` | `docs/adr/0014-c8-i1-empty-values-is-wrong.md:13` | #196 `CITATION-READ-ADR-VERDICTS.md` W-2 - names threat row `C8-E2` while quoting `C8-I1` |
 
 **`DESIGN.md:603`'s `(§5.4)` is deliberately NOT a row.** ADR-0019
 records it, and it is the instance that motivated the sentence this
@@ -167,13 +188,20 @@ the evidence had been sitting in two committed documents the whole time.
 Nobody was careless; the count simply had nowhere to live, so it stayed
 at whatever it was when somebody last guessed.
 
-**"Four of them inside the ADR documenting that defect class" is NOT yet
-derivable and no row asserts it.** That sub-claim needs each row to
-carry the file it lives in, and the two verdict documents group by
-RANGE rather than by site. Re-deriving it means re-reading their site
-lists. **Recorded as unfinished rather than dropped, and rather than
-carried forward as prose nobody can check** — which is the failure this
-file exists to end.
+**"Four of them inside the ADR documenting that defect class" IS NOW
+DERIVABLE, AND IT DERIVES TO ZERO.** #196 read all 64 `DESIGN.md:N`
+citations in `docs/adr/`. The ADR documenting the defect class is
+ADR-0019; it carries exactly four `DESIGN.md` citations, all of them to
+`:603`, and **every one was correct when written** — they are DRIFT, not
+wrong subject. The corpus's two genuine wrong-subject citations are
+WS-32 and WS-33, in ADR-0013 and ADR-0014, neither of which is the ADR
+the claim names.
+
+So the sentence failed twice over: **"nine" was wrong by more than 3x,
+and "four of them inside the ADR" is zero.** Both halves were assertions
+at birth; the second survived longer only because no round had ever read
+the corpus it was about. **What to do with the sentence is a ruling, and
+not this file's to make.**
 
 ## Adding a row
 
