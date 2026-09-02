@@ -41,7 +41,9 @@ number that goes stale first.
     DESIGN freeze d1f1a52   (docs/DESIGN-FREEZE.txt; blob verified equal)
     ADRs          35        ls docs/adr/[0-9]*.md | wc -l
     scripts/*.sh  39        git ls-files -- 'scripts/*.sh' | wc -l
-    backlog       80 recorded, holding
+    backlog       DERIVE IT - the digit here went stale one commit
+                  after this file was written (80 -> 66 at a0677bc).
+                  uv run --frozen python docs/reviews/check-review-coverage.py
 
 ## What is HELD, and why the push is held
 
@@ -95,7 +97,8 @@ changed: one observation is a lower bound on a maximum.
 
     ruff check . / ruff format --check .                    0
     mypy                                    0   137 source files
-    check-review-coverage                   0   backlog 80, holding
+    check-review-coverage                   0   backlog: run it, do not
+                                                read a digit from here
     check-checkers-are-wired                0   131 members, 72 wired,
                                                 59 unwired-with-reason
                                                 + --self-test 35/35

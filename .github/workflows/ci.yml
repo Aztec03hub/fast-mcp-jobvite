@@ -1273,7 +1273,16 @@ jobs:
       # flags exist for the controls, and passing them here would ask a
       # different question from the one this gate is for.
       - name: Every report a brief cites is committed
-        run: uv run --frozen python docs/reviews/check-brief-report-references.py || exit 1
+        # NO `|| exit 1` HERE, DELIBERATELY. That idiom exists for a
+        # command that is not the LAST in an AND-list, where errexit
+        # would not fire. This is a single command, so GitHub's
+        # `bash -e {0}` already fails the step on any nonzero - and
+        # `|| exit 1` would MAP EXIT 2 ONTO 1, collapsing the checker's
+        # deliberate refusal ("could not read git ls-files, so NOTHING
+        # was checked") into an ordinary finding. Arm A5 of its controls
+        # exists to prove that refusal is 2 and not 1; wiring that
+        # erases the distinction makes the arm untrue in production.
+        run: uv run --frozen python docs/reviews/check-brief-report-references.py
 
       - name: Controls for the brief-report reference gate
         run: bash docs/reviews/check-brief-report-refs-controls.sh

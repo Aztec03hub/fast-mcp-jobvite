@@ -96,8 +96,8 @@ session; `TaskGet <id>` returns the live row; and `TaskUpdate` writes
 `status`, `owner`, `subject` and `description` (measured by
 `suborch-170` closing #170, under a brief that explicitly granted the
 write mandate). **`TaskCreate` has NOT been tested from Tier 1** — the
-agent that could have declined, because deciding what becomes a task is
-Tier 0's, not because the tool was thought absent.
+agent that could have tested it DECLINED to, because deciding what
+becomes a task is Tier 0's, not because the tool was thought absent.
 
 **THE PREVIOUS SENTENCE ASKED NOT TO BE WIDENED WITHOUT A MEASUREMENT,
 AND THAT IS EXACTLY HOW IT GOT WIDENED.** It read *"`TaskUpdate` and
