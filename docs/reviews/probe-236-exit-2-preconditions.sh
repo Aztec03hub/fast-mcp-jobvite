@@ -36,23 +36,35 @@ trap 'rm -rf "$WORK"' EXIT
 pass=0
 fail=0
 
-# Read the script's OWN exit code, which is the whole point: a control that
-# never runs the artifact tests a proxy. `rc=0; cmd || rc=$?` keeps the
-# nonzero code instead of letting it vanish, and it is the form that also
-# survives errexit, so the arms read the same whether or not `-e` is set.
+# Read the script's OWN exit code AND ITS DIAGNOSIS. The code alone is not
+# enough, and R23 measured why on THIS probe: repoint $REPO at a path that
+# does not exist and arms A1 and B1 both printed `rc=2 PASS (wanted 2)` with
+# the 2 coming from `python3: can't open file`. That is the correct exit code
+# produced by the WRONG MECHANISM - the exact failure MEASURED-236 documents
+# in its own ARM 4c - reproduced inside the probe written to demonstrate it.
+#
+# So an arm now names the message its subject must print. `want_re` is
+# REQUIRED for a nonzero expectation: an exit 2 that does not carry the
+# checker's own refusal is a different event wearing the same number.
 arm() {
-    local label=$1 want=$2 dir=$3
-    shift 3
+    local label=$1 want=$2 want_re=$3 dir=$4
+    shift 4
     local rc=0
     ( cd "$dir" && "$@" ) >"$WORK/out" 2>&1 || rc=$?
     printf '  %-52s rc=%-3s ' "$label" "$rc"
-    if [ "$rc" -eq "$want" ]; then
-        echo "PASS (wanted $want)"
-        pass=$((pass + 1))
-    else
+    if [ "$rc" -ne "$want" ]; then
         echo "FAIL (wanted $want)"
         sed -n '1,4p' "$WORK/out" | sed 's/^/        /'
         fail=$((fail + 1))
+    elif [ -n "$want_re" ] && ! grep -qE "$want_re" "$WORK/out"; then
+        # The code matched and the CAUSE did not. This is the vacuous pass.
+        echo "FAIL - rc=$want by the WRONG MECHANISM"
+        echo "        expected output matching: $want_re"
+        sed -n '1,4p' "$WORK/out" | sed 's/^/        got: /'
+        fail=$((fail + 1))
+    else
+        echo "PASS (wanted $want)"
+        pass=$((pass + 1))
     fi
     sed -n '1,2p' "$WORK/out" | sed 's/^/        > /'
 }
@@ -63,9 +75,11 @@ mkdir -p "$WORK/notarepo"
 git -C "$WORK/notarepo" rev-parse 2>/dev/null \
     && { echo "REFUSING: $WORK/notarepo is a git repo, the arm would be vacuous"; exit 2; }
 
-arm "A1 amputated: cwd is not a git repo" 2 "$WORK/notarepo" \
+arm "A1 amputated: cwd is not a git repo" 2 \
+    'git ls-files.*exited|FAILED TO RUN' "$WORK/notarepo" \
     python3 "$REPO/scripts/check-committed-file-types.py" --all
-arm "A2 control:   cwd IS the repo" 0 "$REPO" \
+arm "A2 control:   cwd IS the repo" 0 \
+    'file\(s\) checked' "$REPO" \
     python3 "$REPO/scripts/check-committed-file-types.py" --all
 
 echo
@@ -73,17 +87,25 @@ echo "=== HUNK 2: check-adr-numbers.py, an absent ADR directory ==="
 # ROOT is __file__/../../.., so a skeleton at $WORK/skel puts ROOT at skel.
 mkdir -p "$WORK/skel/docs/reviews"
 cp "$REPO/docs/reviews/check-adr-numbers.py" "$WORK/skel/docs/reviews/"
-[ -d "$WORK/skel/docs/adr" ] \
-    && { echo "REFUSING: the skeleton HAS an ADR dir, the arm would be vacuous"; exit 2; }
+# The old guard here tested `[ -d $WORK/skel/docs/adr ]`, which after a
+# fresh `mktemp -d` can never be true - a refusal that cannot fire is
+# decoration, and R23 measured it dead. What CAN go wrong is the copy
+# silently not landing, which would make B1 exit 2 for a missing script
+# rather than a missing directory. That is the reachable failure, so it is
+# the one guarded.
+[ -s "$WORK/skel/docs/reviews/check-adr-numbers.py" ] \
+    || { echo "REFUSING: the checker did not copy into the skeleton"; exit 2; }
 
-arm "B1 amputated: no docs/adr under ROOT" 2 "$WORK/skel" \
+arm "B1 amputated: no docs/adr under ROOT" 2 \
+    'NO ADR DIRECTORY' "$WORK/skel" \
     python3 "$WORK/skel/docs/reviews/check-adr-numbers.py"
 
 # The control must run the SAME file from a tree that HAS docs/adr. Copying
 # the real ADR directory in makes ROOT=skel satisfy the precondition, which
 # isolates the absent directory as the single variable between B1 and B2.
 cp -r "$REPO/docs/adr" "$WORK/skel/docs/adr"
-arm "B2 control:   docs/adr restored under ROOT" 0 "$WORK/skel" \
+arm "B2 control:   docs/adr restored under ROOT" 0 \
+    'ADRs: [0-9]+' "$WORK/skel" \
     python3 "$WORK/skel/docs/reviews/check-adr-numbers.py"
 
 echo
