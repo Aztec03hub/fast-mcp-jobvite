@@ -35,7 +35,14 @@ set -uo pipefail
 # and exited 0, because it was reading a DIFFERENT tree - the shared checkout,
 # by absolute path. A probe that cannot fail when its subject is deleted is
 # the exact vacuity its own arms exist to catch, rebuilt one line above them.
-REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd) || {
+# `readlink -f` because ${BASH_SOURCE[0]} is NOT symlink-resolved. R26
+# measured the residual: invoked through a symlink that sits inside a
+# SECOND real checkout of this repo, the probe reported arms=4 passed=4
+# about the DECOY while the tree whose copy was executing had a subject
+# amputated - one `ln -s` from re-creating the exact "green about a tree
+# I was not reviewing" defect this line was added to close. It failed
+# LOUD in the other five symlink arms; this closes the sixth.
+REPO=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd) || {
     echo "REFUSING: could not derive REPO from ${BASH_SOURCE[0]}" >&2; exit 2; }
 
 # AND THE DERIVED ROOT IS NOT ENOUGH ON ITS OWN. With REPO derived, a deleted

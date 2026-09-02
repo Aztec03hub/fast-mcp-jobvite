@@ -243,6 +243,16 @@ So this version states measurements and ONE identity, and stops.
 
     wall = max over jobs j of (queue_j + duration_j)
 
+    queue_j = job.started_at - run.created_at
+
+THE ORIGIN IS LOAD-BEARING AND WAS UNSTATED UNTIL R26 MEASURED IT. Using
+`job.created_at` instead - which is what the jobs endpoint hands you
+first - the same identity gives 844 and 429 with a 2s offset, because a
+job record is created exactly 1s after the run record in BOTH runs. The
+figures below are on the `run.created_at` basis. Two 1s lags exist here
+and they are different things: run-record to job-record creation, and
+last-completion to run-record write.
+
 For run 33610211810 the maximum is `Harness U5 + U8`: 305 + 540 = 845.
 That is provable from ONE run and needs no comparison.
 
@@ -384,6 +394,46 @@ claim here, not the absolutes.
 This is left as a struck-through correction rather than deleted, because
 the wrong inference drove a brief and two agent messages, and a reader
 who saw those needs to find the retraction where the claim was.
+
+## 7a.1 Open, carried forward from R23 - and once deleted by a rewrite
+
+`4be2b09` rewrote this section (61 inserts, 112 deletes) and its own
+message closes by saying two R23 items "are recorded as still open
+rather than fixed here ... Both are real." **They were recorded
+nowhere.** R26 grepped every pattern - `1.9x`, `2.6x`, `4204`, `70.1`,
+`H3`, `nine unnamed`, `190s`, `499s`, `R23-M1`, `still open` - against
+this file and then repo-wide: zero hits. `REVIEW-R23.md` is not a
+mitigation, because it lives on an unmerged branch and is not an
+ancestor of this commit. The sole record of all three was the prose of a
+commit message, in the section that spent five rewrites establishing
+that a commit message is not the record.
+
+That is this section's own thesis executing on the section: **a
+wholesale rewrite keeps findings that own a HEADING and silently drops
+findings that own a SENTENCE.** Two of the three were noticed at the
+time, written down as noticed, and still lost.
+
+All three re-verified against the run payloads by R26, not carried over
+from R23:
+
+- **R23-H3, OPEN.** Run 1 has 16 jobs, TWELVE of them named `Harness*`;
+  the prediction named three, so NINE are unnamed, not six. Seven of the
+  nine exceed 180s (540, 459, 425, 368, 358, 343, 217), and `Harness U1
+  amputation` at 217s appears in no per-job table anywhere. "All six
+  broke it" is an assertion over a set that was never enumerated.
+- **R23-M1, OPEN.** The published ~1.9x runner factor divides a JOB by a
+  HARNESS. Read from `steps[]`: `Harness U9 amputation` job 258s, single
+  harness step 249s, 249/132 = 1.89x, not 1.95x. `Harness U4 client` job
+  216s, two harness steps 67 + 134 = 201s, 201/118 = 1.70x, not 1.83x.
+  Both published ratios folded checkout and `uv sync` into a number
+  presented as runner scaling. The true spread is 1.70-1.89x, an 11%
+  range the rounded figure hid - and two points do not give a factor.
+- **The `(G)` mislabel, OPEN and UNRESOLVED.** One figure was labelled
+  `(G)`, a real runner measurement, and is 2.6x out: `Harness U3
+  controls`, predicted 190s, measured 499s. Whether the label was wrong
+  or the step changed underneath it is unsettled. A wrong `(G)` is worse
+  than a wrong `(P)`, which is why it is carried here rather than
+  dropped.
 
 ## 7b. The three ci/237-audit items, settled
 
