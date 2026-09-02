@@ -17,11 +17,31 @@ puts it BACK and asserts nothing changes. A deletion undetectable in
 either direction is the proof the branch was dead, and this keeps a
 live check on that ruling instead of a sentence about it.
 
-NOT WIRED, deliberately: turning this into a `scripts/check-*.sh`
-harness under `ci-harness-gate.sh`, with the canonical
-`HARNESS-RESULT` line, is task #149. This is the measurement; the
-gate is a separate decision, and a half-formed canonical line would
-be worse than none.
+WIRED, in a JOB OF ITS OWN (#149 M-4), and the shape is the ruling.
+
+The container arms `git add -f` a fixture into the index and remove it
+in a `finally`. That is why this could not be a step beside its
+subject: a job whose index is being staged and unstaged under other
+steps is a job with a bomb in it, and SIGKILL runs no `finally`. But
+"cannot share a job" is not "cannot run in CI" - a runner's checkout is
+disposable and nothing else reads it - so this gets a job with its own
+checkout, and the objection is answered without a scratch-clone
+refactor of a file that is measuring correctly.
+
+IT IS NOT A `scripts/*.sh` HARNESS, AND THAT CONTAINER STAYS AS IT IS.
+`check-harness-result.sh` enforces three properties - sourcing
+`lib/harness-result.sh`, chaining the emitter onto an `EXIT` trap, and
+calling `harness_result_ran` - and all three are bash constructs with
+no Python meaning. The thing they buy, that an ABORTED harness cannot
+render identically to a pass, Python already has: an interrupted run
+raises and exits nonzero with a traceback. Widening that container to
+23 Python probes would be a large unasked sweep whose members could not
+satisfy the properties being checked. So the ruling is: the container
+stays `scripts/*.sh`, and this file prints the canonical line anyway,
+so #120's census can count it if that ever changes.
+
+WHAT WAS MISSING WAS THE FLOOR, not the format. `failures == 0` is
+satisfied by zero arms; `main()` now holds `rows` to a floor.
 
 Run with `uv run --frozen python` on
 `docs/reviews/probe-wired-checker-amputation.py` - CI's interpreter,
@@ -361,6 +381,30 @@ def main() -> int:
     print(f"\narms={rows} failures={len(failures)}")
     for line in failures:
         print(f"  {line}")
+
+    # THE ROW FLOOR (#149 M-4). `failures == 0` is satisfied by zero
+    # arms, so a probe whose ARMS list was emptied - or whose container
+    # halves stopped being iterated - reports fully green. Derived from
+    # a run at the commit that adds this: ten ARMS plus two arms in each
+    # of two container halves. Lowering it is a visible diff that has to
+    # be defended.
+    floor = 14
+    status = "ok" if not failures and rows >= floor else "breach"
+    # The SAME canonical line every harness in `scripts/` prints (#107),
+    # deliberately, rather than a second shape. The container that
+    # `check-harness-result.sh` enforces is `scripts/*.sh` and this file
+    # is outside it by construction - see the ruling in this file's
+    # header - but printing the same line means #120's census can count
+    # it the day that container grows, and a reader does not have to
+    # learn a second format to read this one.
+    print(
+        f"HARNESS-RESULT name={pathlib.Path(__file__).name} rows={rows} "
+        f"floor={floor} fired={rows - len(failures)}/{rows} status={status}"
+    )
+    if rows < floor:
+        print(f"\n{rows}/{floor} ROWS - THE PROBE LOST ARMS. A probe with")
+        print("fewer arms than its floor is green for the wrong reason.")
+        return 1
     if failures:
         print("\nAn arm moved. Either a control was lost or a construct")
         print("is now dead code. Read WHICH rows changed before")

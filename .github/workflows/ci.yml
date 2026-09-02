@@ -1796,3 +1796,55 @@ jobs:
         with:
           category: /language:python
 
+
+  # ---------------------------------------------------------------------------
+  # The wiring checker's own amputation probe (#149 M-4).
+  # ---------------------------------------------------------------------------
+  #
+  # A JOB OF ITS OWN, AND THE SHAPE IS THE POINT. This probe's container arms
+  # `git add -f` a fixture into the index and remove it in a `finally`, which is
+  # why it could not be a step beside its subject: a job whose index is being
+  # staged and unstaged under other steps is a job with a bomb in it, and
+  # SIGKILL runs no `finally`. But "cannot share a job" was never "cannot run in
+  # CI" - a runner's checkout is disposable and no other step reads it - so it
+  # gets its own checkout and the objection is answered.
+  #
+  # Its arms all passed before this was wired; nothing here is expected to
+  # change colour. What was missing is that NOTHING MADE THEM RUN and nothing
+  # would have noticed if they stopped, which is the shape #164 closed for the
+  # mirror workflow one artifact over.
+  wiring-probe:
+    name: The wiring checker can still fail
+    runs-on: ubuntu-latest
+    # UNCAPPED WOULD MEAN SIX HOURS - the probe runs ten in-process amputations
+    # and four container arms, each a subprocess over a ~1300-line checker.
+    # Measured locally at well under a minute; 10x headroom for a cold runner.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # fetch-depth 0 is NOT needed: the probe reads the working tree and the
+      # index, never history.
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install from the frozen lock
+        run: uv sync --frozen
+
+      # git needs an identity before `git add` will run in a fresh checkout on
+      # some configurations, and the probe stages a fixture. Setting it here
+      # keeps the failure from looking like a probe fault.
+      - name: The probe's arms all still fire
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@example.invalid"
+          uv run --frozen python docs/reviews/probe-wired-checker-amputation.py || exit 1

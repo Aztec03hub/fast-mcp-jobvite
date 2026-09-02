@@ -227,14 +227,6 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "the real repoint tool against it. A job whose checkout has a "
         "chmod-ed file in it is a job with a bomb in it."
     ),
-    "probe-wired-checker-amputation.py": (
-        "amputates each construct in THIS file and reads which rows "
-        "die. It cannot share a job with its subject, and its own "
-        "docstring already recorded this exemption in prose: "
-        "'NOT WIRED, deliberately'. Turning it into a "
-        "`scripts/check-*.sh` harness under `ci-harness-gate.sh` is "
-        "task #149, which is open."
-    ),
     #
     # -- ONE-SHOTS WHOSE QUESTION IS SETTLED -------------------------
     # A tool whose question has been answered is a one-shot, and wiring
