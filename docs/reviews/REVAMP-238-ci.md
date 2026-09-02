@@ -215,50 +215,85 @@ a dirty measurement tree, not a harness defect. Re-run on the clean
 tree after this file was committed: rc=0, recorded below the table.
 
 
-## 7. The arithmetic for the new shape - labelled prediction (P)
+## 7. The arithmetic for the new shape - MEASURED, and the prediction was wrong
 
-The lead's run `33605986404` corrected the audit's 222s product path to
-an OBSERVED 318s pole job / 323s run wall - the gap is job startup,
-checkout, sync and inter-step gaps that per-step sums do not carry. #241
-then attributed 241s of that 318s to the suite running TWICE (plain
-117s, --cov 124s) with no stated reason anywhere, and verified the merge
-four ways. This branch applies it: ONE `pytest --cov` run, the zero-skip
-guard and the 888 floor read its output, the separate Coverage step is
-deleted, and the ADR-0010 floors read the same run's coverage.json. Run
-here with the step's exact body: rc=0, `888 passed, 6 deselected`,
-`suite floor OK: 888 passed, floor 888`, skip guard positive-controlled
-on a synthetic skip in the --cov output shape, check-coverage-floors
-rc=0 on the produced json. The B59 obligation anchor (its subject: no
-positional path, so testpaths stays authoritative) was repointed to the
-merged command; check-obligations: "Mappings: 31 | anchors verified
-against their subject: 25 | recorded as absent: 6 ... OK." (verbatim).
+This section predicted a ~3.5-4 min wall and said so as (P), adding that
+"every number the team asserted about CI this week was corrected by a
+measurement; these will be too." They were. Run `33610211810` (head
+`cb625f3`) is that measurement, read from the API:
 
-Job pole estimates, runner-scaled at the observed 1.5x where (L):
+    MEASURED wall for full CI:  846s = 14.10 min   (G)
+    MEASURED billed:            4204s = 70.1 job-min over 16 jobs  (G)
 
-    test job  318s observed - ~117s (#241)  = ~201s   = ~3.4 min <- pole
-    harness-u9-amputation  ~195s (P from 130s L)      = ~3.3 min
-    harness-u3-controls    190s (G)                   = ~3.3 min
-    harness-u4             ~180s (P from 118s L)      = ~3.0 min
-    every other harness job                          <= ~3 min
-    codeql 67s, static-gates 44s, wiring-probe 17s (G)
+    against
+    PREDICTED wall:             ~3.5-4 min  (P)  -> wrong by ~3.7x
+    PREDICTED billed:           ~30-40 job-min (P) -> wrong by ~2x
 
-    PREDICTED wall for full CI: ~3.5-4 min  (P)
-    Further knob, deliberately NOT taken: the 33s secret-scan step is
-    movable out of the test job (#241 verified no dependency), worth
-    ~0.5 min off the pole. Left in place: the budget holds without it
-    and the churn does not pay.
-    PREDICTED billed: ~30-40 job-min        (P)  vs ~90 before -
-      the sum of steps fell ~55 min; 12 new prologues (~10s each) and
-      12 more billed-minute roundings buy the wall-clock. #143 optimised
-      the opposite direction (fewer jobs, fewer roundings); this trades
-      a bounded amount of it back because the mandate is the wall total
-      on one trigger. If Tier 0 wants billed minutes back, jobs can be
-      re-merged pairwise at ~30s wall each - the knob is explicit now.
+The mandate is under 5 minutes. This shape MISSES it by 2.8x. The revamp
+made CI complete and correct on one trigger, which was its other goal,
+and did not make it fast.
 
-**These are predictions.** Every number the team asserted about CI this
-week was corrected by a measurement; these will be too. The first push
-of this branch is the measurement: read the run's wall-clock and its
-billed minutes from the API, and correct §7 in place.
+Per job, prediction against measurement:
+
+    predicted            measured   job
+    ~201s                    198s   Lint, types, tests        <- accurate
+    190s (G)                 499s   Harness U3 controls       <- 2.6x
+    ~195s                    258s   Harness U9 amputation     <- 1.3x
+    ~180s                    216s   Harness U4 client         <- 1.2x
+    67s / 44s / 17s   65s/49s/23s   codeql / static / wiring  <- accurate
+    "<= ~3 min" for every other harness job:
+                             540s   Harness U5 + U8           <- the POLE
+                             459s   Harness U10 + U12
+                             425s   Harness U6 + U7 + U9 controls
+                             368s   Harness U0 + critical-path coverage
+                             358s   Harness U14 + caps + redaction
+                             343s   Harness U3 amputation
+
+Three things the prediction got structurally wrong, not just numerically:
+
+1. **It named the wrong pole.** The model assumed the test job set the
+   wall at ~201s. The test job was the ONE accurate figure in the table -
+   and it is now the 11th longest job. The pole is a harness job at 540s,
+   2.7x the predicted pole. Every conclusion resting on "the test job is
+   the pole" is void.
+
+2. **The 1.5x runner scaling was too low.** Derived from this run:
+   u9-amputation 132s L -> 258s = 1.95x; u4 118s L -> 216s = 1.83x. The
+   real factor is ~1.9x. Applying 1.5x understated every (P) in the table
+   by about a quarter before any other error.
+
+3. **The catch-all line hid the whole problem.** "every other harness job
+   <= ~3 min" covered six jobs, and all six broke it, up to 3x. A single
+   bound asserted over an unenumerated set is where this prediction
+   failed - the six jobs it declined to name are exactly the six that
+   sank it.
+
+One figure was labelled (G), a real runner measurement, and is 2.6x out:
+Harness U3 controls, predicted 190s and measured 499s. That job contains
+exactly one harness, `check-u3-audit-controls.sh`, so the gap is not job
+composition. Either the (G) label was wrong or the step changed under it.
+Unresolved, and it matters, because a wrong (G) is worse than a wrong (P):
+the whole labelling scheme exists so a reader can tell which numbers were
+observed.
+
+**The unaccounted 306s.** Wall 846s minus pole job 540s leaves 306s that
+no job's duration explains. The previous run's equivalent gap was 5s
+(323s wall, 318s pole). A 5s gap is job startup, as this section
+originally said. A 306s gap is not, and it appeared when the run went
+from a handful of jobs to 16. The hypothesis - UNVERIFIED, and stated as
+one - is runner queueing against a concurrency ceiling. If that is right,
+the fan-out has a ceiling nobody measured before adopting it, and adding
+jobs makes the wall WORSE. Measuring that gap is the first task in the
+follow-up (#244), before any lever is chosen.
+
+**What is left un-taken, and now looks larger.** Half the harness
+invocations never received the per-row selection this branch is built on:
+of 33 real `ci-harness-gate.sh` calls in ci.yml, 16 carry `--row-re` and
+17 are bare. Both harnesses in the 540s pole job are bare; so is the
+single harness in the 499s U3 job. #240 measured selection at 10s vs 76s
+on U9 row A1 with an identical verdict. That gap, applied to the 17, is
+the most likely route to the mandate, and it is a bigger lever than the
+33s secret-scan move this section previously called the remaining knob.
 
 ## 7b. The three ci/237-audit items, settled
 
