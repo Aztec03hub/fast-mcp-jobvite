@@ -1,22 +1,34 @@
-# REVIEW-R16 — the 86 trunk commits no round covers
+# REVIEW-R16 — the trunk commits no round covers: 86, then 101
 
-<!-- REVIEW-COVERS: 0b149b9..ccbdaae PATHS: docs/reviews scripts .github -->
+<!-- REVIEW-COVERS: 0b149b9..2d886a4 PATHS: docs/reviews scripts .github -->
 
 Round R16, Tier-1, against the backlog `check-review-coverage.py`
-records. Worktree `fmj-worktrees/r16`, branch `review/r16`, detached
-from `origin/main` at **`ccbdaae`**. Zero Tier-2 workers.
+records. Worktree `fmj-worktrees/r16`, branch `review/r16`, cut from
+`origin/main` at **`ccbdaae`**. Zero Tier-2 workers.
 
-**Verdict: 0 Critical, 1 High, 3 Medium, 4 Nits, and one finding of my
+**Verdict: 0 Critical, 1 High, 3 Medium, 5 Nits, and one finding of my
 own WITHDRAWN by measurement before it left this document.**
 
-**EVERY NUMBER BELOW IS PINNED TO `ccbdaae`.** `origin/main` advanced
-**13 commits** past it while this round ran (`6e07131` when I stopped),
-and two of my measurements silently disagreed with each other for that
-reason before I noticed — 287 trunk commits / 60 merges at `ccbdaae`,
-300 / 62 at the moved ref. The checker's own docstring warns that the
-ref it reads can be stale; the shape here is the opposite one, a ref
-that moved *forward* under a running agent. Re-run with `--ref ccbdaae`
-to reproduce anything in this document.
+**TWO REFS, AND EVERY NUMBER SAYS WHICH.** `origin/main` moved twice
+under this round: `ccbdaae` at dispatch, `6e07131`, then `2d886a4`.
+§1 to §8 were measured against **`ccbdaae`**, the trunk the brief
+named. §9 is the **extension to `2d886a4`**, added after Tier 0 asked
+me to re-derive, and the declaration at the top of this file is the
+extended one.
+
+**A ref moving FORWARD under a running agent is a real instrument
+hazard and it bit me before I saw it.** Two of my own measurements
+disagreed — 287 trunk commits / 60 merges, then 300 / 62 — from the
+same command minutes apart. The checker's docstring warns that
+`origin/main` can be STALE; this is the opposite shape and it is not
+recorded anywhere. Reproduce anything in §1-§8 with `--ref ccbdaae`
+and anything in §9 with `--ref 2d886a4`.
+
+**Tier 0's own count and mine also disagreed, for the same reason:**
+`ENTERED, unrecorded: 13` at `6e07131`, **15** at `2d886a4`.
+`ccbdaae..6e07131` is 13 commits and `ccbdaae..2d886a4` is 15. Same
+instrument, same backlog, different ref — the arithmetic was right on
+both sides and only the population differed.
 
 ---
 
@@ -98,18 +110,32 @@ deletions, 2 additions, 1 kind change. I have made all three (§4).
 Doing only the deletions would leave the checker at exit 1 and invite
 the next reader to conclude the ratchet is broken.
 
-### 1e. `probe-coverage-ratchet.py` fails on this trunk, and it is a known fix off-trunk
+### 1e. `probe-coverage-ratchet.py`'s BASELINE arm: red at `ccbdaae`, green at `2d886a4`, and both readings are correct
 
-    uv run --frozen python docs/reviews/probe-coverage-ratchet.py
-      FAIL  BASELINE the committed backlog agrees with the trunk: exit 1 (want 0)
-      8/9 arms passed.                                      EXIT=1
+At `ccbdaae`, with the backlog 23 short:
 
-The BASELINE arm asserts the *trunk is current* rather than that the
-*instrument works*, so it is red whenever the backlog is behind — which
-is the normal state §1a describes. `3d7a82f` on local `main` is titled
-*"R1-M6: the control's BASELINE arm asserted the TRUNK was current, not
-that the instrument works"*, so this is already ruled and fixed off the
-trunk. Recorded, not filed.
+    FAIL  BASELINE the committed backlog agrees with the trunk: exit 1 (want 0)
+    8/9 arms passed.                                          EXIT=1
+
+At `2d886a4`, after §9:
+
+    9/9 arms passed.
+    Backlog entries the arms were drawn from: 49              EXIT=0
+
+**The arm did not start working because I topped the backlog up.** It
+was REWRITTEN at `3d7a82f` — one of the 15 commits in §9 — and that
+commit's own title is the finding: *"R1-M6: the control's BASELINE arm
+asserted the TRUNK was current, not that the instrument works."* The
+old arm built its backlog from the committed file, so it went red after
+every push; the new one derives a backlog from what the checker
+measures right now and requires exit 0 against that. Its comment names
+the class exactly: *"a control red by construction, which is the defect
+#151 removes, relocated one artifact over."*
+
+I read that diff for §9 and it is the right fix. Recorded because my
+first pass had it as an open red I was about to hand back, and the
+answer was already on the trunk one commit later — which is what a
+moving ref does to a reviewer's snapshot.
 
 ---
 
@@ -456,6 +482,46 @@ markdown link resolves on disk, 0 dangling; the walk was
 positive-controlled against a deliberately broken link before its zero
 was believed. Re-run the walk rather than trusting this sentence."*
 
+### R16-N5 (Nit) — one reason is given for a warn-not-fail choice that covers two branches, and only one of them is transient
+
+`.github/workflows/mirror.yml`, the `Report whether the mirror is
+configured, and whether it is current` step (added at `4aca097`, in the
+§9 extension). `docs/reviews/REPORT-157-mirror-minutes.md` §4 states the
+choice and its reason:
+
+> **It warns, it does not fail.** A step whose whole purpose is
+> legibility must not go red on a transient network read, because that
+> trains its reader to ignore it — the habit that let 119 failures go
+> unread.
+
+The reason names ONE branch — the `git ls-remote` read failing — and
+the code applies the choice to TWO. A mirror that is genuinely **STALE
+or DIVERGED** is also a `::warning::` on a green run, and divergence is
+not transient: it is the exact state the check was added to detect,
+now reported at exit 0 inside a daily cron that the same document says
+"nobody looks at ... the way they look at a red tick beside their own
+commit."
+
+**I am NOT claiming the behaviour is wrong, and this is the reason the
+finding is a nit rather than a Medium.** There is a strong unstated
+counter-argument on the other side: with `MIRROR_TOKEN` absent, nothing
+in CI can *clear* a divergence, and a red nobody can act on is the same
+habit-forming failure the quoted sentence is about. That argument
+happens to be the stronger one, and it appears nowhere.
+
+**Suggested fix — a sentence, not a behaviour change.** In
+`mirror.yml`'s header and in `REPORT-157` §4, split the reason:
+
+    UNKNOWN warns because a remote read is transient. DIVERGED also
+    warns, for a different reason: with no MIRROR_TOKEN nothing in CI
+    can clear a divergence, so a red here would be a red nobody can
+    act on. If the token ever exists, revisit THIS branch - divergence
+    then becomes actionable and a warning becomes the weaker signal.
+
+The last clause is the part worth writing down: the correct disposition
+of that branch **changes** when the token lands, and nothing currently
+records that it should be re-read then.
+
 ---
 
 ## 3. The finding I WITHDREW, and why it is in this document anyway
@@ -547,40 +613,19 @@ matters.
 
 **Backlog 63 → 42. `COVERED BY NOTHING` 47 → 0. `PARTIAL` 39 → 42.**
 
-**AND THE SAME RUN AGAINST THE LIVE DEFAULT REF, because a count
-without its ref is not a measurement here.** `origin/main` moved twice
-more while I was verifying:
+**That was the state at the end of the first pass, and it is not where
+this round stops.** §9 extends the declaration to `2d886a4` and tops the
+backlog up to **49**; the run against the live default ref is in §9 and
+exits 0. Both readings are kept because §E asks for a before and an
+after with their refs, and "before" has two legitimate ones.
 
-    $ uv run --frozen python docs/reviews/check-review-coverage.py
-    Trunk ref: origin/main = 2d886a4
-    Trunk commits on origin/main since 8695101: 302
-    Fully covered: 245   PARTIALLY covered: 42   COVERED BY NOTHING: 15
-    Backlog recorded: 42   measured now: 57
-    ENTERED, unrecorded: 15
-    CLEARED, still recorded: 0
-    CHANGED KIND: 0
-    SUBJECT disagrees with the commit: 0                             EXIT=1
+**`probe-coverage-ratchet.py`, §E's second command, at `2d886a4`:**
 
-**Read the three zeros, not the exit code.** `CLEARED`, `CHANGED KIND`
-and `SUBJECT` are all 0 against the moved ref, which is the check on my
-edit: nothing I removed should have stayed and nothing I wrote
-disagrees with git. The 15 `ENTERED` are the 15 commits pushed past
-`ccbdaae` during this round; they are unread by any reviewer and they
-belong to whoever pushed them, exactly as the ratchet's *"a line
-ARRIVES only in a commit whose message says why the backlog grew"*
-intends. **Tier 0 should paste those 15 lines with that push, not with
-this round.**
+    9/9 arms passed.
+    Backlog entries the arms were drawn from: 49              EXIT=0
 
-**`probe-coverage-ratchet.py`, §E's second command:**
-
-    8/9 arms passed.
-    FAIL  BASELINE the committed backlog agrees with the trunk: exit 1 (want 0)
-    Backlog entries the arms were drawn from: 42                     EXIT=1
-
-The probe uses the checker's default ref, so its BASELINE arm is red for
-the same 15 commits — and for the reason §1e records, which is already
-fixed off-trunk at `3d7a82f`. All eight substantive arms pass, including
-`PLANT`, drawn from the 42-line backlog this round leaves.
+At `ccbdaae` it was 8/9 with `BASELINE` red — see §1e, where the reason
+turns out to be a fix that landed on the trunk while I was reading.
 
 **The backlog edit, all three parts** (§1d):
 
@@ -597,12 +642,18 @@ Recorded 63 → **42**, which equals the measured set.
 
 ## 5. The declaration, and exactly what is behind it
 
-    <!-- REVIEW-COVERS: 0b149b9..ccbdaae PATHS: docs/reviews scripts .github -->
+    <!-- REVIEW-COVERS: 0b149b9..2d886a4 PATHS: docs/reviews scripts .github -->
 
-**The range is narrow on purpose.** `8695101..0b149b9` is already
-`REVIEW-R15.md`'s for these same three paths; re-declaring it would
-claim work I did not redo. `0b149b9..ccbdaae` is 48 commits, 47 of them
-mine (the 48th, `e9702ff`, is `REVIEW-151-R1.md`'s).
+**The range is narrow at the base and honest at the head.**
+`8695101..0b149b9` is already `REVIEW-R15.md`'s for these same three
+paths; re-declaring it would claim work I did not redo. So the base is
+`0b149b9`.
+
+`0b149b9..ccbdaae` is 48 commits, 47 of them my original population
+(the 48th, `e9702ff`, is `REVIEW-151-R1.md`'s). The head then moved to
+`2d886a4`, adding 15 more; I read those over these same three paths and
+extended rather than leaving them, which §9 sets out in full. Total
+declared: **63 commits**.
 
 **The paths are three, not four.** `docs/briefs` is deliberately
 absent — see below.
@@ -694,12 +745,14 @@ formatting-only hunks at `41150a1`.
 
 **Could not settle:**
 
-- **Whether the checker's `after` numbers hold on the live trunk.**
-  `origin/main` moved 13 commits past `ccbdaae` during this round, and
-  those 13 are unread by anyone. Everything in §4 is pinned to
-  `ccbdaae`; a run against the live default will report those 13 as
-  further `ENTERED` rows. That is the ratchet working, not a
-  regression, and the lines belong to whoever pushed them.
+- **Whether the numbers hold on a trunk that is still moving.** They
+  held at `2d886a4`: §9's run against the live default ref exits 0 with
+  all four difference counts at zero. That is a claim about a MOMENT,
+  not a property. `origin/main` moved twice under this round already —
+  `ccbdaae`, `6e07131`, `2d886a4` — and the next push makes the ratchet
+  red again by construction, at N+1 for a merge of N. **That is the
+  gate working, and the lines belong to whoever pushes them.** What I
+  cannot settle is whether it is still 0 by the time anyone reads this.
 - **Whether R16-H1 has ever fired.** The two multi-line traps in the
   tree today both *do* chain the emitter, so the blind spot is real and
   currently unexercised. I did not check every historical revision of
@@ -740,6 +793,80 @@ sentence instructs.
   `ccbdaae` into a fresh repo, and `git status --porcelain` in the
   review worktree names only the two files above.
 - Any push, any merge, any ref outside `review/r16`.
+
+---
+
+## 9. THE EXTENSION TO `2d886a4`, added after the trunk moved
+
+Tier 0 re-derived while §1-§8 were being written and asked whether I
+would claim the new commits. **`ccbdaae..2d886a4` is 15 commits**, and
+14 of the 15 touch at least one of my three declared paths. I read
+them, so the declaration head moves from `ccbdaae` to `2d886a4`.
+
+**READ IN FULL, from `git show`, in a scratch `git archive` of
+`2d886a4` — the review worktree was not used as a subject:**
+
+- `scripts/check-secrets-baseline.py` (333 lines, cumulative over its
+  three commits)
+- `docs/reviews/probe-secrets-baseline.py` (233 lines)
+- `docs/reviews/FINDINGS-161-secret-scan-baseline.md` (302)
+- `docs/reviews/REPORT-157-mirror-minutes.md` (431)
+- `docs/reviews/probe-coverage-ratchet.py` and
+  `docs/reviews/review-coverage-backlog.txt`, the `3d7a82f` diffs
+- `.github/workflows/ci.yml`, the `c276a45` diff and the whole
+  `Secret scan hook runs clean` step
+- `.github/workflows/mirror.yml`, the cumulative `ccbdaae..2d886a4`
+  diff (three commits)
+
+**NOT read and NOT declared:** the five `docs/briefs/` files,
+`CONTRIBUTING.md`'s and `.pre-commit-config.yaml`'s diffs, and
+`docs/worklogs/` (an exempt record path). Those are what hold the seven
+residual commits at `PARTIAL`.
+
+**Verified by running, not by reading:**
+
+    python3 scripts/check-secrets-baseline.py --controls
+      C1..C6 all PASS, arms=6 failed=0                             EXIT=0
+    uv run --no-project --with detect-secrets==1.5.0 python \
+        docs/reviews/probe-secrets-baseline.py
+      A0..A4 all PASS, arms=5 failed=0                             EXIT=0
+
+**A4 is the arm worth naming.** It amputates the digest out of the
+comparison key in a COPY of the checker and requires the planted secret
+to then PASS — so `A2`'s red is evidence about the comparison rather
+than about a checker that fails on anything. It asserts its anchor is
+unique first and refuses rather than no-opping. That is the shape §C.1
+asks for, built without being asked.
+
+**And I checked the two blind spots #161 declared, rather than taking
+them.** `check-checkers-are-wired.py` at `2d886a4` prints *"Every
+checker is wired, or unwired for a recorded reason"* and names neither
+`scripts/check-secrets-baseline.py` (0 matches) nor
+`docs/reviews/probe-secrets-baseline.py`. **Neither is a live gap**:
+`--controls` is invoked by name at `ci.yml:1546`, and the bare gate
+runs through `pre-commit run --all-files` in the same step, so CI asks
+BOTH questions — the pattern `REPORT-147` §5 calls the correct one.
+This does not weaken **R16-M1**: `check-timeout-literals.py` is in the
+same blind spot and is invoked by nothing at all.
+
+**The effect on the backlog, measured:**
+
+    --ref 2d886a4, declaration 0b149b9..2d886a4
+    Trunk commits since 8695101: 302
+    Fully covered  245 -> 253      (8 of the 15 fully covered)
+    PARTIALLY       42 ->  49      (7 of the 15)
+    COVERED BY NOTHING: 15 -> 0
+    Backlog recorded 42 -> 49, measured 49
+    ENTERED 0   CLEARED 0   CHANGED KIND 0   SUBJECT 0        EXIT=0
+
+The seven added rows carry a dated `#` note in the backlog naming why
+it grew and which paths hold them, as the file's own header requires.
+
+**WHAT THIS DOES NOT CLAIM.** The 15 are read over three paths, not
+reviewed whole. `docs/briefs/PROTOCOL-sub-orchestrators.md`,
+`BRIEF-R16-review-round.md` (my own brief, edited at `ffd36c7`) and
+three handoff rewrites are unread by me and unread by anyone. They are
+in the backlog, which is where an unread commit belongs.
 
 ---
 
