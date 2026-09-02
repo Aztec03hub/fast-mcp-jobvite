@@ -137,7 +137,7 @@ check-u8-candidates-amputation.sh|^amputate \"|0|1|cmd
 check-u8-candidates-controls.sh|^mutate \"|0|1|cmd
 check-u9-http-controls.sh|^mutate \"|0|1|cmd
 check-u15-gate-amputation.sh|^report \"|0|1|cmd
-check-mirror-liveness-controls.sh|^(row|amputate) \"|0|1|cmd
+check-mirror-liveness-controls.sh|^(row|amputate|transport) \"|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }

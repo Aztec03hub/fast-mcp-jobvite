@@ -127,10 +127,75 @@ row "BAD-STAMP an unparseable created_at"          4 "$CHECKER" "$WORK/fx/active
 row "MISSING   a fixture path that does not exist" 4 "$CHECKER" "$WORK/fx/active.json"   "$WORK/fx/nope.json"
 
 # ---------------------------------------------------------------------------
-# AMPUTATIONS. Each deletes ONE branch from a COPY of the checker and requires
-# the row that depended on it to stop firing. A row that stays red after its
-# rule is removed is a row whose rule was never what found the defect.
+# THE TRANSPORT, which nothing here touched until R18-H2 said so.
+#
+# Every row above passes BOTH --workflow-json and --runs-json, so `_load` takes
+# its file branch and `_gh` IS NEVER CALLED. R18 proved it by planting a
+# `raise SystemExit` as _gh's first statement: the tripwire fired ZERO times
+# and this harness still reported 14/14 status=ok. Three of the five things
+# that can raise UnmeasurableError live in _gh, and the live CI step exercises
+# only the happy path - so the file's stated blind spot (the URL shape) was
+# real but NARROWER than the truth. The whole transport was untested.
+#
+# These two rows go through `_gh` for real, without a network: one with PATH
+# emptied so `shutil.which` finds no `gh`, one with a stub `gh` on PATH that
+# exits non-zero. Both must reach COULD NOT MEASURE, which is the branch a
+# fixture can never produce.
 # ---------------------------------------------------------------------------
+echo "TRANSPORT ROWS - these actually enter _gh:"
+
+# The interpreter is resolved to an ABSOLUTE path FIRST, because emptying PATH
+# also removes `python3` - the first version of this row exited 127 with
+# "python3: No such file or directory" and was measuring the shell, not the
+# checker. PATH then points at an empty directory: `shutil.which("gh")` must
+# find nothing while the interpreter still runs.
+PY_ABS="$(command -v python3)"
+mkdir -p "$WORK/empty" "$WORK/bin"
+cat >"$WORK/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+# A stub that is NOT the network: it refuses the way an unauthenticated or
+# rate-limited `gh` does, so the row measures the checker's handling of a
+# failed call rather than GitHub's mood.
+echo "gh: Bad credentials (HTTP 401)" >&2
+exit 1
+STUB
+chmod +x "$WORK/bin/gh"
+
+# transport <name> <PATH to run under> <expected-exit> <must-contain>
+#
+# A NAMED FUNCTION, not two inline blocks, and that is not tidiness.
+# `docs/reviews/check-row-floor-exactness.py` counts a harness's rows by
+# matching its ROW-INVOCATION line, so rows written inline are invisible to it:
+# the first version of these two made the live count 16 while the static count
+# stayed 14, and the exactness checker refused the floor. A row the floor
+# checker cannot see is a row that can be deleted with CI green.
+transport() {
+  local name="$1" path="$2" want="$3" needle="$4"
+  TOTAL=$((TOTAL + 1))
+  local out rc
+  out="$(PATH="$path" "$PY_ABS" "$CHECKER" --now "$NOW" --repo o/r 2>&1)"
+  rc=$?
+  if [ "$rc" -ne "$want" ]; then
+    echo "::error::  FAIL  $name: exit $rc (want $want)"
+    printf '%s\n' "$out" | sed 's/^/          /'
+    return
+  fi
+  if ! grep -qF -- "$needle" <<<"$out"; then
+    echo "::error::  FAIL  $name: exit $rc as wanted, but without '$needle'"
+    printf '%s\n' "$out" | sed 's/^/          /'
+    return
+  fi
+  FIRED=$((FIRED + 1))
+  echo "  PASS  $name: exit $rc (want $want)"
+}
+
+# The interpreter is resolved to an ABSOLUTE path above, because emptying PATH
+# also removes `python3` - the first version of the NO-GH row exited 127 with
+# "python3: No such file or directory" and was measuring the shell, not the
+# checker.
+transport "NO-GH     no gh on PATH reaches _gh and says so" "$WORK/empty" 4 "not on PATH"
+transport "GH-FAILS  a refusing gh is reported, not swallowed" "$WORK/bin:/usr/bin:/bin" 4 "exited 1"
+
 echo "AMPUTATIONS - delete the rule, require the finding to disappear:"
 
 amputate() {
@@ -194,7 +259,7 @@ harness_result_tally fired "$FIRED" "$TOTAL"
 # rows stopped being counted reports fully green. DERIVED: 11 positive and
 # unmeasurable rows plus 3 amputations, counted from the calls above at the
 # commit that adds them.
-ROW_FLOOR=14
+ROW_FLOOR=16
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."
