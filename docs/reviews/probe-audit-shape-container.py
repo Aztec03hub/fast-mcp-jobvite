@@ -297,17 +297,44 @@ def mutate(source: str, site: Site) -> tuple[str, str]:
     node = _find_node(tree, site)
 
     if site.shape == "emit":
-        # AMPUTATION: delete the statement that OWNS the call, so the
-        # row is never written at all. `ast` names the statement; the
-        # deletion leaves a whitespace-only line, which the tokenizer
-        # ignores, so no block is ever re-indented by this probe.
         stmt = _enclosing_stmt(tree, node)
         if stmt is None:
             raise LookupError(f"no enclosing statement for {site.key}")
-        begin, end = _offsets(source, stmt)
-        mutated = source[:begin] + source[end:]
-        what = "deleted the statement owning the emit(...) call"
-        expect_stmt_delta = 1
+        if isinstance(stmt, ast.Assign) and stmt.value is node:
+            # SUBSTITUTION, because deleting an ASSIGNMENT unbinds
+            # its target (#130). `candidates.py:832` reads
+            # `warnings = emit(event, AuditPhase.AFTER_WRITE)`, so
+            # deleting the statement leaves every later `warnings`
+            # unbound and the probe reported a NameError verdict - a
+            # crash dressed as a survivor, saying nothing about
+            # whether the ROW is asserted.
+            #
+            # Replacing the CALL with `[]` asks the question the
+            # shape actually carries: the emission stops happening,
+            # the name stays bound, the code around it still runs.
+            #
+            # MEASURED BY HAND first, on a clean tree, before this
+            # branch existed: the suite goes 1 failed / 872 passed
+            # WITHOUT the newer phase-site tests, killed by
+            # test_case16_the_audit_failure_warning_branch_carries
+            # _request_id - an AUDIT test, and exactly the assertion
+            # this deletion destroys. So the verdict is KILLED, and
+            # the sweep's headline of TWO emit survivors was correct
+            # rather than understated by one.
+            begin, end = _offsets(source, node)
+            mutated = source[:begin] + "[]" + source[end:]
+            what = "replaced the emit(...) call with [] (assignment target kept bound)"
+            expect_stmt_delta = 0
+        else:
+            # AMPUTATION: delete the statement that OWNS the
+            # call, so the row is never written at all. `ast`
+            # names the statement, and the deletion leaves a
+            # whitespace-only line, which the tokenizer ignores,
+            # so this probe never re-indents a block.
+            begin, end = _offsets(source, stmt)
+            mutated = source[:begin] + source[end:]
+            what = "deleted the statement owning the emit(...) call"
+            expect_stmt_delta = 1
     elif site.shape == "is_error":
         # AMPUTATION: remove the keyword. `ToolResult`'s default is
         # false, so the call still constructs - the failure simply
