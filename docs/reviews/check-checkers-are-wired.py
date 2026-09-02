@@ -522,6 +522,28 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "itself, which fails closed because a controls row passes only "
         "when its NAMED test goes red."
     ),
+    "probe-273-packing.py": (
+        "an ARITHMETIC probe over a run payload, not a gate on this tree. "
+        "It brackets CI's makespan between max(largest, total/lanes) and a "
+        "local-search packing, for the sharded and unsharded step sets, and "
+        "prints which cells are PROVED because the two met. It exists "
+        "because #273 was wrong TWICE from treating a greedy heuristic's "
+        "output as a measurement: LPT is a heuristic in both regimes and "
+        "only its looseness differs, so differencing the two regimes "
+        "published a 12s regression that is really, at 12 lanes, somewhere "
+        "between a 5.0s loss and a 4.0s win, median -1.0s, and NOT "
+        "determinate across the three fits - see 7a.2, which propagates "
+        "#278's contested overhead term into that cell. "
+        "Nothing in this repository can regress it - its inputs are three "
+        "historical GitHub runs - and wiring it would gate the trunk on the "
+        "Actions API being reachable. Re-run it by hand whenever the step "
+        "population, the lane count, or the fitted shard costs change. IT "
+        "ASSERTS ITS OWN POPULATION (35 steps, and a sum-of-medians "
+        "of 3413 +- 60s) AND ABORTS IF EITHER MOVES, because an "
+        "earlier version of it INVENTED the 31 "
+        "non-amputation durations and summed to 3824s; only printing both "
+        "totals caught that."
+    ),
     "profile-harness-phases.sh": (
         "a PROFILER. It times the phases of one harness row and prints "
         "shares; there is no pass or fail in it, and a step that cannot "
