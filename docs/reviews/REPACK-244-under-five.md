@@ -1,8 +1,11 @@
 # REPACK-244: the queue was transient, and one step is the whole remaining miss
 
 Task #244, branch `ci/242-under-five`, worktree
-`/home/plafayette/claude_projects/evolv/fmj-worktrees/w244`. Branched off
-`5cca9eb`, `main` merged in at `0ca2eec`.
+`/home/plafayette/claude_projects/evolv/fmj-worktrees/w244`. Branched off `5cca9eb`; `main` merged in at `0ca2eec`, which contains
+`d55fa74`, `0d2c945` and `6894e50` (each verified with
+`git merge-base --is-ancestor <sha> HEAD`). Local `main` has since moved to
+`7431bb50`, which this branch does NOT contain - so every figure below is
+as at `0ca2eec`.
 
 Phil, verbatim: "FULL CI IS NOT TO TAKE MORE THAN 5 MINS WHEN REVAMP IS
 DONE." Full CI means every check on every trigger, nothing gated away,
@@ -132,6 +135,24 @@ Local before/after, **same box, same session, back to back**: `main` at
     bcapc       58      23       101   1.74          40     61
     TOTAL      889     222      1284               329    955
 
+### The scaling method I used FIRST, and withdrew
+
+My first version of this report scaled every changed step by ONE factor,
+x3.54, taken as the worst of four harnesses I had not changed, measured
+against run 33610211810:
+
+    check-u5-jobs-amputation.sh          24s (L) ->  85s (G)   x3.54
+    check-u3-audit-amputation.sh        124s (L) -> 332s (G)   x2.68
+    check-critical-coverage-amputation   87s (L) -> 215s (G)   x2.47
+    check-u9-http-amputation.sh         141s (L) -> 249s (G)   x1.77
+
+I noted at the time that x2.7 would have landed ~296s and MET the mandate,
+and declined to claim it. That was the right call for the wrong reason: the
+problem is not which of the four to pick, it is that **a single factor is the
+wrong instrument**. It is the same error REVAMP-238 made with a flat 1.5x,
+and I reproduced it in the opposite direction. The table above is superseded
+by the per-step ratios below and is kept only so the spread is in the record.
+
 `runnerB` is that step in run 33614887374 (G). Each step is scaled by **its
 own** ratio, not one global factor - the ratios span 1.13x to 1.92x and no
 single number would do. That is the method REVAMP-238 got wrong when it
@@ -199,6 +220,44 @@ makes that step cheap is not selection.
 
 So the mandate needs a decision about what those two harnesses are for, which
 is Tier 0's call and not mine to take inside a performance task.
+
+## 6a. R23's RUN-2 POLE - the number is right, the category is not
+
+R23 measured that run 33614887374's pole job, `Harness U6 + U7 + U9
+controls` (425s), carries 288s of invocations with no `--row-re`. I
+re-derived it: u6 controls 45 + u6 amputation 18 + u7 controls 102 + u9
+controls 123 = 288. **The arithmetic is confirmed.**
+
+**The inference it invites is the one Tier 0 has just retracted.** `--row-re`
+is a row-COUNTING assertion; it does not say which tests a row runs. Split
+that same 288s by what the harnesses actually do:
+
+    u7-resilience-controls   102s   ALREADY selected per row
+    u9-http-controls         123s   ALREADY selected per row
+    u6-paging-controls        45s   genuinely unconverted
+    u6-paging-amputation      18s   genuinely unconverted
+
+    already selected: 225s of 288 (78%)
+    genuinely bare:    63s of 288 (22%)
+
+So 78% of R23's block was never a selection gap. Reading it as one would be
+the third time this proxy has misled a reader today. **The honest residual is
+63s, and it is the two harnesses §7 already names** as still carrying the
+pre-flight.
+
+The pole itself does dissolve, but through the pre-flight removal rather than
+through selection:
+
+    step   run 2   after #244
+    u6c       45      45   still has the pre-flight
+    u6a       18      18   still has the pre-flight
+    u7c      102      42   CUT
+    u9c      123      39   CUT
+    u7a      124     124   amputation, untouched
+    TOTAL    412     268
+
+That is the useful form of R23's finding: my change takes 157s off the job
+that was the pole in the only clean-queue run we have.
 
 ## 7. WHAT I DID NOT VERIFY
 
