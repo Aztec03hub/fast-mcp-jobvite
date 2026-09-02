@@ -133,3 +133,5 @@ d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
 e6333ef NONE Backlog +2: 5e087eb and 3987403, recorded in the commit 
 6f858ea NONE #164: the mirror's fourth state - not running at all - n
 39bfab8 NONE Backlog +1: e6333ef, and a note on why 6f858ea is not in
+a36883f NONE Backlog +2: 6f858ea and 39bfab8, recorded AFTER the push
+fd300ec NONE #149 M-4: the wiring probe now RUNS, in a job of its own
