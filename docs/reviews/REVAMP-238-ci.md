@@ -435,6 +435,52 @@ from R23:
   than a wrong `(P)`, which is why it is carried here rather than
   dropped.
 
+## 7a.2 The shard plan sized from each harness's OWN numbers
+
+Section 7 ends by saying no cut of any size to one step reaches a 300s
+wall. The obvious next lever is sharding the two largest harnesses. That
+lever was sized on U3's shape and applied to U9, which is wrong in the
+direction that matters.
+
+Sharding replicates a harness's BASELINE into every shard and divides
+only its ROWS, so the payoff is governed by `R/(B+R)`. The two harnesses
+sit at opposite ends of that ratio:
+
+| harness | B | R | R/(B+R) | overhead | local->CI |
+|---|---|---|---|---|---|
+| U3 amputation | 14.5s | 153.1s | 0.91 | 26.4s | 1.57x |
+| U9 amputation | 82.8s | 60.9s | 0.42 | 31.3s | 1.70x |
+
+U3's rows dominate 10.6:1. U9's baseline dominates - it rebuilds the
+whole 889-test coverage map, and every shard must rebuild it. Predicted
+CI step time per shard:
+
+| harness | k=1 | k=2 | k=3 | k=4 |
+|---|---|---|---|---|
+| U3 amputation | 304 | 163 | 116 | 93 |
+| U9 amputation | 298 | 219 | 193 | 180 |
+
+So U3 x2 takes 46.3% off its step and U9 x2 takes **26.3%**, not the
+~50% a U3-shaped model predicts. After both, the largest single step is
+`Harness U4 client amputation` at 235s - a step no sharding task has
+touched.
+
+**A 235s step floor is under the mandate. The WALL is not.** The wall
+has never equalled the floor in any of the three 16-job runs: 376/431,
+304/463, 304/395 - gaps of 55s, 159s and 91s. The repack already found
+packing exhausted at 12 lanes against a 304s floor, and it could not
+close that gap. The same 55-159s gap on a 235s floor predicts a wall of
+roughly 290-394s. Sharding both harnesses is therefore **necessary and,
+on these numbers, not sufficient**; the wall-to-floor gap is queue plus
+residual imbalance on an externally contended pool, and nothing in this
+revamp has a lever for it.
+
+Softness, stated rather than buried: every local B, R and overhead is
+ONE draw on a loaded box; each local->CI scale is one ratio of two noisy
+numbers; step medians are over three runs whose per-step swings reach
+1.66x. The SHAPE - U9 shards badly because its baseline dominates -
+follows directly from B and R and is robust. The specific 219s is not.
+
 ## 7b. The three ci/237-audit items, settled
 
 1. **Five stale `NEVER EXECUTED` comments**: carried verbatim from
