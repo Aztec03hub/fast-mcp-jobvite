@@ -130,6 +130,10 @@ adjacent claim standing is the failure mode "a rewrite loses
 sentence-sized findings" describes, and this is a measured instance of
 it inside a cell somebody had already opened.
 
+**STILL LIVE at `cd1ad92`**, and now false over 34 rather than 33 —
+ADR-0034 did not touch it, because it is a different file from the one
+the ADR was written about.
+
 **Suggested fix — delete the clause, do not repair the boundary:**
 
 > `adr/`| The decision records, each citing the clause it deviates from.
@@ -160,6 +164,52 @@ ADR-0022 a real third value that `adr/README.md` lists, or state in
 `adr/README.md` that the field is free text and nothing reads it. **Do
 not add a checker for it** until someone rules which — a gate over an
 undecided vocabulary is a gate that encodes the guess.
+
+#### F9 ESCALATED to HIGH by the fix for F1, verified at `cd1ad92`
+
+**F1 is CLOSED.** ADR-0034 landed at `e3b5c97`, DESIGN.md was re-frozen
+at `c0f1524`, and I verified it rather than taking the report's word:
+`grep -n 'eleven ADRs' docs/DESIGN.md` returns **nothing**; the repaired
+text carries **no count at all** (`grep -oE 'eleven|33|34'` over the
+section is empty), and it says *"NOT all of them"* outright. The declared
+freeze `e3b5c97` and the working blob both hash to `2539d80`. That is
+#166's ruling applied correctly at the third and fourth sites.
+
+**AND THE FIX REBUILT THE DEFECT ONE COLUMN OVER.** DESIGN.md now reads:
+
+> This is the job the **`Type: Deviation`** ADRs below do - NOT all of
+> them, and the count is deliberately not written here
+
+**That makes the `Type:` field LOAD-BEARING IN THE FROZEN DESIGN**, and
+its vocabulary still has two published values and now **three** members
+outside them — because **ADR-0034 itself added the third**:
+
+    17  Design change
+    14  Deviation
+     1  Standards deviation                              (ADR-0023)
+     1  Correction to a contract statement ...           (ADR-0022)
+     1  Correction to a count that is false about its
+        own subject                                      (ADR-0034)  <-- NEW
+
+**ADR-0023 is a deviation from a `priority: required` standard** — it
+records dropping `-e` against `devops/bash.md:36-41`, which is the exact
+job DESIGN.md's repaired sentence describes. But its Type string is
+`Standards deviation`, so **any reader or checker selecting
+`Type: Deviation` misses it.** The sentence written to stop a false
+claim about ADRs is now itself false about one ADR, by one word.
+
+This is the shape the project already records: *a fix rebuilds its own
+defect one column over.* The count was deleted correctly; the SELECTOR
+that replaced it was never derived.
+
+**Suggested fix, and it is small:** normalise
+`docs/adr/0023-harnesses-drop-e-from-strict-mode.md:4` to
+`**Type:** Deviation` — its body already argues it is one — and rule
+whether `Correction to ...` is a third published value or prose. **Only
+then** is a checker over the field worth having, and at that point it is
+worth having precisely because DESIGN.md now selects on it.
+`docs/DESIGN.md` is frozen again, so if the ruling is that ADR-0022 and
+ADR-0034 are a third class, the design sentence needs an ADR too.
 
 **Suggested fix — and it needs an ADR, because `DESIGN.md` is FROZEN**
 (freeze `5d17cd7`; the working tree blob `639f4b7` was verified
