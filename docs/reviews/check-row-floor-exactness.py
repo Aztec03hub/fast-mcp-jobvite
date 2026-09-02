@@ -34,16 +34,41 @@ carried `ROW_FLOOR=18` against `--min-rows 15` for as long as both
 existed, and the external floor tolerated the loss of three rows the
 internal one would have caught.
 
-**THE THIRD CLAIM: `--min-rows` MUST EQUAL THE LIVE ROW COUNT TOO
-(R12-H2).** The first two claims both read the INTERNAL floor, so the
-eight harnesses whose only floor is `--min-rows` in `ci.yml` were
-checked by neither - and `ci-harness-gate.sh` compares with `-lt`, a
-LOWER bound. Measured when this claim was added: u14's amputation
-printed 16 rows against `--min-rows 10` and u7's printed 22 against 19.
-Six and three rows deletable with CI green, in the two harnesses that
-GREW after their step was wired. That is the same defect the docstring
-opens with, on the layer the docstring's own fix could not see, which is
-why the population is now the whole of `ci.yml`'s `--min-rows` set.
+**THE THIRD CLAIM: `--min-rows` TIMES THE STEP'S SHARD COUNT MUST EQUAL
+THE LIVE ROW COUNT (R12-H2, #270).** The first two claims both read the
+INTERNAL floor, so the eight harnesses whose only floor is `--min-rows`
+in `ci.yml` were checked by neither - and `ci-harness-gate.sh` compares
+with `-lt`, a LOWER bound. Measured when this claim was added: u14's
+amputation printed 16 rows against `--min-rows 10` and u7's printed 22
+against 19. Six and three rows deletable with CI green, in the two
+harnesses that GREW after their step was wired. That is the same defect
+the docstring opens with, on the layer the docstring's own fix could not
+see, which is why the population is now the whole of `ci.yml`'s
+`--min-rows` set.
+
+**AND THE MULTIPLIER IS WHY THE CLAIM IS STILL AN EQUALITY.** The claim
+was written as `--min-rows == live`, which is right for a step that runs
+its harness once and WRONG for one that splits it across lanes: a shard
+running half the rows passes `--min-rows 5` against 10 declared ones,
+and this checker turned that into "SLACK by 5", exit 1. Planted and read
+rather than reasoned about (#268 §5), and it blocked sharding entirely -
+the gate is wired, so no sharded step could ever be green. The rule is
+now `live == min_rows * shards`, with the shard count read off the
+step's `env:` block, because `ci-harness-gate.sh` runs the harness with
+NO arguments and a flag could not reach it.
+
+**THAT IS A TIGHTENING, NOT A RELAXATION, AND THE DISTINCTION IS THE
+POINT.** `>=` was tried on this project's other floor comparison and was
+measurably blind - arms=10 against floor=9 reported status=ok and exit 0
+(#223) - so slack is not what a sharded step gets. It gets a different
+MULTIPLIER against the same equality. A deleted row still reds, because
+9 != 5 * 2. An UNEVEN split still reds too: 11 != 5 * 2, and 11 is
+not a multiple of 2 at all, so a harness whose rows do not divide by its
+lane count has no exact `--min-rows` to write, and the equality says so
+instead of rounding. `shards` defaults to 1 where no `env:` names it,
+which is every step in `ci.yml` today, so the unsharded verdict and both
+of its messages are unchanged - arm A26 pins that rather than assuming
+it.
 
 **HOW THE THIRD CLAIM COUNTS, and why it is not a fourth table.** It
 reads the harness's own `echo "########## $label"` row opener, takes the
@@ -320,8 +345,132 @@ def static_rows(text: str, ere: str, extra: int) -> int:
     return len(rx.findall(text)) + extra
 
 
-def _external_floors() -> dict[str, tuple[int, str]]:
-    """`(--min-rows, --row-re)` per harness, off its gate line.
+#: THE SHARD COUNT, and it travels as `env:` because it CANNOT travel
+#: as a flag. `scripts/ci-harness-gate.sh:190` runs
+#: `bash "$HARNESS_PATH"` with NO arguments, so nothing a gate line
+#: writes after the harness name ever reaches the harness. That is a
+#: reading of the gate, not a preference between two workable
+#: spellings (#268 §5).
+#:
+#: **ABSENT MEANS ONE, AND ONE IS THE ONLY SILENT DEFAULT.** A step with
+#: no `env:` block is a single-lane step, which is what every step in
+#: this file is today, so `shards = 1` reproduces the previous rule
+#: exactly. Every OTHER reading failure is an ERROR rather than a
+#: default - see `_shard_count()`, and A25 for the refusal.
+SHARD_ENV = "HARNESS_SHARDS"
+
+#: A YAML step is a list item, and the `env:` block belonging to a gate
+#: line is the one inside the SAME item. Bounding the search that way is
+#: what stops a sibling step's shard count being read against this
+#: step's `--min-rows` - a join error that would report a reassuring
+#: pass, which is the failure mode `_external_floors()` already guards
+#: its own count against.
+STEP_ITEM = re.compile(r"^(?P<indent>[ ]*)-[ ]", re.M)
+
+
+def _step_block(raw: str, pos: int) -> str:
+    """The text of the YAML list item containing offset `pos`.
+
+    The item runs from its own `- ` to the next `- ` at the SAME or a
+    shallower indent, which is where the step ends whether or not it is
+    the last step in its job.
+    """
+    starts = [m for m in STEP_ITEM.finditer(raw) if m.start() <= pos]
+    if not starts:
+        return ""
+    here = starts[-1]
+    indent = len(here.group("indent"))
+    for nxt in STEP_ITEM.finditer(raw, here.end()):
+        if len(nxt.group("indent")) <= indent:
+            return raw[here.start() : nxt.start()]
+    return raw[here.start() :]
+
+
+def _shard_count(name: str, block: str) -> int:
+    """How many lanes this step splits its harness across.
+
+    **A SHARDED STEP RUNS A SUBSET, SO ITS `--min-rows` IS A FRACTION OF
+    THE HARNESS'S ROWS.** Before this existed the third claim compared
+    `--min-rows` to the whole live count and turned red on any sharded
+    step - measured at `--min-rows 5` against 10 declared rows, exit 1,
+    "SLACK by 5" (#268 §5). It blocked sharding entirely.
+
+    The claim STAYS AN EQUALITY: `live == min_rows * shards`. A deleted
+    row still reds, because 9 != 5 * 2. What the shard count buys is the
+    right multiplier, not any slack - `>=` was measurably blind (#223)
+    and is not coming back.
+
+    **EVERY UNREADABLE VALUE IS AN ERROR, NEVER A DEFAULT OF 1.** A
+    static checker cannot multiply by `${{ matrix.shards }}`, and
+    quietly treating an expression as "unsharded" would compare a
+    2-shard step against the whole count and red it for a reason nobody
+    would trace to this line - or, if the arithmetic happened to work
+    out, pass a step whose real shard count nothing here has seen. So a
+    non-literal is refused loudly and the shard count must be written as
+    a plain integer.
+    """
+    found = re.findall(rf"^\s*{SHARD_ENV}\s*:\s*(.+?)\s*$", block, re.M)
+    if not found:
+        return 1
+    if len(found) > 1:
+        raise SystemExit(
+            f"{name}: {len(found)} {SHARD_ENV} values in one step, so which "
+            "one the row count should be multiplied by is undecidable here."
+        )
+    value = found[0]
+    if not re.fullmatch(r"['\"]?\d+['\"]?", value):
+        raise SystemExit(
+            f"{name}: {SHARD_ENV} is {value!r}, which is not an integer "
+            "literal. A static checker cannot multiply the row count by an "
+            "expression evaluated at run time, and treating it as unsharded "
+            "would silently compare against the wrong multiple."
+        )
+    shards = int(value.strip("'\""))
+    if shards < 1:
+        raise SystemExit(
+            f"{name}: {SHARD_ENV} is {shards}, and a step runs at least one "
+            "lane. A count of 0 would make every row count 'expected' equal "
+            "0 and pass with the whole harness deleted."
+        )
+    return shards
+
+
+def _min_rows_verdict(name: str, min_rows: int, shards: int, live: int) -> list[str]:
+    """CLAIM 3's verdict: `live` must EQUAL `min_rows * shards`.
+
+    Split out of `main()` so `--self-test` arms THE SAME rule rather
+    than a second copy of it - the discipline `_row_exactness()` already
+    follows one claim up.
+
+    With `shards = 1` the arithmetic and BOTH messages are
+    byte-identical to what they were before sharding was readable,
+    which is what arm A26 pins: the unsharded population is every step
+    in `ci.yml` today, and a change that quietly reworded their
+    findings would be a change to 16 live verdicts.
+    """
+    expected = min_rows * shards
+    if live == expected:
+        return []
+    # The multiplication is shown only where there IS one. An unsharded
+    # step printing "--min-rows 10 x 1 shards = 10" would be noise on
+    # every step in the file.
+    per = f" x {shards} shards = {expected}" if shards > 1 else ""
+    if live > expected:
+        return [
+            f"{name}: SLACK by {live - expected}. It prints {live} "
+            f"rows and ci.yml passes --min-rows {min_rows}{per}, so "
+            f"{live - expected} row(s) can be deleted without the "
+            "gate noticing. --min-rows is a LOWER bound; it must "
+            "EQUAL the live count."
+        ]
+    return [
+        f"{name}: --min-rows {min_rows}{per} exceeds the {live} rows "
+        "it prints, so this step cannot pass."
+    ]
+
+
+def _external_floors() -> dict[str, tuple[int, str, int]]:
+    """`(--min-rows, --row-re, shards)` per harness, off its gate line.
 
     Continuations are folded first: every one of these invocations wraps
     with a trailing backslash, so a line-at-a-time scan sees the harness
@@ -337,8 +486,9 @@ def _external_floors() -> dict[str, tuple[int, str]]:
     """
     raw = CI.read_text(encoding="utf-8")
     joined = re.sub(r"\\\n\s*", " ", raw)
-    found: dict[str, tuple[int, str]] = {}
-    for name, tail in re.findall(r"ci-harness-gate\.sh\s+(\S+)([^\n]*)", joined):
+    found: dict[str, tuple[int, str, int]] = {}
+    for match in re.finditer(r"ci-harness-gate\.sh\s+(\S+)([^\n]*)", joined):
+        name, tail = match.group(1), match.group(2)
         flag = re.search(r"--min-rows\s+(\d+)", tail)
         if not flag:
             continue
@@ -349,7 +499,15 @@ def _external_floors() -> dict[str, tuple[int, str]]:
                 "refuses that pairing at run time, so finding it here means "
                 "ci.yml and the gate disagree."
             )
-        found[name] = (int(flag.group(1)), row_re.group(1))
+        # THE SHARD COUNT IS READ OFF THE RAW TEXT, not `joined`.
+        # Folding continuations moves every offset after the first
+        # wrapped gate line, so a step block located in `joined`
+        # coordinates would drift into a neighbouring step - silently,
+        # and in the direction that pairs one step's `--min-rows` with
+        # another's shard count.
+        anchor = raw.find(f"ci-harness-gate.sh {name}")
+        shards = _shard_count(name, _step_block(raw, anchor) if anchor >= 0 else "")
+        found[name] = (int(flag.group(1)), row_re.group(1), shards)
     flags = sum(
         1
         for line in raw.splitlines()
@@ -826,6 +984,106 @@ def self_test() -> int:
         "A19 must not have widened that away.",
     )
 
+    # -- THE SHARD MULTIPLIER, BOTH DIRECTIONS (#270) -----------------
+    # A wired gate that reds on every sharded step blocked the whole
+    # sharding programme, and it was found by planting `--min-rows 5`
+    # against 10 rows and reading exit 1 (#268 §5). These arms feed
+    # `_min_rows_verdict()` - the SAME function `main()` calls - rather
+    # than a second copy of the arithmetic.
+    arm(
+        "A21 a sharded step with the right arithmetic PASSES",
+        _min_rows_verdict("h.sh", 5, 2, 10) == [],
+        "10 rows across 2 lanes is --min-rows 5. Before this the checker "
+        "compared 5 against 10 and called it SLACK by 5, exit 1, which "
+        "is a red on every sharded step there could ever be.",
+    )
+    # A DELETED ROW MOVES `live` DOWN, so it lands on the CANNOT-PASS
+    # message, not on SLACK. My first version of this arm asserted
+    # "SLACK by 1" and FAILED, which is the arm doing its job: #268's
+    # "9 != 5*2" is true about the arithmetic and says nothing about
+    # which of the two messages the equality reaches for.
+    short = _min_rows_verdict("h.sh", 5, 2, 9)
+    arm(
+        "A22 a sharded step ONE ROW SHORT still REDS",
+        short != [] and "exceeds the 9 rows" in short[0],
+        "THIS IS THE ARM THAT MATTERS. 9 != 5*2, so the equality still "
+        "catches a deleted row. If sharding had been let in as a `>=` "
+        "this arm would pass vacuously - #223 measured that blindness.",
+    )
+    arm(
+        "A23 a sharded harness that GREW is SLACK, the other direction",
+        any("SLACK by 2" in line for line in _min_rows_verdict("h.sh", 5, 2, 12)),
+        "12 rows against 5 x 2 leaves 2 deletable unnoticed. This is the "
+        "direction claim 3 was written for - u14 at 16 against 10 - and "
+        "the multiplier must not have blinded it.",
+    )
+    arm(
+        "A24 an UNEVEN split REDS rather than rounding",
+        _min_rows_verdict("h.sh", 5, 2, 11) != [],
+        "11 rows do not divide across 2 lanes, so no --min-rows is "
+        "exact. Rounding would hand back the lower bound this whole "
+        "claim exists to abolish.",
+    )
+    # A NON-LITERAL SHARD COUNT IS AN ERROR, NEVER A DEFAULT OF 1. A
+    # static checker cannot multiply by an expression, and defaulting
+    # would compare a real 2-shard step against the whole row count.
+    expr_refused = False
+    try:
+        _shard_count(
+            "h.sh",
+            f"      - name: x\n        env:\n"
+            f"          {SHARD_ENV}: ${{{{ matrix.n }}}}\n",
+        )
+    except SystemExit:
+        expr_refused = True
+    arm(
+        "A25 a `${{ }}` shard count is REFUSED, not treated as unsharded",
+        expr_refused,
+        "silently reading an expression as 1 lane is the fail-open "
+        "shape: it compares a sharded step against the whole count and "
+        "reds it for a reason nobody would trace to this line",
+    )
+    # THE UNSHARDED POPULATION IS EVERY STEP IN ci.yml TODAY. A change
+    # that reworded their findings would be a change to 16 live
+    # verdicts, so the previous strings are pinned rather than assumed.
+    arm(
+        "A26 shards=1 leaves BOTH messages byte-identical",
+        _min_rows_verdict("h.sh", 10, 1, 16)
+        == [
+            "h.sh: SLACK by 6. It prints 16 rows and ci.yml passes "
+            "--min-rows 10, so 6 row(s) can be deleted without the gate "
+            "noticing. --min-rows is a LOWER bound; it must EQUAL the "
+            "live count."
+        ]
+        and _min_rows_verdict("h.sh", 17, 1, 14)
+        == [
+            "h.sh: --min-rows 17 exceeds the 14 rows it prints, so this "
+            "step cannot pass."
+        ],
+        "this is the arm that would catch MY OWN change going wrong. "
+        "u14 at 16 rows against 10 is the real measurement that put "
+        "claim 3 here; the shard multiplier must not have reworded it.",
+    )
+    # THE `env:` READ IS BOUNDED BY THE STEP. A shard count belonging to
+    # a neighbouring step, paired with this step's --min-rows, is a join
+    # error that reports a reassuring pass.
+    two_steps = (
+        "      - name: sharded\n"
+        "        env:\n"
+        f"          {SHARD_ENV}: 2\n"
+        "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5\n"
+        "      - name: plain\n"
+        "        run: bash scripts/ci-harness-gate.sh b.sh --min-rows 9\n"
+    )
+    arm(
+        "A27 a sibling step's shard count does NOT leak across",
+        _shard_count("a.sh", _step_block(two_steps, two_steps.find("a.sh"))) == 2
+        and _shard_count("b.sh", _step_block(two_steps, two_steps.find("b.sh"))) == 1,
+        "reading the whole file for `HARNESS_SHARDS` would give b.sh a "
+        "count of 2 and let 9 rows pass against --min-rows 9 x 2 = 18, "
+        "or red it - either way a verdict about the wrong step",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -841,7 +1099,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 20
+    arm_floor = 27
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
@@ -910,7 +1168,7 @@ def main() -> int:
     derived = 0
     print("\n  --min-rows, against the rows the harness will actually print:")
     for name in sorted(set(external)):
-        min_rows, row_re = external[name]
+        min_rows, row_re, shards = external[name]
         # `ci-harness-gate.sh` builds `scripts/$harness` itself, so the
         # names on its lines are bare and always under scripts/. That is
         # the gate's rule, not this checker's, so it stays a join on
@@ -934,20 +1192,9 @@ def main() -> int:
             bad.append(f"{name}: cannot derive a row count - {live}")
         else:
             derived += 1
-            print(f"  {name:42} --min-rows {min_rows:3}  rows {live:3}")
-            if live > min_rows:
-                bad.append(
-                    f"{name}: SLACK by {live - min_rows}. It prints {live} "
-                    f"rows and ci.yml passes --min-rows {min_rows}, so "
-                    f"{live - min_rows} row(s) can be deleted without the "
-                    "gate noticing. --min-rows is a LOWER bound; it must "
-                    "EQUAL the live count."
-                )
-            elif live < min_rows:
-                bad.append(
-                    f"{name}: --min-rows {min_rows} exceeds the {live} rows "
-                    "it prints, so this step cannot pass."
-                )
+            lanes = f"  x {shards} shards" if shards > 1 else ""
+            print(f"  {name:42} --min-rows {min_rows:3}  rows {live:3}{lanes}")
+            bad.extend(_min_rows_verdict(name, min_rows, shards, live))
 
         # THE SAME CONTAINER RULE AS CLAIM FOUR, not `ROW_FLOOR=` alone.
         # This is the fix rebuilding its own defect one column over if
