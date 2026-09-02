@@ -1,6 +1,13 @@
 # Task #143 - per-job minute rounding
 
-<!-- REVIEW-COVERS: 9e04411..HEAD PATHS: .github/workflows/ci.yml scripts/apply-143-consolidation.py CONTRIBUTING.md -->
+<!--
+DELIBERATELY NO `REVIEW-COVERS` LINE. I drafted one and removed it. This
+is an implementation worklog, not a review round: nobody has reviewed
+these commits, so a declaration here would manufacture machine-readable
+coverage for code no reviewer opened. PREAMBLE.md's own reasoning applies
+directly - "an absence you can see beats a false presence you cannot".
+These commits SHOULD show as uncovered until a reviewer declares them.
+-->
 
 Branch `fix/143-ci-minutes`, worktree `fmj-worktrees/w143`, cut from
 `origin/main` at `9e04411`.
@@ -193,6 +200,17 @@ captured output it matches nothing. "6 deselected" is not a skip.
 
 Both floors were DERIVED from `ci.yml`, not retyped: `check-suite-floor.sh
 887` and `check-harness-anchors.py --self-check --floor 458`.
+
+## One gate is RED, and it is red on `origin/main` too
+
+`docs/reviews/check-review-coverage.py` exits **1**. I checked whether
+that was mine by running it from a detached worktree at `origin/main`:
+**exit 1 there as well, with byte-identical counts** - 200 fully covered,
+39 partial, 19 covered by nothing. So my branch neither causes nor worsens
+it; it is the pre-existing state task #151 ruled on. It is also **not
+wired into `ci.yml`** (`grep` finds no step), so it gates nothing today.
+Reported rather than "fixed", because making it green is #151's call and
+not a cost commit's.
 
 ## What I could NOT settle
 
