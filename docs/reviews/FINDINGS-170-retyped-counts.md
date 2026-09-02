@@ -130,10 +130,25 @@ fixed.** The section it heads exists to weigh `bash.md:799` honestly, and
 it currently weighs it against a population less than half the real one.
 
 The `13 of 15` framing also carries an implied claim that **two members
-are under the guideline**. Today the exception is **one** — and it is
-`scripts/lib/harness-result.sh`, the sourced library that BASH-1 already
-identifies as legitimately outside its own rule. So the corrected
-sentence has a different shape, not a different digit.
+are under the guideline**. Today the exception is **one**, and it is
+**`scripts/check-suite-floor.sh` at 66 lines**.
+
+**THIS SENTENCE FIRST NAMED THE WRONG FILE, AND THE MISTAKE IS THE ONE
+THIS WHOLE TASK IS ABOUT.** It said `scripts/lib/harness-result.sh` —
+reasoned across from BASH-1's own cell, which names that file as the
+legitimate exception to the `set -uo pipefail` rule. **It is a different
+rule.** `harness-result.sh` is 175 lines and is comfortably OVER the
+100-line guideline; being outside one rule buys nothing from another.
+Corrected by Tier 0's independent re-derivation and re-verified here:
+`git ls-files 'scripts/*.sh'` piped through `wc -l` returns exactly one
+member at or under 100, and it is `check-suite-floor.sh`.
+
+**A claim inherited from a neighbouring sentence instead of derived is
+the same defect as a count retyped from a neighbouring commit** — and
+`--derive` could not have caught it, because it derives glob POPULATIONS
+and this was a claim about a per-member PROPERTY with no derivation
+behind it at all. The headline figures either side of it (39 tracked, 38
+over, largest 598) were derived and all held.
 
 **Suggested fix — REWRITE, no count retyped** (this file is not mine to
 edit; §B of the brief reserves it):
@@ -141,9 +156,13 @@ edit; §B of the brief reserves it):
 > **`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or
 > Go". Nearly every tracked `scripts/*.sh` exceeds 100 lines — derive it:
 > list them with `git ls-files 'scripts/*.sh'` and count those whose
-> `wc -l` exceeds 100. The one that does not is
-> `scripts/lib/harness-result.sh`, the sourced library BASH-1 already
-> names as outside its rule for the same reason.**
+> `wc -l` exceeds 100. Do not assume the exception is the file BASH-1
+> names: that row is about `set -uo pipefail`, a different rule, and its
+> exception `scripts/lib/harness-result.sh` is 175 lines.**
+
+Landed by Tier 0 at `30be0ce` (local, held), re-derived rather than
+transcribed from this report — which is how the wrong file above was
+caught.
 
 ---
 
@@ -182,6 +201,13 @@ Derived at `1cddd76` **by this repository's own checker**,
 `python3 docs/reviews/check-design-citations.py`:
 
     1988 DESIGN.md citations across 216 files
+
+**Tier 0 read 1987 across 215 on the main checkout, and that is the SAME
+measurement, not a disagreement**: this branch carries one file the main
+checkout does not — the census tool itself, which quotes a citation.
+Recorded because two instruments differing by one is exactly the shape
+that should be explained rather than averaged, and Tier 0 used its own
+figure when it landed the fix.
 
 Stale by 2.3x in both figures. This sentence is live guidance: it is the
 argument a contributor reads to decide whether skipping the repointer
@@ -245,14 +271,35 @@ measured this distinction and deliberately left `REPORT-147` §6's stale
 | `docs/reviews/DESIGN-DELTA-REVIEW.md:37`, `DESIGN-FREEZE-REVIEW.md:26` | "32/32 controls fired", "34/34" | superseded by later rounds | review documents; each records one run |
 | `docs/DESIGN.md:1615` | "the conformance sweep found eleven consecutive documentation obligations unaddressed" | — | a past sweep's RESULT stated in the past tense, and `fourteen README sections` beside it is the STANDARD's number, not this repo's |
 
-**A FOURTH CLASS THE BRIEF DOES NOT NAME, and F3/F5/F6/F7 are all in
-it.** A *historical justification living inside a live file* is neither
-a dated record nor a plain stale count: the file is load-bearing and
-undated, but the number is evidence for a decision already taken, so
-swapping the digit falsifies the argument it supports. The remedy is
-**tense** — say when it was measured — which is a fifth remedy, distinct
-from delete, derive, and rewrite-the-claim. Recommend Tier 0 add it to
-the ruling.
+### Class D — a historical justification inside a LIVE file. RULED AND ADOPTED.
+
+**Tier 0 ruled this class in, as framed.** It is neither a dated record
+nor a plain stale count: the file is load-bearing and undated, but the
+number is **evidence for a decision already taken**, so swapping the
+digit falsifies the argument it supports. The remedy is **TENSE** — say
+when it was measured — a fifth remedy distinct from delete, derive, and
+rewrite-the-claim. **F3, F5, F6 and F7 are class D and take it.**
+
+### RULING — `docs/briefs/` IS NOT a dated-record class
+
+Tier 0 ruled, on a precedent already on the books: `check-review-coverage.py`
+refuses `docs/briefs` as a RECORD path **by name**, because a brief
+INSTRUCTS an agent and has carried substantive rulings. One ruling, one
+place — briefs are not records for one tool and records for another. The
+conservative default this tool already used is therefore correct and
+stays: `RECORD_PREFIXES` does not admit them.
+
+**THE TWO RULINGS COMPOSE, and that is what settles the 41 brief
+candidates:**
+
+- a count in a brief **already dispatched and completed** is **class D**
+  — true at dispatch, and it justified a decision since taken. Tense,
+  not correction.
+- a count in a brief **still live and still steering an agent** is
+  **class A** — derive it or delete it.
+
+That is the rule to apply to the `docs/briefs/` remainder, and it is
+sharper than either ruling alone.
 
 ## §3 — CHECKED, AND FOUND CORRECT
 
