@@ -446,12 +446,40 @@ plan is still not sufficient, but not for the reason first written here.
 Sharding replicates a harness's BASELINE into every shard and divides
 only its ROWS, so the payoff is governed by `R/(B+R)`:
 
-| harness | B | R | R/(B+R) | local->CI | k=1 | k=2 |
-|---|---|---|---|---|---|---|
-| U3 amputation | 14.47s | 153.11s | 0.91 | 1.567x | 304s | 163s |
-| U9 amputation | 82.79s | 60.93s | 0.42 | 1.703x | 298s | 219s |
+| harness | B | R | overhead | R/(B+R) | local->CI | k=1 | k=2 |
+|---|---|---|---|---|---|---|---|
+| U3 amputation | 14.47s | 153.11s | 26.4s | 0.91 | 1.567x | 304s | 163s |
+| U9 amputation | 82.79s | 60.93s | 31.3s | 0.42 | 1.703x | 298s | 219s |
 
-U3's rows dominate 10.6:1. U9's baseline dominates - it builds a
+The model, so the table reproduces from its own inputs rather than
+having to be taken on trust:
+
+    step_ci(k) = scale * (B + (R + overhead) / k)
+
+**The overhead column was DELETED by the first rewrite of this section,
+which broke exactly the property the section exists to argue for.**
+Without it the numbers do not close: `(82.79 + 60.93) * 1.703 = 244.7`
+against a table saying 298. Restored, with the formula, because a table
+a reader cannot refit is a claim and not a measurement.
+
+Two things the formula makes visible and neither is obvious. `overhead`
+is divided by `k` because it is per-row cost - roughly one `uv run`
+start per row, at `:151` and `:186` - not per-invocation setup; `uv
+sync` and checkout are SEPARATE ci.yml steps outside the number being
+divided here. And the two scale factors differ by 8.6%, which is itself
+evidence against the uniformity this model assumes: one scale multiplies
+B, R and overhead alike, while sharding moves U9 from 47% baseline to
+64% at k=2, so that error lands on the 219s at full weight. §7a.1 of
+this file already says two points do not give a factor.
+
+U3's rows dominate 10.6:1.
+
+"Sharding replicates the BASELINE" is a description of these two
+harnesses, not a law. U3's baseline is only a red/green precondition
+that the separate `Default suite, zero skips` step already makes once
+per run, so a sharded U3 could in principle skip it; U9's baseline
+builds an artefact its rows consume and cannot be skipped. The two are
+not the same kind of cost and the sentence should not imply they are. U9's baseline dominates - it builds a
 coverage map over the whole 888-test suite (`check-u9-http-amputation.sh:22`),
 and every shard rebuilds it. So U3 x2 takes 46.3% off its step and
 U9 x2 takes 26.3%: **298s -> 219s, not the ~149s a U3-shaped model
@@ -490,6 +518,20 @@ inflated the lane count needed. The correct shape is
 tops out at 161s and is not binding.
 
 Harness side, from run 33630968540: **33 steps, 3311s, largest 298s.**
+
+The population rule, stated because it is a choice and it moves the
+answer: every step inside a `harness-*` job whose duration is at least
+5s, excluding GitHub's own per-job wrapper steps (`Set up job`,
+`Checkout`, `Install uv`, `Set up Python`, `Post *`, `Complete job`).
+The 5s floor drops three real harness steps; `MEASURED-268` counts them
+and publishes 35 steps / 3442s over all three runs, which is why the two
+documents differ. Neither is wrong - they are different populations over
+different run sets, and this is the pointer between them that was
+missing.
+
+Per-lane setup is taken as **13s**, measured as the job-minus-step delta
+on run 33630968540's U3 amputation lane (271s job, 258s step). It is
+load-bearing - `311 = 298 + 13` - and it is one delta from one job.
 
 | lanes | unsharded | sharded |
 |---|---|---|
@@ -546,12 +588,27 @@ the table above already estimates. No wall figure is asserted here.
 
 - The largest step per run is **376s (U3 CONTROLS)**, **304s (U3
   amputation)**, **298s (U9 amputation)** - one per run, three different
-  steps. The earlier "304/304/376" attribution was wrong.
+  steps. The earlier attribution read 376/304/304, of which only the
+  THIRD was wrong - the run that drew 298 was recorded as 304, its
+  median. Saying "304/304/376 was wrong" overstated it.
 - `U3 audit mutation controls` has a median of 150s but drew 376s once,
   a 3.2x swing. Any "largest remaining step" claim is a band, not a rank.
 - 235s (U4) vs 219s (U9 sharded) is inside U9's own step swing. It is a
   tie, not an ordering.
 - The suite is 888 tests, not 889.
+
+### Two live disagreements with `MEASURED-268`, unreconciled
+
+`MEASURED-268:125` publishes 1.814x for U3 where this section derives
+1.567x, and `:140` publishes 276s at 14 lanes. **The 276s is right and
+this section reached it late** - three independent computations now
+agree on 14 lanes, and the first version of this section's 15 was the
+sole outlier. That is worth saying plainly: the older document was
+correct and the newer one drifted away from it before drifting back.
+
+The 1.814x-vs-1.567x gap is NOT reconciled. Both are one ratio of two
+noisy numbers over the same harness, and nobody has established which
+run pair each used.
 
 ### The option that would change the picture, unbuilt
 
