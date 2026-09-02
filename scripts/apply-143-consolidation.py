@@ -48,11 +48,18 @@ HEADER = """\
   # WHY THESE THREE AND NOT THE OTHER TWO:
   #   `test` is the long pole (median 87s, max 7522s) - merging anything into
   #     it buys nothing and couples a 5-second gate to a 2-hour matrix.
-  #   `codeql` stays out. It bills 354 min, the SECOND largest line, but its
-  #     median is 64s - it is over the minute boundary on its own merits, not
-  #     from rounding a trivial job. Merging it would ADD its 64s to this job
-  #     and still bill 2 minutes, saving ~1 min/run at the cost of running the
-  #     design gates under CodeQL's instrumented environment. Not worth it.
+  #   `codeql` stays out, and this is a REFUSAL with a measured price on it,
+  #     not a dismissal. It bills 354 min, the SECOND largest line, but its
+  #     median is 64s - it crosses the minute boundary on its own merits,
+  #     not by rounding a trivial job. Folding it in as a FOURTH member
+  #     measures a further 134 min saved over the same 210 run-attempts
+  #     (557 -> 423). That is real, and it is refused anyway: CodeQL's
+  #     analyze step scans the workspace, and this job populates `.venv`
+  #     via `uv sync --frozen` before it would run. Changing what a
+  #     SECURITY gate scans to save 0.64 min/run is the wrong trade, and
+  #     it needs its own measurement of CodeQL's findings before and
+  #     after - not a note in a cost commit. Tier 0 can overrule this with
+  #     the number in front of it.
   #
   # THE PROLOGUE IS SHARED, and that is the second saving. `design-gates` and
   # `supply-chain` ran BYTE-IDENTICAL prologues - checkout at fetch-depth 0,
