@@ -24,13 +24,24 @@ cd "$REPO_ROOT" || exit 3
 F="src/fast_mcp_jobvite/tools/jobs.py"
 M="src/fast_mcp_jobvite/models/jobs.py"
 PRISTINE_DIR=$(mktemp -d)
-trap 'rm -rf "$PRISTINE_DIR"' EXIT
+# PER-RUN, NEVER A FIXED NAME, and written ONCE into variables so the redirects
+# and their readers cannot drift apart. Two worktrees on one machine run these
+# probes concurrently, and a fixed path gives both the SAME INODE: independent
+# `>` offsets leave a NUL hole, `grep`/`tail` then read another process's
+# bytes - `grep` reports "binary file matches" on STDERR and returns an EMPTY
+# capture at exit 0. Reproduced both ways in
+# docs/reviews/probe-284-shared-path-collision.sh; #262 is where the class
+# already produced a false kill. CI can never catch a regression here - the
+# runner has no second worktree.
+BASE_OUT=$(mktemp /tmp/r4-base-XXXXXX)
+ROW_OUT=$(mktemp /tmp/r4-out-XXXXXX)
+trap 'rm -rf "$PRISTINE_DIR"; rm -f "$BASE_OUT" "$ROW_OUT"' EXIT
 cp "$F" "$PRISTINE_DIR/tools_jobs.py"
 cp "$M" "$PRISTINE_DIR/models_jobs.py"
 
 echo "########## BASELINE"
 timeout -k 30 900 uv run --frozen pytest tests/ -q -p no:cacheprovider \
-  >/tmp/r4-base.txt 2>&1
+  >"$BASE_OUT" 2>&1
 BASE_RC=$?
 if [ "$BASE_RC" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
@@ -39,14 +50,18 @@ if [ "$BASE_RC" -eq 124 ]; then
 fi
 if [ "$BASE_RC" -ne 0 ]; then
   echo "ABORT: intact suite is red"
-  tail -20 /tmp/r4-base.txt
+  tail -20 "$BASE_OUT"
   exit 3
 fi
-tail -1 /tmp/r4-base.txt
+tail -1 "$BASE_OUT"
 echo
 
 SURVIVED=0
 ROWS=0
+# ROWS THAT REACHED A VERDICT. `$ROWS` counts rows ENTERED, so every early
+# return below (anchor moved, mutation did not land, timeout) leaves it
+# unchanged while emitting no verdict at all. See the assertion at the foot.
+JUDGED=0
 
 probe() {
   local label="$1" file="$2" pristine="$3" old="$4" new="$5"
@@ -82,7 +97,7 @@ PY
   fi
 
   timeout -k 30 900 uv run --frozen pytest tests/ -q -p no:cacheprovider \
-    >/tmp/r4-out.txt 2>&1
+    >"$ROW_OUT" 2>&1
   local rc=$?
   cp "$pristine" "$file"
 
@@ -95,11 +110,12 @@ PY
     echo "  a kill nor a survivor. No verdict is emitted for it."
     return 1
   fi
+  JUDGED=$((JUDGED + 1))
   if [ "$rc" -ne 0 ]; then
-    echo "  KILLED   $(tail -1 /tmp/r4-out.txt)"
+    echo "  KILLED   $(tail -1 "$ROW_OUT")"
   else
     SURVIVED=$((SURVIVED + 1))
-    echo "  *** SURVIVED *** $(tail -1 /tmp/r4-out.txt)"
+    echo "  *** SURVIVED *** $(tail -1 "$ROW_OUT")"
   fi
   echo
 }
@@ -143,12 +159,40 @@ probe "R4-P5 TOTAL_ENVELOPE_KEY names a key Jobvite never sends" \
   'TOTAL_ENVELOPE_KEY = "count"'
 
 # R4-P6 - the advisory annotation flips to a write hint.
+#
+# THE ANCHOR CARRIES ITS PRECEDING COMMENT, and that is not decoration. The
+# one-line form `annotations={"readOnlyHint": True},` was UNIQUE when this row
+# was written and stopped being so at 12e3c60, which added `get_job_feed` with
+# the identical annotation. From that commit until #284 the row printed
+# "ANCHOR NOT UNIQUE (2 hits) / COULD NOT APPLY", emitted no verdict, and this
+# probe still exited 0 - a control lost in silence for as long as nobody read
+# the middle of the log. The JUDGED assertion at the foot is what now makes
+# that loud; this anchor is what makes the row run.
 probe "R4-P6 the read-only annotation is inverted" \
   "$F" "$PRISTINE_DIR/tools_jobs.py" \
-  'annotations={"readOnlyHint": True},' \
-  'annotations={"readOnlyHint": False},'
+  '        # never counted as a control.
+        annotations={"readOnlyHint": True},' \
+  '        # never counted as a control.
+        annotations={"readOnlyHint": False},'
 
-echo "########## ROWS: $ROWS   SURVIVED: $SURVIVED"
+echo "########## ROWS: $ROWS   JUDGED: $JUDGED   SURVIVED: $SURVIVED"
+
+# THE TALLY IS ASSERTED, NOT MERELY PRINTED (#262, #284). Every early return in
+# `probe` - anchor moved, mutation did not land, row timed out - prints a line
+# and returns WITHOUT a verdict, and `SURVIVED` stays 0. So all six rows could
+# fail to apply and this probe would print "SURVIVED: 0" and exit 0: identical,
+# to any reader and to any caller, to six rows that were all correctly killed.
+# That is the exact shape #262 measured, where a probe printed killed=12/15 and
+# still reported 3/3 passed status=ok rc=0. A count that nothing compares is a
+# decoration. ROW_COUNT is the DECLARED population; the six `probe` calls above
+# are the live one, and a deleted row breaches this rather than shrinking
+# silently.
+ROW_COUNT=6
+if [ "$ROWS" -ne "$ROW_COUNT" ] || [ "$JUDGED" -ne "$ROW_COUNT" ]; then
+  echo "::error::TALLY SHORT - $ROWS/$ROW_COUNT rows entered, $JUDGED reached a"
+  echo "         verdict. A row that never ran is NOT a row that found nothing."
+  exit 1
+fi
 
 # RESTORE IS CHECKED AGAINST THE PRISTINE COPY, taken before row 1.
 dirty=0

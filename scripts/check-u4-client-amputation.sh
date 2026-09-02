@@ -70,8 +70,16 @@ cd "$REPO_ROOT" || exit 3
 
 CLIENT="src/fast_mcp_jobvite/services/jobvite_client.py"
 SUITE="tests/test_jobvite_client.py"
-OUT=/tmp/u4-amp.txt
-
+# THE PYTEST LOG THIS RUN READS ITS VERDICTS OUT OF. Per-RUN, never a fixed
+# name. Two worktrees on one machine run these harnesses concurrently, and a
+# fixed path gives both the SAME INODE: independent `>` offsets leave a NUL
+# hole, `grep` then reports "binary file matches" on STDERR and returns an
+# EMPTY capture at exit 0, and a rival's `FAILED <nodeid>` lines are read as
+# THIS run's kill. Both directions were reproduced - see
+# docs/reviews/probe-284-shared-path-collision.sh, and #262 for the false kill
+# this class already produced. CI can never catch a regression here: the runner
+# has no second worktree.
+OUT="$(mktemp /tmp/u4-amp-XXXXXX)"
 # `git status --porcelain`, NOT `git diff --quiet`. `git diff` compares
 # the worktree to the INDEX, so a file that was edited and then `git
 # add`-ed reads CLEAN and this guard waves it through - after which the
@@ -97,6 +105,12 @@ echo "########## BASELINE - the intact tree"
 # from this same run of this same tree, so the map cannot be stale. A row
 # with no in-process coverage of its lines falls back to the whole $SUITE.
 COVDB="$(mktemp /tmp/u4-amp-covdb-XXXXXX)"
+# `harness_result_emit` FIRST. `lib/harness-result.sh` armed an EXIT trap at
+# source time and bash has NO TRAP STACK, so this trap REPLACES it - chaining
+# the emitter into the front is what keeps an abort from rendering as silence.
+# The mktemp'd files are removed here: a per-RUN name that is never deleted is
+# unbounded accretion, a different defect from the shared one.
+trap 'harness_result_emit; rm -f "$COVDB" "$OUT"' EXIT
 COVERAGE_FILE="$COVDB" timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
   -p no:cacheprovider --cov --cov-context=test --cov-report= --cov-fail-under=0 >"$OUT" 2>&1
 baseline_rc=$?

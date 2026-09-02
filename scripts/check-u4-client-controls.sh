@@ -52,6 +52,26 @@ cd "$REPO_ROOT" || exit 3
 CLIENT="src/fast_mcp_jobvite/services/jobvite_client.py"
 SUITE="tests/test_jobvite_client.py"
 
+# THE TWO PYTEST LOGS THIS RUN READS ITS VERDICTS OUT OF. Per-RUN, never fixed
+# names, and written ONCE into variables so the redirects and the seven readers
+# below cannot drift apart the way seven repeated literals can.
+#
+# Two worktrees on one machine run these harnesses concurrently, and a fixed
+# path gives both the SAME INODE: independent `>` offsets leave a NUL hole,
+# `grep` then reports "binary file matches" on STDERR and returns an EMPTY
+# capture at exit 0. $MUT_OUT is the dangerous one - the `^FAILED $SUITE::$want`
+# branch below reads a VERDICT out of it, so a rival WRITING there writes the
+# very lines that grep accepts and this run reports a kill it never made.
+# Reproduced both ways in docs/reviews/probe-284-shared-path-collision.sh; #262
+# is where the class already produced one. CI can never catch a regression
+# here - the runner has no second worktree.
+BASE_OUT="$(mktemp /tmp/u4-base-XXXXXX)"
+MUT_OUT="$(mktemp /tmp/u4-mut-XXXXXX)"
+# `harness_result_emit` FIRST. `lib/harness-result.sh` armed an EXIT trap at
+# source time and bash has NO TRAP STACK, so this trap REPLACES it - chaining
+# the emitter into the front is what keeps an abort from rendering as silence.
+trap 'harness_result_emit; rm -f "$BASE_OUT" "$MUT_OUT"' EXIT
+
 PASS=0
 FAIL=0
 
@@ -72,7 +92,7 @@ if [ -n "$(git status --porcelain -- "$CLIENT")" ]; then
 fi
 
 echo "########## BASELINE - the intact tree"
-timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >/tmp/u4-base.txt 2>&1
+timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$BASE_OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -82,10 +102,10 @@ if [ "$baseline_rc" -eq 124 ]; then
 fi
 if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact suite is red; every row below would be meaningless."
-  tail -20 /tmp/u4-base.txt
+  tail -20 "$BASE_OUT"
   exit 3
 fi
-tail -1 /tmp/u4-base.txt
+tail -1 "$BASE_OUT"
 echo
 
 # ---------------------------------------------------------------------------
@@ -121,7 +141,7 @@ PY
   # that no longer resolves produces no FAILED line and the row reports
   # SURVIVED, loudly - a renamed killer cannot pass silently. Before #238
   # this ran the whole of $SUITE per row: 19 rows x ~24s on the runner.
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest "$SUITE::$want" -q -p no:cacheprovider -rf >/tmp/u4-mut.txt 2>&1
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest "$SUITE::$want" -q -p no:cacheprovider -rf >"$MUT_OUT" 2>&1
   local rc=$?
   if [ "$rc" -eq 4 ]; then
     echo "  NOTE: pytest exit 4 - the selector $SUITE::$want resolved no test."
@@ -138,13 +158,13 @@ PY
   fi
 
   # The NAMED test must be among the failures. A red suite is not enough.
-  if grep -qE "^FAILED $SUITE::$want" /tmp/u4-mut.txt; then
+  if grep -qE "^FAILED $SUITE::$want" "$MUT_OUT"; then
     echo "$id: KILLED by $want"
     PASS=$((PASS + 1))
   else
     echo "$id: SURVIVED - $want did not fail. Suite result was:"
-    tail -1 /tmp/u4-mut.txt | sed 's/^/      /'
-    grep -E '^FAILED ' /tmp/u4-mut.txt | sed 's/^/      also-red: /' | head -5
+    tail -1 "$MUT_OUT" | sed 's/^/      /'
+    grep -E '^FAILED ' "$MUT_OUT" | sed 's/^/      also-red: /' | head -5
     FAIL=$((FAIL + 1))
   fi
 }

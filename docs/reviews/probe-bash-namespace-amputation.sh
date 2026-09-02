@@ -13,7 +13,15 @@
 # `-e` deliberately omitted, under ADR-0023: this probe reads the exit code of a
 # checker that is EXPECTED to fail under the amputation.
 set -uo pipefail
-cd /tmp/bash-work 2>/dev/null || cd "$(git rev-parse --show-toplevel)" || exit 9
+# THE REPOSITORY ROOT, AND NOTHING ELSE. This read `cd /tmp/bash-work
+# 2>/dev/null || cd "$(git rev-parse --show-toplevel)"` - scaffolding left from
+# the throwaway worktree the BASH standard was written in (see
+# docs/worklogs/BASH-STANDARD-REPORT.md, which records that worktree being
+# removed). A stale or unrelated /tmp/bash-work would have silently won that
+# `||` and run this probe against a DIFFERENT TREE, reporting a verdict about
+# code nobody was asking about. Removed under #284 rather than randomised:
+# a fixed path with no owner is not a temp file to rename, it is a line to cut.
+cd "$(git rev-parse --show-toplevel)" || exit 9
 
 # No MAP variable here: one was declared and read by nothing. The artifact
 # this probe edits is read out of the ROW below, which is the whole point of

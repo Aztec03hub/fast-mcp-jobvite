@@ -48,8 +48,18 @@ SERVER="src/fast_mcp_jobvite/server.py"
 SUITE="tests/test_config.py tests/test_boot.py tests/test_shutdown.py tests/test_server.py tests/test_logging_process.py"
 
 BACKUP="$(mktemp -d)"
+# THE BASELINE LOG. Per-RUN, never a fixed name, and written ONCE into a
+# variable so the redirect and the three readers below cannot drift apart.
+# Two worktrees on one machine run these harnesses concurrently, and a fixed
+# path gives both the SAME INODE: independent `>` offsets leave a NUL hole,
+# `grep` then reports "binary file matches" on STDERR and returns an EMPTY
+# capture at exit 0, and a rival's lines are read as THIS run's. Reproduced
+# both ways in docs/reviews/probe-284-shared-path-collision.sh; #262 is where
+# the class already produced a false kill. CI can never catch a regression
+# here - the runner has no second worktree.
+BASE_OUT="$(mktemp /tmp/u1-base-XXXXXX)"
 trap 'harness_result_emit; cp "$BACKUP/config.py" "$CONFIG"; cp "$BACKUP/__main__.py" "$MAIN"; \
-      cp "$BACKUP/server.py" "$SERVER"; rm -rf "$BACKUP"' EXIT
+      cp "$BACKUP/server.py" "$SERVER"; rm -rf "$BACKUP" "$BASE_OUT"' EXIT
 cp "$CONFIG" "$BACKUP/config.py"
 cp "$MAIN" "$BACKUP/__main__.py"
 cp "$SERVER" "$BACKUP/server.py"
@@ -66,7 +76,7 @@ restore() {
 # baseline: a red intact tree makes every row below meaningless.
 echo "########## BASELINE - the intact tree"
 PYTHONDONTWRITEBYTECODE=1 timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
-     -p no:cacheprovider >/tmp/u1-base.txt 2>&1
+     -p no:cacheprovider >"$BASE_OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -76,10 +86,10 @@ if [ "$baseline_rc" -eq 124 ]; then
 fi
 if [ "$baseline_rc" -ne 0 ]; then
   echo "ABORT: the intact tree is red; mutation results would be meaningless."
-  tail -20 /tmp/u1-base.txt
+  tail -20 "$BASE_OUT"
   exit 3
 fi
-tail -1 /tmp/u1-base.txt
+tail -1 "$BASE_OUT"
 echo
 
 # control <label> <file> <landed-grep> <named-test> -- the sed/python patch is

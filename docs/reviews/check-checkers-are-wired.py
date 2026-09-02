@@ -326,6 +326,22 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "requires `check-obligations.py` to go RED. An amputation of a "
         "wired gate cannot run beside that gate."
     ),
+    "probe-284-shared-path-collision.sh": (
+        "the MECHANISM reproducer for #284, not a gate on this tree. Both "
+        "its arms assert properties of the KERNEL and of GNU grep - that "
+        "two `>` writers on one inode leave a NUL hole, that grep then "
+        "matches, exits 0, prints nothing on stdout and 'binary file "
+        "matches' on stderr - against files it creates in its own mktemp'd "
+        "directory. It touches no tracked artifact, so a green says "
+        "nothing about the repository and it could not go red for a defect "
+        "here: inert as a gate, which is the same ruling "
+        "probe-243-forced-exit-window.py carries. THE GATE FOR THIS CLASS "
+        "IS check-no-shared-tmp-paths.py, which is wired, reads the "
+        "tracked .sh, and reported 48 hits across 28 files at 99ebf05. "
+        "Re-run this probe by hand whenever that gate's rule or its "
+        "DELIBERATE register changes - it is the evidence the rule is "
+        "about a real failure and not a style preference."
+    ),
     "probe-ci-checker-steps-control.py": (
         "MUTATES `.github/workflows/ci.yml` to plant a bare interpreter "
         "and requires its subject to detect it. Its own docstring says "

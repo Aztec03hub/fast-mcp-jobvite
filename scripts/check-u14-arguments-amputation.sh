@@ -71,10 +71,19 @@ JOBS="src/fast_mcp_jobvite/tools/jobs.py"
 CANDIDATES="src/fast_mcp_jobvite/tools/candidates.py"
 APPROVAL="src/fast_mcp_jobvite/approval.py"
 SUITE="tests/test_arguments_sweep.py"
-OUT=/tmp/u14-amp.txt
+# THE PYTEST LOG THIS RUN READS ITS VERDICTS OUT OF. Per-RUN, never a fixed
+# name. Two worktrees on one machine run these harnesses concurrently, and a
+# fixed path gives both the SAME INODE: independent `>` offsets leave a NUL
+# hole, `grep` then reports "binary file matches" on STDERR and returns an
+# EMPTY capture at exit 0, and a rival's `FAILED <nodeid>` lines are read as
+# THIS run's kill. Both directions were reproduced - see
+# docs/reviews/probe-284-shared-path-collision.sh, and #262 for the false kill
+# this class already produced. CI can never catch a regression here: the runner
+# has no second worktree.
+OUT="$(mktemp /tmp/u14-amp-XXXXXX)"
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR" "$OUT"' EXIT
 
 for f in "$CONSTRAINTS" "$JOBS" "$CANDIDATES" "$APPROVAL" "$SUITE"; do
   cp "$f" "$PRISTINE_DIR/$(echo "$f" | tr / _)" ||

@@ -80,10 +80,19 @@ cd "$REPO_ROOT" || exit 3
 
 HARDENING="src/fast_mcp_jobvite/http_hardening.py"
 SUITE="tests"
-OUT=/tmp/u9-amp.txt
+# THE PYTEST LOG THIS RUN READS ITS VERDICTS OUT OF. Per-RUN, never a fixed
+# name. Two worktrees on one machine run these harnesses concurrently, and a
+# fixed path gives both the SAME INODE: independent `>` offsets leave a NUL
+# hole, `grep` then reports "binary file matches" on STDERR and returns an
+# EMPTY capture at exit 0, and a rival's `FAILED <nodeid>` lines are read as
+# THIS run's kill. Both directions were reproduced - see
+# docs/reviews/probe-284-shared-path-collision.sh, and #262 for the false kill
+# this class already produced. CI can never catch a regression here: the runner
+# has no second worktree.
+OUT="$(mktemp /tmp/u9-amp-XXXXXX)"
 BACKUP_DIR=$(mktemp -d)
 PRISTINE_DIR=$(mktemp -d)
-trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR"' EXIT
+trap 'harness_result_emit; rm -rf "$BACKUP_DIR" "$PRISTINE_DIR" "$OUT"' EXIT
 
 cp "$HARDENING" "$PRISTINE_DIR/http_hardening.py" ||
   { echo "COULD NOT TAKE PRISTINE COPY of $HARDENING"; exit 3; }

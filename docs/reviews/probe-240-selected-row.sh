@@ -37,8 +37,18 @@ DATA="${DATA:-/tmp/prof240/.coverage-ctx}"
 SUBJECT="src/fast_mcp_jobvite/http_hardening.py"
 IDS=$(mktemp)
 PRISTINE=$(mktemp)
+# PER-RUN, NEVER A FIXED NAME. Two worktrees on one machine run these probes
+# concurrently, and a fixed path gives both the SAME INODE: independent `>`
+# offsets leave a NUL hole, `grep` then reports "binary file matches" on
+# STDERR and returns an EMPTY capture at exit 0, and a rival's `FAILED
+# <nodeid>` lines are read as THIS run's verdict. Reproduced both ways in
+# docs/reviews/probe-284-shared-path-collision.sh; #262 is where the class
+# already produced a false kill. CI can never catch a regression here - the
+# runner has no second worktree.
+ARM1=$(mktemp /tmp/probe-240-arm1-XXXXXX)
+ARM2=$(mktemp /tmp/probe-240-arm2-XXXXXX)
 cp "$SUBJECT" "$PRISTINE" || exit 3
-trap 'cp "$PRISTINE" "$SUBJECT"; rm -f "$IDS" "$PRISTINE"' EXIT
+trap 'cp "$PRISTINE" "$SUBJECT"; rm -f "$IDS" "$PRISTINE" "$ARM1" "$ARM2"' EXIT
 
 # ---- the covering set, run-phase only -------------------------------------
 DATA="$DATA" SUBJECT="$SUBJECT" python3 - >"$IDS" <<'PY'
@@ -69,10 +79,10 @@ fi
 
 t0=$(date +%s)
 # shellcheck disable=SC2046
-timeout "$ARM_TIMEOUT" uv run --frozen pytest -q -p no:cacheprovider $(tr '\n' ' ' <"$IDS") >/tmp/prof240/arm1.txt 2>&1
+timeout "$ARM_TIMEOUT" uv run --frozen pytest -q -p no:cacheprovider $(tr '\n' ' ' <"$IDS") >"$ARM1" 2>&1
 rc1=$?
 t1=$(date +%s)
-echo "ARM1 intact  rc=$rc1  seconds=$((t1 - t0))  $(tail -1 /tmp/prof240/arm1.txt)"
+echo "ARM1 intact  rc=$rc1  seconds=$((t1 - t0))  $(tail -1 "$ARM1")"
 if [ "$rc1" -ne 0 ]; then
   echo "::error::BROKEN CONTROL - the selected tests are red on the INTACT tree."
   exit 2
@@ -105,11 +115,11 @@ echo "AMPUTATION APPLIED (U9 row A1)"
 
 t2=$(date +%s)
 # shellcheck disable=SC2046
-timeout "$ARM_TIMEOUT" uv run --frozen pytest -q -p no:cacheprovider -rf $(tr '\n' ' ' <"$IDS") >/tmp/prof240/arm2.txt 2>&1
+timeout "$ARM_TIMEOUT" uv run --frozen pytest -q -p no:cacheprovider -rf $(tr '\n' ' ' <"$IDS") >"$ARM2" 2>&1
 rc2=$?
 t3=$(date +%s)
-echo "ARM2 amputated  rc=$rc2  seconds=$((t3 - t2))  $(tail -1 /tmp/prof240/arm2.txt)"
-grep -E '^FAILED ' /tmp/prof240/arm2.txt | head -5
+echo "ARM2 amputated  rc=$rc2  seconds=$((t3 - t2))  $(tail -1 "$ARM2")"
+grep -E '^FAILED ' "$ARM2" | head -5
 
 cp "$PRISTINE" "$SUBJECT"
 if ! cmp -s "$SUBJECT" "$PRISTINE"; then

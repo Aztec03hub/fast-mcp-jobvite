@@ -212,6 +212,27 @@ jobs:
       - name: No harness enables errexit
         run: python3 docs/reviews/check-no-errexit.py
 
+      # WIRED WITH #284, GREEN WHEN WIRED. At 99ebf05 this gate reported 48
+      # fixed /tmp paths across 28 tracked .sh; after the sweep it reports
+      # one, and that one carries its reason in DELIBERATE.
+      #
+      # THIS IS THE ONLY QUESTION CI CAN ASK ABOUT THIS DEFECT. Two worktrees
+      # on one machine running one harness open the SAME INODE, and grep then
+      # reports "binary file matches" on stderr with an EMPTY capture at exit
+      # 0 - #262's false kill was assembled from another process's bytes that
+      # way. The runner has ONE checkout, so the collision cannot occur there
+      # and no green harness run will ever reveal its return. The static shape
+      # is checkable; the race is not.
+      #
+      # `--self-test` is a SEPARATE step and not chained with `&&`: this job
+      # does not run under errexit, so a chained self-test failure would be
+      # invisible - measured three times in this file.
+      - name: No shell script names a fixed /tmp path (self-test)
+        run: python3 docs/reviews/check-no-shared-tmp-paths.py --self-test
+
+      - name: No shell script names a fixed /tmp path
+        run: python3 docs/reviews/check-no-shared-tmp-paths.py
+
       # WIRED 2026-09-01, GREEN WHEN WIRED: 37/37 scripts in the container
       # source the emitter, chain it from their EXIT trap, and call
       # harness_result_ran. Its controls sibling fires 8/8.

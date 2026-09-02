@@ -52,7 +52,6 @@ NODE="tests/test_audit.py::$WANT"
 # probe's first run. A hung suite produces no result lines, so every
 # assertion "did not survive" and the row reads as a pass.
 PYTEST_TIMEOUT=300
-OUT=/tmp/probe-252-rc4.txt
 ROWS=0
 FIRED=0
 
@@ -79,7 +78,17 @@ echo "verdict regex read from $HARNESS: $VERDICT_RE"
 echo
 
 restore() { git checkout -- "$AUDIT"; }
-trap 'harness_result_emit; restore' EXIT
+# PER-RUN, NEVER A FIXED NAME. Two worktrees on one machine run these probes
+# concurrently, and a fixed path gives both the SAME INODE: independent `>`
+# offsets leave a NUL hole, `grep` then reports "binary file matches" on
+# STDERR and returns an EMPTY capture at exit 0, and a rival's `FAILED
+# <nodeid>` lines are read as THIS run's verdict. Reproduced both ways in
+# docs/reviews/probe-284-shared-path-collision.sh; #262 is where the class
+# already produced a false kill. CI can never catch a regression here - the
+# runner has no second worktree.
+OUT="$(mktemp /tmp/probe-252-rc4-XXXXXX)"
+CTL_OUT="$(mktemp /tmp/probe-252-fake-fail-XXXXXX)"
+trap 'harness_result_emit; restore; rm -f "$OUT" "$CTL_OUT"' EXIT
 
 row() {
   local label="$1" cond="$2"
@@ -134,11 +143,11 @@ if ! git diff --quiet -- "$AUDIT"; then echo "RESTORE FAILED"; exit 3; fi
 echo "########## D: the NEW rule is not merely strict - a REAL kill still reads as one"
 # Positive control. Without this, a regex matching NOTHING would pass row 6 -
 # "not-killed" is the answer a broken regex gives to every question.
-cat >/tmp/probe-252-fake-fail.txt <<EOF
+cat >"$CTL_OUT" <<EOF
 =========================== short test summary info ============================
 FAILED tests/test_audit.py::$WANT - AssertionError: assert 0 == 1
 EOF
-if grep -qE "$VERDICT_RE" /tmp/probe-252-fake-fail.txt; then ctl="killed"; else ctl="not-killed"; fi
+if grep -qE "$VERDICT_RE" "$CTL_OUT"; then ctl="killed"; else ctl="not-killed"; fi
 echo "  NEW rule against a real '^FAILED <nodeid> - ...' line: $ctl"
 row "the NEW rule still reports a kill on a genuine FAILED line" \
   "$([ "$ctl" = "killed" ] && echo pass || echo fail)"
