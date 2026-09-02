@@ -437,10 +437,32 @@ from R23:
 
 ## 7a.2 The shard plan: a bracket, and the one input that decides it
 
-Six review rounds. The DIRECTION has survived every one - no reviewer has
-constructed a case where sharding loses. The MAGNITUDE has been wrong in
-both directions, and round 6 found that the section never propagated its
-own stated uncertainty into the cell its headline rests on.
+Seven review rounds, and the DIRECTION claim has been narrowed twice.
+It now reads: **sharding wins determinately at 13 lanes and above,
+loses determinately at 11, and 12 is not established.** Determinate
+means all three of the MIN / MEDIAN / MAX fits agree on the sign; at 12
+lanes they do not, reading `+5.0 / -1.0 / -4.0`.
+
+Two earlier versions of this sentence were wider than the evidence.
+The first said "no reviewer has constructed a case where sharding
+loses" - true of every row then computed, and promoted to a general
+claim it had not earned. The second said the direction holds "at 12
+lanes and above and nowhere else, and at 11 lanes sharding provably
+loses by at least 17.0s": both halves are scoped to the single-run
+fit. On the three-run refit 12 lanes loses under the MIN fit, and 11
+lanes' narrowest margin is **+11.0s**, not 17.0s - the 17.05s bound
+below is a real bound on the single-run population and is not a bound
+on the envelope. The MAGNITUDE has been wrong in both directions, and
+round 6 found that the section never propagated its own stated
+uncertainty into the cell its headline rests on.
+
+**Which fit every figure below comes from is now stated.** Figures
+carrying a MIN / MEDIAN / MAX triple are the three-run refit computed
+by `probe-273-packing.py`. Single figures - the bracket table, the
+17.05s bound, the 2.0s and 8.0s wins - are the earlier **single-run**
+fit on run `33630968540`, kept because the reasoning about search
+budgets and re-anchoring was done on them; they are labelled where
+they appear.
 
 ### The population, reproduced by three reviewers
 
@@ -452,21 +474,146 @@ sixteen jobs are harness lanes (`ci.yml:1649`-`:2132`); the other four are
 fixed and top out at 161s in this run.
 
 **Per-lane setup is taken as 13s, and that is a CHERRY-PICKED lane.** This
-run's twelve lanes read **8-17s, median 12**, and `MEASURED-268:122` in
+run's twelve lanes read **8-17s, median 11.5**, and `MEASURED-268:122` in
 full says "mean of 12 observations spanning 6-15s". So no figure below is
 exact to a tenth: the unsharded floor is **306-315s**, not 311.0. The
 constant is added to BOTH columns, so it cannot affect any delta - which
 is why the comparisons below survive it and the absolute numbers do not.
 
+**THIS POPULATION IS ONE RUN, AND CI HAS SINCE MOVED OFF IT.** Measured
+across the three most recent green runs that share a code base (the fourth
+straddles the U3 per-row selection landing at `5f46303` and cannot be
+pooled with them):
+
+| run | steps | total | largest | corrected population (the probe) |
+|---|---|---|---|---|
+| `dcb2725` | 33 | 3311s | 298s | 35 steps, **3313s**, largest 298s |
+| `a849f7f` | 35 | 3323s | 304s | 35 steps, **3316s**, largest 304s |
+| `1636f56` | 33 | 3492s | 333s | 35 steps, **3493s**, largest 333s |
+
+The first three columns are the pre-correction `>= 5s`-floored counts
+and are kept only to show what moved. The last column is
+`probe-273-packing.py`'s, on the corrected population, and it is the one
+every figure in this section is now derived from.
+
+**Row 2's two 35s are not the same 35.** This section reached 35 for
+`a849f7f` by counting the duplicated `Install from the frozen lock` as
+population; the probe puts that step in `WRAP` and reaches 35 by a
+different route, which is where the 7s between 3323 and 3316 lives. Same
+count, different set - exactly the hazard the paragraph below names.
+`MEASURED-273-closure-fixes.md`'s `35 steps / 3323s` row is that round's
+reading and is marked as such there.
+
+Row 2 read `34 / 3318s` until this round re-ran it. The script that built
+it keyed a per-step table by step NAME, and `a849f7f` is the one run of
+the three with a repeated name - `Install from the frozen lock` appears
+twice - so one step was silently dropped. The other `+1` is a genuinely
+new step, `U15 gate amputation, every row applied`. A dict keyed by
+something that is not unique loses rows without erroring, which is why
+the count and the total are asserted in the probe and were not here.
+
+Per-step spread over the 33 steps common to all three reaches **118s** on
+`U9 HTTP hardening amputation` (201-319s) and 75s on `U3 audit amputation`
+(258-333s). Those 33 are exactly `dcb2725`'s and `1636f56`'s whole
+populations; `a849f7f` carries them plus the two above.
+
+**Every margin the 12-lane headline rests on is 0s to 8s** - the 2.0s
+win, the 0.00s wash under the overhead-deleted refit, the ~0.7s at the
+far end of U9's band, and the 8.0s re-anchored win. They are one to two
+orders of magnitude below the instrument's own run-to-run spread.
+
+**AND THAT TABLE HAS NOW BEEN COMPUTED ACROSS ALL THREE RUNS, WHICH
+SETTLES THE 12-LANE CELL AGAINST ITSELF.** An earlier version of this
+paragraph said no lane table existed on `a849f7f` or `1636f56`, so
+"the large effects survive" was an expectation rather than a
+measurement. `probe-273-packing.py` now fits MIN / MEDIAN / MAX per step
+across all three, and the deltas are:
+
+| lanes | MIN | MEDIAN | MAX | |
+|---|---:|---:|---:|---|
+| 11 | +11.0 | +18.4 | +20.0 | loses throughout |
+| 12 | **+5.0** | **-1.0** | **-4.0** | **SIGN FLIPS** |
+| 13 | -16.0 | -24.8 | -26.0 | wins throughout |
+| 14 | -25.0 | -43.0 | -44.0 | wins throughout |
+| 15 | -28.0 | -55.0 | -66.0 | wins throughout |
+| 16 | -31.0 | -65.0 | -81.0 | wins throughout |
+
+Reproduce with `python3 docs/reviews/probe-273-packing.py`; the six rows
+are its `WHICH LANE COUNTS CHANGE SIGN ACROSS THE FITS` block verbatim,
+and its closing lines say `DETERMINATE at [11, 13, 14, 15, 16]` and
+`NOT DETERMINATE at [12]`.
+
+**These are the SHARD-REFIT figures and they replaced an earlier table
+inside the same batch.** Until `fix/shard-refit`, both `U3_SHARD` and
+`U9_SHARD` were constants fitted to ONE run and were not refit per fit,
+so a MIN-fit unsharded floor was differenced against a single-run shard
+cost - two different measurements subtracted. That table read
+`+27.5 / +15.0 / +10.0` at 11, `+19.0 / -5.0 / -12.7` at 12 and
+`+1.5 / -27.0 / -37.0` at 13, and it was correct against the probe it
+was computed on. The refit moved every cell. What it changed in
+substance: **13 lanes closed.** It read SIGN FLIPS and is now a
+determinate win in all three fits. Both columns are now the same
+envelope over the same three runs, so the probe states a WINS/loses
+verdict in all eighteen cells and there is no `n/a` in its output. The
+per-run decomposition that made that possible is in **What remains
+unmeasured** below, which is the current statement of the shard costs
+and supersedes the provisional reading this paragraph used to carry.
+
+So the expectation held for 11, 14, 15 and 16 - those signs are stable
+across the whole envelope - and 13 has since joined them. **It did NOT
+hold at 12, and 12 is the only cell where it still does not.** The
+`-2.0s` this section publishes at 12 lanes is one draw from a range
+whose ends disagree about the direction. The 12-lane cell should be read
+as **sign not established**, not as "no worse and not measurably better"
+- that phrasing conceded the magnitude while still assuming the
+direction.
+
+**No repack or shard decision at 12 lanes is supportable until that is
+closed; 13 closed with the refit.** See task #285, which is now about 12
+lanes only.
+
+Two population defects in the older figures above, both in the reader
+rather than the runs: a `>= 5s` floor manufactured a step-count change
+when one step read 4s in two runs and 5s in a third, and a per-job
+dependency install was missing from the wrapper-exclusion list. Corrected,
+**all three runs carry the same 35 step names**, and that identity is
+asserted rather than counted - two runs can report the same count and
+contain different steps.
+
+On the corrected population the regime still flips back: the largest
+median step (304s) exceeds sum-of-medians over lanes (3413/12 = 284.4),
+so the instance is MAX-bound and the 12-lane floor is **317s** including
+setup - **above the five-minute mandate**, which makes sharding the pole
+necessary rather than marginal. (An earlier version derived that from
+`3323/12 = 276.9`, which is one run's total rather than the sum of
+medians; both reach 317 only because the largest step dominates the area
+term, and at 11 lanes or fewer that error would have been load-bearing.)
+See task #282.
+
 ### The bracket
+
+**Single-run fit**, on run `33630968540`'s 33-step population and the
+published shard constants - not the three-run envelope above. It is kept
+because the search-budget and re-anchoring reasoning below was done on
+it. Where it and the envelope disagree about a sign, the envelope is the
+later measurement.
 
 | lanes | unsharded LB / BEST | sharded LB / BEST | delta |
 |---|---|---|---|
-| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** |
+| 11 | 314.0 / 316.0 achieved | **333.1** / 334.0 | **+18.0s LOSES** |
+| 12 | 311.0 / **311.0 exhibited** | 306.4 / 309.0 (R6) | **-2.0s** (single-run fit; sign NOT established across runs - see above) |
 | 13 | 311.0 / **311.0 exhibited** | 283.8 / 285.5 | -25.5s |
 | 14 | 311.0 / **311.0 exhibited** | 264.5 / 275.0 | -36.0s |
 | 15 | 311.0 / **311.0 exhibited** | 247.7 / 256.0 | -55.0s |
 | 16 | 311.0 / **311.0 exhibited** | 240.0 / 243.0 | -68.0s |
+
+The 11-lane row is the only one whose exhibited unsharded packing does not
+MEET its own lower bound - 316.0 against an LB of 314.0 - so it is
+"achieved" but, unlike 12-16, not proved optimal. It is also the only row
+whose verdict is a LOSS, and it is included because the DIRECTION sentence
+opening this section and the paragraph below both rest on it: it
+previously appeared only in prose while the probe printed it. All sharded
+BESTs are searched upper bounds at `RESTARTS = 10000`.
 
 **"Exhibited", not "provably optimal".** An earlier version claimed that a
 max-bound instance makes greedy LPT provably optimal. **That is false**,
@@ -478,33 +625,174 @@ to 16. The lower bound and an achieved schedule meet; that is a proof by
 construction and it does not generalise.
 
 The unsharded cells stop being provable at **11 lanes**: 3311/11 = 301.0
-exceeds 298, so the instance is no longer max-bound (LB 314, best 316).
+exceeds 298, so the instance is no longer max-bound (LB 314, best 316.0).
 
-### TWO PACKERS, AND MINE IS THE WEAKER ONE
+**And 11 lanes is where sharding LOSES.** Sharded LB **333.05** against
+an EXHIBITED unsharded **316.00**: a bound of **17.05s**. This is not a
+search artefact and no budget can overturn it - a lower bound above an
+achieved schedule settles the question. (The probe's own delta column
+reads `+18.0s loses` at `RESTARTS = 10000`, and read `+19.5s` at 400;
+that figure is a difference of two searched values and is
+budget-dependent. The 17.05s bound is not.) It is the one row that bounds
+the direction claim above, and it was invisible until the table was
+extended by a single lane.
 
-Every sharded figure here is an UPPER BOUND produced by a search, so the
-LOWER of two results is the better evidence - a packing that exists is a
-packing that exists. Two independent searches have run and they do not
-agree:
+**Budget-independent is not input-independent, and this row is only the
+first.** Like every sharded figure here it is conditional on the FITTED
+shard costs: the entire bound is `sum(sharded)/11`, and the 209.6s
+separating the sharded pool from the unsharded one is fitted overhead.
+Measured across the range `#278` contests:
 
-| quantity | my packer | round 6's | which is evidence |
+| shard model | sum(sharded) | s_LB(11) | against exhibited unsharded 316.00 |
 |---|---|---|---|
-| 12-lane sharded best | 310.50 | **309.00** | R6 - it exhibited a better schedule |
-| re-anchored 12-lane win | 6.50 | **8.00** | R6 |
-| U3 refit from 258s, 12-lane | 305.62 | **304.00** | R6 |
-| overhead-deleted, 12-lane | 316.00 | **311.00** | R6 |
+| **fitted model** - as published (163.3 / 219.5) | 3520.6 | 333.05 | **+17.05s, loses** |
+| **fitted model** - overhead-deleted refit (165.12 / 234.83), below | 3554.9 | 336.17 | **+20.17s, loses** |
+| **different model** - each step simply halved, NOT the zero limit of the fitted model | 3311.0 | 314.00 | **-2.00s, the bound REVERSES** |
 
-**The model INPUTS reproduce exactly** - I re-derived U3's 138.62s shard
-against R6's 138.6, U9's overhead-deleted 234.83 against 234.8, U3's
-165.12 against 165, and the re-anchored unsharded floor of 317.00 against
-317.0. The disagreement is entirely in the SEARCH, not the arithmetic.
+**The three rows are not three points on one range.** The first two are
+the fitted model: a shard reruns the indivisible baseline `B` and pays
+the per-invocation residual, so `step(k) = B + R/k + ovh * (1 + rows/k)`.
+The third charges no baseline rerun and no residual - the step is simply
+divided by two. Driving `ovh` to zero inside the fitted model does NOT
+produce the third row, and does not reverse anything; that is measured
+below. The third row is included because it bounds what sharding could
+do if the baseline were free, and for no other reason.
 
-So the figures above are R6's, attributed, and mine are recorded as the
-weaker bound. **This matters most in the overhead-deleted row**: my 316.00
-would read as a 5s LOSS, and it is not evidence of one - R6 exhibited
-311.00, so the true value is at most that, and the honest reading of that
-case is a wash rather than a regression. A worse search result is a fact
-about the instrument, not about CI.
+Re-fitting in `#278`'s direction widens the loss. Halving each step
+outright inverts it, and not only as a bound - an exhibited packing
+under that model reaches **315.00**, a 1.0s win against the 316.00.
+
+**But zero is not where `#278` puts it, and an earlier version of this
+paragraph treated the halved-step row as the fitted model's zero
+endpoint.** It argued that because `#278` measures 130ms against the
+2.24-2.64s fitted here, the *reversing* end of the range is where the
+evidence points. That inference is REFUTED by measurement, and so is the
+sentence that replaced it. Both ends were re-derived by running the
+probe:
+
+| model | invocation | 11 lanes, MIN / MEDIAN / MAX |
+|---|---|---|
+| fitted, residual at `#278`'s 130ms | `probe-273-packing.py --residual 0.13` | **+14.0 / +22.0 / +23.0** |
+| fitted, residual driven to exact zero | `probe-273-packing.py --residual 0` | **+14.4 / +22.0 / +23.0** |
+| fitted, as measured from the logs | `probe-273-packing.py` | +11.0 / +18.4 / +20.0 |
+
+**Within the fitted model the loss does not reverse anywhere in the
+contested range, exact zero included.** At 130ms the loss gets LARGER,
+not smaller, at all three fits, and 12 lanes worsens with it to
+`+5.7 / +1.0 / -1.0`. At exact zero it is marginally larger still -
+`+14.4` at the MIN fit - because in a model that must reproduce the
+observed wall, removing the residual pushes cost into the baseline every
+shard reruns. An earlier version of this paragraph said "only the
+exact-zero row reverses"; the exact-zero row of the FITTED model does
+not reverse. The reversal in the third row of the table above comes from
+halving each step outright, which charges no baseline rerun and is a
+different model, not a smaller value of the same term.
+
+**Those figures are charged with the k=1 identity preserved**, so the
+residual the 130ms term no longer absorbs falls into the indivisible
+baseline each shard reruns and `k=1` still reproduces the measured wall.
+Charging it without that constraint gives **+8.1 / +15.0 / +15.0**
+(`--residual 0.13 --no-k1-identity`), where the loss gets SMALLER at all
+three fits and the direction of the *trend* reverses. The k=1 reading is
+the better-justified one - the probe's docstring says the identity closes
+BY CONSTRUCTION - but the choice is a choice, and the sign of the trend
+depends on it.
+
+The residual has since been measured per run from CI's own logs at
+**1.26-2.08s per invocation** - between `#278`'s 130ms and this model's
+2.24-2.64s, because the two time different things. On the quantity that
+actually drives the cell, U9's divisible share - the fraction `d` of the
+wall that halving actually halves, `cost(k=2) = wall * (1 - d/2)` -
+measures **0.4150 / 0.4251 / 0.4591** across the three accepted runs, a
+range of **0.4150-0.4591**. `#278`'s 0.431 sits INSIDE that range and
+this section's 0.5270 sits ABOVE every run, which is the point and is
+unchanged. An earlier version published **0.4203-0.4664** for this
+range; that pair does not reproduce from the probe's own per-run
+decomposition under any reading of "divisible share" I could construct,
+and it is corrected rather than carried.
+
+**The honest statement is: at 11 lanes sharding loses at ANY SEARCH
+BUDGET given the fitted shard costs, and within the fitted model it
+loses HARDER, not less, everywhere in the contested range - exact zero
+included.** It is settled against the search, and against the inputs it
+is settled everywhere the fitted model reaches. What is NOT settled is
+the model: halving each step outright reverses the bound, and nothing
+measured chooses between charging a baseline rerun and not charging one,
+because nothing has ever run sharded.
+
+### ONE PACKER AT SEVERAL BUDGETS - the "two searches" never existed
+
+Every sharded BEST here is an UPPER BOUND produced by a search - the LB
+column is not, and is arithmetic - so between two BESTs the LOWER is the
+better evidence: a packing that exists is a packing that exists.
+
+An earlier version of this section ran under the heading "TWO PACKERS, AND
+MINE IS THE WEAKER ONE" and tabulated four quantities where a reviewer's
+search beat this one. All four figures close exactly when `RESTARTS` is
+raised, which is what one packer at two budgets looks like: it is the
+same code, and the only difference is the module constant. **No second
+implementation was ever exhibited, and the "two searches" reading was
+supplied rather than observed** - the inference is strong, but it is an
+inference about someone else's run, not an observation of their code.
+Raise the budget and three of the four close; row 3 closes at R=10000
+and re-opens at R=40000, which is what an unconverged cell looks like
+from two instruments at once:
+
+| quantity | R=60 | R=400 | R=10000 | R=40000 | round 6 |
+|---|---|---|---|---|---|
+| 12-lane sharded best | 310.50 | **309.00** | 309.00 | 309.00 | 309.00 |
+| re-anchored 12-lane win | 6.50 | **8.00** | 8.00 | 8.00 | 8.00 |
+| U3 refit from 258s, 12-lane | 305.62 | 304.00 | 304.00 | **303.00** | 304.00 |
+| overhead-deleted, 12-lane | 316.00 | 311.12 | **311.00** | 311.00 | 311.00 |
+
+Two things the R=40000 column adds, both measured this round.
+
+**Row 3 never actually converged**, here or in round 6: it holds 304.00
+from R=400 to R=10000 and then falls to 303.00, stable to R=100000. Both
+instruments agreed on an unconverged reading. Rows 1, 2 and 4 are
+converged - 309.00, 8.00 and 311.00 are unchanged from R=10000 through
+R=100000.
+
+**Row 3's R=60 cell is decided by an input, not by the search.** It reads
+305.62 with this section's U3 shard of 138.62 and 305.60 with round 6's
+rounded 138.6, and the two are indistinguishable from R=400 onward.
+`MEASURED-273-closure-fixes.md` records 305.60 for that reason; the files
+do not disagree.
+
+The whole disagreement cost **355 milliseconds** of search - the measured
+cost of the entire six-row table at `RESTARTS = 400`, against 53.7ms at
+R=60 (median of 5). The "11 milliseconds" this table previously claimed
+matches neither quantity measured here at any of the three budgets, and
+was estimated rather than timed - as were the "~8s" and "~10s" before it. The probe now runs at `RESTARTS =
+10000`, where the table costs 8.81s, because the 11-lane sharded cell was
+still falling at 400; see the comment above `RESTARTS = 10000` in
+`probe-273-packing.py`, which records the sweep. No line range is given
+on purpose: that block moved three times inside one branch, and the
+citation this replaced named a range that had drifted 157 lines.
+
+**The model INPUTS reproduced exactly all along** - U3's 138.62s shard
+against 138.6, U9's overhead-deleted 234.83 against 234.8, U3's 165.12
+against 165, and the re-anchored unsharded floor 317.00 against 317.0.
+That is what made the diagnosis possible: identical inputs and divergent
+outputs point at the search, and the search's only free parameter is its
+budget.
+
+**Two errors are recorded here rather than deleted.** First, two runs of
+one stochastic algorithm were reported as two implementations disagreeing;
+nothing in the outputs said "different packer" and that reading was
+supplied, not observed. Second, having decided the other instrument was
+better, the question that would have settled it - *what parameter differs?*
+- was never asked. Attributing a figure one cannot reproduce is correct and
+is what let the next round find this, but attribution is not a substitute
+for resolution.
+
+**The lesson that survives the retraction.** A weaker search result is a
+fact about the BUDGET, not about CI. The overhead-deleted row is the case
+that mattered: read at `R=60` it gives 316.00, a 5s LOSS against an exact
+311.0, and publishing that would have inverted the conclusion. Converged it
+is 311.00 - a wash. **Before comparing two instruments, raise the budget
+until the numbers stop moving; a comparison of unconverged searches
+measures the budgets.**
 
 ### THE MANDATE IS REACHABLE, and an earlier version of this section denied
 it while printing the numbers
@@ -533,18 +821,38 @@ propagating that into this cell. Round 6 propagated it:
   whose 165s U3 shard reproduces to 165.12 - gives U9 k=2 = 234.8 and a
   12-lane best of **311.00 against an exact 311.00. The win is 0.00s.**
 
-**So at 12 lanes the honest answer is: between a 2.0s win and a wash,
-decided entirely by a term this repository measures at 130ms and this
-model fits at 2.24-2.64s.** It is not a regression under any input tried.
-It is also not reliably a win.
+That was the single-run reading. **On the three-run refit the honest
+answer at 12 lanes is: between a 5.0s LOSS and a 4.0s win, median
+-1.0s, and the sign is not established.** It is a regression under the
+MIN fit and a win under MAX. An earlier version of this paragraph said
+"at 12 lanes it is not a regression under any input tried"; three inputs
+tried are regressions at the MIN fit - the refit's `+5.0`, the 130ms
+counterfactual's `+5.7` and the exact-zero one's `+6.0` - and this
+section's own **What remains unmeasured** already says 12 lanes still
+flips sign.
+
+The cell is decided by a term `#278` measures at **130ms**, this
+repository's own CI logs put at **1.26-2.08s per invocation**, and this
+model fits at **2.24-2.64s**. That scope matters: the same sweep applied
+to the 11-lane row does not flip its sign in the fitted model at all, so
+a claim about inputs is a claim about one cell and not about the
+section.
 
 Two other re-derivations both move the answer TOWARD sharding, which is
 why the direction survives:
 
-- re-deriving U3's shard from the 258s it actually DREW gives 138.6s per
-  shard, a 12-lane best of 304.0 - a 7.0s win - and 282.0 at 13 lanes;
+- re-deriving U3's shard from the 258s it actually DREW gives 138.62s per
+  shard, a 12-lane best of **303.0** - an 8.0s win - and **281.0** at 13
+  lanes. This line read "304.0 ... and 282.0" for four rounds. 282.0 was
+  never any budget's reading; 304.0 and the 283.0 that
+  `MEASURED-273-closure-fixes.md` once proposed in place of 282.0 are
+  both R=400 readings of a search that had not converged. Converged:
+  13 lanes is 284.0 at R=60, 283.0 at R=400 and 281.0 from R=10000 to
+  R=100000; 12 lanes is 303.0 from R=40000 to R=100000;
 - re-anchoring to U3's three-run median (below) widens the 12-lane win to
-  8.0s.
+  8.0s - the same figure as the bullet above, reached by a different
+  route (that one lowers the sharded best, this one raises the unsharded
+  floor to 317.0). The coincidence is not a transcription.
 
 ### The re-anchoring caveat was wrong in both directions - and it resolves the `MEASURED-268` disagreement
 
@@ -568,11 +876,29 @@ And the consequence runs the other way from the caveat: re-anchored, the
 
 ### What remains unmeasured
 
-The shard costs 163.3s and 219.5s are FITTED. `scale` is derived as
-`k1/(B+R+overhead)`, so the k=1 column closes by construction and carries
-no information. U9's k=2 spans 209-235s across the overhead sweep, and
-`#278` argues the term should be near zero, which is the case that takes
-the 12-lane win to nothing.
+The shard costs 163.3s and 219.5s were FITTED to one run, and have since
+been **re-fitted per run from CI's own logs**. `scale` cancels out of the
+2-shard cost entirely - it is a scale-free fraction of the observed
+unsharded time - so the per-run refit never needed absolute seconds from
+any local profile. Measured at n=3:
+
+| harness | MIN | MEDIAN | MAX | old constant |
+|---|---:|---:|---:|---:|
+| U3 2-shard | 140.8 | 165.4 | 181.5 | 163.3 |
+| U9 2-shard | 154.9 | **236.2** | 251.2 | **219.5** |
+
+**U9's published constant was 16.7s too low at the step that binds** - it
+flattered sharding in precisely the disputed cell. With the refit, 13
+lanes becomes a determinate WIN and 11 a determinate LOSS; **12 lanes
+still flips sign**, though its envelope narrows from 31.7s to 9.0s and its
+median is now **-1.0s**. A one-second margin on an instrument whose spread
+on a single step is 118s is not a result. **Closing 12 needs a sharded run
+to EXIST, not a better fit of these three.** See `#285`.
+
+What genuinely cannot be recovered from the logs: per-row wall time. All
+14 U9 banners and the `HARNESS-RESULT` land within 5ms of each other
+across a 298s step, because Actions timestamps are receive times and
+stdout arrives in one buffered flush.
 
 Nothing has ever run sharded. `#270`, the gate that reds any sharded step,
 is not yet mergeable. And nothing in the tree consumes `HARNESS_SHARDS`
@@ -651,6 +977,17 @@ schedule still renders like a passing one.
   coverage on quiet weeks, per its own comment) or not; I left it.
 
 ## 10. Merge
+
+**7a.2 CANNOT LAND WITHOUT `fix/shard-refit`.** It cites
+`docs/reviews/probe-273-packing.py` by path throughout - the envelope
+table, the `--residual` counterfactuals, the `RESTARTS` comment - and
+that file does not exist on `main` (`git cat-file -e
+main:docs/reviews/probe-273-packing.py` is absent as of `82ca84b`). It
+arrives with `fix/shard-refit`. Landing this document alone ships every one of
+those citations dangling into the trunk, and every MIN / MEDIAN / MAX
+figure in this section becomes unreproducible on the tree that carries it. Merge
+`fix/shard-refit` first, or merge both in one go.
+
 
 Branch `ci/238-revamp`, three commits on top of `04432c5`. Worktree left
 in place at `/tmp/w238-ci-revamp`.
