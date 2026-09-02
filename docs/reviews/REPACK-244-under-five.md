@@ -1,11 +1,11 @@
-# REPACK-244: the queue was transient, and one step is the whole remaining miss
+# REPACK-244: the concurrency constraint is EXTERNAL, and one step is the whole remaining miss
 
 Task #244, branch `ci/242-under-five`, worktree
-`/home/plafayette/claude_projects/evolv/fmj-worktrees/w244`. Branched off `5cca9eb`; `main` merged in at `0ca2eec`, which contains
-`d55fa74`, `0d2c945` and `6894e50` (each verified with
-`git merge-base --is-ancestor <sha> HEAD`). Local `main` has since moved to
-`7431bb50`, which this branch does NOT contain - so every figure below is
-as at `0ca2eec`.
+`/home/plafayette/claude_projects/evolv/fmj-worktrees/w244`. Branched off `5cca9eb`; `main` merged in twice, most recently at `7431bb5`.
+Verified with `git merge-base --is-ancestor <sha> HEAD`: `d55fa74`, `0d2c945`,
+`6894e50`, `e05c685`, `8872f6b`, `4be2b09`, `a389c79` and `7431bb5` are all
+ancestors, so this branch carries BOTH of Tier 0's §7 retractions and R23's
+M12 positive arm.
 
 Phil, verbatim: "FULL CI IS NOT TO TAKE MORE THAN 5 MINS WHEN REVAMP IS
 DONE." Full CI means every check on every trigger, nothing gated away,
@@ -17,32 +17,96 @@ figure for the new shape is a measurement.**
 
 ---
 
-## 1. THE QUEUE GAP WAS TRANSIENT - and my first answer to this was WRONG
+## 1. THE CONCURRENCY QUESTION - THREE POSITIONS, ALL THREE REFUTED
 
-I first reported that this organisation's observed runner capacity was 12
-concurrent jobs, and built the fan-out around that. **That conclusion is
-withdrawn.** A second run refutes it, and I verified it from the API myself
-rather than taking it on report:
+This question has now been answered wrongly three times, once by me, twice by
+Tier 0. Rather than swing again, here is the test that settles what the data
+can support.
 
-    run           wall   pole   gap   maxQ   jobs starting within 10s
-    33610211810    845    540   305    305   12 of 16
-    33614887374    430    425     5      5   16 of 16
+**The three positions:**
 
-`gap` is wall minus the longest single job; `maxQ` is the largest per-job
-queue wait. **maxQ tracks gap almost exactly in both runs.** So the 306s that
-REVAMP-238 §7 could not account for was runner availability on one occasion,
-not a structural ceiling: the same 16 jobs all got runners within 5 seconds
-the second time.
+1. Mine: "observed capacity is 12 concurrent jobs." (REPACK-244, first version)
+2. Tier 0's: "the gap was transient, there is no ceiling at sixteen."
+   (REVAMP-238 §7 at 0ca2eec; retracted at 8872f6b and 4be2b09)
+3. R23's: run 1's admission ladder "is what a limit near twelve looks like
+   when it binds."
 
-What I got wrong, precisely: I had n=1 and I said so, but I still let a
-single draw name a "ceiling", and I sized the fan-out against it. The
-org-wide Free-plan limit is real and shared with ~100 sibling repositories -
-that part stands - but **we have not hit it**, and one bad draw is not a
-measurement of where it is. Two draws are not either. Treat headroom as
-UNMEASURED in both directions.
+**The evidence both of the first two rested on is vacuous, and I repeated it.**
+"maxQ tracks gap in both runs" is not a finding. In run 33610211810 the
+longest-RUNNING, longest-QUEUED and last-to-FINISH job are the same job
+(`Harness U5 + U8`), and when those coincide `gap = wall - pole` IS `q_pole`
+IS `maxQ` as arithmetic, not as evidence. Verified: all three are that one
+job. In run 33614887374 they are NOT the same job (pole is `Harness U6 + U7 +
+U9 controls`, longest-queued is `Harness U5 + U8`) - there the two numbers
+agree at 5s only because every queue was ~5s, a degenerate case. Either way
+the statement carries no information. **My §1 asserted it too.**
 
-**The real structural baseline is 430s = 7.18 min**, not 14.10 min. About
-five minutes of the original figure was queue that did not reproduce.
+**R23's ladder reading is testable, and it fails.** Under a fixed limit of N
+binding on us, an admission past the Nth requires a completion, and a freed
+slot is taken promptly by our own next queued job. Reconstructing run
+33610211810's event stream from the API:
+
+     t=27  END   wiring checker          -> 11 of our jobs running
+     t=30  START Harness U10 + U12       -> 12
+     t=51  START Harness gate/floor/misc -> 13
+     t=52  END   Static gates            -> 12
+     t=56  START Harness U3 controls     -> 13
+     t=69  END   CodeQL                  -> 12
+     t=111 END   Harness gate/floor/misc -> 11
+     t=130 END   Harness U1 controls     -> 10
+     t=201 END   Lint, types, tests      ->  9
+     t=220 END   Harness U4 client       ->  8
+     t=221 END   Harness U1 amputation   ->  7
+     t=262 END   Harness U9 amputation   ->  6
+     t=305 START Harness U5 + U8         ->  7
+
+Two things kill the fixed-limit reading:
+
+- **Peak concurrency was THIRTEEN, not twelve.** My own "12" was not even the
+  observed peak - it was the size of the first burst, which I mistook for a
+  limit.
+- **Nine of our own jobs completed before t=305 and the sixteenth took none
+  of those slots.** Our concurrency fell from 13 to 6 between t=56 and t=262
+  - six slots we ourselves released - and the last job still did not start
+  for another 236 seconds. A limit binding on US cannot produce that. A job
+  waiting on a slot takes the next one freed.
+
+**What the data supports, and no more.** Hosted concurrency here is org-wide
+(`plan.name` is `free`) and shared with ~100 sibling repositories, so the
+competition is EXTERNAL. Slots we release are not ours to reclaim, and we are
+readmitted when other repos' demand falls, which is why the sixteenth job
+started at 305s rather than at 69s. Our own peak was 13 in one run and 16 in
+the other. **No measurement from inside this repository can pin the number,
+and the ladder shows the constraint is not a fixed count of ours at all.**
+
+I got this wrong by naming a capacity from one burst size. Tier 0 got it
+wrong by reading one clean draw as absence. R23 got it wrong by reading the
+ladder as a limit binding without checking whether freed slots were taken.
+
+## 1a. DOES THE PACKING DEPEND ON ANY OF THAT? NO.
+
+Stated plainly because it is the question that matters for merging.
+
+The "8 lanes is already at the floor" result is **LPT bin-packing of a fixed
+multiset of measured step durations**. Concurrency is not an input to it. The
+floor is `max(largest single step, total / lanes)`, and past 8 lanes the
+first term dominates:
+
+     6 lanes -> pole 427s     (total/lanes binds)
+     8 lanes -> pole 320s     (total/lanes binds, just)
+    10 lanes -> pole 317s     (largest single step binds)
+    12 lanes -> pole 317s     (largest single step binds)
+    14 lanes -> pole 317s     (largest single step binds)
+
+317s is `check-u3-audit-amputation.sh`, which cannot split across runners.
+That is arithmetic on step costs and **survives every position in §1**.
+
+What the concurrency question WOULD have decided is 8 lanes versus 10, and it
+decides almost nothing: 10 lanes is 3 seconds better if runners are always
+free, and worse if they are not, since 14 jobs is a bigger ask than 12 of a
+pool we do not control. **8 lanes is the better choice under both hypotheses**
+- within 3s of optimal if there is no constraint, and the smaller request if
+there is. That is a dominance argument, and it needs no ceiling resolved.
 
 ## 2. WHAT THE BRIEF GOT WRONG, AND WHAT I GOT WRONG
 
@@ -269,8 +333,11 @@ that was the pole in the only clean-queue run we have.
   amputation 249s -> 300s, U8 controls 214s -> 130s, U3 controls 488s ->
   376s across the two runs. I used the clean-queue run throughout, but a
   third run would move these numbers again.
-- **Headroom is unmeasured in both directions.** Two draws, one queued badly
-  and one not at all. Neither proves where the org-wide limit is.
+- **The concurrency constraint is not pinned, and §1 argues it cannot be from
+  here.** Two draws; peak concurrency 13 and 16. The ladder shows the binding
+  constraint is external contention, not a count of ours - but "external" is
+  itself an inference from one run's event stream, and a third run could
+  complicate it. What does NOT depend on this is the packing (§1a).
 - **The rename control is now run on all eight** pre-flight-removed
   harnesses, each caught with rc=1 and exactly one row down (u8 24/25, u5
   15/16, u12 16/17, u9 13/14, u10 20/21, u14 19/20, u7 30/31, body-cap
