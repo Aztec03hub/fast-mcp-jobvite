@@ -472,6 +472,13 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "wired gates. Both were narrowed when it was written; this is "
         "the evidence for that ruling, re-runnable, not a condition to "
         "keep checking."
+        " AND ITS --self-test STAYS UNWIRED TOO, ruled #223: a "
+        "self-test asserts that the INSTRUMENT of this probe still "
+        "works, so wiring it would gate the trunk on the health of "
+        "something that never executes on the trunk. #194 wired its "
+        "self-test because ITS subject is wired - that is the whole "
+        "difference. If this probe is ever wired, wire its self-test "
+        "in the same commit."
     ),
     "sample-134-citations.py": (
         "draws #134's random sample of citation sites at seed 134 so "
