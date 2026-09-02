@@ -19,20 +19,46 @@ mechanism: it does not survive the reviewer who does not think of it, and **ther
 **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE-FROZEN at `c15b138`**
 
-> **THIS SHA IS LOAD-BEARING AND MUST NOT BE ADVANCED ON ITS OWN.** Every `DESIGN.md:NNN`
-> citation below is a line number **in `c15b138`**, and the design has been re-frozen since, at
-> `8a9d63c`. Measured 2026-08-29: of this document's 111 citations, 91 now name different text in
-> the current `DESIGN.md` - and all 111 remain correct against `c15b138`. **That is why this plan
-> was deliberately NOT repointed at the re-freeze**: all sixteen units U0-U15 are built, nothing
-> executes this document any more, and it is a RECORD of what was planned - the same standing as
-> a worklog, which is also left as written.
+> **THIS DOCUMENT HAS TWO REFERENCE FRAMES, AND THE FORM OF THE CITATION TELLS YOU WHICH.** This
+> blockquote said for one revision that *"every `DESIGN.md:NNN` citation below is a line number in
+> `c15b138`"* and that *"all 111 remain correct against `c15b138`"*. **Both sentences were false**,
+> and the counter-example sits 26 lines apart from its own opposite:
 >
-> So: read the citations below with `git show c15b138:docs/DESIGN.md`, not with the working copy.
-> **Updating the SHA in the line above without repointing all 111 citations would turn a document
-> that is honestly out of date into one that is confidently wrong**, which is strictly worse. If
-> this plan ever becomes live again - a new unit is planned - the remedy is to replace the numbers
-> with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`, not to
-> repoint them.
+> | citation | form | resolves at | text |
+> |---|---|---|---|
+> | `:1220` (§1 table row 1) | bare | **`135c3ac`** | `- the 200-with-401-body trap;` |
+> | `DESIGN.md:1370-1371` (the blanket rule under that same table) | qualified | **`c15b138`** | *"Every refusal-path test is paired with a positive control..."* |
+>
+> At `c15b138`, `:1220` is a **blank line**; at `135c3ac`, `:1370` is `]`. Each citation is correct
+> at its own blob and nonsense at the other, so no single sha can be named for the document.
+>
+> **WHAT WAS MEASURED, AND WHAT WAS NOT.** The §1 table's **25 bare citations** were checked two
+> ways - five sampled rows match `135c3ac` verbatim, and `135c3ac:1220-1303` holds **exactly 25**
+> top-level bullets, the table's own span. Four qualified `DESIGN.md:NNNN` citations
+> (`:1370`, `:1466`, `:1627`, `:1846`) were read at both blobs and all four resolve at `c15b138`.
+> **That is 29 of 111. The other 82 are UNMEASURED**, and the bare-versus-qualified split is the
+> hypothesis this sample supports, not a rule that has been checked over the population.
+>
+> So: read a **bare** `:NNNN` with `git show 135c3ac:docs/DESIGN.md`, a **qualified**
+> `DESIGN.md:NNNN` with `git show c15b138:docs/DESIGN.md`, and re-derive rather than trust the split
+> anywhere it matters. The design has been re-frozen twice since - at `8a9d63c`, and at `d1f1a52`
+> today - and neither frame tracks it.
+>
+> **NO CITATION IN THIS DOCUMENT IS REPOINTED, AND THAT IS `#111` APPLIED RATHER THAN OVERRULED.**
+> `#111` ruled `docs/plans` a RECORD: all sixteen units U0-U15 are built, nothing executes this
+> document any more, and its citations stand as written, the same standing as a worklog. This
+> correction touches **zero** citations. What it changes is the document's *declaration about* them,
+> which is a live claim of fact and not a record of a past decision - and `#111`'s own stated reason
+> is that a wrong sha *"would turn a document that is honestly out of date into one that is
+> confidently wrong"*. A declaration naming one frame for a two-frame document **already is** that
+> failure, read from the other end: a reader who followed it resolved the table's first row against
+> a blank line. Repointing the bare halves to `c15b138` was the other candidate remedy and is
+> **REFUSED** - it is the move-the-orphan-to-match shape ADR-0017 rejected, and it would be correct
+> only until `DESIGN.md` moved again, which it has now done four times.
+>
+> If this plan ever becomes live again - a new unit is planned - the remedy is to replace the
+> numbers with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`,
+> not to repoint them.
 where the eight-ADR batch landed - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
@@ -247,11 +273,14 @@ exists to avoid, and the sweep is what proves it can fail without choosing its o
 
 ## 1. The count that governs the test plan
 
-§8's required-cases list holds **25 bullets**, spanning `DESIGN.md:1264` through `:1306`. I
-re-derived this mechanically against `9d65cc0` - extracting every top-level bullet between the
-*"Required cases"* header and the *"Transport substitution uses"* paragraph - rather than
-incrementing draft 1's 24, because a hand-carried count is the defect this project has spent the
-day repairing. The new member is **#18**, the SIGTERM teardown case Q2 added; everything below it
+§8's required-cases list holds **25 bullets**. It was derived mechanically - extracting every
+top-level bullet between the *"Required cases"* header and the *"Transport substitution uses"*
+paragraph - rather than by incrementing draft 1's 24, because a hand-carried count is the defect
+this project has spent the day repairing. **The span this sentence used to name -
+`DESIGN.md:1264` through `:1306`, against `9d65cc0` - is DELETED, because it resolved nowhere**:
+that range holds 0 top-level bullets at `9d65cc0`, 12 at `135c3ac` and 13 at `c15b138`, none of
+them 25. The 25 is not deleted with it, because it *is* checkable and it checks out - the table
+below runs `:1220` to `:1303`, and `135c3ac:1220-1303` holds exactly 25 top-level bullets. The new member is **#18**, the SIGTERM teardown case Q2 added; everything below it
 shifted by one.
 
 Several cases are multi-arm and are **not satisfiable by a single arm**, which the list says in its
