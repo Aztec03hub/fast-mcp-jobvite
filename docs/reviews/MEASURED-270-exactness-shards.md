@@ -70,7 +70,7 @@ Every row below is a real run against the real `ci.yml`, not a unit fixture.
 | what | before | after |
 | --- | --- | --- |
 | `check-row-floor-exactness.py`, unmodified ci.yml | rc=0, 16 compared | **rc=0, 16 compared** |
-| `--self-test` | rc=0, 20/20 | **rc=0, 42/42** (27, 34, 38, 42 across four rounds) |
+| `--self-test` | rc=0, 20/20 | **rc=0, 48/48** (27, 34, 38, 42, 48 across five rounds) |
 | PLANTED sharded step (`HARNESS_SHARDS: 2`, `--min-rows 5`, 10 rows) | **rc=1 "SLACK by 5"** | **rc=0** |
 | ...and one row AMPUTATED from the harness (9 rows) | - | **rc=1** |
 | ...and `--min-rows 4` against 10 rows (harness grew) | - | **rc=1 "SLACK by 2"** |
@@ -128,7 +128,7 @@ file rather than widen, so this is filed.
 
 **F2 (Low, FIXED in this branch).** `arm_floor` was `20` with `len(arms) >=
 arm_floor`. I added 7 arms, so leaving the floor at 20 would have let all 7 be
-deleted silently. Raised to 42 across four rounds, which is an equality against the live arm count
+deleted silently. Raised to 48 across five rounds, which is an equality against the live arm count
 in the same run. *Note:* this file's arm floor is still spelled `>=`,
 which is correct for a floor meant to ratchet upward as arms are added, and is
 NOT the comparison #223 tightened - that one was the ROW floor. I did not change
@@ -527,12 +527,111 @@ the absorbed job-level `env:` - two guards where there was one. The dedent exit
 IS armed, by A41; A35 no longer arms it, and saying "A35 covers it" would be
 the kind of stale attribution this file exists to catch.
 
-## 11. Merge
+## 11. R270 round 4: the FOURTH join, and a decision on the unread variable
+
+Round 4 returned 0C/0H/1M/3L, NOT MERGEABLE on the Medium. All four closed.
+
+### M1 - I bounded the `env:` KEY and never bounded the token to its CHILDREN
+
+Round 3 fixed "any `env:` at any indent" by requiring the step's key indent.
+It still never required the token to be a **DIRECT CHILD** of that mapping, so
+a line inside a multi-line env VALUE is read as the lane count:
+
+        env:
+          NOTE: |
+            HARNESS_SHARDS: 2
+
+Actions sets `NOTE`. MEASURED end to end on the live `ci.yml`, u3's real step
+with its floor halved 10 -> 5:
+
+    OLD (f2c88b1)  rc=0  "Every floor equals its harness's live row count. OK."
+    NEW            rc=1
+
+**Four rounds, four joins, each one column over from the last:** the offset
+(H1), the `env:` mapping (R3-M1), the token's depth (this), and in between the
+comment filter and the dedent exit. The property I keep getting wrong is not
+the code, it is that I bound ONE dimension of a two-dimensional shape and call
+it done. `_env_shard_values()` now latches the mapping's own child indent and
+skips anything deeper. Arm A43, on the reviewer's `NOTE: |` fixture rather
+than one of mine - a nested-map fixture is weaker because Actions rejects that
+workflow anyway.
+
+**Why the `mentions != readable` assertion could never have caught it:** that
+assertion compares a token INVISIBLE to the step scan against one it can see.
+Here both counts are 1. It was never the guard for a MISATTRIBUTED token, and
+believing otherwise is how a guard gets credited with coverage it does not
+have.
+
+### L3 - my reading, since it was asked for rather than dictated
+
+**Nothing consumes `HARNESS_SHARDS`.** Measured: `grep -rlE '\$\{?HARNESS_SHARDS'
+scripts/` returns ZERO, and the same selector for `$ROW_FLOOR` returns three
+files, so the zero is not a broken path.
+
+**My reading is that the checker should REFUSE a shard count nothing reads,
+and it now does.** The reasoning, so it is overrulable:
+
+1. With no consumer the harness still runs every row in one lane. `--min-rows
+   5` against 10 live rows is then satisfied by the gate's own `-lt`, five rows
+   are deletable, and nothing reds. That is the defect this file's docstring
+   OPENS with, re-entered through the mechanism built to make sharding safe.
+2. This file already refuses things that look like a floor and cannot breach -
+   "0 is not a floor". A divisor nothing divides by is the same category.
+3. It costs nothing today: no step declares a count, so it cannot red anything
+   live.
+
+**DERIVED, NOT FLAGGED, which is the part that matters.** The refusal is keyed
+on whether anything expands the variable, so the splitter that reads it turns
+this green in the same commit. Nobody has to remember to delete a guard - and
+a guard that must be remembered is how #106 and #272 became standing rows.
+Arms A46 (refuses), A47 (self-clears), A48 (the scan is not vacuous).
+
+**Its bound, stated:** an expansion proves something READS the variable, not
+that it splits rows correctly. Coverage of the split itself is the disjointness
+check on #272, which no static reader can do. If you would rather ship the
+multiplier unguarded, this is one `if` to delete and I will not re-argue it.
+
+### L1, L2
+
+L1: A35's in-code rationale claimed the dedent exit makes the job-level count
+`readable`. Measured, that amputation leaves A35 PASSING and kills A41. The
+comment now says so - the doc was already right, and the comment is what the
+next amputator reads.
+
+L2: five anchors were stricter than YAML and false-red legal syntax. ONE
+`_strip_comment()` helper now serves three call sites, `key_indent` derives
+from the first key line rather than `dash + 2`, and a bare `-` is admitted.
+Arms A44, A45.
+
+### The battery
+
+    R4-M1 the direct-child bound      47/48  A43     prior env: key-indent bound  47/48  A37
+    R4-M1 env_indent latch            47/48  A43     prior continuation fold      47/48  A39
+    R4-L2 the comment stripper        46/48  A34,A44 prior flags assertion        47/48  A40
+    R4-L2 key_indent from first key   47/48  A45     prior the multiplication     44/48  A21-A24
+    R4-L3 the no-consumer refusal     47/48  A46     prior equality -> `>=`       45/48  A23,A24,A26
+    R4-L3 the consumer file scan      47/48  A48
+    R4-L3 the SHARD_USE pattern       47/48  A48
+
+### THE NINTH WEAK ARM WAS A48, AND IT WAS THE ARM AGAINST VACUOUS ZEROS
+
+My first A48 asserted `_shard_consumers() == []` plus a regex probe. Disabling
+the file scan entirely left it **48/48 GREEN** - the assertion is satisfied by
+the selector returning nothing *because it was switched off*. I wrote a vacuous
+arm inside the arm whose whole job was to stop a vacuous zero.
+
+It now PLANTS a real consumer under `scripts/`, asserts the scan sees it, and
+removes it in a `finally` - the shape A6 has used since #187. That is the third
+distinct form of this mistake in four rounds, and the through-line is the same
+one round 3 named: **an assertion about an absence is only evidence if
+something was present and then found.**
+
+## 12. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \
         merge --ff-only fix/270-exactness-shards
 
-## 12. What I did NOT verify
+## 13. What I did NOT verify
 
 - **No sharded step has ever RUN.** Everything here is static analysis of a
   planted `ci.yml`. That a 2-lane `check-u3-audit-amputation.sh` actually

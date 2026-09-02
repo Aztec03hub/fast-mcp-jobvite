@@ -401,13 +401,30 @@ SHARD_ENV = "HARNESS_SHARDS"
 #: that merely MENTIONED the gate command in a comment. Five deletable
 #: rows, gate green. A comment documenting that hazard sat one line
 #: above the defect and was not a guard against it; arm A28 is.
-STEP_ITEM = re.compile(r"^(?P<indent>[ ]*)-[ ]")
+STEP_ITEM = re.compile(r"^(?P<indent>[ ]*)-(?:[ ]|$)")
 
 #: `steps:` opens the only list this checker parses. Deriving the item
 #: indent from it - rather than matching any `- ` anywhere - is what
 #: keeps a `- ` inside a `run: |` script from being read as a new step,
 #: which was one of four spellings that silently returned 1 (R270-M1).
 STEPS_KEY = re.compile(r"^(?P<indent>[ ]*)steps:\s*$")
+
+
+def _strip_comment(line: str) -> str:
+    """`line` without a trailing YAML comment.
+
+    ONE function, THREE call sites - the two end-of-line anchors and the
+    shard value - because `env:  # two lanes` and `steps:  # the list`
+    are legal YAML that the anchors were rejecting, and the refusal they
+    produced blamed job-level `env:` for a comment (R270-R4-L2). That is
+    R270-R2-M2's sibling: the same misleading message, one anchor over.
+
+    A `#` inside a quoted scalar is NOT a comment, and this does not try
+    to know that - it is used only on lines already matched as a bare
+    `steps:`/`env:` key or as an integer-shaped value, where a quote
+    cannot legally precede the `#`.
+    """
+    return re.sub(r"\s+#.*$", "", line)
 
 
 def _step_blocks(raw: str) -> list[str]:
@@ -421,7 +438,7 @@ def _step_blocks(raw: str) -> list[str]:
     item_indent: int | None = None
     in_steps = False
     for line in raw.split("\n"):
-        if STEPS_KEY.match(line):
+        if STEPS_KEY.match(_strip_comment(line)):
             in_steps, item_indent = True, None
             continue
         if not in_steps:
@@ -484,15 +501,25 @@ def _env_shard_values(block: str) -> list[str]:
     first = lines[0]
     dash = STEP_ITEM.match(first)
     if dash:
-        key_indent = len(dash.group("indent")) + 2
+        # DERIVED FROM THE FIRST KEY, not from `dash + 2`. `-   name: x`
+        # is legal and puts the step's keys at dash+4, so the arithmetic
+        # form silently mis-bounds every key in that step (R270-R4-L2).
+        after = first[len(dash.group(0)) :]
+        if after.strip():
+            key_indent = len(first) - len(after.lstrip(" "))
+        elif len(lines) > 1:
+            key_indent = len(lines[1]) - len(lines[1].lstrip(" "))
+        else:
+            key_indent = len(dash.group("indent")) + 2
     else:
         key_indent = len(first) - len(first.lstrip(" "))
 
     values: list[str] = []
     in_env = False
+    env_indent: int | None = None
     for line in lines:
         indent = len(line) - len(line.lstrip(" "))
-        if re.match(r"^\s*env:\s*$", line):
+        if re.match(r"^\s*env:\s*$", _strip_comment(line)):
             # ONLY the step's OWN `env:` counts. An `env:`-shaped line
             # deeper than the step's keys is a here-doc'd YAML fragment
             # inside a `run: |` scalar, or an `env:` nested under
@@ -504,7 +531,20 @@ def _env_shard_values(block: str) -> list[str]:
             continue
         if indent <= key_indent:
             # A sibling key at the step level ends the mapping.
-            in_env = False
+            in_env, env_indent = False, None
+            continue
+        if env_indent is None:
+            env_indent = indent
+        if indent != env_indent:
+            # DEEPER than the mapping's OWN CHILDREN: a nested map, or a
+            # line inside a multi-line env VALUE (`NOTE: |`). Actions
+            # sets the OUTER key and never this one, so reading a lane
+            # count here is the fail-OPEN direction (R270-R4-M1).
+            #
+            # The `mentions != readable` assertion is STRUCTURALLY blind
+            # to this - it catches a token made INVISIBLE to the step
+            # scan, and here both counts are 1. It was never the guard
+            # for a MISATTRIBUTED token, so this needs its own guard.
             continue
         hit = re.match(rf"^\s*{SHARD_ENV}\s*:\s*(.+?)\s*$", line)
         if hit:
@@ -546,7 +586,7 @@ def _shard_count(name: str, block: str) -> int:
     # A TRAILING YAML COMMENT IS NOT PART OF THE VALUE (R270-L3).
     # `HARNESS_SHARDS: 2  # two lanes` is legal YAML whose value is 2,
     # and it was refused with a message blaming run-time expressions.
-    value = re.sub(r"\s+#.*$", "", found[0])
+    value = _strip_comment(found[0])
     # THE SIGN IS ADMITTED SO A NEGATIVE REACHES ITS OWN BRANCH
     # (R270-L2). Without it `-1` was rejected here as "not an integer
     # literal", which points the reader at `${{ }}` syntax for a fault
@@ -603,7 +643,45 @@ def _min_rows_verdict(name: str, min_rows: int, shards: int, live: int) -> list[
     ]
 
 
-def _external_floors(raw: str | None = None) -> dict[str, tuple[int, str, int]]:
+#: WHO ACTUALLY READS A SHARD COUNT. `ci-harness-gate.sh` runs the
+#: harness with no arguments, so a lane count can only arrive as an
+#: environment variable and can only be consumed by a shell expansion of
+#: it under `scripts/`.
+#:
+#: **A COUNT NOTHING READS IS PURE SLACK, NOT WEAKER-BUT-REAL COVERAGE**
+#: (R270-R4-L3). With no consumer, a step declaring `HARNESS_SHARDS: 2`
+#: still runs every row in one lane, and `--min-rows 5` against 10 live
+#: rows is satisfied by the gate's own `-lt`, with five rows deletable
+#: and nothing red. That is the exact defect this file's docstring opens
+#: with, re-entered through the mechanism meant to make sharding safe -
+#: so the multiplier is REFUSED until something consumes the variable.
+#:
+#: DERIVED, NOT FLAGGED, and that is the point: when a splitter lands
+#: and expands `$HARNESS_SHARDS`, this passes on its own. Nobody has to
+#: remember to delete a guard, which is how a deferred guard rots.
+#:
+#: THE BOUND, stated because it is weak on purpose: a shell expansion is
+#: evidence something READS the variable, not that it splits rows
+#: correctly. Coverage of the split itself is #272's disjointness check,
+#: which no static reader can do.
+SHARD_USE = re.compile(rf"\$\{{?{SHARD_ENV}\b")
+
+
+def _shard_consumers() -> list[str]:
+    """Tracked files under `scripts/` that EXPAND the shard variable."""
+    found = []
+    for rel in _tracked(("scripts",)):
+        path = ROOT / rel
+        if path.is_file() and SHARD_USE.search(
+            path.read_text(encoding="utf-8", errors="replace")
+        ):
+            found.append(rel)
+    return found
+
+
+def _external_floors(
+    raw: str | None = None, consumers: list[str] | None = None
+) -> dict[str, tuple[int, str, int]]:
     """`(--min-rows, --row-re, shards)` per harness, off its gate line.
 
     **THE STEP IS THE UNIT, NOT A TEXT OFFSET.** All three fields come
@@ -718,6 +796,18 @@ def _external_floors(raw: str | None = None) -> dict[str, tuple[int, str, int]]:
             "reads. A shard count outside one is silently read as 1 lane, "
             "which turns a sharded step's floor back into a red for a "
             "reason nobody would trace to this line."
+        )
+    # A LANE COUNT NOTHING CONSUMES IS SLACK, SO IT IS REFUSED.
+    if consumers is None:
+        consumers = _shard_consumers()
+    sharded = sorted(n for n, (_, _, s) in found.items() if s > 1)
+    if sharded and not consumers:
+        raise SystemExit(
+            f"{', '.join(sharded)}: declares {SHARD_ENV} but NOTHING under "
+            f"scripts/ expands ${SHARD_ENV}. With no consumer the harness "
+            "still runs every row in one lane, so the multiplied floor is "
+            "slack a deleted row would not breach. Land the splitter that "
+            "reads it in the same change as the count."
         )
     return found
 
@@ -1324,7 +1414,13 @@ def self_test() -> int:
     # nothing. A guard whose failure silences the tally is worse than
     # one that fails loudly in its own row.
     try:
-        joined_floors = _external_floors(two_step_yaml)
+        # `consumers=` PINS THIS ARM TO ITS OWN SUBJECT. The fixture
+        # declares a lane count, so without it A46's no-consumer
+        # refusal fires and this arm reports a JOIN failure that
+        # never happened - an arm coupled to an unrelated rule.
+        joined_floors = _external_floors(
+            two_step_yaml, consumers=["scripts/splitter.sh"]
+        )
     except BaseException:  # noqa: BLE001 - a crash must not silence the tally
         joined_floors = {}
     arm(
@@ -1462,11 +1558,11 @@ def self_test() -> int:
     arm(
         "A35 a LATER job's env: does not leak into an EARLIER job's step",
         "sit in a step-level `env:` mapping" in job2_reason,
-        "without the dedent exit the next job's keys append to the "
-        "previous job's LAST step block, so a job-level shard count "
-        "becomes `readable`, DEFEATS the out-of-block refusal, and hands "
-        "an unsharded step a multiplier of 2 - H1's misattribution "
-        "across a job boundary.",
+        "a job-level count must not reach a step. NOTE THE ATTRIBUTION, "
+        "because it moved: amputating the dedent exit leaves THIS arm "
+        "PASSING and kills A41 - the `mentions != readable` bound "
+        "refuses the absorbed count independently, so there are two "
+        "guards here, and the dedent exit's own arm is A41 (R270-R4-L1).",
     )
     try:
         commented_out = _external_floors(
@@ -1637,6 +1733,110 @@ def self_test() -> int:
         "legal `HARNESS_SHARDS: '2'` raise ValueError rather than refuse",
     )
 
+    # -- THE FOURTH JOIN, AND THE PLACE THE ASSERTION CANNOT SEE ------
+    arm(
+        "A43 a line inside a multi-line env VALUE is not the lane count",
+        _shard_count(
+            "h.sh",
+            "      - name: x\n        env:\n          NOTE: |\n"
+            f"            {SHARD_ENV}: 2\n",
+        )
+        == 1,
+        "MEASURED on the live ci.yml: `NOTE: |` carrying the token "
+        "doubled a real step's floor and passed a SLACK-by-5 gate at "
+        "exit 0. The token was bounded as 'deeper than the step's keys' "
+        "and never as 'a DIRECT CHILD of env:'. The mentions/readable "
+        "assertion is structurally blind here - both counts are 1.",
+    )
+    # -- LEGAL YAML THE ANCHORS USED TO FALSE-RED (R270-R4-L2) --------
+    try:
+        commented_anchors = _external_floors(
+            "jobs:\n  j:\n    steps:  # the list\n"
+            "      - name: x\n        env:  # two lanes\n"
+            f"          {SHARD_ENV}: 2\n"
+            "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n",
+            consumers=["scripts/fake-splitter.sh"],
+        )
+    except BaseException:  # noqa: BLE001 - see A28's rationale
+        commented_anchors = {}
+    arm(
+        "A44 a trailing comment on `steps:` or `env:` is not a parse failure",
+        commented_anchors == {"a.sh": (5, "^r ", 2)},
+        "both anchors were end-of-line strict, so a legal comment made "
+        "the WIRED gate red with a message blaming job-level `env:` - "
+        "R270-R2-M2's sibling, one anchor over.",
+    )
+    arm(
+        "A45 `-   name:` puts the step's keys at dash+4, not dash+2",
+        _shard_count(
+            "h.sh",
+            f"      -   name: x\n          env:\n            {SHARD_ENV}: 2\n",
+        )
+        == 2,
+        "key_indent was `dash + 2` arithmetic; extra spaces after the "
+        "dash are legal and silently mis-bounded every key in the step",
+    )
+    # -- A LANE COUNT NOTHING READS (R270-R4-L3) ----------------------
+    sharded_yaml = (
+        "jobs:\n  j:\n    steps:\n"
+        f"      - name: x\n        env:\n          {SHARD_ENV}: 2\n"
+        "        run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+    )
+    unread_reason = ""
+    try:
+        _external_floors(sharded_yaml, consumers=[])
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        unread_reason = str(exc)
+    arm(
+        "A46 a shard count NOTHING consumes is REFUSED, not multiplied",
+        f"NOTHING under scripts/ expands ${SHARD_ENV}" in unread_reason,
+        "with no consumer the harness runs every row in one lane, so "
+        "--min-rows 5 against 10 rows is satisfied by the gate's own "
+        "`-lt` with five rows deletable - the docstring's opening defect, "
+        "re-entered through the mechanism meant to make sharding safe",
+    )
+    arm(
+        "A47 the same count PASSES once a consumer exists",
+        _external_floors(sharded_yaml, consumers=["scripts/splitter.sh"])
+        == {"a.sh": (5, "^r ", 2)},
+        "THE REFUSAL MUST BE SELF-CLEARING. It is derived from whether "
+        "anything expands the variable, so the splitter that reads it "
+        "turns this green in the same commit - nobody has to remember "
+        "to delete a guard, which is how a deferred guard rots.",
+    )
+    # THE PLANT IS THE POINT, exactly as A6's is. My first version of
+    # this arm asserted `_shard_consumers() == []` plus a regex probe,
+    # and SURVIVED disabling the file scan entirely - the ninth weak
+    # arm, inside the arm written to stop a vacuous zero. Only a plant
+    # exercises the scan.
+    empty_before = _shard_consumers()
+    planted_use = ROOT / "scripts" / "_probe_270_shard_consumer.sh"
+    saw_plant = False
+    try:
+        planted_use.write_text(f'echo "${SHARD_ENV}"\n', encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(ROOT), "add", "-N", str(planted_use)],
+            capture_output=True,
+            check=False,
+        )
+        saw_plant = any(r.endswith(planted_use.name) for r in _shard_consumers())
+    finally:
+        subprocess.run(
+            ["git", "-C", str(ROOT), "rm", "--cached", "-q", str(planted_use)],
+            capture_output=True,
+            check=False,
+        )
+        planted_use.unlink(missing_ok=True)
+    arm(
+        "A48 the consumer scan SEES a planted expansion, and is 0 without it",
+        empty_before == [] and saw_plant,
+        "the zero is this file's own named hazard - a zero with a "
+        "plausible story. The plant is what makes it a measurement, and "
+        "A7's tree-restored check covers the removal.",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -1652,7 +1852,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 42
+    arm_floor = 48
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
