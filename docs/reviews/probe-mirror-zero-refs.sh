@@ -59,11 +59,11 @@ if [ "$rc" -eq 0 ]; then FIRED=$((FIRED+1)); echo "  ok   amputation SURVIVES gr
 else echo "  FAIL amputation still refused (rc=$rc) - arm 1 proves nothing"; fi
 GUARD="$GUARD_SAVED"
 
-FLOOR=3
+ROW_FLOOR=3
 harness_result_tally fired "$FIRED" "$ROWS"
-harness_result_ran "$ROWS" "$FLOOR"
-if [ "$ROWS" -ne "$FLOOR" ]; then
-  echo "::error::$ROWS rows against FLOOR=$FLOOR."
+harness_result_ran "$ROWS" "$ROW_FLOOR"
+if [ "$ROWS" -ne "$ROW_FLOOR" ]; then
+  echo "::error::$ROWS rows against ROW_FLOOR=$ROW_FLOOR."
   exit 1
 fi
 if [ "$FIRED" -ne "$ROWS" ]; then

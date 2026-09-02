@@ -377,7 +377,16 @@ echo "--- the harness's canonical result line ---"
 #
 # THE LINE IS SELECTED BY `name=`, not by position. `tail -1` alone would read
 # the wrong line whenever a gate echoes the output of the harness it ran.
-RESULT=$(grep -E "^HARNESS-RESULT name=$TARGET " "$B.out" | tail -1)
+# THE LINE CARRIES A BASENAME, AND COLUMN 1 IS NOW A PATH (#187). Those
+# two facts were introduced in different changes and never joined: this
+# grep composed the expected `name=` from $TARGET, so every
+# path-qualified member failed to match a line that was in front of it.
+# The control did all the surgery, watched the floor breach correctly,
+# and then refused - "the harness printed NO ... line" - about a line it
+# had just printed one row above. `harness_result_emit` uses
+# `basename "$0"`; this must ask the same question.
+TARGET_BASE=$(basename "$TARGET")
+RESULT=$(grep -E "^HARNESS-RESULT name=$TARGET_BASE " "$B.out" | tail -1)
 echo "${RESULT:-<the harness printed no canonical line at all>}"
 echo "exit with $DELETE row(s) deleted: $rc (must be $WANT_RC)"
 
@@ -388,7 +397,7 @@ field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
 
 ok=0
 if [ -z "$RESULT" ]; then
-  echo "::error::the harness printed NO 'HARNESS-RESULT name=$TARGET ...' line."
+  echo "::error::the harness printed NO 'HARNESS-RESULT name=$TARGET_BASE ...' line."
   echo "         Either it does not source scripts/lib/harness-result.sh, or an"
   echo "         EXIT trap set later in it replaced the armed one without"
   echo "         chaining harness_result_emit. A missing line is NOT a pass:"
