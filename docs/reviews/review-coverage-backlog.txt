@@ -23,22 +23,16 @@
 # the NEXT change, not by themselves. That is why the gate belongs on
 # pull requests against origin/main, where a PR's own commits are not
 # yet on the trunk. See the checker's docstring, "the one-merge lag".
-00a4264 NONE WORKLOG 148+150: the sweep did not say what the brief ex
 0b149b9 PARTIAL Handoff at 09477ee: the CI protection rule, MEASURED und
 0b72ea2 PARTIAL Make closing idle workers a Tier-1 obligation, not an af
 105a979 PARTIAL R10-M1: the design drifted from its declared freeze, and
-10ac6cf NONE R15: review the machinery that does the reviewing, and c
-13a4a65 NONE Widen every index-blind pre-flight guard: 11 sites, not 
 1fa7b5e PARTIAL R12-M2: scripts/ was outside the type gate, wired checke
 20d5763 PARTIAL Brief #144+#145, and mark the NINTH instance - which is 
-273d5d0 NONE Worklog and the complete BEFORE exit-code ledger for #12
 306dfe7 PARTIAL #125: wire the two unwired checkers that were green, 18 
 328ffec PARTIAL #121: gate the no-errexit invariant, which had been hand
 3411812 PARTIAL Widen two citations, refuse a third, and clear the red m
-39af3ce NONE The AFTER ledger and the comparison: 37 of 37, zero exit
 40aca53 PARTIAL R11-M2: the design says the throttle is not implemented;
 41150a1 PARTIAL #104: the sweep - 34 rows, 0 refused, 14 survivors; and 
-52023ff NONE #150: the control's cleanup no longer destroys its own d
 52363e4 PARTIAL PREAMBLE: teach PATHS too, or the next split round rebui
 56f6900 PARTIAL Handoff written against compaction: state, rulings, and 
 5c391d9 PARTIAL Record what the first two Tier-1 runs measured, before c
@@ -47,38 +41,26 @@
 6be403a PARTIAL docs/README: the three coupling gates DO run in CI, and 
 6de45e9 PARTIAL The process list is shared, so it is other people's data
 7f0b1c5 PARTIAL PREAMBLE: derive the freeze SHA, and I nearly inverted t
-8132017 NONE Merge review/r15: NONE 131 -> 0, PARTIAL 0 -> 39, and th
 89aceee PARTIAL task139: fix 23 of 46 unresolved section citations in th
-8bc6391 NONE Rewrite the ref-default comment I mangled, and name the 
 92cb89b PARTIAL Merge review/r12 (#122): the last branch, and the contro
 9b00879 PARTIAL Brief the remainder of #115, and refuse to resume the st
-9e04411 NONE Merge fix/148-150's tail: the widened guard broke a prob
-a0cd343 NONE Merge fix/148-150: four survivors closed, and MY SWEEP I
 a824d54 PARTIAL Record the two environment traps the first Tier-1 dispat
 a881344 PARTIAL Merge review/r9 (#108): 73/73 bounded, and TWO gates tha
-ae924ca NONE R15-H1: default the coverage ref to origin/main, and pro
 afd2937 PARTIAL R11-H2: two of the three PDEATHSIG guards had no arm tha
 b1086e8 PARTIAL My AUDIT-SHAPES brief named the wrong section, and I edi
-b27a01e NONE #148: the four surviving amputations, closed by measurem
 b3d9ff8 PARTIAL #107 brief: one canonical HARNESS-RESULT line, and the d
 c5dc463 PARTIAL #127 #128 #129: assert the audit PHASE at every call sit
-cca19be NONE PROTOCOL: the task tools are DEFERRED, not absent - my c
-cd567e9 NONE Merge fix/tally-shapes: #120's ledger, 37 of 37 with zer
+cca19be PARTIAL PROTOCOL: the task tools are DEFERRED, not absent - my c
 cd7e211 PARTIAL Promote the #139 measurement script; delete the one-shot
-d15e218 NONE The widened guard broke a probe that DEPENDED on the bli
 d3fbe22 PARTIAL task139: re-derive the unresolved-reference population f
 d402d01 PARTIAL docs/README: point readers at DESIGN-FREEZE.txt, not at 
-dbad618 NONE Read the tally off the canonical line, not out of prose 
 dc913b3 PARTIAL Write down the three-tier orchestration protocol before 
 e119e75 PARTIAL The handoff's own 15 was a DISPLAY CAP, and I read it as
 e3780b4 PARTIAL PREAMBLE: a code review must declare the range it covere
 ece3dbd PARTIAL R11 M3, M1, L1, N1: a wrong sentence, a retyped constant
 ee20c94 PARTIAL Brief #142 as the first TIER-1 dispatch, to test the pro
 ee84ab7 PARTIAL R12-L2 + N1: a count beside a growing container, and my 
-eef2b4e NONE Run the four newly-gated ci.yml steps end to end, and re
 f2a7bce PARTIAL Merge review/r11 (#123): ADR-0030 gets its code half, an
-f5247a1 NONE R15 section 4: NONE 131 -> 0, and PARTIAL 0 -> 39 as pre
-f6951be NONE Wire the anchor-checker controls through the gate: my ex
 fc622e9 PARTIAL Protocol: what runs 3-5 measured, and the reviewer-befor
 ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
 #
@@ -86,37 +68,5 @@ ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
 # were pushed before this ratchet existed and became visible the moment
 # a stale local origin/main was fetched - the backlog above had been
 # measured against 9e04411, five behind the trunk. No round covers them.
-aa893a2 NONE #116: bind each timeout bound to one name, used by the c
-816007f NONE #116: the pid1 wait bound, and a container gate that kee
-6fe2d73 NONE #116: bring both new checkers under the lint and type ga
-3d9445c NONE #116: the worklog, with the counts that corrected my bri
-203e5af NONE Merge fix/116-timeouts: 70 retyped seconds figures deriv
-#
-# 2026-09-01, +23: the five-branch merge (#143 #146 #147 #152 and
-# the #151 review fix) and everything under it, including this
-# file's own previous commit. THE GATE WORKING AS DESIGNED, not a
-# defect: rev-list enumerates every commit a push ADDS, so a merge
-# of N leaves N+1 outstanding. No round covers them.
-0510900 NONE docs(reviews): the #147 report, with four corrections to
-091526b NONE Merge fix/147-ci-step-selection: the block bucket goes 3
-0a81660 NONE Merge fix/152-publishers: three harnesses publish their
-1abebc1 NONE #143: the worklog, with the ledger, the corrections and
-24b26d7 NONE Merge fix/146-131-stranded: the timeout branch checks it
-2b245d3 NONE #152: gate the invariant that survived reading every lan
-3700c93 NONE #152: the u3-audit handover step RUN, exit 0, applied=10
-5028cae NONE #152: reflow the checker to the W505 72-column limit
-649aba9 NONE #146/#131 control: 26 arms, and A2 amputates the fix to
-6d2fca1 NONE fix(probe): read the multi-line blocks instead of refusi
-7149b14 NONE #130: an amputation that CRASHED and read as a survivor,
-8be39b4 NONE #143: consolidate design-gates, supply-chain and links i
-9422844 NONE #143: correct my own CodeQL claim with the number I had
-9989fd8 NONE #152: worklog - the discriminator, the two searches I re
-a865573 NONE feat(probe): assert a checker's bare form is not a weake
-b567974 NONE #143: lint-clean the applier, update CONTRIBUTING's job
-c6e3cda NONE #151 R1: two Highs closed, and H2 was my prose being fal
-ccbdaae NONE Wire what four branches could each only half-do, and pri
-d0741c9 NONE #146 F1+F2 and #131: the timeout branch checks the tree,
-d342e25 NONE #143: remove the REVIEW-COVERS line I had drafted, and s
-e3cd28e NONE WORKLOG #146/#131: what I measured, what my brief got wr
-f742da4 NONE #152: three harnesses computed a tally and published non
-fc6c508 NONE Merge fix/143-ci-minutes: three jobs become one, 634 ->
+b567974 PARTIAL #143: lint-clean the applier, update CONTRIBUTING's job
+c6e3cda PARTIAL #151 R1: two Highs closed, and H2 was my prose being fal
