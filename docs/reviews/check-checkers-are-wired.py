@@ -90,16 +90,36 @@ reads as WIRED here, and "wired" must not be read as "gating".
 **THAT POPULATION WAS MEASURED ON 2026-09-02 AND IT IS ZERO.** GitHub
 runs every `run:` as `bash -e {0}`, so a failure anywhere fails the step
 unless the block turns errexit off - which makes the container small and
-enumerable rather than the whole file. **Of the 86 `run:` steps in
-`ci.yml`, 21 disable or bypass errexit (`set +e` or `set -uo pipefail`)
-and all 21 test a status.**
+enumerable rather than the whole file. **Measured on 2026-09-02: of the
+87 `run:` steps then in `ci.yml`, 21 disabled or bypassed errexit
+(`set +e` or `set -uo pipefail`) and all 21 tested a status.**
+
+THAT IS A DATED MEASUREMENT, NOT A LIVE FIGURE, and it is written in the
+past tense on purpose - `ci.yml` gains a step most weeks, and the very
+commit that first corrected this sentence added one. Re-derive rather
+than trusting it; the command is at the bottom of this docstring.
 
 THE DENOMINATOR IS `run:` STEPS, NOT STEPS. This sentence read "of 94
-steps" until the two numbers were measured side by side: 94 is the count
-of NAMED steps, 17 of which are `uses:` steps that execute no shell and
-so cannot disable errexit. The numerator could never have come from that
-population. A ratio is a join, and a join over two different populations
-is wrong even when both of its numbers are right.
+steps" until the two numbers were measured side by side: 94 was the
+count of NAMED steps, 17 of which are `uses:` steps that execute no
+shell and so cannot disable errexit. The numerator could never have come
+from that population. A ratio is a join, and a join over two different
+populations is wrong even when both of its numbers are right.
+
+    uv run --frozen python - <<'EOF'
+    import yaml, pathlib
+    y = pathlib.Path(".github/workflows/ci.yml")
+    d = yaml.safe_load(y.read_text())
+    n = off = 0
+    for job in d["jobs"].values():
+        for st in job.get("steps", []):
+            if "run" not in st:
+                continue
+            n += 1
+            if "set +e" in st["run"] or "set -uo pipefail" in st["run"]:
+                off += 1
+    print(n, off)
+    EOF
 
 So the gap is real as a statement and empty as a population, and NO GATE
 WAS BUILT FOR IT: a step whose green is
@@ -1387,10 +1407,11 @@ def main() -> int:
     print("NOTE: this proves each is INVOKED, not that its exit code gates")
     print("the job. A step that runs a checker and swallows its status")
     print("reads as WIRED here - AND THAT POPULATION WAS MEASURED AT ZERO")
-    print("on 2026-09-02: of the 86 `run:` steps in ci.yml, 21 disable or")
-    print("bypass errexit and ALL 21 test a status. Re-derive rather than")
-    print("trusting it - and count `run:` steps, not steps: 17 of the 94")
-    print("named steps are `uses:` and can never be members. Find steps")
+    print("on 2026-09-02: of the 87 `run:` steps then in ci.yml, 21 disabled")
+    print("or bypassed errexit and ALL 21 tested a status. PAST TENSE on")
+    print("purpose - ci.yml grows. Re-derive rather than trusting it, and")
+    print("count `run:` steps, not steps: the `uses:` steps execute no")
+    print("shell and can never be members. Find steps")
     print("matching `set +e` or `set -uo pipefail` whose body has no")
     print("`|| exit`, `|| {`, `-ne 0` or `exit $rc`.")
     return 0

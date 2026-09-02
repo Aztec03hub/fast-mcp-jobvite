@@ -1243,6 +1243,18 @@ jobs:
       - name: The gate records who is mutating
         run: bash docs/reviews/probe-131-gate-state.sh
 
+      # THE MIRROR PUSH STEP HAS NEVER EXECUTED - there is no MIRROR_TOKEN, so
+      # its `if:` has skipped it on every run this repository has ever had. Its
+      # own comment said "mirroring nothing and mirroring everything must not
+      # both read as success", and the remedy it shipped only PRINTED the refs
+      # on the success path. This probe EXTRACTS the guard out of mirror.yml
+      # rather than retyping it, so it cannot pass against a stale copy, and
+      # its third arm amputates the `exit 1` to prove the first two are not
+      # vacuous. It touches no remote: a mirror push is `--force --prune` and
+      # is not a thing to test by running.
+      - name: The mirror refuses a zero-ref push
+        run: bash docs/reviews/probe-mirror-zero-refs.sh .github/workflows/mirror.yml
+
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
       # for a reason that turned out to be FALSE. #120 first left this step
       # inline, reasoning from the SOURCE that this harness prints

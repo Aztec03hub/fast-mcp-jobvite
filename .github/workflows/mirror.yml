@@ -138,11 +138,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          # THE STEP SUMMARY, NOT ONLY A NOTICE. The two steps below are
+          # skipped when MIRROR_TOKEN is absent, and a skipped step renders as
+          # a green job - so the run's own status cannot distinguish "mirrored
+          # everything" from "mirrored nothing". A `::notice::` is only in the
+          # log; the summary is on the run's front page, which is the surface
+          # someone actually looks at. Same lesson as the 119 unread failures,
+          # one layer out.
           if [ -z "${MIRROR_TOKEN}" ]; then
             echo "::notice::MIRROR_TOKEN is not set, so THIS JOB mirrors nothing. This run is a"
             echo "::notice::correct no-op, not a success at mirroring. See NEEDS-PHIL.md."
+            echo "### Mirror: NO-OP - MIRROR_TOKEN is not set" >> "${GITHUB_STEP_SUMMARY}"
+            echo "The push steps below are SKIPPED. This green run copied nothing." \
+              >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "MIRROR_TOKEN is set; mirroring every branch and tag."
+            echo "### Mirror: ACTIVE - MIRROR_TOKEN is set" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
           # Whether the copy is current is a separate question from whether this
@@ -184,12 +195,26 @@ jobs:
         if: env.MIRROR_TOKEN != ''
         run: |
           set -euo pipefail
+
+          # A push that matched no refs exits 0. Mirroring nothing and mirroring
+          # everything must not both read as success - the defect this whole file
+          # is a monument to. THE PREVIOUS VERSION OF THIS STEP ONLY PRINTED THE
+          # REFS, which is a control that reports instead of asserting: the
+          # `for-each-ref` output went to a log on the success path, where
+          # nothing reads it and nothing fails on it. Counted and gated now,
+          # BEFORE the push, so a zero is refused rather than mirrored.
+          refs=$(git for-each-ref --format='%(refname)' refs/remotes/origin refs/tags | wc -l)
+          echo "refs to mirror: ${refs}"
+          if [ "${refs}" -eq 0 ]; then
+            echo "::error::0 refs to mirror. A push matching no refs exits 0, so this would"
+            echo "::error::have been a GREEN run that copied nothing - refusing instead."
+            exit 1
+          fi
+
           git push --prune --force \
             "https://x-access-token:${MIRROR_TOKEN}@github.com/Aztec03hub/fast-mcp-jobvite.git" \
             "+refs/remotes/origin/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
 
-          # A push that matched no refs exits 0. Mirroring nothing and mirroring
-          # everything must not both read as success - the defect this whole file
-          # is a monument to.
-          echo "mirrored refs:"
+          echo "mirrored ${refs} refs:"
           git for-each-ref --format='  %(refname)' refs/remotes/origin refs/tags
+          echo "### Mirror: pushed ${refs} refs" >> "${GITHUB_STEP_SUMMARY}"
