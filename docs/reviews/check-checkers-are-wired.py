@@ -227,6 +227,15 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "the real repoint tool against it. A job whose checkout has a "
         "chmod-ed file in it is a job with a bomb in it."
     ),
+    "measure-ci-step-durations.py": (
+        "READS the Actions API and ASSERTS NOTHING. It ranks step "
+        "durations and prints how many runs reached each step, so a "
+        "cap is sized from runs that got there - the question #154 "
+        "asks. There is no pass or fail to gate on, and wiring a tool "
+        "that cannot go red would add a step whose green means "
+        "nothing. It also needs network and a token, which no gate in "
+        "this job may depend on."
+    ),
     #
     # -- ONE-SHOTS WHOSE QUESTION IS SETTLED -------------------------
     # A tool whose question has been answered is a one-shot, and wiring
