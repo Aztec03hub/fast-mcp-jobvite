@@ -87,24 +87,31 @@ names each one in a `run:` body.
 code gates the job. A step that runs a checker and swallows its status
 reads as WIRED here, and "wired" must not be read as "gating".
 
-**THAT POPULATION WAS MEASURED ON 2026-09-02 AND IT IS ZERO.** GitHub
-runs every `run:` as `bash -e {0}`, so a failure anywhere fails the step
-unless the block turns errexit off - which makes the container small and
-enumerable rather than the whole file. **Measured on 2026-09-02: of the
-87 `run:` steps then in `ci.yml`, 21 disabled or bypassed errexit
-(`set +e` or `set -uo pipefail`) and all 21 tested a status.**
+**THAT POPULATION HAS BEEN MEASURED AND IT IS ZERO.** GitHub runs every
+`run:` as `bash -e {0}`, so a failure anywhere fails the step unless the
+block turns errexit off - which makes the container small and enumerable
+rather than the whole file. **EVERY step in `ci.yml` that disables or
+bypasses errexit (`set +e` or `set -uo pipefail`) tests a status.** The
+property is stated; the digits are not, and the command below returns
+both of them in one line.
 
-THAT IS A DATED MEASUREMENT, NOT A LIVE FIGURE, and it is written in the
-past tense on purpose - `ci.yml` gains a step most weeks, and the very
-commit that first corrected this sentence added one. Re-derive rather
-than trusting it; the command is at the bottom of this docstring.
+**NO COUNT IS WRITTEN HERE, AND THAT IS THE THIRD REMEDY THIS SENTENCE
+HAS HAD.** It said "of 94 steps", which was the NAMED-step count and a
+join over the wrong population - 17 of those are `uses:` steps that
+execute no shell and can never be members. Corrected to 86 `run:` steps;
+the same commit added a step and made it 87. Then it was written in the
+PAST TENSE with a date, on the theory that a dated figure cannot go
+stale. **It went stale anyway and the date could not tell anyone**:
+every commit in that range carries 2026-09-02, and across it the
+denominator reads 86, 86, 87, 89, 89, 90. A dated past-tense figure only
+resolves an ambiguity COARSER than the rate the figure moves, and this
+one moves faster than its own timestamp.
 
-THE DENOMINATOR IS `run:` STEPS, NOT STEPS. This sentence read "of 94
-steps" until the two numbers were measured side by side: 94 was the
-count of NAMED steps, 17 of which are `uses:` steps that execute no
-shell and so cannot disable errexit. The numerator could never have come
-from that population. A ratio is a join, and a join over two different
-populations is wrong even when both of its numbers are right.
+So the count is DELETED, which is what ADR-0034 ruled for exactly this
+shape and what I failed to apply to my own file twice. **A ratio is a
+join, and a join over two populations is wrong even when both of its
+numbers are right** - that lesson is the reason the sentence was
+rewritten the first time, and it survives without either digit.
 
     uv run --frozen python - <<'EOF'
     import yaml, pathlib
@@ -1407,11 +1414,12 @@ def main() -> int:
     print("NOTE: this proves each is INVOKED, not that its exit code gates")
     print("the job. A step that runs a checker and swallows its status")
     print("reads as WIRED here - AND THAT POPULATION WAS MEASURED AT ZERO")
-    print("on 2026-09-02: of the 87 `run:` steps then in ci.yml, 21 disabled")
-    print("or bypassed errexit and ALL 21 tested a status. PAST TENSE on")
-    print("purpose - ci.yml grows. Re-derive rather than trusting it, and")
-    print("count `run:` steps, not steps: the `uses:` steps execute no")
-    print("shell and can never be members. Find steps")
+    print("- EVERY ci.yml step that disables or bypasses errexit tests a")
+    print("status. NO COUNT IS PRINTED HERE ON PURPOSE: the denominator")
+    print("read 86, 87, 89 and 90 across one day's commits, so a figure")
+    print("here goes stale faster than any date could qualify it. Count")
+    print("`run:` steps, never steps - the `uses:` steps execute no shell")
+    print("and can never be members. Find steps")
     print("matching `set +e` or `set -uo pipefail` whose body has no")
     print("`|| exit`, `|| {`, `-ne 0` or `exit $rc`.")
     return 0
