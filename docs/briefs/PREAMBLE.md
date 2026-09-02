@@ -21,6 +21,29 @@ a REVIEWER's brief says findings go on the board and they do; a sub-orchestrator
 because deciding what becomes a task is Tier 0's call and `PROTOCOL-sub-orchestrators.md` rules
 it so. **If your brief is silent, report it and do not create it.**
 
+> **PROVENANCE, recorded because this paragraph had none.** These eleven
+> lines were authored INSIDE merge `73dd717`, in which BOTH PARENTS HELD
+> THE IDENTICAL BLOB of this file - no conflict, no change on either
+> side. So they appear as an addition in no branch diff, no reviewer of
+> either branch could have seen them, and every agent on this project
+> has read them as reviewed canon ever since. Found by `#222`, which
+> had itself obeyed them an hour earlier.
+>
+> **THE CONTENT IS CORRECT AND THAT IS NOW MEASURED RATHER THAN
+> ASSUMED.** The citation was checked against its source on 2026-09-02:
+> `PROTOCOL-sub-orchestrators.md:23` and `:111` both state that Tier 1
+> reports findings and Tier 0 decides what becomes a task, and `:111`
+> adds that this is a RULING and not a gap. So the rule is not
+> duplicated here by accident - it is restated where agents actually
+> read it, which is the point of this file.
+>
+> It is left in place, and this note is the whole remedy. Deleting a
+> correct rule to punish its provenance would cost every future agent
+> the sentence it needs; moving it to `PROTOCOL` alone would make an
+> agent read two documents to learn what to do right now. What was
+> missing was never the rule. It was that nobody had ever checked it.
+
+
 That sentence read *"gets a `TaskCreate`"* flatly until `suborch-199` found it contradicting
 `PROTOCOL-sub-orchestrators.md` and, correctly, followed the PROTOCOL. **Two canon documents
 disagreeing about what an agent should do RIGHT NOW is worse than either being wrong**, because
