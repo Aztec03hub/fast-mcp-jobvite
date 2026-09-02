@@ -262,6 +262,58 @@ git -C "$REPO" checkout -- src/target.py
 echo
 
 # ---------------------------------------------------------------------------
+# A8 - a state file about ANOTHER repository is refused, not acted on
+#
+# The state file's path is keyed by a 32-bit cksum of the repository path, so
+# two checkouts can name the same file. Acting on a foreign one would restore
+# file bytes from a blob resolved HERE at THAT repository's sha - which usually
+# fails loudly and, where both trees hold a path of the same name, does not
+# fail at all. `harness_state_begin` has always written `repo=`; until #131's
+# gate change made a second writer, nothing read it.
+# ---------------------------------------------------------------------------
+echo "A8: a state file naming a different repository is refused"
+cat > "$HARNESS_STATE_FILE" <<EOF
+repo=/nowhere/some-other-checkout
+harness=check-aaa-strander.sh
+commit=0000000000000000000000000000000000000000
+pid=1
+started_human=1970-01-01T00:00:00+00:00
+EOF
+out=$(bash "$RESTORE" --restore-only --repo "$REPO" 2>&1); rc=$?
+assert_rc "$rc" 2 "--restore-only refuses a foreign state file"
+assert_contains "$out" "DIFFERENT repository" "it says the repository differs"
+assert_contains "$out" "/nowhere/some-other-checkout" "it names the other one"
+rm -f "$HARNESS_STATE_FILE"
+echo
+
+# ---------------------------------------------------------------------------
+# A9 - a state file with NO repo= line is tolerated, and SAYS it is
+#
+# The field is newer than the tool. Refusing a file written before it existed
+# would strand exactly the mutation this tool exists to put back. But a check
+# that could not see its input and a check that passed must not render the
+# same, so it announces the gap. This arm is the pair to A8: without it, A8
+# would be satisfied by a tool that simply refused every state file.
+# ---------------------------------------------------------------------------
+echo "A9: a state file with no repo= line proceeds, and says why it cannot confirm"
+cat > "$HARNESS_STATE_FILE" <<EOF
+harness=check-aaa-strander.sh
+commit=0000000000000000000000000000000000000000
+pid=1
+started_human=1970-01-01T00:00:00+00:00
+EOF
+out=$(bash "$RESTORE" --check --repo "$REPO" 2>&1); rc=$?
+assert_contains "$out" "records no \`repo=\` line" "it announces the missing field"
+assert_absent "$out" "DIFFERENT repository" "and does not claim a mismatch"
+if [ "$rc" -ne 2 ]; then
+  ok "it did not refuse outright (exit $rc)"
+else
+  bad "it refused a pre-field state file, stranding what it exists to restore"
+fi
+rm -f "$HARNESS_STATE_FILE"
+echo
+
+# ---------------------------------------------------------------------------
 # A2 - THE AMPUTATION. Cut the fix out and A1's assertion must invert.
 # ---------------------------------------------------------------------------
 echo "A2: AMPUTATION - remove the fix, and the probe must blame the WRONG harness"

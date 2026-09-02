@@ -130,6 +130,40 @@ state_harness=$(sed -n 's/^harness=//p' "$STATE")
 state_commit=$(sed -n 's/^commit=//p' "$STATE")
 state_pid=$(sed -n 's/^pid=//p' "$STATE")
 state_started=$(sed -n 's/^started_human=//p' "$STATE")
+state_repo=$(sed -n 's/^repo=//p' "$STATE")
+
+# THE STATE FILE SAYS WHICH REPOSITORY IT IS ABOUT, AND UNTIL NOW NOTHING READ
+# IT. `harness_state_begin` has always written `repo=`, but the path to the file
+# is `$TMPDIR/fmj-harness-state-<cksum of the repo path>.state` - and `cksum` is
+# a 32-bit CRC over a path, so two DIFFERENT checkouts can name the same file.
+# Nothing downstream would have noticed: this tool would read the other tree's
+# harness name and commit, and then write file bytes from a blob resolved in
+# THIS repository at THAT repository's sha. Usually that fails loudly with
+# "does not exist at <sha>"; where both trees hold a path of the same name it
+# does not fail at all, and restores the wrong content.
+#
+# The field costs one comparison to check and the collision is otherwise
+# invisible, which is the combination that makes it worth checking. An older
+# state file with no `repo=` line is TOLERATED rather than refused - it predates
+# the field and refusing it would strand exactly the mutation this tool exists
+# to put back - but it is called out, because a check that cannot see its input
+# and a check that passes must not look the same.
+if [ -z "$state_repo" ]; then
+  echo "NOTE: this state file records no \`repo=\` line, so it cannot be"
+  echo "      confirmed to be about this checkout. Proceeding, because a file"
+  echo "      written before that field existed is still evidence - but read"
+  echo "      the diff below yourself before accepting any restore."
+elif [ "$state_repo" != "$REPO" ]; then
+  echo "::error::REFUSING: this state file is about a DIFFERENT repository." >&2
+  echo "         state file says : $state_repo" >&2
+  echo "         this checkout is: $REPO" >&2
+  echo "         The path to the state file is keyed by a 32-bit cksum of the" >&2
+  echo "         repository path, so two checkouts can collide on it. Acting" >&2
+  echo "         on it here would restore file bytes from a blob resolved in" >&2
+  echo "         THIS repository at THAT one's sha. Run this tool with" >&2
+  echo "         --repo \"$state_repo\", or set HARNESS_STATE_FILE." >&2
+  exit 2
+fi
 
 if [ -z "$state_harness" ] || [ -z "$state_commit" ] || [ -z "$state_pid" ]; then
   echo "::error::the state file is incomplete and cannot be acted on:" >&2
