@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static anchor checker for the mutation and amputation harnesses.
+r"""Static anchor checker for the mutation and amputation harnesses.
 
 WHY THIS EXISTS. Every harness in `scripts/` anchors on SOURCE TEXT: it
 finds a literal string in a file under `src/` and replaces it. Any
@@ -27,10 +27,21 @@ so the anchor positions are DERIVED, never tabulated:
   its target in its own `python3 - "..."` invocation, and that is read
   from the helper too.
 
-  Shape B, the inline Python heredocs. The body of a `python3 - "$VAR"
-  <<'PY'` heredoc is parsed with `ast`, and every `str.replace` or
-  `re.sub` whose pattern is a string literal - directly, or through a
-  name bound once in the same heredoc - yields an anchor.
+  Shape B, the inline Python heredocs. WHICH heredocs are parsed is
+  read off the line that opens them - a `python3 -` invocation - and
+  never off the body's own text. The body is parsed with `ast`, and a
+  string literal - directly, or through a name bound once in the same
+  heredoc - yields an anchor wherever the row locates its cut by one:
+  `str.replace`, `re.sub`, `re.subn`, and the `.index`/`.find`/`.count`
+  a slice-splice row uses to find the position it cuts at. A literal
+  the same heredoc has already contributed is not counted twice.
+
+  The `.index(x, start)` form is the one weaker case, and it is called
+  `py-scan` rather than being folded in silently: the row searches
+  forward from a position it already holds, so it needs the text to
+  occur AT LEAST once and not exactly once. Row M of
+  check-u1-boot-amputation.sh ends its cut at `"    )\n"`, which occurs
+  four times in `__main__.py` and is correct.
 
   Shape C, the `@@`-delimited spec tables. Which field is the anchor is
   read off the loop's own `NAME="${...@@...}"` assignments, in source
@@ -328,12 +339,27 @@ def _shape_b(
     seen = 0
     for m in HEREDOC_RE.finditer(src):
         body = m.group("body")
-        if ".replace(" not in body and "re.sub(" not in body:
-            continue
         line = src.count("\n", 0, m.start()) + 1
         # The heredoc's target file: the $VAR on the `python3 -` line
         # that opened it.
         head = src[: m.start()].rsplit("\n", 1)[-1]
+        # WHICH HEREDOCS ARE OPENED IS DERIVED FROM THE INVOCATION, not
+        # from the body's prose. This used to read `if ".replace(" not
+        # in body and "re.sub(" not in body: continue`, and a predicate
+        # over the body's TEXT is a predicate the body's text decides:
+        # it skipped the heredoc WHOLE - every site in it, of every kind
+        # - and it skipped it before the `seen` tally could count
+        # anything, so the completeness check came out clean on both
+        # sides. Measured at 22c9873: three live anchors in
+        # check-u1-boot-amputation.sh (rows H, K and M) were invisible
+        # that way, and `--self-check` reported no gap. The line that
+        # opens a heredoc says whether it is Python; that is what is
+        # read now. A `@@` spec table has no `python3` on its opening
+        # line, and under the old rule a spec row whose OLD text
+        # happened to contain `.replace(` would have been handed to
+        # `ast.parse` and reported as a parser gap.
+        if "python3" not in head:
+            continue
         inv = PY_INVOKE_RE.search(head)
         try:
             tree = ast.parse(body)
@@ -356,14 +382,17 @@ def _shape_b(
                 and len(node.targets) == 1
                 and isinstance(node.targets[0], ast.Name)
             ):
-                name = node.targets[0].id
+                # NOT `name`: that is this function's harness-name
+                # parameter, and binding it here renamed every anchor
+                # reported after the first assignment in a heredoc.
+                bound_name = node.targets[0].id
                 value = (
                     node.value.value
                     if isinstance(node.value, ast.Constant)
                     and isinstance(node.value.value, str)
                     else None
                 )
-                assigned[name] = None if name in assigned else value
+                assigned[bound_name] = None if bound_name in assigned else value
 
         def literal(
             node: ast.expr, bound: dict[str, str | None] = assigned
@@ -379,7 +408,14 @@ def _shape_b(
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "replace"
-                and len(node.args) == 2
+                # `>= 2`, not `== 2`. `s.replace(old, new, 1)` is the
+                # bounded form three harnesses use, and an exact-arity
+                # test dropped it without counting it as seen - a
+                # literal anchor in that form would have vanished at
+                # exit 0. Today all three pass `old` as a parameter, so
+                # no anchor was actually lost; that is a measurement,
+                # not a reason to leave the selector arity-bound.
+                and len(node.args) >= 2
             ):
                 continue
             seen += 1
@@ -414,7 +450,15 @@ def _shape_b(
             if not (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "sub"
+                # `subn` AS WELL AS `sub`. Matching only `sub` made row
+                # H of check-u1-boot-amputation.sh invisible at 22c9873,
+                # and worse than invisible: `re.subn` is the SAFER
+                # idiom, because it returns the substitution count and
+                # lets the row assert that it landed. A selector that
+                # sees `re.sub` and not `re.subn` charges an anchor for
+                # using the construct this project wants, which is how a
+                # gate ends up shaping code away from the better form.
+                and node.func.attr in ("sub", "subn")
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id == "re"
                 and node.args
@@ -436,6 +480,67 @@ def _shape_b(
                     "py-regex",
                     _expand_path(inv.group("path"), variables),
                     pattern,
+                )
+            )
+
+        # `s[:start] + NEW + s[end:]`, the index-and-slice rows. These
+        # are anchored just as hard as a `.replace()` - rows K and M of
+        # check-u1-boot-amputation.sh locate their cut with
+        # `s.index("    _loguru.remove()")` and
+        # `s.index("    logging.basicConfig(")` - but the splice is an
+        # operator, not a call, so no call-shaped selector reached them
+        # and their anchors were invisible at 22c9873.
+        #
+        # The anchor is not the splice: it is the LITERAL the row looks
+        # the position up by. So the search calls are what is read -
+        # `.index`, `.find` and `.count` - and the rule matches what the
+        # row itself requires:
+        #
+        #   one argument   the row scans the whole file for it, and
+        #                  these rows assert `s.count(anchor) == 1`,
+        #                  so it must occur EXACTLY once. Same rule as
+        #                  a `.replace()` anchor, same shape name.
+        #   with an offset the row scans FORWARD from a position it
+        #                  already has, so file-wide uniqueness is not
+        #                  what it needs and demanding it would report a
+        #                  live row as stale: row M's end anchor
+        #                  `"    )\n"` occurs 4 times in __main__.py and
+        #                  is perfectly correct. These get their own
+        #                  shape and a WEAKER rule - at least one hit -
+        #                  which is stated here rather than hidden,
+        #                  because a weaker check that looks like the
+        #                  strong one is worse than no check.
+        #
+        # A text this heredoc has already contributed is not counted
+        # twice: `assert s.count(a) == 1` beside `s.replace(a, ...)` is
+        # one anchor written two ways, and counting both would inflate
+        # the floor with slack - the #91 defect, in the instrument.
+        already = {a.text for a in anchors if a.line >= line}
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ("index", "find", "count")
+                and node.args
+            ):
+                continue
+            seen += 1
+            text = literal(node.args[0])
+            if text is None or text in already:
+                continue
+            if inv is None:
+                raise ParseError(
+                    f"{name}: literal .{node.func.attr}() at line {line} "
+                    'but no `python3 - "..."` on the opening line'
+                )
+            already.add(text)
+            anchors.append(
+                Anchor(
+                    name,
+                    line + node.lineno,
+                    "py-heredoc" if len(node.args) == 1 else "py-scan",
+                    _expand_path(inv.group("path"), variables),
+                    text,
                 )
             )
     return anchors, seen
@@ -816,7 +921,14 @@ def main() -> int:
                 hits = len(re.findall(a.text, text, re.M))
             else:
                 hits = text.count(a.text)
-            if hits != 1:
+            if a.shape == "py-scan":
+                # An anchor the row searches for FROM a position it
+                # already holds. Zero hits still breaks the row; more
+                # than one does not, so uniqueness is not required and
+                # is not claimed.
+                if hits < 1:
+                    stale.append((a, f"0 hits in {a.target} (need at least 1)"))
+            elif hits != 1:
                 stale.append((a, f"{hits} hits in {a.target} (need exactly 1)"))
 
     if not args.quiet:
@@ -851,7 +963,9 @@ def main() -> int:
         )
         return 1
     print(
-        f"OK: all {total} anchors resolve to exactly one hit in their target file"
+        f"OK: all {total} anchors resolve in their target file "
+        "(exactly one hit, or at least one for a `py-scan` anchor read "
+        "forward from a position the row already holds)"
         + (f" (floor {args.floor})." if args.floor else ".")
     )
     return 0

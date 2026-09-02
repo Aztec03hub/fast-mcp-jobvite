@@ -153,6 +153,132 @@ if len(re.findall(picked.text, target.read_text(), re.M)) != 0:
 PY
 }
 
+# break_widened_anchor <tree> <old> <new> - break an anchor that ONLY the rule
+# `<old>` can see, deriving WHICH anchor that is from the rule itself.
+#
+# WHY IT IS DERIVED THIS WAY. A widening is unprovable unless something breaks
+# an anchor the OLD selector could not see and the new one can. Naming that
+# anchor here would be a hand-kept list of one, and it would rot the first time
+# a row moved. So the subject is computed: the checker is asked for its anchors,
+# then asked again with the rule under test deleted, and the anchors that
+# VANISH are exactly the ones that rule is responsible for. The first of those
+# is broken in the copy.
+#
+# The vacuity guard is the point of the exercise. If deleting the rule removes
+# no anchors at all, the widening is not doing anything and this prints so
+# rather than passing - a widening that leaves the count unchanged did nothing,
+# and a control that cannot tell those apart is the defect one level up.
+break_widened_anchor() {
+  local tree="$1" old="$2" new="$3"
+  TREE="$tree" REL="$CHECKER_REL" OLD="$old" NEW="$new" python3 - <<'PY'
+import importlib.util, os, pathlib, re, sys
+
+tree = pathlib.Path(os.environ["TREE"])
+rel = os.environ["REL"]
+old, new = os.environ["OLD"], os.environ["NEW"]
+
+
+def anchors_of(path):
+    # REGISTERED BEFORE EXEC, and under a FRESH name each time: `@dataclass`
+    # resolves its annotations through `sys.modules[cls.__module__]`, and
+    # reusing one name would hand the second load the first module's globals.
+    name = f"anchors_{abs(hash(str(path)))}"
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    out = []
+    for h in sorted((tree / "scripts").glob("check-*.sh")):
+        if h.name.startswith("check-harness-anchors"):
+            continue
+        out.extend(mod.collect(h)[0])
+    return out
+
+
+checker = tree / rel
+src = checker.read_text()
+if src.count(old) != 1:
+    print(f"    CONTROL SETUP FAILED: the rule is not unique ({src.count(old)} hits)")
+    sys.exit(3)
+
+# The amputated checker lives beside the real one, so both are read from the
+# SAME tree and any difference is the rule, not the tree.
+maimed = checker.with_name("cha-amputated.py")
+maimed.write_text(src.replace(old, new))
+
+full = anchors_of(checker)
+reduced = anchors_of(maimed)
+maimed.unlink()
+
+seen = {(a.harness, a.line, a.shape, a.target, a.text) for a in reduced}
+lost = [a for a in full if (a.harness, a.line, a.shape, a.target, a.text) not in seen]
+if not lost:
+    print("    CONTROL SETUP FAILED: deleting this rule removes NO anchors, so")
+    print("    the widening it represents does nothing and this row proves nothing.")
+    sys.exit(3)
+
+def spans(anchor, text):
+    """Where this anchor matches `text`, by the same rule the checker uses."""
+    if anchor.shape in ("py-regex", "sed-bre"):
+        flags = re.S if anchor.shape == "py-regex" else re.M
+        return [m.span() for m in re.finditer(anchor.text, text, flags)]
+    out, i = [], text.find(anchor.text)
+    while i != -1:
+        out.append((i, i + len(anchor.text)))
+        i = text.find(anchor.text, i + 1)
+    return out
+
+
+# TWO THINGS HAVE TO HOLD, and the first version of this checked NEITHER. It
+# spliced `ZZ` into the middle of the match and declared the anchor broken,
+# and the harness reported three survivors that were all faults in here:
+#
+#   THE BREAK MUST ACTUALLY BREAK IT. Row H's anchor is a regex with `.*?`
+#   in it, so a character dropped in the middle lands inside the wildcard
+#   and the pattern still matches. The insertion point is searched for now,
+#   and a candidate whose anchor cannot be invalidated at all is passed
+#   over rather than reported as broken.
+#
+#   THE BREAK MUST BE ISOLATED. The first lost anchor was
+#   `"TOOL_REQUIREMENTS: Final[dict[str, tuple[str, ...]]] = {"`, which is
+#   also the opening of a `re.sub` pattern the OLD selector already read.
+#   Breaking it breaks both, so the amputated checker stayed red and the
+#   row read as a survivor while the widening was fine. A subject is only
+#   usable if no anchor that SURVIVES the amputation matches the same text.
+target = None
+for a in lost:
+    text = (tree / a.target).read_text()
+    found = spans(a, text)
+    if not found:
+        continue
+    start, end = found[0]
+    mangled = None
+    for pos in range(start, end + 1):
+        cand = text[:pos] + "ZZ" + text[pos:]
+        if not spans(a, cand):
+            mangled = cand
+            break
+    if mangled is None:
+        continue
+    collateral = [
+        o
+        for o in reduced
+        if o.target == a.target and spans(o, text) and not spans(o, mangled)
+    ]
+    if collateral:
+        continue
+    target = tree / a.target
+    target.write_text(mangled)
+    print(f"    subject: {a.harness}:{a.line} [{a.shape}] -> {a.target}")
+    break
+
+if target is None:
+    print("    CONTROL SETUP FAILED: none of the anchors this rule adds could be")
+    print("    broken without also breaking one the amputated checker still reads.")
+    sys.exit(3)
+PY
+}
+
 # amputate_checker <tree> <old> <new> - delete one rule from the checker.
 amputate_checker() {
   local tree="$1" old="$2" new="$3"
@@ -178,6 +304,12 @@ row() {
   case "$dobreak" in
     yes) break_source "$tree" || { echo "  $label: SETUP FAILED"; return; } ;;
     sed) break_sed_anchor "$tree" || { echo "  $label: SETUP FAILED"; return; } ;;
+    # `widen` breaks an anchor only the rule in $1 can see. The SAME pair is
+    # passed to both arms of a widening: the positive arm adds a third word so
+    # the amputation below is skipped, and the amputation arm passes two so it
+    # fires. Both arms rebuild the tree and re-derive the subject, which is
+    # deterministic, so they are provably breaking the same anchor.
+    widen) break_widened_anchor "$tree" "$1" "$2" || { echo "  $label: SETUP FAILED"; return; } ;;
   esac
 
   if [ "$#" -eq 2 ]; then
@@ -253,6 +385,39 @@ row "A5 the sed -i shape parses nothing" 0 sed \
   '    d_anchors, d_seen = ([], 0)'
 
 echo
+echo "########## WIDENINGS - each proved by the anchor only it can see"
+
+# Task #167. Three selector limits made live anchors invisible at 22c9873, all
+# three in check-u1-boot-amputation.sh: `re.subn` (row H), and the
+# index-and-slice splices (rows K and M) whose heredocs the old body-text gate
+# skipped WHOLE. A widening that nothing breaks is a widening nobody can tell
+# from a no-op, so each gets a PAIR: the anchor only the new rule can see is
+# broken, the real checker must report it, and the same tree with that one rule
+# deleted must go green again.
+#
+# WHICH anchor gets broken is derived from the rule (see break_widened_anchor),
+# and a rule whose deletion removes no anchors fails the row instead of passing
+# it.
+#
+# The pair is written ONCE per widening and passed to both arms, so the `a` row
+# and the `b` row cannot drift apart into testing two different rules.
+SUBN_OLD='                and node.func.attr in ("sub", "subn")'
+SUBN_NEW='                and node.func.attr == "sub"'
+SPLICE_OLD='                and node.func.attr in ("index", "find", "count")'
+SPLICE_NEW='                and node.func.attr in ("__no_such_method__",)'
+GATE_OLD='        if "python3" not in head:'
+GATE_NEW='        if ".replace(" not in body and "re.sub(" not in body:'
+
+row "W1a an invalidated re.subn anchor is caught" 1 widen "$SUBN_OLD" "$SUBN_NEW" keep
+row "W1b without the re.subn rule the same break passes" 0 widen "$SUBN_OLD" "$SUBN_NEW"
+
+row "W2a an invalidated index-and-slice anchor is caught" 1 widen "$SPLICE_OLD" "$SPLICE_NEW" keep
+row "W2b without the index-and-slice rule the same break passes" 0 widen "$SPLICE_OLD" "$SPLICE_NEW"
+
+row "W3a an anchor in a heredoc the old prose gate skipped is caught" 1 widen "$GATE_OLD" "$GATE_NEW" keep
+row "W3b with the prose gate back the same break passes" 0 widen "$GATE_OLD" "$GATE_NEW"
+
+echo
 echo "########## FLOOR - a shape can vanish with every remaining anchor sound"
 
 # A2-A4 break the tree; this one does NOT. It deletes a whole parser shape from
@@ -310,9 +475,10 @@ harness_result_tally fired "$FIRED" "$TOTAL"
 # whose rows were deleted - or whose rows stopped being counted - reports
 # fully green. `TOTAL -eq 0` catches only the total case; PARTIAL deletion
 # is the realistic shape. DERIVED: this harness printed "9/9 controls
-# fired." at 20e71ed. Lowering this number is a visible diff that has to
-# be defended.
-ROW_FLOOR=9
+# fired." at 20e71ed, and "15/15" once #167 added three widening PAIRS
+# (a positive arm and an amputation arm each). Lowering this number is a
+# visible diff that has to be defended.
+ROW_FLOOR=15
 # The canonical result line's numbers, taken from the harness's own
 # counter and its own floor - never a second copy. Called BEFORE the
 # comparison below, because that branch exits.

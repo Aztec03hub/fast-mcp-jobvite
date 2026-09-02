@@ -247,7 +247,7 @@ jobs:
       - name: The design at its declared freeze is the design on main
         run: python3 docs/reviews/check-design-freeze.py
 
-      # WIRED THE DAY IT WENT GREEN. 43 tracked .sh, none enabling errexit;
+      # WIRED THE DAY IT WENT GREEN. No tracked .sh enables errexit;
       # a planted `set -euo pipefail` in a tracked script exits 1, and the
       # one dynamic `set` in probe-set-e-vs-harness.sh is correctly NOT
       # flagged.
@@ -788,13 +788,20 @@ jobs:
       # ---------------------------------------------------------------------
       # ---------------------------------------------------------------------------
       # NEVER EXECUTED as an action - lychee is not installed on this machine. The
-      # PROPERTY it asserts was verified locally against the current tree with an
-      # equivalent offline walk: 27 relative markdown links across 63 files, 0
-      # dangling, and that checker was positive-controlled against a deliberately
-      # broken link before its zero was believed. The tree was also checked for the
-      # link forms that walk does NOT parse - reference-style `[x]: target`,
-      # autolinks, raw <a href> - and contains none, so inline `[x](y)` is the whole
-      # relative-link surface lychee will see here.
+      # PROPERTY it asserts was verified locally against the tree with an equivalent
+      # offline walk: every relative markdown link resolves on disk, and that walk
+      # was positive-controlled against a deliberately broken link before its zero
+      # was believed. The tree was also checked for the link forms that walk does
+      # NOT parse - reference-style `[x]: target`, autolinks, raw <a href> - and
+      # contains none, so inline `[x](y)` is the whole relative-link surface lychee
+      # will see here.
+      #
+      # THE LINK AND FILE COUNTS THAT USED TO SIT IN THIS SENTENCE ARE GONE, not
+      # refreshed. They read "27 relative markdown links across 63 files" and were
+      # 56 across 244 when #167 re-walked the tree - a retyped figure beside a
+      # container nothing compares it to, which is the shape #166 deleted in three
+      # other places rather than putting back with a fresher number. The walk is
+      # cheap and re-runnable; its output is the number.
       #
       # readme-standard.md:69 (B82) - "a link checker MUST run in CI; a broken link blocks
       # merge." COMPLIANCE-SPEC.md:84 makes it job 12 and picks no tool (:659-661
@@ -818,8 +825,9 @@ jobs:
       #     They are the only citations in this file that keep a line number,
       #     and they must: converting them to subject phrases would delete the
       #     very thing the sentence is showing. Do not repoint them either.)
-      # markdown links. Only 27 links in the whole tree are even in scope. So this
-      # satisfies readme-standard.md:69 and it is NOT the control for this project's
+      # markdown links, so only a small minority of this project's citations are in
+      # scope at all. So this satisfies readme-standard.md:69 and it is NOT the
+      # control for this project's
       # citation decay: the coupling gates in docs/reviews/ and the citation audits
       # are. Do not read a green here as "the citations are sound".
 
@@ -1071,11 +1079,20 @@ jobs:
       #
       # THE FLOOR IS HERE FOR THE SAME REASON THE SUITE FLOOR IS. If a parser
       # shape stops matching, every anchor that still parses resolves perfectly
-      # and the checker reports OK on a fraction of its coverage. Measured:
-      # deleting one shape drops 201 to 186 with an exit code of 0. Lowering
-      # this number is a visible diff that has to be defended.
+      # and the checker reports OK on a fraction of its coverage. Measured by
+      # row F1 of check-harness-anchors-controls.sh, which deletes shape C:
+      # 464 drops to 449 with an exit code of 0. Lowering this number is a
+      # visible diff that has to be defended.
+      #
+      # 458 UNTIL #167, AND THAT NUMBER WAS DERIVED FROM A BLIND SELECTOR.
+      # Three live anchors in check-u1-boot-amputation.sh were invisible to
+      # the parser, so the floor certified a count that had never included
+      # them. The floor was raised only AFTER the selector was widened and
+      # the widening was proved by three control pairs; a floor set from an
+      # instrument nobody has measured is #91's slack with the slack
+      # invisible.
       - name: Harness anchors still resolve
-        run: python3 scripts/check-harness-anchors.py --self-check --floor 458
+        run: python3 scripts/check-harness-anchors.py --self-check --floor 464
 
       # WIRED ONLY NOW THAT ITS BACKLOG IS ZERO. It reported 10 floorless
       # harnesses when written and stayed unwired through all of them,
