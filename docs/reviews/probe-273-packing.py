@@ -40,11 +40,13 @@ the trunk on the Actions API being reachable. Re-run it by hand when
 the step population, the lane count, or the fitted shard costs change.
 
 IT ASSERTS ITS OWN POPULATION AND ABORTS IF IT MOVES. An earlier
-version hard-coded a plausible-looking list of the 31 non-amputation
-step durations; it summed to 3824s against the real 3311s, because the
+version hard-coded a plausible-looking list of 31 step durations; it
+summed to 3824s against the real 3311s, because the
 durations were invented. Printing both totals is the only reason that
 was caught, so the count and the total are now assertions and every
-duration is fetched from the run.
+duration is fetched from the run. 31 matched no real subset: the
+population is 33 steps, of which 15 are amputation-named and 18 are
+not.
 
 THE SHARD COSTS ARE FITTED, NOT MEASURED. U3 -> 2 x 163.3s and
 U9 -> 2 x 219.5s come from a model whose overhead term task #278
@@ -87,7 +89,18 @@ EXPECT_STEPS = 33
 EXPECT_TOTAL = 3311.0
 U3_SHARD = 163.3
 U9_SHARD = 219.5
-RESTARTS = 400
+
+# CHOSEN BY MEASURING WHERE THE TABLE STOPS MOVING, not by picking a
+# bigger number. All twelve printed BEST cells were swept over
+# R = 1, 10, 60, 100, 200, 400, 1000, 3000, 10000, 40000. Eleven settle
+# by R = 200; the SHARDED 11-LANE cell does not - it reads 335.5 at 400,
+# 335.0 at 1000, 334.3 at 3000 and 334.0 from 10000 onward (unchanged at
+# 40000 and 100000), which is why 400 was too low. At 10000 the whole
+# table costs 8.8s of search (median of 5, this host) against a wall
+# already dominated by one `gh api` call, on a probe nothing gates.
+# NOT swept here: the fitted-cost refits quoted in REVAMP-238-ci.md
+# 7a.2, which this file does not compute.
+RESTARTS = 10000
 
 
 def parse_time(value: str) -> datetime.datetime:
@@ -270,9 +283,17 @@ def main() -> int:
     print("BOUNDS, so each could be a few seconds better - which only widens")
     print("any win. Shard costs are FITTED; see task #278.")
     print("Absolutes carry the setup spread (306-315s unsharded); deltas do not.")
-    print("11 lanes is a PROVED loss, not a search artefact: the sharded LOWER")
-    print("bound exceeds an EXHIBITED unsharded packing. Sharding adds ~210s of")
-    print("work, and below 12 lanes there is nowhere to absorb it.")
+    print("11 lanes is a proved loss UNDER THE FITTED SHARD COSTS, not a search")
+    print("artefact: the sharded LOWER bound (333.05) exceeds an EXHIBITED")
+    print("unsharded packing (316.00), so no search budget can overturn it.")
+    print("It is NOT input-independent. Re-fitting in #278's direction (the")
+    print("overhead term deleted) WIDENS the loss to 20.17s; at ZERO shard")
+    print("overhead the same bound REVERSES - 314.00 against the exhibited")
+    print("316.00 - and an exhibited zero-overhead packing reaches 315.00, a")
+    print("1.0s win. #278 measures that term at 130ms against the 2.24-2.64s")
+    print("fitted here, so the reversing end of the range is the one the")
+    print("evidence points at. This row is budget-independent, not")
+    print("input-independent.")
     return 0
 
 
