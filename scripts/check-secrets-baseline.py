@@ -217,7 +217,83 @@ def gate() -> int:
             "decision - see this file's docstring. Clear them with a "
             "regeneration when you are next editing the baseline anyway."
         )
+    _warn_untracked()
     return 0
+
+
+def _warn_untracked() -> None:
+    """Say which UNTRACKED files would become findings once tracked.
+
+    #163. `detect-secrets scan` picks its population with `git
+    ls-files`, so a brand-new file is invisible until the moment it is
+    tracked - and then fails in the commit that adds it. That happened
+    to THIS file: its control fixtures were two unaudited findings, and
+    the first run passed only because it was still untracked.
+
+    THREE OPTIONS WERE ON THE TABLE AND TWO ARE REFUSED.
+
+    `git add -N` before the scan would fix it and MUTATES THE INDEX.
+    This project has a standing ruling that unstaging is the
+    destructive operation to avoid - #131's restorer refuses outright
+    if a harness staged anything - and a gate that stages on every run
+    is that rule pointed the other way. It would also scan files the
+    author has not chosen to commit.
+
+    A `pragma: allowlist secret` convention would trade a surprise for
+    a habit of silencing the scanner, which is strictly worse.
+
+    So: READ the untracked set explicitly, honour `.gitignore` via
+    `--exclude-standard`, and WARN. The index is untouched, nothing the
+    author did not write is scanned, and they hear about it before the
+    commit rather than from a red gate.
+
+    IT WARNS AND NEVER FAILS. An untracked file is not in the tree this
+    gate governs, and failing on one would make the gate red for
+    something no commit contains. Measured when written: 3 untracked
+    non-ignored files, 0 findings - the noise this adds today is none.
+
+    The scan runs as a SUBPROCESS, matching `scan_against_copy`, rather
+    than importing detect_secrets: the library ships no type stubs and
+    the first version of this function failed mypy for that reason.
+    """
+    git = shutil.which("git")
+    if git is None:
+        return
+    try:
+        listed = subprocess.run(  # noqa: S603
+            [git, "ls-files", "--others", "--exclude-standard"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+    except (OSError, subprocess.CalledProcessError):
+        return
+    if not listed:
+        return
+    try:
+        done = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "detect_secrets", "scan", *listed],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        results = json.loads(done.stdout)["results"]
+    except (OSError, ValueError, KeyError):
+        return
+    if not results:
+        print(
+            f"\n{len(listed)} untracked file(s) checked ahead of tracking: "
+            "none would be a finding."
+        )
+        return
+    print(
+        f"\nWARNING - {len(results)} UNTRACKED file(s) would become "
+        "findings the moment they are tracked. Nothing is failing: they "
+        "are not in the tree this gate governs. Audit or fix them BEFORE "
+        "you `git add`, or the commit that adds them turns this red:"
+    )
+    for path, found in sorted(results.items()):
+        print(f"  {path}: {len(found)} finding(s)")
 
 
 # ---------------------------------------------------------------------
