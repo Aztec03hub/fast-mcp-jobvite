@@ -126,27 +126,13 @@ fcde13f NONE R16-M2: report a landing failure unless it is POSITIVELY
 ac4b36c NONE R17-M1: the zero was over 42 files of 116, and briefs ha
 c60941d NONE #167: measure the anchor container first, then widen it,
 d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
-3987403 NONE #163 RULED: warn on untracked findings; `git add -N` and a pra
-6f858ea NONE #164: the mirror's fourth state - not running at all - n
-fd300ec NONE #149 M-4: the wiring probe now RUNS, in a job of its own
-1abb362 NONE R18-M5: the coverage ratchet was feeding itself, four co
+3987403 PARTIAL #163 RULED: warn on untracked findings; `git add -N` and a pra
 1cddd76 NONE BRIEF for #170: the retyped-count sweep, dispatched to s
 30be0ce NONE #170 F2 and F4: two more retyped counts, one of them fif
-451faeb NONE R18-H1 + R18-M4: the secret gate printed an all-clear pr
-4c29b98 NONE R18-M3: ARM 4 passed on the mutant it existed to catch, 
-6de1b4a NONE #154: a tool that will not print a duration without its 
+4c29b98 PARTIAL R18-M3: ARM 4 passed on the mutant it existed to catch, 
+6de1b4a PARTIAL #154: a tool that will not print a duration without its 
 8986e64 NONE Both briefs were missing §0, the block that makes their 
-9c08427 NONE #131: the shared gate now records who is mutating, closi
-9ce969f NONE The restorer never read the `repo=` field it has always 
 d0bdf2a NONE BASH-1: the count was 20 against a population of 39, and
-fd500c7 NONE R18-H2: fourteen green rows and the transport was never 
-46b09c4 NONE R18-M2: the mirror step went red on any fork, and the ob
-6e09af1 NONE R18-N1: a trailing slash on --repo named a different sta
-c0f1524 NONE Re-freeze DESIGN.md at e3b5c97, the commit ADR-0034 chan
-e3b5c97 NONE ADR-0034: DESIGN.md's "all eleven ADRs" is DELETED, not 
-9fbef31 NONE R18 L1, L2 and N1: three gate-hygiene items, and buildin
-cfc0835 NONE R18-M1: two halves of one file disagreed about whether t
-d29937f NONE ADR-0034 made `Type:` load-bearing in a FROZEN document,
 f38f7c3 NONE #170 F3, fixed by TENSE not by arithmetic - the fourth c
 2945f5e NONE BRIEF for R19, and #131 CLOSED by ruling on the half tha
 32aa9a8 NONE HANDOFF v6, and it is the first version whose predecesso

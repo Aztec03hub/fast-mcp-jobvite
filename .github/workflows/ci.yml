@@ -1255,6 +1255,20 @@ jobs:
       - name: The mirror refuses a zero-ref push
         run: bash docs/reviews/probe-mirror-zero-refs.sh .github/workflows/mirror.yml
 
+      # A REPORT THAT WAS WRITTEN IS NOT A REPORT THAT WAS COMMITTED.
+      # PREAMBLE.md:133 has said so since the first 48KB report was lost
+      # in a worktree; REVIEW-R18.md then sat untracked in another one,
+      # and I declared it destroyed before a second pair of eyes found it
+      # on disk. A rule nothing checks is a rule that documents its own
+      # violations. Bare on purpose: the --briefs/--record/--tracked
+      # flags exist for the controls, and passing them here would ask a
+      # different question from the one this gate is for.
+      - name: Every report a brief cites is committed
+        run: uv run --frozen python docs/reviews/check-brief-report-references.py || exit 1
+
+      - name: Controls for the brief-report reference gate
+        run: bash docs/reviews/check-brief-report-refs-controls.sh
+
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
       # for a reason that turned out to be FALSE. #120 first left this step
       # inline, reasoning from the SOURCE that this harness prints
