@@ -154,8 +154,20 @@ PY
   fi
 
   run_suite
-  if grep -qE "(FAILED|ERROR) .*::${TEST}\b" "$WORK/out.txt" \
-     || grep -qE "^(FAILED|ERROR) .*${TEST}" "$WORK/out.txt"; then
+  # THE NAME IS A LITERAL, NOT A PATTERN. These were two greps -
+  # `(FAILED|ERROR) .*::${TEST}\b` and `^(FAILED|ERROR) .*${TEST}` - each
+  # interpolating a TEST NAME into an extended regular expression, so a
+  # parametrised name like `test_x[1]` would have matched the CHARACTER `1`
+  # and not the literal `[1]`. #264 measured the hazard as real and
+  # unreachable today (0 of 681 names carry a metacharacter); this is the
+  # hardening, not a live bug. The two arms collapse into one because their
+  # union was "a FAILED/ERROR result line that names $TEST", which is what
+  # this says directly. `awk`'s `index()` is a literal substring operator -
+  # a signal the language already carries - and the name arrives through
+  # ENVIRON rather than `-v`, because `-v` processes backslash escapes and
+  # would rebuild the defect one column over.
+  # Proved both ways in docs/reviews/probe-289-ere-interpolation.sh.
+  if t="$TEST" awk '($1=="FAILED"||$1=="ERROR") && index($0,ENVIRON["t"]) {f=1} END{exit !f}' "$WORK/out.txt"; then
     printf -- '--- %-62s -> CONTROL FIRED\n' "$LABEL"
     FIRED=$((FIRED + 1))
   else

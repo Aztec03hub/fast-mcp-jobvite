@@ -66,15 +66,20 @@ fi
 # THE VERDICT REGEX IS READ OUT OF THE HARNESS, NEVER RETYPED. A copy here would
 # be free to agree with a harness that had drifted, which is the shape this
 # repository keeps finding. If the line cannot be located the probe refuses.
-VERDICT_RE=$(sed -n 's/.*grep -qE "\(\^(FAILED|ERROR)[^"]*\)".*/\1/p' "$HARNESS" | head -1)
-if [ -z "$VERDICT_RE" ]; then
-  echo "ABORT: could not read the verdict regex out of $HARNESS."
-  echo "It is supposed to be a 'grep -qE \"^(FAILED|ERROR) ...\"' line. If the"
+# #289 changed the shape it reads: the verdict is no longer an ERE with the
+# test name interpolated into it (a name like `test_x[1]` was a PATTERN there,
+# not a literal), it is an awk program that takes the name through ENVIRON.
+# So what is extracted here is the awk PROGRAM, and it is fed the name the
+# same way the harness does - by an environment assignment, never by textual
+# substitution, which is the substitution this change exists to remove.
+VERDICT_AWK=$(sed -n "s/.*awk '\(.*\)' \"\$MUT_OUT\".*/\1/p" "$HARNESS" | head -1)
+if [ -z "$VERDICT_AWK" ]; then
+  echo "ABORT: could not read the verdict expression out of $HARNESS."
+  echo "It is supposed to be an \"awk '...' \\\"\$MUT_OUT\\\"\" line. If the"
   echo "harness changed shape, this probe is measuring nothing and says so."
   exit 3
 fi
-VERDICT_RE="${VERDICT_RE//\$want/$WANT}"
-echo "verdict regex read from $HARNESS: $VERDICT_RE"
+echo "verdict expression read from $HARNESS: awk '$VERDICT_AWK'"
 echo
 
 restore() { git checkout -- "$AUDIT"; }
@@ -129,7 +134,7 @@ row "THE TRAP: its log DOES name \$want" "$([ "$b_want" -gt 0 ] && echo pass || 
 echo "########## C: the OLD verdict would have lied; the NEW one does not"
 # OLD: `grep -q "$want"` over the whole log - the exact expression #252 shipped.
 if grep -q "$WANT" "$OUT"; then old="killed"; else old="not-killed"; fi
-if grep -qE "$VERDICT_RE" "$OUT"; then new="killed"; else new="not-killed"; fi
+if w="$WANT" awk "$VERDICT_AWK" "$OUT"; then new="killed"; else new="not-killed"; fi
 echo "  OLD rule (bare name anywhere): $old"
 echo "  NEW rule (anchored to a result line): $new"
 row "the OLD rule reports a kill here, which is the defect" \
@@ -147,7 +152,7 @@ cat >"$CTL_OUT" <<EOF
 =========================== short test summary info ============================
 FAILED tests/test_audit.py::$WANT - AssertionError: assert 0 == 1
 EOF
-if grep -qE "$VERDICT_RE" "$CTL_OUT"; then ctl="killed"; else ctl="not-killed"; fi
+if w="$WANT" awk "$VERDICT_AWK" "$CTL_OUT"; then ctl="killed"; else ctl="not-killed"; fi
 echo "  NEW rule against a real '^FAILED <nodeid> - ...' line: $ctl"
 row "the NEW rule still reports a kill on a genuine FAILED line" \
   "$([ "$ctl" = "killed" ] && echo pass || echo fail)"

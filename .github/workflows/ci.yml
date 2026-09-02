@@ -1223,6 +1223,20 @@ jobs:
       - name: The floor container's own arms
         run: python3 docs/reviews/check-row-floor-exactness.py --self-test
 
+      # #289: three harnesses build their kill verdict from a TEST NAME, and
+      # until this landed they pasted that name into an extended regular
+      # expression, where a parametrised id like `test_x[1]` is a PATTERN and
+      # matches the character `1`. #264 measured the hazard as real and as
+      # unreachable today (0 of 681 names carry a metacharacter), so what this
+      # guards is the FIRST parametrised killer somebody names in a row - the
+      # trigger, not a live bug. It reads each harness's verdict expression
+      # out of the shipped file and refuses if it cannot find one, so it goes
+      # red on a shape change rather than passing about a harness it no longer
+      # describes. Static, no pytest, under a second; it shares this job for
+      # the same reason the two steps above do.
+      - name: A test name reaches a verdict as a literal, never as a pattern
+        run: bash docs/reviews/probe-289-ere-interpolation.sh
+
       # WIRED GREEN, backlog zero. #85 fixed sixteen of these in one day and
       # my first pass found only five - the sweep stopped at the directory I
       # was editing, leaving eleven in this file, one of which (`grep -qE
