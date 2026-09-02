@@ -104,6 +104,29 @@ exactly what catches a stale assignment echo: the sixth run received an
 echo carrying a SUPERSEDED description, dated later than the work it
 hid, and identified it only by comparing against the live row.
 
+**MEASURED TWICE MORE ON 2026-09-01, and the obvious tell FAILED once.**
+Runs nine and ten each received a completion echo and each refused it.
+Three facts, because agents keep having to rediscover them:
+
+- **The echo is timestamped LATER than the correction it hides.** One
+  replayed three figures its own run had just measured wrong. Recency is
+  the WRONG tiebreak here.
+- **`assignedBy` naming YOU is not a reliable tell.** It fired for one
+  run and not the other, whose echo said `assignedBy: team-lead`. What
+  caught that one was comparing the echo's TEXT to the live row, and
+  finding the echo predated even the dispatch brief that replaced it.
+- **THE GUARDRAILS DO NOT TRAVEL.** An echo carries no §A canon list and
+  no §B file ownership. Four agents were live in this tree that evening
+  with disjoint ownership stated only in their briefs; an agent acting
+  on an echo would have edited a workflow file another agent was in.
+  **That makes the echo strictly more dangerous than the brief it
+  impersonates.**
+
+So the rule is TEXTUAL, never social: `TaskGet`, then compare the
+description against your brief. Never "check who sent it". And when you
+complete a task, write the final subject and description BEFORE marking
+it complete, so the echo at least replays something true.
+
 **The operative rule is unchanged: `SendMessage` to `team-lead` IS the
 reporting channel**, and Tier 0 owns every task row on its behalf. That
 was always right. What was wrong was the mechanism given for it — and a
