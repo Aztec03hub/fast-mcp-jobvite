@@ -4,77 +4,61 @@
 WHY THIS EXISTS, AND WHY IT IS NARROWER THAN THE TASK THAT ASKED FOR IT.
 
 `scripts/lib/harness-result.sh:163` is the one `printf` that emits the
-canonical
-HARNESS-RESULT line, and everything downstream starts from what it
-ACTUALLY
-EMITS: the #120 census, the field-name checker, `ci-harness-gate.sh`'s
-flag
-reader. So "which harnesses publish a tally?" has always been answered
-by
-grepping OUTPUT - and a harness that computes a tally and never prints
-it is
-invisible to every one of them. #120 fixed what happens to a tally ONCE
-PRINTED. It said nothing about one never printed.
+canonical HARNESS-RESULT line, and everything downstream starts from
+what it ACTUALLY EMITS: the #120 census, the field-name checker,
+`ci-harness-gate.sh`'s flag reader. So "which harnesses publish a
+tally?" has always been answered by grepping OUTPUT - and a harness that
+computes a tally and never prints it is invisible to every one of them.
+#120 fixed what happens to a tally ONCE PRINTED. It said nothing about
+one never printed.
 
-# 152 proposed deriving the EXPECTED publishers from each harness's
-# SHAPE and
-asserting set equality against the observed ones - `check-*-controls.sh`
-publishes `fired=`, `-amputation.sh` publishes `applied=`. THAT RULE WAS
-MEASURED AND IT IS WRONG, on 4 of the 6 harnesses it would have named:
+#152 proposed deriving the EXPECTED publishers from each harness's
+SHAPE and asserting set equality against the observed ones:
+`check-*-controls.sh` publishes `fired=`, `-amputation.sh` publishes
+`applied=`. THAT RULE WAS MEASURED AND IT IS WRONG, on 4 of the 6
+harnesses it would have named:
 
-  - check-body-cap-amputation.sh and check-u15-gate-amputation.sh `exit
-  1` on a
-    non-landing row. `applied < rows` is IMPOSSIBLE at exit 0, so an
-    `applied=`
-    field would be a fabricated N/N - the exact thing
-    harness-result.sh:157-162
-    refuses ("a fabricated `fired=0/0` would be read as a harness that
-    held zero
-    controls - a false finding").
-  - check-suite-floor-amputation.sh computes `fired`/`total`, which is a
-    KILLED tally, not an anchor tally. The shape rule names the wrong
+  - `check-body-cap-amputation.sh` and `check-u15-gate-amputation.sh`
+    `exit 1` on a non-landing row. `applied < rows` is IMPOSSIBLE at
+    exit 0, so an `applied=` field would be a fabricated N/N - the exact
+    thing `harness-result.sh:157-162` refuses ("a fabricated `fired=0/0`
+    would be read as a harness that held zero controls - a false
+    finding").
+  - `check-suite-floor-amputation.sh` computes `fired`/`total`, which is
+    a KILLED tally, not an anchor tally. The shape rule names the wrong
     FIELD.
-  - check-u1-boot-amputation.sh verifies anchors with `assert count ==
-  1` inside
-    13 unguarded Python heredocs under `set -uo pipefail`. It has no
-    landing
-    tally to publish because it never CONSUMES the failure at all - a
-    different
-    and worse defect, which the shape rule would have papered over by
-    demanding
-    a field.
+  - `check-u1-boot-amputation.sh` verified anchors with `assert count ==
+    1` inside 13 unguarded Python heredocs under `set -uo pipefail`. It
+    had no landing tally to publish because it never CONSUMED the
+    failure at all - a different and worse defect, which the shape rule
+    would have papered over by demanding a field. Closed by #156, which
+    also found the failure was never SILENT: the harness went red naming
+    three correct tests as false instruments.
 
 A rule that fires on N harnesses is a SEARCH. The wider rule "every
-incremented
-counter must reach the canonical line" was also measured: 12 of 37
-files, 11 of
-them the single `VACUOUS` class. That is a finding for a ruling, not a
-sweep,
-and it is deliberately NOT gated here.
+incremented counter must reach the canonical line" was also measured: 12
+of 37 files, 11 of them the single `VACUOUS` class. #159 then ruled that
+one out by reading every site - 10 of the 10 that compute a vacuity
+counter already GATE on it at exit nonzero, so a published field would
+have had no job. It is deliberately NOT gated here.
 
 WHAT IS GATED IS THE ONE INVARIANT THAT SURVIVED READING EVERY SITE:
 
     A harness that diagnoses a per-row anchor-landing failure must not
-    let that
-    row continue silently. Either the branch is FATAL, or the harness
-    publishes
-    a named tally, so that the row reaches the canonical line as a short
-    count.
+    let that row continue silently. Either the branch is FATAL, or the
+    harness publishes a named tally, so that the row reaches the
+    canonical line as a short count.
 
 Both arms are real: `exit` makes the invariant structural, a published
-tally
-makes it counted. What is forbidden is the third option - print prose,
-`return`, and
-count the row as if its anchor had landed. That is what
-check-u4-client-amputation.sh and check-u3-audit-amputation.sh did, and
-check-u4-client-amputation.sh:21 asserted a CI gate that read the anchor
-tally
-while no counter, no field and no `--anchors-applied` flag existed
-anywhere.
+tally makes it counted. What is forbidden is the third option - print
+prose, continue, and count the row as if its anchor had landed. That is
+what `check-u4-client-amputation.sh` and `check-u3-audit-amputation.sh`
+did, and `check-u4-client-amputation.sh:21` asserted a CI gate that read
+the anchor tally while no counter, no field and no `--anchors-applied`
+flag existed anywhere.
 
 Exit codes: 0 clean, 1 findings, 2 the container came back empty or
-unreadable.
-An instrument failure must never render as a clean tree.
+unreadable. An instrument failure must never render as a clean tree.
 """
 
 from __future__ import annotations
