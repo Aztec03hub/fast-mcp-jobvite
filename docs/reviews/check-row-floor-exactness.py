@@ -679,6 +679,46 @@ def _shard_consumers() -> list[str]:
     return found
 
 
+def _row_re_arg(name: str, tail: str) -> str:
+    r"""The ERE `--row-re` carries on one gate line, or a TRUE refusal.
+
+    **SINGLE QUOTES ARE NOT A STYLE PREFERENCE HERE, THEY ARE THE
+    CORRECTNESS CONDITION.** `ci-harness-gate.sh:101` takes the flag as
+    `row_re="$2"` and `:418` runs `grep -cE "$row_re"`, so the pattern
+    the gate greps with is whatever *bash* handed it - already
+    dequoted, already expanded. This checker reads the pattern out of
+    `ci.yml` as TEXT and feeds it to `static_rows()` to count rows.
+    Those two are the same string only where bash expanded nothing,
+    which is to say only under single quotes. Inside double quotes an
+    ERE containing `$(`, a backtick or `$name` is rewritten before
+    `grep` ever sees it, and this file then certifies a pattern that
+    never runs. So a double-quoted `--row-re` is REFUSED, not accepted.
+
+    **AND THE MESSAGE HAS TO BE TRUE (#277)**, the same rule
+    `_env_shard_values()` states above. The single pattern that used to
+    sit inline here admitted `'...'` only, so a double-quoted flag read
+    as *absent* and raised "--min-rows with no --row-re" - a maintainer
+    sent hunting for a flag sitting on the line in front of them. The
+    two cases are now two distinct messages, and arm A51 holds the
+    genuine no-flag case that the second message exists for.
+    """
+    single = re.search(r"--row-re\s+'([^']*)'", tail)
+    if single is not None:
+        return single.group(1)
+    if re.search(r'--row-re\s+"', tail) is not None:
+        raise SystemExit(
+            f"{name}: --row-re is present but DOUBLE-QUOTED. bash would "
+            "interpolate the pattern before ci-harness-gate.sh saw it, so "
+            "the ERE this file reads is not the one grep would run. Write "
+            "it in single quotes."
+        )
+    raise SystemExit(
+        f"{name}: --min-rows with no --row-re. ci-harness-gate.sh "
+        "refuses that pairing at run time, so finding it here "
+        "means ci.yml and the gate disagree."
+    )
+
+
 def _external_floors(
     raw: str | None = None, consumers: list[str] | None = None
 ) -> dict[str, tuple[int, str, int]]:
@@ -728,13 +768,7 @@ def _external_floors(
             flag = re.search(r"--min-rows\s+(\d+)", tail)
             if not flag:
                 continue
-            row_re = re.search(r"--row-re\s+'([^']*)'", tail)
-            if row_re is None:
-                raise SystemExit(
-                    f"{name}: --min-rows with no --row-re. ci-harness-gate.sh "
-                    "refuses that pairing at run time, so finding it here "
-                    "means ci.yml and the gate disagree."
-                )
+            row_re = _row_re_arg(name, tail)
             # TWO GATE LINES FOR ONE HARNESS IS A REFUSAL, NOT A
             # LAST-ONE-WINS (R270-N5). The old dict write silently kept
             # the last `--min-rows` while the shard count came from the
@@ -752,7 +786,7 @@ def _external_floors(
                 )
             found[name] = (
                 int(flag.group(1)),
-                row_re.group(1),
+                row_re,
                 _shard_count(name, block),
             )
     flags = sum(
@@ -1837,6 +1871,44 @@ def self_test() -> int:
         "A7's tree-restored check covers the removal.",
     )
 
+    # -- THE --row-re REFUSALS ARE TWO, AND BOTH ARE TRUE (#277) ------
+    # `_row_re_arg()` used to be one inline `'([^']*)'` search whose
+    # miss fell through to "no --row-re". A50 is the arm that proves
+    # that defect was real: the old capture returns None on a
+    # double-quoted line, which is what made the FALSE message fire.
+    dq = ' r.sh --amputation --min-rows 10 --row-re "^# A[0-9]+ "'
+    try:
+        _row_re_arg("r.sh", dq)
+        said = ""
+    except SystemExit as exc:
+        said = str(exc)
+    arm(
+        "A49 a DOUBLE-QUOTED --row-re is refused for the RIGHT reason",
+        "DOUBLE-QUOTED" in said and "no --row-re" not in said,
+        "the pattern is sitting on the line; saying it is missing sends "
+        "a maintainer looking for a flag that is already there",
+    )
+    arm(
+        "A50 the old single-quote-only capture MISSED that line",
+        re.search(r"--row-re\s+'([^']*)'", dq) is None,
+        "this is the defect itself, pinned: the inline capture returned "
+        "None on a flag that was present, and None routed to the "
+        "no-flag message. Without this arm A49 could pass for a reason "
+        "unrelated to what #277 measured.",
+    )
+    try:
+        _row_re_arg("r.sh", " r.sh --amputation --min-rows 10")
+        blank = ""
+    except SystemExit as exc:
+        blank = str(exc)
+    arm(
+        "A51 NEGATIVE CONTROL: a line with NO --row-re still says so",
+        "no --row-re" in blank,
+        "the new refusal must not swallow the genuine case the old "
+        "message exists for - `ci-harness-gate.sh:417` really does "
+        "refuse --min-rows without --row-re at run time",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -1852,7 +1924,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 48
+    arm_floor = 51
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
