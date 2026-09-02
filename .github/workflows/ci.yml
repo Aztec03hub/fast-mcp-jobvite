@@ -1939,3 +1939,19 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@example.invalid"
           uv run --frozen python docs/reviews/probe-wired-checker-amputation.py || exit 1
+
+      # THE STEP ABOVE HAS A FLOOR AND NOBODY HAD WATCHED IT FIRE (#194).
+      # `check-row-floor-controls.sh` cannot: it neutralises a row in bash
+      # and reads a bash library's canonical line, so an arm there would
+      # measure the interpreter. This is the same remedy the row-floor
+      # container itself uses one job over - the harness arms its OWN floor.
+      #
+      # It runs SEPARATELY rather than being chained onto the line above:
+      # under `bash -e` only the LAST command of an `&&` list triggers
+      # errexit, so a chained self-test failure would be invisible. That
+      # shape has hidden a red on this project three times.
+      #
+      # Every arm is in-process and touches nothing - no fixture, no index -
+      # which is why it can share this job with the run it is about.
+      - name: That probe's own floor still fires
+        run: uv run --frozen python docs/reviews/probe-wired-checker-amputation.py --self-test || exit 1

@@ -43,9 +43,21 @@ so #120's census can count it if that ever changes.
 WHAT WAS MISSING WAS THE FLOOR, not the format. `failures == 0` is
 satisfied by zero arms; `main()` now holds `rows` to a floor.
 
-Run with `uv run --frozen python` on
-`docs/reviews/probe-wired-checker-amputation.py` - CI's interpreter,
-not a bare one, which is the defect the subject file exists about.
+AND THAT FLOOR WAS ITSELF UNWATCHED UNTIL #194. It was a `mode=static`
+row in `check-row-floor-controls.sh`, which means checked for EXACTNESS
+and never seen to FIRE - and it cannot be watched from there, because
+that control neutralises a row in bash and reads a bash library's
+canonical line, so an arm there would measure the interpreter rather
+than this file. The remedy is `--self-test`, the shape
+`check-row-floor-exactness.py` already uses and CI already runs:
+
+    uv run --frozen python \
+        docs/reviews/probe-wired-checker-amputation.py
+    uv run --frozen python \
+        docs/reviews/probe-wired-checker-amputation.py --self-test
+
+Both use `uv run --frozen python` - CI's interpreter, not a bare one,
+which is the defect the subject file exists about.
 """
 
 from __future__ import annotations
@@ -340,6 +352,233 @@ def container_arms(directory: pathlib.Path) -> list[str]:
     return problems
 
 
+#: THE FLOOR (#149 M-4). `failures == 0` is satisfied by zero arms, so a
+#: probe whose `ARMS` list was emptied - or whose container halves
+#: stopped being iterated - reports fully green. Derived from a run at
+#: the commit that added it: ten ARMS plus two arms in each of two
+#: container halves. Lowering it is a visible diff that has to be
+#: defended.
+#:
+#: MODULE LEVEL SO `--self-test` READS THE SAME NUMBER `main()` GATES
+#: ON. It was a local in `main()`, which meant the only way to arm the
+#: floor was to re-type its value somewhere else - a second copy of
+#: exactly the constant this file exists to protect.
+FLOOR = 14
+
+
+def verdict(rows: int, floor: int, failures: list[str]) -> tuple[str, list[str], int]:
+    """The line, the diagnosis and the exit code, in ONE place.
+
+    Split out of `main()` so `--self-test` can arm THE SAME RULES rather
+    than a copy of them. A self-test that re-implements the comparison
+    it is checking passes whenever the two copies agree, which they do
+    right up until one of them is edited.
+
+    **EQUALITY, NOT A LOWER BOUND (#193).** `rows` is COMPUTED here, so
+    `check-row-floor-exactness.py` cannot compare it to a static count -
+    this file and `probe-131-gate-state.sh` are the only two members of
+    its container in that position. `rows >= floor` therefore left the
+    one instrument that could notice a slack floor unable to: add an arm
+    without raising the floor and nothing says so, which is u7's
+    26-against-31 in the one place the exactness checker cannot look.
+
+    **THE TALLY CANNOT SEE A LOST ROW.** `fired=` counts the arms that
+    ran and passed, so deleting an arm leaves it FULL - `fired=13/13`
+    where a healthy run says `fired=14/14`. Only `rows` against `floor`
+    separates the two, which is why the status below is not derived from
+    the tally.
+    """
+    status = "ok" if not failures and rows == floor else "breach"
+    line = (
+        f"HARNESS-RESULT name={pathlib.Path(__file__).name} rows={rows} "
+        f"floor={floor} fired={rows - len(failures)}/{rows} status={status}"
+    )
+    if rows < floor:
+        return (
+            line,
+            [
+                f"{rows}/{floor} ROWS - THE PROBE LOST ARMS. A probe with",
+                "fewer arms than its floor is green for the wrong reason.",
+            ],
+            1,
+        )
+    if rows > floor:
+        return (
+            line,
+            [
+                f"{rows} arms against floor={floor} - arms were ADDED and",
+                f"the floor was not raised. It is slack by {rows - floor}, and",
+                f"a slack floor says nothing when arms go later. Raise it to {rows}.",
+            ],
+            1,
+        )
+    if failures:
+        return (
+            line,
+            [
+                "An arm moved. Either a control was lost or a construct",
+                "is now dead code. Read WHICH rows changed before",
+                "touching either file.",
+            ],
+            1,
+        )
+    return (line, [f"{rows}/{rows} arms measured as expected. No survivor."], 0)
+
+
+def self_test() -> int:
+    r"""Arm this probe's OWN floor, in memory, mutating nothing.
+
+    python3 docs/reviews/probe-wired-checker-amputation.py --self-test
+
+    **WHY THIS EXISTS AND WHY IT IS NOT AN ARM IN A BASH CONTROL.**
+    `check-row-floor-controls.sh` watches a floor fire by neutralising a
+    row in the harness's source and re-running it. It is bash surgery on
+    bash, and driving a Python harness with it would measure the
+    interpreter, not the floor. So this file's floor was `mode=static`
+    in that table: checked for EXACTNESS and never watched FIRE.
+
+    The remedy is the shape `check-row-floor-exactness.py --self-test`
+    already uses, and this is it: feed synthetic row counts to the SAME
+    `verdict()` that `main()` gates on, and require the floor to breach.
+
+    **EVERY ARM IS IN-PROCESS AND TOUCHES NOTHING.** `main()` plants a
+    fixture into the index and runs the real checker ten times; none of
+    that is needed to ask whether the floor fires, and a self-test that
+    staged files could not run beside its own subject.
+
+    **THE ARM FLOOR IS THE POINT OF ITS OWN EXISTENCE.** `failed == 0`
+    is satisfied by zero arms - the defect R19 measured on
+    `check-secrets-baseline.py`. Writing this without one would rebuild
+    that defect inside the fix for it.
+    """
+    arms: list[tuple[str, bool, str]] = []
+
+    def arm(name: str, ok: bool, meaning: str) -> None:
+        arms.append((name, ok, meaning))
+
+    live_rows = len(ARMS) + 2 * len(CONTAINER_HALVES)
+    ok_line, _, ok_code = verdict(live_rows, FLOOR, [])
+
+    # -- THE GEOMETRY THE FLOOR IS ABOUT ------------------------------
+    arm(
+        "S1 the live arm count EQUALS the floor",
+        live_rows == FLOOR,
+        f"{len(ARMS)} ARMS plus 2 per container half over "
+        f"{len(CONTAINER_HALVES)} halves is {live_rows}, and the floor is "
+        f"{FLOOR}. If these differ the floor is slack or impossible before "
+        "any deletion, and every arm below would be measuring that instead.",
+    )
+    arm(
+        "S2 a full arm set with no failures is status=ok, exit 0",
+        "status=ok" in ok_line and ok_code == 0,
+        "the GREEN half. Without it an always-breaching verdict would "
+        "pass every red arm below and prove nothing.",
+    )
+
+    # -- THE FLOOR FIRING, WHICH IS WHAT #194 IS FOR ------------------
+    # ONE ARM DELETED, exactly as a careless edit would delete it. The
+    # count is taken from the real lists rather than typed, so this arm
+    # cannot go stale when an arm is added.
+    lost_line, lost_note, lost_code = verdict(live_rows - 1, FLOOR, [])
+    arm(
+        "S3 DELETE one arm and the floor BREACHES: exit 1",
+        "status=breach" in lost_line and lost_code == 1,
+        "this is the assertion nothing had ever run. A probe with fewer "
+        "arms than its floor is green for the wrong reason.",
+    )
+    arm(
+        "S4 THE TRAP: the tally reads FULL in that breach",
+        f"fired={live_rows - 1}/{live_rows - 1}" in lost_line,
+        "every SURVIVING arm still fires, so `fired=N/N` is what a healthy "
+        "run AND a run missing an arm both print. A checker reading the "
+        "tally would pass this. Only rows-against-floor caught it.",
+    )
+    arm(
+        "S5 the breach SAYS an arm was lost rather than exiting quietly",
+        any("LOST ARMS" in line for line in lost_note),
+        "a silent nonzero and a diagnosed one are not the same artefact; "
+        "119 red CI runs here went unread because the failure said nothing.",
+    )
+
+    # -- THE OTHER DIRECTION, WHICH NEVER ANNOUNCES ITSELF ------------
+    slack_line, slack_note, slack_code = verdict(live_rows + 1, FLOOR, [])
+    arm(
+        "S6 an ADDED arm against an unraised floor also breaches",
+        "status=breach" in slack_line
+        and slack_code == 1
+        and any("slack by 1" in line for line in slack_note),
+        "SLACK is the direction that never announces itself: the harness "
+        "passes, and the floor quietly stops being able to catch a "
+        "deletion later. That is u7 at 26 against 31.",
+    )
+
+    # -- A FAILING ARM IS STILL A BREACH AT rows == floor -------------
+    moved_line, moved_note, moved_code = verdict(
+        live_rows, FLOOR, ["A: killed 1, expected 2"]
+    )
+    arm(
+        "S7 a SURVIVOR breaches even with the arm count intact",
+        "status=breach" in moved_line
+        and moved_code == 1
+        and any("An arm moved" in line for line in moved_note),
+        "the floor and the expectations are two different claims, and a "
+        "correct count must not launder a wrong result.",
+    )
+
+    # -- ZERO ARMS, THE DEFECT THE FLOOR EXISTS FOR -------------------
+    empty_line, _, empty_code = verdict(0, FLOOR, [])
+    arm(
+        "S8 an EMPTIED ARMS list is a breach, not a green",
+        "status=breach" in empty_line and empty_code == 1,
+        "`failures == 0` is satisfied by zero arms - R19 measured exactly "
+        "that on check-secrets-baseline.py, in a file with no floor.",
+    )
+
+    # -- THE EXPECTATIONS AND THE ARMS ARE ONE SET --------------------
+    labels = [label for label, _ in ARMS]
+    arm(
+        "S9 EXPECTED names exactly the ARMS, both directions",
+        set(labels) == set(EXPECTED),
+        f"an ARM with no expectation would KeyError mid-run and an "
+        f"expectation with no arm is never checked. "
+        f"{sorted(set(labels) ^ set(EXPECTED))} is the difference.",
+    )
+    arm(
+        "S10 no two ARMS share a label",
+        len(labels) == len(set(labels)),
+        "EXPECTED is a dict, so two arms with one label would silently "
+        "share an expectation and one of them would be unchecked.",
+    )
+
+    # -- THE FLOOR IS VISIBLE TO THE CONTAINER THAT WATCHES IT --------
+    # `check-row-floor-exactness.py` finds floors by an identifier whose
+    # NAME contains `floor`, assigned an integer LITERAL as the whole of
+    # the line. A floor this file computed, or wrote inside a string,
+    # would be invisible to that container and unwatched by anything.
+    source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    arm(
+        "S11 both floors are literal assignments the container can see",
+        re.search(r"^FLOOR = \d+$", source, re.M) is not None
+        and re.search(r"^\s+arm_floor = \d+$", source, re.M) is not None,
+        "a computed floor is not a floor: `ROW_FLOOR=$TOTAL` equals the "
+        "count by construction and passes with every row deleted.",
+    )
+
+    failed = [a for a in arms if not a[1]]
+    for name, ok, meaning in arms:
+        print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
+
+    # THIS SELF-TEST'S OWN FLOOR, and it is not ceremony. Every argument
+    # above about `failed == 0` being satisfied by zero arms applies to
+    # the arms above just as much as to `main()`'s.
+    arm_floor = 11
+    line, note, code = verdict(len(arms), arm_floor, [a[0] for a in failed])
+    print(f"\n{line}")
+    for text in note:
+        print(text)
+    return code
+
+
 def main() -> int:
     """Run every arm, print the rows it killed, hold it to EXPECTED."""
     failures: list[str] = []
@@ -382,49 +621,25 @@ def main() -> int:
     for line in failures:
         print(f"  {line}")
 
-    # THE ROW FLOOR (#149 M-4). `failures == 0` is satisfied by zero
-    # arms, so a probe whose ARMS list was emptied - or whose container
-    # halves stopped being iterated - reports fully green. Derived from
-    # a run at the commit that adds this: ten ARMS plus two arms in each
-    # of two container halves. Lowering it is a visible diff that has to
-    # be defended.
-    floor = 14
-    # EQUALITY, NOT A LOWER BOUND (#193). `rows` is COMPUTED here, so
-    # `check-row-floor-exactness.py` cannot compare it to a static count
-    # - this file and `probe-131-gate-state.sh` are the only two members
-    # of its container in that position. `rows >= floor` therefore left
-    # the one instrument that could notice a slack floor unable to: add
-    # an arm without raising `floor` and nothing says so, which is u7's
-    # 26-against-31 in the one place the exactness checker cannot look.
-    status = "ok" if not failures and rows == floor else "breach"
-    # The SAME canonical line every harness in `scripts/` prints (#107),
-    # deliberately, rather than a second shape. The container that
-    # `check-harness-result.sh` enforces is `scripts/*.sh` and this file
-    # is outside it by construction - see the ruling in this file's
-    # header - but printing the same line means #120's census can count
-    # it the day that container grows, and a reader does not have to
-    # learn a second format to read this one.
-    print(
-        f"HARNESS-RESULT name={pathlib.Path(__file__).name} rows={rows} "
-        f"floor={floor} fired={rows - len(failures)}/{rows} status={status}"
-    )
-    if rows < floor:
-        print(f"\n{rows}/{floor} ROWS - THE PROBE LOST ARMS. A probe with")
-        print("fewer arms than its floor is green for the wrong reason.")
-        return 1
-    if rows > floor:
-        print(f"\n{rows} arms against floor={floor} - arms were ADDED and")
-        print(f"the floor was not raised. It is slack by {rows - floor}, and")
-        print(f"a slack floor says nothing when arms go later. Raise it to {rows}.")
-        return 1
-    if failures:
-        print("\nAn arm moved. Either a control was lost or a construct")
-        print("is now dead code. Read WHICH rows changed before")
-        print("touching either file.")
-        return 1
-    print(f"{rows}/{rows} arms measured as expected. No survivor.")
-    return 0
+    # The verdict, the floor comparison and the canonical line all live
+    # in `verdict()` - ONE place, which is what lets `--self-test` arm
+    # the rules `main()` gates on rather than a second copy of them.
+    #
+    # The line is the SAME canonical shape every harness in `scripts/`
+    # prints (#107), deliberately, rather than a second format. The
+    # container `check-harness-result.sh` enforces is `scripts/*.sh` and
+    # this file is outside it by construction - see the ruling in this
+    # file's header - but printing the same line means #120's census can
+    # count it the day that container grows.
+    line, note, code = verdict(rows, FLOOR, failures)
+    print(line)
+    print()
+    for text in note:
+        print(text)
+    return code
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        raise SystemExit(self_test())
     raise SystemExit(main())
