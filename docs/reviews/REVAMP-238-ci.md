@@ -299,14 +299,44 @@ gate-side counting flag as a proxy for harness-side test selection, and
 the two are unrelated. The bare/flagged split says nothing about
 selection at all.
 
-MEASURED INSTEAD, by reading the harnesses (#244): EIGHT controls
-harnesses - U5, U8, U10, U12, U14, U9, U7 and body-cap - were ALREADY
-selecting one test per row, all along. And in those eight the cost was
-never execution: `uv run --frozen` overhead is 0.02s and a single
-selected test is 0.24s against 9.28s for a whole suite. What they were
-actually doing was starting TWO pytest processes per row, a
-`--collect-only` pre-flight and then the real run. The lever was one
-fewer PROCESS, not narrower selection.
+MEASURED INSTEAD - and the first replacement for this claim was ALSO
+wrong, so this is the second. That version said "EIGHT controls
+harnesses were already selecting one test per row". Both halves are
+wrong: it is SIXTEEN of thirty-one, and it does not follow the
+controls/amputation split. Five AMPUTATIONS select (suite-floor,
+u1-boot, u15-gate, u4-client, u9-http) and three CONTROLS are bare
+(u11-advisory, u15-gate, u3-audit).
+
+The property is the per-row pytest ARGUMENT, not a flag and not a
+filename: BARE only when that argument is exactly `$SUITE` or
+`$SUITE_REL`. Derived two ways that agree - over every
+`scripts/check-*.sh` carrying `ROW_TIMEOUT`, and independently over
+ci.yml's invocation list:
+
+    SELECTS 16    BARE 15    (31 harnesses; none run no pytest)
+
+Five selectors no `$selector` grep finds, which is why every earlier
+count was wrong: `"$SUITE::$want"` (u4-controls:124 - it CONTAINS
+`$SUITE`, so a substring grep reads the tightest selector in the tree as
+bare), `$sel` (u4-amputation, u9-amputation), `"${must_die[@]}"`
+(u1-amputation), `$named` (u1-controls), `"$expect_file"` (u0-controls),
+`"$TESTS"` (suite-floor).
+
+AND THE COST CLAIM INVERTS TOO. That version concluded "the lever was
+one fewer PROCESS, not narrower selection". Measured on
+`tests/test_resilience.py`, one machine, three draws each:
+
+    whole file, one process (a BARE row)     2.32 / 2.31 / 2.29 s
+    ONE node                (a SELECTED row) 0.24 / 0.24 / 0.24 s
+    collect-only, the per-process FLOOR      0.24 / 0.23 / 0.23 s
+    `uv run` + venv startup                  0.02 - 0.08 s (8 draws)
+    `git checkout --` restore                0.00 s (4 draws)
+
+So the process floor is 0.235s and narrowing is worth about 10x on a
+bare harness. Selection IS the lever; one fewer process is worth a
+quarter of a second. These are single-machine draws under load - the
+same suite measured 38% apart twice in one evening - so the RATIO is the
+claim here, not the absolutes.
 
 This is left as a struck-through correction rather than deleted, because
 the wrong inference drove a brief and two agent messages, and a reader
