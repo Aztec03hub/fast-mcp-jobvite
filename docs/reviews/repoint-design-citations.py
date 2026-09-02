@@ -91,10 +91,53 @@ def report(sha: str) -> str:
     return proc.stdout
 
 
+#: #219. THE SINGLE PREFIX WAS AN ALLOWLIST WITH A SILENT DEFAULT, AND
+#: THAT IS THE DEFECT, NOT ITS LENGTH. `docs/adr/` was skipped by name
+#: and everything else was repointed - so a directory nobody had ruled
+#: on got the LIVE treatment by accident rather than by decision. #208
+#: measured 26 of its 35 leads sitting in `docs/reviews/` and
+#: `docs/worklogs/`, which no ruling covers to this day.
+#:
+#: Lengthening the list rebuilds the defect one entry over: a named list
+#: selects for the path nobody thought of. So the DEFAULT changes
+#: instead. Three outcomes, and the unknown one REFUSES:
+#:
+#:   LIVE    the citation is a claim about the design AS IT IS, so a
+#:           moved subject makes it wrong and repointing fixes it.
+#:   RECORD  the citation is evidence for something already decided or
+#:           already reported. Repointing rewrites the evidence. Ruled
+#:           for `docs/adr/` (#203) and `docs/plans/` (#111).
+#:   UNRULED everything else. NOT repointed, NOT silently skipped -
+#:           reported, so the next person has to decide rather than
+#:           inherit my default.
+#:
+#: I am DELIBERATELY NOT ruling docs/reviews, docs/worklogs or
+#: docs/briefs here. A review report and a worklog LOOK like records and
+#: I believe they are - but I have not read them, #208 handed me 26
+#: leads there rather than a verdict, and a ruling made from a directory
+#: name is exactly the reasoning this project keeps finding wrong. The
+#: refusal is what makes leaving them undecided SAFE.
+LIVE_PREFIXES = ("src/", "tests/", "scripts/", ".github/")
+RECORD_PREFIXES = ("docs/adr/", "docs/plans/")
+
+
+def classify(path: str) -> str:
+    """LIVE, RECORD or UNRULED.
+
+    The unknown case is UNRULED on purpose - see the note above.
+    """
+    if path.startswith(RECORD_PREFIXES):
+        return "RECORD"
+    if path.startswith(LIVE_PREFIXES):
+        return "LIVE"
+    return "UNRULED"
+
+
 def parse(
     text: str,
 ) -> tuple[
     dict[tuple[str, int], dict[tuple[int, int], tuple[int, int]]],
+    list[str],
     list[str],
 ]:
     """Parse MOVED lines into a move map, plus the unruleable lines.
@@ -111,6 +154,7 @@ def parse(
     moves: dict[tuple[str, int], dict[tuple[int, int], tuple[int, int]]] = {}
     unreadable: list[str] = []
     records: list[str] = []
+    unruled: list[str] = []
     for line in text.splitlines():
         m = _MOVED.match(line)
         if not m:
@@ -132,8 +176,12 @@ def parse(
         # THE SKIP IS PRINTED, NOT SILENT. A switched-off behaviour and
         # a broken one must not look identical - that shape hid 119 red
         # mirror runs on this project.
-        if m["file"].startswith("docs/adr/"):
+        verdict = classify(m["file"])
+        if verdict == "RECORD":
             records.append(f"  RECORD, not repointed: {m['file']}:{m['lineno']}")
+            continue
+        if verdict == "UNRULED":
+            unruled.append(f"  UNRULED: {m['file']}:{m['lineno']}")
             continue
         cited_in = pathlib.Path(REPO_ROOT / m["file"])
         try:
@@ -163,7 +211,7 @@ def parse(
         print("NOT repointed - see docs/adr/README.md. This is a deliberate")
         print("skip, printed so it cannot be mistaken for the tool failing:")
         print("\n".join(records))
-    return moves, unreadable
+    return moves, unreadable, unruled
 
 
 def apply(moves: MoveMap, write: bool) -> int:
@@ -241,7 +289,22 @@ def main(argv: list[str]) -> int:
     except CheckerFailed as exc:
         print(f"  CHECKER FAILED: {exc}")
         return 1
-    moves, unreadable = parse(text)
+    moves, unreadable, unruled = parse(text)
+    if unruled:
+        print("\n".join(unruled))
+        print(
+            f"  {len(unruled)} citation(s) live in a directory NOBODY HAS "
+            "RULED on. Refusing to repoint anything.\n"
+            "  This is not a bug and it is not a missing entry in a list. "
+            "Whether a directory holds RECORDS (evidence for something "
+            "already decided, which repointing would rewrite) or LIVE "
+            "claims about the design as it is, is a DECISION - and the "
+            "single-prefix skip this replaced made that decision by "
+            "accident for every directory except docs/adr/.\n"
+            "  Rule the directory, add it to LIVE_PREFIXES or "
+            "RECORD_PREFIXES with the ruling named, and run again."
+        )
+        return 1
     if unreadable:
         print("\n".join(unreadable))
         print(
