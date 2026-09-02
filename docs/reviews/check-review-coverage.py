@@ -46,6 +46,43 @@ different facts and must not print the same.
 Omitting PATHS still means the whole tree, so older declarations keep
 working and the broad claim stays the default.
 
+## THE RANGE IS NOT ENOUGH FOR `NONE` EITHER (R17-H1)
+
+The paragraph above closed the hole for `covered` and left it open for
+`NONE`, which is the number every handoff quotes as *"nobody has looked
+at these"*. Until #168, `NONE` was decided by RANGE MEMBERSHIP ALONE and
+the path filter ran afterwards only to pick `PARTIAL`. So a declaration
+with a WIDE range and a NARROW path list moved commits out of `NONE`
+without reading them: R17 measured one declaration over the whole
+container claiming a single seven-character file taking `COVERED BY
+NOTHING` **26 -> 0** and `PARTIAL` 42 -> 62.
+
+**This is R12-H3 one column over** - that metric improved when you
+DELETED a declaration, this one improved when you ADDED one that read
+nothing. So a round now reaches a commit only if it claims **at least
+one non-record file the commit actually touches**.
+
+**THE HOLE COULD NOT SHRINK THE BACKLOG, AND CLOSING IT DOES NOT GROW
+IT.** A commit whose files nobody claims was ALREADY outstanding - it
+was recorded `PARTIAL` rather than `NONE`. Measured at `22c9873`, this
+rule alone leaves the outstanding SET identical at 53 and moves 28
+commits `PARTIAL -> NONE`, none the other way. What was manipulable was
+the KIND, which is the half of the record a handoff quotes. Anyone
+expecting a fix here to raise the backlog COUNT is looking one column
+over.
+
+The count does move, DOWNWARDS by 5, and for a different reason: the
+content ruling below takes five clean merges out of the question
+entirely. 53 -> 48 outstanding, `NONE` 17 -> 40.
+
+**A COMMIT WITH NOTHING IN IT TO READ IS DECIDED BY ITS CONTENT, NEVER
+BY A DECLARATION.** A clean merge's `--cc` diff is empty and its content
+is scored at the branch commits (REVIEW-R16 section 3 and REVIEW-151-R1,
+both of which raised this and WITHDREW it); a record-only commit touches
+only `RECORD_PATHS`. Requiring the range for these would leave R17-H1
+alive at reduced scale - measured, a planted full-range declaration
+still cleared five of them - so the content test runs FIRST.
+
 ## Defects review R12 found in this file, and the fix for each
 
 **THE CONTAINER BASE IS FIXED, NOT DERIVED (R12-H3).** It was
@@ -86,7 +123,7 @@ same defect, one column over, which is how the first version of this
 change was written. **NO `--write-backlog`**, because a gate that
 regenerates its own baseline certifies whatever it just saw.
 
-Pinned by `docs/reviews/probe-coverage-ratchet.py`, 9 arms, none of
+Pinned by `docs/reviews/probe-coverage-ratchet.py`, 10 arms, none of
 which modifies the tree - hence `--backlog` and `--reviews`.
 
 **THE RATCHET HAS TWO INPUTS AND MY FIRST EIGHT ARMS PERTURBED ONE
@@ -435,20 +472,75 @@ def main() -> int:
     untouched: list[str] = []
     partial: list[tuple[str, list[str]]] = []
     records_skipped = 0
+    nothing_to_read = 0
     for sha in trunk:
-        claiming = [r for r in rounds if sha in r.commits]
-        if not claiming:
+        files = git("show", "--name-only", "--pretty=format:", sha).split()
+        in_range = [r for r in rounds if sha in r.commits]
+        # The record touches a covering round did not have to claim.
+        # Counted against the IN-RANGE set, which is what the printed
+        # number meant before this rule existed.
+        if in_range:
+            records_skipped += sum(
+                1
+                for f in files
+                if not any(r.claims(f) for r in in_range) and is_record(f)
+            )
+        substantive = [f for f in files if not is_record(f)]
+        if not substantive:
+            # NOTHING TO READ, AND THAT IS DECIDED BY THE COMMIT,
+            # NOT BY ANY DECLARATION - which is why this test comes
+            # FIRST, ahead of the range. Two shapes land here, both
+            # SETTLED:
+            #
+            # A CLEAN MERGE prints no files, because `git show
+            # --name-only` defaults to `--cc` and a clean merge has no
+            # merge-unique content. Its content is its branch commits,
+            # which `rev-list` enumerates and this loop scores
+            # INDIVIDUALLY. REVIEW-151-R1 (its own-mistakes section) and
+            # REVIEW-R16 section 3 each wrote this up as a defect and
+            # each WITHDREW it; R16 settled it over the container -
+            # for all 60 merges in 8695101..ccbdaae, every file in the
+            # first-parent diff is either merge-unique (so `--cc` prints
+            # it, and it is scored here) or carried by a branch commit
+            # that is itself in the rev-list. Unaccounted files: 0. An
+            # EVIL merge has merge-unique files, so `--cc` prints them,
+            # `substantive` is non-empty, and it is scored below like
+            # anything else.
+            #
+            # A RECORD-ONLY COMMIT touches only RECORD_PATHS, whose
+            # ruling already says the work is reviewed where it lives.
+            #
+            # **WHY NOT REQUIRE THE RANGE ANYWAY.** My first version of
+            # this fix did, and the WIDTH arm caught it: with the range
+            # still required, a planted full-range declaration claiming
+            # ONE file moved five of these commits out of `NONE` while
+            # reading nothing - R17-H1 surviving at reduced scale in the
+            # fix for R17-H1. A commit with nothing in it to read must
+            # not be something a declaration can win. Deciding it on
+            # CONTENT takes the surface away entirely: no declaration,
+            # of any width, moves these commits in either direction.
+            #
+            # The other two candidate rulings were REJECTED, measured:
+            # scoring them `NONE` moves 89 commits (60 merges + 29
+            # record-only, at 22c9873) into a backlog of commits with
+            # nothing in them to read, against two rounds' settled
+            # findings; leaving the range requirement in place keeps the
+            # five-commit hole above.
+            nothing_to_read += 1
+            continue
+        if not in_range:
             untouched.append(sha)
             continue
-        files = git("show", "--name-only", "--pretty=format:", sha).split()
-        unread = [
-            f
-            for f in files
-            if not any(r.claims(f) for r in claiming) and not is_record(f)
-        ]
-        records_skipped += sum(
-            1 for f in files if not any(r.claims(f) for r in claiming) and is_record(f)
-        )
+        claiming = [r for r in in_range if any(r.claims(f) for f in substantive)]
+        if not claiming:
+            # IN RANGE IS NOT YET COVERAGE (R17-H1). Every file this
+            # commit touches falls outside every in-range round's paths,
+            # so nobody read it. That is NONE, not PARTIAL: a wide range
+            # with a narrow path list must not move a commit out of
+            # COVERED BY NOTHING.
+            untouched.append(sha)
+            continue
+        unread = [f for f in substantive if not any(r.claims(f) for r in claiming)]
         if unread:
             partial.append((sha, unread))
 
@@ -464,6 +556,14 @@ def main() -> int:
     print(
         f"Record-file touches skipped, across {len(trunk)} trunk commits"
         f" (not the work, an account of it): {records_skipped}"
+    )
+    # COUNTED, NEVER SILENT, for the same reason the line above is. This
+    # is the population the R17-H1 rule does NOT apply to, and a reader
+    # is entitled to see how big it is before believing the NONE count.
+    print(
+        f"Nothing to read - a clean merge's --cc diff is empty and its"
+        f" content is scored at the branch commits, or the commit touches"
+        f" only RECORD paths: {nothing_to_read}"
     )
     for name, why in sorted(RECORD_PATHS.items()):
         print(f"  RECORD   {name}: {why}")

@@ -110,9 +110,12 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 UNWIRED_BY_DECISION: dict[str, str] = {
     "check-review-coverage.py": (
         "no longer waiting on a zero: #151 made it a RATCHET against "
-        "docs/reviews/review-coverage-backlog.txt, so it exits 0 today "
-        "at 58 recorded and fails only when the unread set changes "
-        "unrecorded. It is unwired for a different reason now - it "
+        "docs/reviews/review-coverage-backlog.txt, so it exits 0 at "
+        "whatever that file records and fails only when the unread set "
+        "changes unrecorded. **The size is deliberately not retyped "
+        "here**: it read 58 while the file held 43, a count decaying in "
+        "prose exactly as DESIGN.md:1563-1566 says it will. It is "
+        "unwired for a different reason now - it "
         "belongs on PULL REQUESTS against origin/main (a merge cannot "
         "record its own sha), and ci.yml is owned by another agent this "
         "run. Wire it with #153's widening, in one ci.yml change."
@@ -463,7 +466,7 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "step that must fail is a step that fails the job."
     ),
     "probe-coverage-ratchet.py": (
-        "nine arms proving the #151 review-coverage ratchet fires in "
+        "ten arms proving the #151 review-coverage ratchet fires in "
         "every direction it claims, all of them writing exclusively "
         "into a `TemporaryDirectory` - it does NOT mutate the tree, "
         "which #153's brief asserted from a grep and got wrong. It is "

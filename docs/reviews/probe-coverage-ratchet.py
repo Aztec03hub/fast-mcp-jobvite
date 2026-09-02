@@ -46,6 +46,26 @@ commits still entering. A control that passes because its own input was
 malformed is the failure this whole directory exists to catch, and I
 found it only by reading WHY the arm passed rather than THAT it did.
 
+**PLANT PERTURBS A DECLARATION'S EXISTENCE, NOT ITS WIDTH (R17-H1).**
+That is where the manipulation actually lived: a declaration with the
+whole container as its range and ONE file as its path list took `COVERED
+BY NOTHING` 26 -> 0, because a commit was scored NONE on RANGE
+MEMBERSHIP ALONE. Arm WIDTH is PLANT's missing sibling, and it
+plants exactly that declaration.
+
+**AND IT CAUGHT THE FIRST VERSION OF THE FIX FOR THE DEFECT IT WAS
+WRITTEN FOR.** That version still required the range for a commit with
+nothing in it to read - a clean merge, or a record-only commit - and the
+arm measured a planted one-file declaration clearing five of them.
+R17-H1 surviving inside the fix for R17-H1, at reduced scale, which is
+the shape a control exists to catch and prose never would have.
+
+**WIDTH SUBTRACTS RATHER THAN ASSUMES.** Commits that genuinely touch
+the one claimed file are removed by MEASUREMENT, so the arm keeps its
+meaning if that file is ever edited again, and it asserts that something
+was actually exposed to the plant - "unmoved" is true of a checker that
+does nothing at all.
+
 **BOTH KINDS.** NONE (no round's range contains it) and PARTIAL (a round
 claimed the range but not every file) are different facts and the
 backlog records which. A commit moving NONE -> PARTIAL is real progress
@@ -109,6 +129,36 @@ def entries(text: str) -> list[str]:
         for line in text.splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
+
+
+def outstanding(report: str) -> dict[str, str]:
+    """The checker's own report of what is outstanding: sha -> kind.
+
+    Read from the lines it prints for a commit that entered the backlog
+    unrecorded, so this parses the SAME text `derive_backlog` does, and
+    an arm cannot disagree with the report a human would read.
+    """
+    found: dict[str, str] = {}
+    for raw in report.splitlines():
+        parts = raw.split()
+        if len(parts) >= 3 and len(parts[0]) == 7 and parts[1] in ("NONE", "PARTIAL"):
+            found[parts[0]] = parts[1]
+    return found
+
+
+def files_of(sha: str) -> list[str]:
+    """The files a commit touches, read as the checker reads them.
+
+    `git show --name-only` defaults to `--cc`, so a clean merge reports
+    nothing. That is the settled behaviour (REVIEW-R16 §3), and this
+    helper must not quietly disagree with the subject about it.
+    """
+    return subprocess.run(
+        ["git", "-C", str(ROOT), "show", "--name-only", "--pretty=format:", sha],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.split()
 
 
 def derive_backlog(work: pathlib.Path) -> str:
@@ -292,6 +342,53 @@ def main() -> int:
                 f"a fabricated declaration clears the backlog by design"
                 f" (measured 0: {landed}, exit {done.returncode}) and the"
                 f" caveat still prints: {caveat}",
+            )
+        )
+
+        # WIDTH (R17-H1). PLANT'S MISSING SIBLING. PLANT perturbs a
+        # declaration's EXISTENCE; nothing perturbed its WIDTH, and the
+        # width is where the manipulation lived: a declaration with the
+        # WHOLE container as its range and ONE file as its path list
+        # took `COVERED BY NOTHING` 26 -> 0 and `PARTIAL` 42 -> 62,
+        # because a commit was scored NONE on RANGE MEMBERSHIP ALONE and
+        # the path filter only ran afterwards to pick PARTIAL.
+        #
+        # So: plant exactly that declaration and require the NONE set to
+        # be unmoved, EXCEPT for commits that genuinely touch the one
+        # file it claims - subtracted by measurement, not assumed, so
+        # the arm keeps working if something ever edits that file again.
+        #
+        # THE ARM CARRIES ITS OWN NON-VACUITY CHECK. If the baseline
+        # NONE set were empty, or if every commit in it touched the
+        # claimed file, "unmoved" would be true of a checker that does
+        # nothing at all. Both are asserted, not hoped for.
+        narrow = "docs/DESIGN-FREEZE.txt"
+        width_dir = work / "reviews-width"
+        shutil.copytree(REVIEWS, width_dir)
+        width_backlog = work / "width-empty.txt"
+        width_backlog.write_text("# every entry removed\n", encoding="utf-8")
+        before = outstanding(run(width_backlog, reviews=width_dir).stdout)
+        (width_dir / "REVIEW-R998.md").write_text(
+            f"<!-- REVIEW-COVERS: {CONTAINER_BASE}..{trunk} PATHS: {narrow} -->\n"
+            "A round that read one seven-character file and claims the range.\n",
+            encoding="utf-8",
+        )
+        after = outstanding(run(width_backlog, reviews=width_dir).stdout)
+        none_before = {sha for sha, kind in before.items() if kind == "NONE"}
+        none_after = {sha for sha, kind in after.items() if kind == "NONE"}
+        touching = {sha for sha in none_before if narrow in files_of(sha)}
+        left = none_before - none_after - touching
+        # Non-vacuity: there must be something the plant COULD have
+        # wrongly cleared.
+        exposed = none_before - touching
+        results.append(
+            (
+                not left and bool(exposed),
+                "WIDTH   ",
+                f"a full-range declaration claiming one file does NOT"
+                f" clear COVERED BY NOTHING: NONE {len(none_before)} ->"
+                f" {len(none_after)}, wrongly cleared {len(left)} (want 0),"
+                f" exposed to the plant: {len(exposed)} (want >0)",
             )
         )
 
