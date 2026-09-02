@@ -154,6 +154,77 @@ most careful writers would widen the hole fastest.
 
 ---
 
+## §2b — CORRECTION, 2026-09-02, added by `suborch-213` (task #211)
+
+**Nothing above this line is being rewritten, because nothing above it is
+false.** §2's sentence *"Mine removed only the phantom and left
+`WORKLOG-187-floor-container.md` and `REVIEW-R20.md` as live citations"* is
+TRUE of the blob it describes, `b48e987` at `6f921f8`. What it could not
+know is what the merge did with it afterwards. That is what this section
+adds.
+
+**WHAT ACTUALLY LANDED.** Three distinct versions of `BRIEF-199` existed:
+
+    b48e987  6f921f8  this worklog's "mine"  - names 1985471, WORKLOG-187, REVIEW-R20
+    748ea90  fa94f77  "main's wording"       - names NONE of the three
+    693127f  73dd717  the merge resolution   - names 1985471, WORKLOG-187, REVIEW-R20
+
+`410e370` adopted `748ea90`, the version that names none. `7197271` then
+merged `410e370` and resolved `--ours` on this file, which kept `693127f`.
+
+**So the text praised as strictly better is not the text that was kept.**
+`748ea90` is the version that *"removes all three names so the sentence
+cannot become a citation again"* - and it is the one the merge refused.
+The version that survives on `main` carries the same two live citations the
+sentence was written to criticise. The reason offered for the choice does
+not discriminate between the option taken and the option rejected.
+
+**THE MERGE THAT PUT THEM BACK IS `73dd717`, NOT `7197271`.** Its two
+parents held `748ea90` (main) and `b48e987` (branch); its result is
+`693127f`, a THIRD version matching neither:
+
+    $ git show --cc --format='' 73dd717 | wc -c
+    7226
+    $ git show --cc --format='' 7197271 | wc -c
+    0
+
+`73dd717` invented new text in `docs/briefs/BRIEF-199-ratchet-defects.md`,
+`docs/briefs/PREAMBLE.md` and `docs/reviews/check-brief-report-references.py`.
+**This is the hazard `7197271`'s own message names - "a merge resolution
+reintroducing what a branch had fixed" - firing at the merge one step
+earlier, where nobody looked.**
+
+**A CORRECTION TO `REVIEW-R21` (M1), WHICH IS WHY THIS IS NOT ITS WORDING.**
+R21 wrote that `7197271`'s message *"describes the two versions backwards"*
+because `410e370` names none of the three while the kept side names two.
+Both halves of that measurement are right, but the conclusion does not
+follow: the message's *"its version"* is `suborch-199`'s reverted HUNK
+(`b48e987`), not the post-revert tip (`748ea90`), and about `b48e987` the
+sentence is accurate. A reader who applied R21's suggested correction
+verbatim would publish a claim that the next careful reader can measure and
+find wrong. The defect is not an inversion; it is a **true reason that
+fails to discriminate**, plus a third version nobody reviewed.
+
+R21's §C4 note also states that `git show --cc` on all four merges in
+`c749334..80463a5` *"produces an empty combined diff ... No third version
+was invented at any merge."* That is refuted above for `73dd717`; it holds
+for `7197271`, `cd8c938` and `b9b59dd`.
+
+**WHY THIS CORRECTION IS HERE AND NOT SOMEWHERE A MERGE-READER WOULD SEE
+IT.** It cannot go in the commit message: history is not rewritten on this
+project (`0291bac`, `CONTRIBUTING`). It could have gone in a new record
+document, and that was rejected - a fresh file is a second copy of a
+sentence that already exists here, and this project has measured that a
+derived record decays at every copy-forward. **§2 of this worklog is where
+the sentence was first written**; `7197271`'s message quotes it and
+`REVIEW-R21` inherited it from there. Correcting the source is the only
+placement that stops the next copy. It is honestly NOT the placement a
+reader of the merge will stumble into - such a reader is a reviewer
+auditing a range, which is exactly how this was found, and that reviewer
+reads the worklog.
+
+---
+
 ## §3 — The ruling on #199, and what I deliberately did NOT build
 
 The brief left the choice open: require a reason, require a date and age
