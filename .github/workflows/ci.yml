@@ -290,8 +290,43 @@ jobs:
       # my local `python3` happened to have pyyaml, the runner's did not,
       # and it died with ModuleNotFoundError on the commit that wired it.
       # I had tested it with `uv run` and shipped it as `python3`.
+      # #153/#155/#149: the container is now every tracked `.py`/`.sh`
+      # under docs/reviews/ AND scripts/, selected by KIND. It used to be
+      # `docs/reviews/check-*`, which is a name prefix wearing a
+      # container's name: it saw 28 of 123 files and printed "Every
+      # checker is wired" about the other 95.
       - name: Every checker is wired, or says why it is not
         run: uv run --frozen python docs/reviews/check-checkers-are-wired.py
+
+      # THE CHECKER'S OWN CONTROLS, WIRED (#149 M-3). They were 26
+      # hand-run controls guarding the file that exists to prove things
+      # are not hand-run - the founding defect, one level up, in the
+      # instrument built to catch it. Green at the moment of wiring, per
+      # this repo's rule that a gate must never ARRIVE red.
+      #
+      # A SEPARATE STEP, not `&&`-chained onto the run above: under
+      # `bash -e` only the LAST command of an AND-list triggers errexit,
+      # so a chained self-test failure would be invisible. Measured three
+      # times in this repository.
+      - name: The wiring checker's own controls still fire
+        run: |
+          set -euo pipefail
+          uv run --frozen python \
+            docs/reviews/check-checkers-are-wired.py --self-test || exit 1
+
+      # #153's ruling, and the step suborch-116 wrote and measured. This
+      # checker was COMMITTED UNWIRED by the very task that built it, and
+      # the wiring gate could not see it because it lives under
+      # `scripts/`. Widening the container makes it visible; this step is
+      # the other half, and both land together so the gate is never red.
+      #
+      # Both arms `|| exit 1` rather than chained, for the errexit reason
+      # above.
+      - name: No abort message retypes a seconds figure
+        run: |
+          set -euo pipefail
+          uv run --frozen python scripts/check-timeout-literals.py --self-test || exit 1
+          uv run --frozen python scripts/check-timeout-literals.py || exit 1
 
       # WIRED THE MOMENT IT WENT GREEN, which is the whole discipline: it
       # was held back by a stated exemption while the 47 blank-END
