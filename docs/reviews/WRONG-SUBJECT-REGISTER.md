@@ -34,6 +34,29 @@ and the prose points here.
 "Four of them inside the ADR documenting that defect class" was
 verifiable by nobody; with rows carrying a `Where` column it is a grep.
 
+## The arithmetic, and how to re-check it without trusting these rows
+
+    31  rows                                  grep -c '^| WS-'
+    10  cite CITATION-READ-VERDICTS.md        its own tally line :32 says WRONG 10
+    19  cite CITATION-READ-SRC-VERDICTS.md    its own tally line :33 says WRONG 19
+     1  cites BOTH  (WS-04)
+     3  cite neither (WS-29, WS-30, WS-31)
+
+    10 + 19 - 1 = 28 distinct ranges,  + 3 = 31 rows
+
+**Two instruments, same answer**: the row provenance and the verdict
+documents' own summary tables agree without being joined to each other.
+Verified independently by Tier 0 at `23280e2`.
+
+**AND THE OVERLAP IS NOT AN INFERENCE — the src round stated it.**
+`CITATION-READ-SRC-VERDICTS.md:37`: *"One of the 19 - `1338-1343` - is
+the range already on the board as task #54. **18 WRONG ranges at 24
+sites are new.**"* That round knew it was re-reporting a known range and
+said so, **and the knowledge then died in a document nobody joined to
+the other one.** Carrying it here is the clearest single argument for a
+register over a digit: a number cannot hold "this one is a duplicate",
+and a row can.
+
 ## What counts as a row
 
 **A citation that RESOLVES and names the wrong subject.** The line or
@@ -60,7 +83,7 @@ below count those separately and so does this file.
 | WS-01 | RANGE | `1342-1344` | `1037-1038` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-1 |
 | WS-02 | RANGE | `1345-1346` | `1038-1040` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-2 |
 | WS-03 | RANGE | `1323` | `1297-1300` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-3 |
-| WS-04 | RANGE | `1338-1343` | `1335-1339` | `tests/` + `src/` | #52 W-4 / SRC W-18 — **one range, both corpora** |
+| WS-04 | RANGE | `1338-1343` | `1335-1339` | `tests/` + `src/` | #52 W-4 / SRC W-18 — **one range, both corpora, and the src round said so itself at `CITATION-READ-SRC-VERDICTS.md:37`** |
 | WS-05 | RANGE | `1341-1343` | `1337-1339` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-5 |
 | WS-06 | RANGE | `986-1025` | `1026-1034` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-6 |
 | WS-07 | RANGE | `701-705` | `723-727` | `tests/` | #52 `CITATION-READ-VERDICTS.md` W-7 |
