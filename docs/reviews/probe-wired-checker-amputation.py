@@ -173,7 +173,23 @@ ARMS: list[tuple[str, object]] = [
 #: not itself contain a name the checker would enumerate if the probe
 #: were ever tracked mid-run.
 NEW_MEMBER = "verify-" + "container-arm.py"
-NEW_PATH = ROOT / "docs" / "reviews" / NEW_MEMBER
+
+#: BOTH HALVES OF THE CONTAINER GET THE ARMS, and that is R16-M1's
+#: point rather than symmetry for its own sake. `scripts/` is the half
+#: that was excluded, and `scripts/check-timeout-literals.py` is the
+#: real file that sat unwired and INVISIBLE there while this checker
+#: printed "Every checker is wired". A control that only ever plants
+#: into `docs/reviews/` proves the enumeration works in the half that
+#: was never broken.
+#:
+#: Planting a fixture is used rather than naming a real `scripts/`
+#: member, because a row naming one would go stale the day somebody
+#: wires it - and asserting "some scripts/ member is still unwired"
+#: would be red BY CONSTRUCTION once they all are.
+CONTAINER_HALVES = (
+    ROOT / "docs" / "reviews",
+    ROOT / "scripts",
+)
 
 
 def _run_checker() -> tuple[int, str]:
@@ -193,8 +209,10 @@ def _run_checker() -> tuple[int, str]:
     return done.returncode, done.stdout + done.stderr
 
 
-def container_arms() -> list[str]:
-    """THE POSITIVE CONTROL, BOTH ARMS. #153 §E.
+def container_arms(directory: pathlib.Path) -> list[str]:
+    """THE POSITIVE CONTROL, BOTH ARMS, in one half of the container.
+
+    #153 §E, and R16-M1 for the `scripts/` half.
 
     A widened population is worth nothing unless a NEW member actually
     lands in it and actually fails the gate. Both directions, because
@@ -208,22 +226,33 @@ def container_arms() -> list[str]:
                     Without this arm, a checker that simply always
                     failed would pass arm 1.
 
+    **RUN ONCE PER DIRECTORY, and that is the load-bearing part rather
+    than tidiness.** The half that was excluded is `scripts/`, and the
+    real file that sat unwired and invisible there is
+    `scripts/check-timeout-literals.py` (R16-M1) - committed unwired by
+    the task that built it, at exit 0. A control that only ever plants
+    into `docs/reviews/` proves the enumeration works in the half that
+    was never broken, and would pass unchanged on the OLD code for the
+    directory that mattered.
+
     The file is `git add`ed because `git ls-files` lists only TRACKED
     files - an untracked file is invisible to the container, which is
     the same mechanism that made this checker's own self-exclusion
-    comment inert for a commit. Restored in a `finally`, and the tree
-    is asserted clean by asking git afterwards rather than by trusting
-    the unlink.
+    comment inert for a commit, and the same one that made an R16 arm
+    vacuous. Restored in a `finally`, and the tree is asserted clean by
+    asking git afterwards rather than by trusting the unlink.
     """
     problems: list[str] = []
+    new_path = directory / NEW_MEMBER
+    where = new_path.relative_to(ROOT).as_posix()
     try:
-        NEW_PATH.write_text(
+        new_path.write_text(
             "#!/usr/bin/env python3\n"
             '"""A member with no recorded reason. Probe fixture."""\n',
             encoding="utf-8",
         )
         subprocess.run(
-            ["git", "-C", str(ROOT), "add", "-f", str(NEW_PATH)],
+            ["git", "-C", str(ROOT), "add", "-f", str(new_path)],
             check=True,
             capture_output=True,
         )
@@ -231,15 +260,15 @@ def container_arms() -> list[str]:
         code, out = _run_checker()
         if code == 0:
             problems.append(
-                f"ARM 1: a new tracked `{NEW_MEMBER}` with no reason "
-                "left the checker GREEN. The container is not seeing "
-                "new members."
+                f"ARM 1: a new tracked `{where}` with no reason left "
+                "the checker GREEN. The container is not seeing new "
+                "members in that directory."
             )
         elif NEW_MEMBER not in out:
             problems.append(
                 f"ARM 1: the checker exited {code} but never named "
-                f"`{NEW_MEMBER}`. It went red for another reason, so "
-                "this arm proves nothing about the container."
+                f"`{where}`. It went red for another reason, so this "
+                "arm proves nothing about the container."
             )
 
         # ARM 2: record a reason, in the shape the register uses.
@@ -250,8 +279,8 @@ def container_arms() -> list[str]:
         names = set(module.checkers())
         if NEW_MEMBER not in names:
             problems.append(
-                f"ARM 2: `{NEW_MEMBER}` is not in the enumerated "
-                "container at all, so the arm cannot mean anything."
+                f"ARM 2: `{where}` is not in the enumerated container "
+                "at all, so the arm cannot mean anything."
             )
         else:
             text, _ = module.run_bodies()
@@ -262,8 +291,8 @@ def container_arms() -> list[str]:
             }
             if NEW_MEMBER not in excused:
                 problems.append(
-                    f"ARM 2: `{NEW_MEMBER}` has a recorded reason and "
-                    "is still not excused. A reason does not settle it."
+                    f"ARM 2: `{where}` has a recorded reason and is "
+                    "still not excused. A reason does not settle it."
                 )
             if unwired - excused:
                 problems.append(
@@ -273,13 +302,13 @@ def container_arms() -> list[str]:
                 )
     finally:
         subprocess.run(
-            ["git", "-C", str(ROOT), "rm", "-f", "--quiet", str(NEW_PATH)],
+            ["git", "-C", str(ROOT), "rm", "-f", "--quiet", str(new_path)],
             capture_output=True,
         )
-        NEW_PATH.unlink(missing_ok=True)
+        new_path.unlink(missing_ok=True)
 
     dirty = subprocess.run(
-        ["git", "-C", str(ROOT), "status", "--porcelain", str(NEW_PATH)],
+        ["git", "-C", str(ROOT), "status", "--porcelain", str(new_path)],
         capture_output=True,
         text=True,
     ).stdout.strip()
@@ -313,17 +342,22 @@ def main() -> int:
         if len(killed) != want:
             failures.append(f"{label}: killed {len(killed)}, expected {want}")
 
-    print("\nCONTAINER POSITIVE CONTROL (#153 §E), both arms:")
-    container_problems = container_arms()
-    if container_problems:
-        for line in container_problems:
-            print(f"    FAILED: {line}")
-        failures.extend(container_problems)
-    else:
-        print("    ARM 1 (no reason -> RED, and it NAMED the file): ok")
-        print("    ARM 2 (reason recorded -> excused):              ok")
+    print("\nCONTAINER POSITIVE CONTROL (#153 §E, R16-M1), both arms,")
+    print("ONCE PER HALF OF THE CONTAINER:")
+    halves = 0
+    for directory in CONTAINER_HALVES:
+        halves += 1
+        where = directory.relative_to(ROOT).as_posix()
+        container_problems = container_arms(directory)
+        if container_problems:
+            for line in container_problems:
+                print(f"    FAILED [{where}/]: {line}")
+            failures.extend(container_problems)
+        else:
+            print(f"    {where}/  ARM 1 (no reason -> RED, and NAMED): ok")
+            print(f"    {where}/  ARM 2 (reason recorded -> excused):  ok")
 
-    rows = len(ARMS) + 2
+    rows = len(ARMS) + 2 * halves
     print(f"\narms={rows} failures={len(failures)}")
     for line in failures:
         print(f"  {line}")
