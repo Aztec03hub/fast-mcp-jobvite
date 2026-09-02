@@ -26,10 +26,18 @@ and anything CI does not run says so on its line.
 
 ## Where the trunk actually is
 
-    origin/main   ccbdaae   pushed to BOTH remotes
-    local main    3d7a82f   one ahead, unpushed
-    CI            203e5af   in_progress   <-- RUNNING, do not evict
-                  ccbdaae   pending       0 jobs, consumes nothing
+    origin/main   2d886a4   pushed to BOTH remotes, nothing held locally
+    CI            203e5af   in_progress   <-- RUNNING, holds the slot
+                  2d886a4   pending       0 jobs, consumes nothing
+
+**THE RUNNING JOB IS THE FIRST TO REACH THE LONG POLE.** `203e5af`'s
+run has 4 of 5 jobs green and `Lint, types, tests` still going after 45
+minutes. It PREDATES the secret-scan fix, so it will fail at that step
+regardless - **and I am deliberately not cancelling it**, because it is
+the first run in this project's history to get that far, and its step
+timings are the measurement #154 has been unable to make. A failing
+trunk under-reports its own durations; this is the run that stops doing
+that.
 
 **THE CI RULE, MEASURED TWICE NOW.** `cancel-in-progress: github.ref !=
 'refs/heads/main'` protects a RUNNING run on main. A push evicts PENDING
@@ -65,7 +73,13 @@ terminal.
     pytest                        887 passed, 0 skipped, 6 deselected
     check-suite-floor.sh 887                                0
 
-**THE ONE RED IS IN CI, NOT HERE, AND IT IS ROOT-CAUSED (#161).**
+**THE RED IS CLOSED (#161), AND CI HAS NOT YET CONFIRMED IT.**
+`pre-commit run --all-files` now exits 0 on the merged trunk with three
+hooks passed and an empty `git status --porcelain`. The confirming CI
+run is the pending one above. Until it finishes, "the step is green"
+is a claim about my terminal - which is this document's recurring
+defect, so it is marked rather than assumed. What follows is the
+history, kept because the mechanism recurs:
 `Secret scan hook runs clean` fails because detect-secrets **rewrites
 the baseline it then checks**: a recorded `line_number` for the literal
 `inspect-only-not-a-credential` drifted 1344 -> 1431, the hook updated
@@ -82,9 +96,14 @@ a failure. Copy the line out of `ci.yml`.
 
 ## Agents live right now
 
-    suborch-161   #161, the secret-scan baseline. OWNS .github/workflows/ci.yml
+    suborch-153   #153+#155+#149, OWNS .github/workflows/ci.yml and
+                  docs/reviews/check-checkers-are-wired.py
     suborch-156   #156 (High), scripts/check-u1-boot-amputation.sh
-    suborch-157   #157, the mirror workflow ONLY
+    review-r16    the 86-commit review round; OWNS the coverage backlog
+                  file, read-only everywhere else
+
+Collected and merged since the last version: #161 (the trunk's red),
+#157 (the mirror), #143, #146/#131, #147, #152.
 
 Each has a brief in `docs/briefs/BRIEF-<n>-*.md`. **Ownership is stated
 in each brief's §B and the three do not overlap.** Do not put a fourth
