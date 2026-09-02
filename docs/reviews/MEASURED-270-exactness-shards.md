@@ -2,10 +2,12 @@
 
 Task #270. Branch `fix/270-exactness-shards`, based on `1636f56`.
 
-**One file changed: `docs/reviews/check-row-floor-exactness.py`.** `ci.yml` and
-everything under `scripts/` are byte-identical to `1636f56` - `git diff --stat
-HEAD -- .github/workflows/ci.yml scripts/` is empty. Every sharded step in this
-report was PLANTED and REVERTED.
+**Two files changed: `docs/reviews/check-row-floor-exactness.py`, and ONE
+COMMENT in `.github/workflows/ci.yml`** - R270-R2-N3, a retyped arm count that
+was already stale at the base and staler here; it is deleted rather than
+corrected. Everything under `scripts/` is byte-identical to `1636f56`, and the
+ci.yml delta is three comment lines replacing one, with no workflow semantics
+touched. Every sharded step in this report was PLANTED and REVERTED.
 
 ## 1. The blocker, re-derived rather than taken on trust
 
@@ -68,7 +70,7 @@ Every row below is a real run against the real `ci.yml`, not a unit fixture.
 | what | before | after |
 | --- | --- | --- |
 | `check-row-floor-exactness.py`, unmodified ci.yml | rc=0, 16 compared | **rc=0, 16 compared** |
-| `--self-test` | rc=0, 20/20 | **rc=0, 34/34** (27 at first pass; R270 added seven) |
+| `--self-test` | rc=0, 20/20 | **rc=0, 38/38** (27 first pass, 34 after R270 r1, 38 after r2) |
 | PLANTED sharded step (`HARNESS_SHARDS: 2`, `--min-rows 5`, 10 rows) | **rc=1 "SLACK by 5"** | **rc=0** |
 | ...and one row AMPUTATED from the harness (9 rows) | - | **rc=1** |
 | ...and `--min-rows 4` against 10 rows (harness grew) | - | **rc=1 "SLACK by 2"** |
@@ -126,7 +128,7 @@ file rather than widen, so this is filed.
 
 **F2 (Low, FIXED in this branch).** `arm_floor` was `20` with `len(arms) >=
 arm_floor`. I added 7 arms, so leaving the floor at 20 would have let all 7 be
-deleted silently. Raised to 34 (27 at first pass), which is an equality against the live arm count
+deleted silently. Raised to 38 (27 first pass, 34 after r1), which is an equality against the live arm count
 in the same run. *Note:* this file's arm floor is still spelled `>=`,
 which is correct for a floor meant to ratchet upward as arms are added, and is
 NOT the comparison #223 tightened - that one was the ROW floor. I did not change
@@ -309,12 +311,110 @@ this checker's actual interpreter, and adopting it would trade a latent
 join defect for an `ImportError` on every run. The regex path is hardened
 instead, and M1's unreadable spellings are made LOUD rather than silently 1.
 
-## 9. Merge
+## 9. R270 round 2: 0H, and both Mediums were in code round 1 ADDED
+
+Round 2 returned 0C/0H/2M/3L/4N and confirmed H1 closed by re-deriving it. All
+nine findings are closed below; ONE is closed by REFUTING it with a measurement.
+
+### M2 - the gate red ON A COMMENT, and this one would have fired immediately
+
+`mentions` was a raw `findall` over the whole file. Its sibling `flags`, eleven
+lines above, filters `#`. `readable` sums over blocks that already dropped
+comments. Three quantities, three different ideas of what a line is.
+
+MEASURED end to end on the real `ci.yml`, old code against new, by inserting
+ONE documentation comment naming the token above the wired step:
+
+    OLD (08fe119)  rc=1  "mentions HARNESS_SHARDS 1 time(s) but only 0 sit in
+                          a step-level `env:` mapping" - blaming job-level,
+                          workflow-level and flow-style env:, none of which
+                          had happened
+    NEW            rc=0
+
+**Commenting a step out to disable one lane is the first thing anyone does to
+the feature this branch exists to unblock.** `mentions` now carries the same
+filter as `flags`; arm A36 dies when it is removed.
+
+### M1 - the dedent exit was load-bearing and my own battery skipped it
+
+`_step_blocks()`'s dedent exit. Deleting it left the suite 34/34 GREEN. My
+round-1 battery ran ten guards and this was not one of them - `AMP-I` is the
+OTHER branch of the same function, so it LOOKED covered. Without it, a later
+job's `env:` is absorbed into the previous job's last step block, becomes
+`readable`, DEFEATS the `mentions != readable` refusal I built for round-1 M1,
+and hands an unsharded step a multiplier of 2. **That is H1 across a job
+boundary.** Arm A35; the acceptance test the brief named passes - deleting the
+four lines now prints `fired=37/38` and kills A35 by name.
+
+### The rest
+
+| # | disposition |
+| --- | --- |
+| L1 | FIXED at the rule. `_env_shard_values()` is ONE function with TWO callers (`_shard_count` and the `readable` sum), so a count inside a `run: |` script or under `with:` is no longer honoured - the refusal message now states a property the code actually establishes. Arm A37 |
+| L2 | FIXED. A23 is a full-string equality, so the ` x N shards = E` clause is pinned; deleting it kills A23 |
+| L3 | FIXED, and it was my own sibling-check omission. A25, A30, A31, A32 asserted only "some SystemExit" - the exact vacuity I found and fixed in A29 one round earlier and left in four siblings. All four now assert their message text, and all five catch `BaseException` so a non-`SystemExit` crash lands as a named FAIL row instead of silencing the tally |
+| N2 | FIXED by deletion. The blank-line append was inoperative |
+| N3 | FIXED in `ci.yml`. The retyped arm count is DELETED rather than corrected, per the docstring's own rule that a number written beside a gate decays |
+| N4 | FIXED. `[-+]?` - R270-L2's fix had stopped at one of the two signs. A33 now carries `+2` |
+| **N1** | **REFUTED, with the measurement. See below.** |
+
+### N1 REFUTED: the not-a-step-list exit is load-bearing, and here is the case
+
+R270-R2 could not build a shape where it changes a verdict and suggested
+deleting it. **It decides.** A `steps:` whose first content line is not a `- `
+item:
+
+    intact     -> []                      (correctly not a step list; the
+                                           flags-count assertion then reds)
+    amputated  -> ['      - run: bash scripts/ci-harness-gate.sh a.sh ...']
+
+Amputated, the item below is collected as a step of a mapping that is not a
+step list at all. The guard STAYS, and arm A38 now holds it - deleting it
+prints `fired=37/38`. This is the one finding I did not adopt, and the reason
+is a measurement rather than a preference.
+
+### The battery, ten guards, every one killed by a NAMED arm
+
+    R2-M1 the dedent exit (acceptance test)     rc=1  37/38  killed A35
+    R2-M2 the comment filter on `mentions`      rc=1  37/38  killed A36
+    R2-L1 env-bounding: leave-the-mapping reset rc=1  37/38  killed A37
+    R2-L1 env-bounding: the `env:` anchor       rc=1  37/38  killed A37
+    R2-N1 the not-a-step-list exit              rc=1  37/38  killed A38
+    R2-L2 the ` x N shards = E` clause          rc=1  37/38  killed A23
+    R2-N4 the `+` sign                          rc=1  37/38  killed A33
+    R2-L3 the non-literal refusal               rc=1  37/38  killed A25
+    prior the multiplication                    rc=1  34/38  killed A21-A24
+    prior equality -> `>=`                      rc=1  35/38  killed A23,A24,A26
+
+**`R2-L3` is the row that changed character.** In round 1 that same amputation
+was my AMP-J: it crashed with an uncaught `ValueError`, printed no
+`HARNESS-RESULT` line, and I reported it as a kill that was not a clean one.
+The `BaseException` catch turns it into a named A25 failure. The tally can no
+longer be silenced by the thing it is meant to measure.
+
+### THREE OF MY OWN NEW ARMS WERE WEAKER THAN THEIR NAMES, again
+
+Found by running the battery, not by reading them:
+
+* **A37 survived its own guard's amputation at 38/38.** My first fixture put
+  the token inside a `run: |` script in a step with NO `env:` at all, so
+  `env_indent` was never set and the leave-the-mapping reset was never
+  exercised. The fixture now carries a real `env:` first.
+* **A33 did not cover `+`.** R270-R2-N4 said to extend it and I had not; the
+  amputation proved the gap rather than the report.
+* **A36 crashed instead of failing** when its guard was cut, silencing the
+  tally - my own A28 rationale, not applied to A28's newest sibling.
+
+That is the same class as round 1's two vacuous arms and round 2's L3. The
+lesson holds at the level of the RULE, not the instance: **an arm is not
+evidence until its guard has been cut and the arm has been seen red.**
+
+## 10. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \
         merge --ff-only fix/270-exactness-shards
 
-## 10. What I did NOT verify
+## 11. What I did NOT verify
 
 - **No sharded step has ever RUN.** Everything here is static analysis of a
   planted `ci.yml`. That a 2-lane `check-u3-audit-amputation.sh` actually

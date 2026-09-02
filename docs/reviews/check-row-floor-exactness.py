@@ -427,8 +427,12 @@ def _step_blocks(raw: str) -> list[str]:
         if not in_steps:
             continue
         if not line.strip():
-            if blocks:
-                blocks[-1].append(line)
+            # SKIPPED, not appended. The append was INOPERATIVE: every
+            # consumer of a block is a continuation fold, a per-line
+            # gate search, or an anchored HARNESS_SHARDS pattern, and a
+            # gate search, or an anchored HARNESS_SHARDS pattern, and
+            # a blank line changes none of them.
+            # green AND every block's parse identical (R270-R2-N2).
             continue
         # A COMMENT NEVER ENDS THE LIST. `ci.yml` carries block comments
         # at the step indent BETWEEN steps, and treating one as a dedent
@@ -456,6 +460,42 @@ def _step_blocks(raw: str) -> list[str]:
     return ["\n".join(b) for b in blocks]
 
 
+def _env_shard_values(block: str) -> list[str]:
+    """`HARNESS_SHARDS` values that really sit under this step's `env:`.
+
+    **THE MESSAGE HAS TO BE TRUE (R270-R2-L1).** The refusal below
+    says a count "sits in a step-level `env:` mapping", and the old
+    pattern was an unanchored search of the whole block - so
+    `HARNESS_SHARDS: 2` written inside a `run: |` script, or under
+    `with:`, was silently honoured as the lane count while the message
+    asserted a property nothing checked. Actions applies neither, so
+    honouring them is the fail-OPEN direction.
+
+    ONE function, two callers - `_shard_count()` and the `readable`
+    sum - because two copies of this rule would drift, the defect
+    `_min_rows_verdict()` already exists to prevent for the arithmetic.
+    """
+    values: list[str] = []
+    env_indent: int | None = None
+    for line in block.split("\n"):
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if re.match(r"^\s*env:\s*$", line):
+            env_indent = indent
+            continue
+        if env_indent is None:
+            continue
+        if indent <= env_indent:
+            # Left the mapping - a sibling key at the step level.
+            env_indent = None
+            continue
+        hit = re.match(rf"^\s*{SHARD_ENV}\s*:\s*(.+?)\s*$", line)
+        if hit:
+            values.append(hit.group(1))
+    return values
+
+
 def _shard_count(name: str, block: str) -> int:
     """How many lanes this step splits its harness across.
 
@@ -479,7 +519,7 @@ def _shard_count(name: str, block: str) -> int:
     non-literal is refused loudly and the shard count must be written as
     a plain integer.
     """
-    found = re.findall(rf"^\s*{SHARD_ENV}\s*:\s*(.+?)\s*$", block, re.M)
+    found = _env_shard_values(block)
     if not found:
         return 1
     if len(found) > 1:
@@ -496,7 +536,7 @@ def _shard_count(name: str, block: str) -> int:
     # literal", which points the reader at `${{ }}` syntax for a fault
     # that is nothing of the kind, and left `shards < 1` reachable only
     # for exactly 0.
-    if not re.fullmatch(r"['\"]?-?\d+['\"]?", value):
+    if not re.fullmatch(r"['\"]?[-+]?\d+['\"]?", value):
         raise SystemExit(
             f"{name}: {SHARD_ENV} is {value!r}, which is not an integer "
             "literal. A static checker cannot multiply the row count by an "
@@ -642,10 +682,19 @@ def _external_floors(raw: str | None = None) -> dict[str, tuple[int, str, int]]:
     # The comparison is deliberately over EVERY mention of the token,
     # so a spelling nobody has thought of is a refusal rather than a
     # quiet 1.
-    mentions = len(re.findall(rf"\b{SHARD_ENV}\b", raw))
-    readable = sum(
-        len(re.findall(rf"^\s*{SHARD_ENV}\s*:\s*\S", b, re.M)) for b in blocks
+    # THE COMMENT FILTER IS THE SAME ONE `flags` USES, eleven lines
+    # above (R270-R2-M2). It was missing here, and `readable` sums over
+    # blocks that ALREADY dropped comments - so the two sides of this
+    # equality disagreed about what a line is, and ONE documentation
+    # comment naming the token red the WIRED gate with a message blaming
+    # job-level `env:`. Commenting a step out to disable one lane is the
+    # first thing anyone does to the feature this branch unblocks.
+    mentions = sum(
+        len(re.findall(rf"\b{SHARD_ENV}\b", line))
+        for line in raw.splitlines()
+        if not line.lstrip().startswith("#")
     )
+    readable = sum(len(_env_shard_values(b)) for b in blocks)
     if mentions != readable:
         raise SystemExit(
             f"ci.yml mentions {SHARD_ENV} {mentions} time(s) but only "
@@ -1147,7 +1196,13 @@ def self_test() -> int:
     )
     arm(
         "A23 a sharded harness that GREW is SLACK, the other direction",
-        any("SLACK by 2" in line for line in _min_rows_verdict("h.sh", 5, 2, 12)),
+        _min_rows_verdict("h.sh", 5, 2, 12)
+        == [
+            "h.sh: SLACK by 2. It prints 12 rows and ci.yml passes "
+            "--min-rows 5 x 2 shards = 10, so 2 row(s) can be deleted "
+            "without the gate noticing. --min-rows is a LOWER bound; it "
+            "must EQUAL the live count."
+        ],
         "12 rows against 5 x 2 leaves 2 deletable unnoticed. This is the "
         "direction claim 3 was written for - u14 at 16 against 10 - and "
         "the multiplier must not have blinded it.",
@@ -1162,18 +1217,18 @@ def self_test() -> int:
     # A NON-LITERAL SHARD COUNT IS AN ERROR, NEVER A DEFAULT OF 1. A
     # static checker cannot multiply by an expression, and defaulting
     # would compare a real 2-shard step against the whole row count.
-    expr_refused = False
+    expr_reason = ""
     try:
         _shard_count(
             "h.sh",
             f"      - name: x\n        env:\n"
             f"          {SHARD_ENV}: ${{{{ matrix.n }}}}\n",
         )
-    except SystemExit:
-        expr_refused = True
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        expr_reason = str(exc)
     arm(
         "A25 a `${{ }}` shard count is REFUSED, not treated as unsharded",
-        expr_refused,
+        "not an integer literal" in expr_reason,
         "silently reading an expression as 1 lane is the fail-open "
         "shape: it compares a sharded step against the whole count and "
         "reds it for a reason nobody would trace to this line",
@@ -1284,7 +1339,7 @@ def self_test() -> int:
         "supplying different fields of one verdict",
     )
     # A SHARD COUNT WHERE THE STEP SCAN CANNOT SEE IT (R270-M1).
-    outside_refused = False
+    outside_reason = ""
     try:
         _external_floors(
             "jobs:\n  j:\n"
@@ -1293,44 +1348,44 @@ def self_test() -> int:
             "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
             " --row-re '^r '\n"
         )
-    except SystemExit:
-        outside_refused = True
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        outside_reason = str(exc)
     arm(
         "A30 a JOB-level shard count is REFUSED, not silently read as 1",
-        outside_refused,
+        "sit in a step-level `env:` mapping" in outside_reason,
         "`shards = 1` is the documented default for an ABSENT env:, and "
         "it must not double as the default for a PRESENT one written "
         "where this checker does not look - that silently re-blocks the "
         "sharding this change exists to unblock",
     )
     # THE TWO REFUSALS THAT AMPUTATED GREEN (R270-M2, R270-M3).
-    zero_refused = False
+    zero_reason = ""
     try:
         _shard_count(
             "h.sh",
             f"      - name: x\n        env:\n          {SHARD_ENV}: 0\n",
         )
-    except SystemExit:
-        zero_refused = True
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        zero_reason = str(exc)
     arm(
         "A31 a shard count of 0 is REFUSED",
-        zero_refused,
+        "a step runs at least one lane" in zero_reason,
         "min_rows * 0 == 0, so a step whose whole harness was deleted "
         "would satisfy the equality. Deleting this guard left the suite "
         "27/27 green - a negative-only suite cannot see it.",
     )
-    dup_env_refused = False
+    dup_env_reason = ""
     try:
         _shard_count(
             "h.sh",
             f"      - name: x\n        env:\n          {SHARD_ENV}: 2\n"
             f"          {SHARD_ENV}: 3\n",
         )
-    except SystemExit:
-        dup_env_refused = True
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        dup_env_reason = str(exc)
     arm(
         "A32 TWO shard counts in one step are REFUSED",
-        dup_env_refused,
+        "values in one step" in dup_env_reason,
         "without this the first silently wins and the 'undecidable' the "
         "message names is decided arbitrarily. Deleting it also left "
         "the suite fully green.",
@@ -1341,9 +1396,16 @@ def self_test() -> int:
         _shard_count("h.sh", f"      - x\n        env:\n          {SHARD_ENV}: -1\n")
     except SystemExit as exc:
         neg_reason = str(exc)
+    plus_two = None
+    try:
+        plus_two = _shard_count(
+            "h.sh", f"      - x\n        env:\n          {SHARD_ENV}: +2\n"
+        )
+    except BaseException:  # noqa: BLE001 - see A28's rationale
+        plus_two = None
     arm(
-        "A33 a NEGATIVE count is refused for being < 1, not for being an expression",
-        "at least one lane" in neg_reason,
+        "A33 a SIGNED count reaches the value branch, both signs",
+        "at least one lane" in neg_reason and plus_two == 2,
         "the literal test rejected `-1` first, so the message blamed "
         "`${{ }}` syntax for a fault that is nothing of the kind and "
         "left `shards < 1` reachable only for exactly 0",
@@ -1363,6 +1425,98 @@ def self_test() -> int:
         "about run-time expressions",
     )
 
+    # -- THE PARSER'S OWN BOUNDARIES (R270-R2) -----------------------
+    # Three guards in `_step_blocks()` and one message property, each of
+    # which survived a full amputation at 34/34 in round 2. A guard that
+    # works and nothing arms is the exact complaint this branch accepted
+    # twice already, on the guards its own battery skipped.
+    job2_env = (
+        "jobs:\n  j1:\n    steps:\n"
+        "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+        "  j2:\n"
+        f"    env:\n      {SHARD_ENV}: 2\n"
+        "    steps:\n      - run: echo hi\n"
+    )
+    job2_reason = ""
+    try:
+        _external_floors(job2_env)
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        job2_reason = str(exc)
+    arm(
+        "A35 a LATER job's env: does not leak into an EARLIER job's step",
+        "sit in a step-level `env:` mapping" in job2_reason,
+        "without the dedent exit the next job's keys append to the "
+        "previous job's LAST step block, so a job-level shard count "
+        "becomes `readable`, DEFEATS the out-of-block refusal, and hands "
+        "an unsharded step a multiplier of 2 - H1's misattribution "
+        "across a job boundary.",
+    )
+    try:
+        commented_out = _external_floors(
+            "jobs:\n  j:\n    steps:\n"
+            f"      # - name: old\n      #   env:\n      #     {SHARD_ENV}: 2\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n"
+        )
+    except BaseException:  # noqa: BLE001 - see A28's rationale
+        commented_out = {}
+    arm(
+        "A36 a COMMENTED-OUT sharded step is not an out-of-block count",
+        commented_out == {"a.sh": (5, "^r ", 1)},
+        "`flags` excluded comment lines and `mentions` did not, so ONE "
+        "comment naming the token red the WIRED gate with a message "
+        "blaming job-level env: - none of which had happened. Commenting "
+        "a step out is the first thing anyone does to disable a lane.",
+    )
+    # THE MESSAGE HAS TO BE TRUE. A count outside an `env:` mapping is
+    # inert to Actions, so honouring it is the fail-OPEN direction - and
+    # the refusal text claims a check the unbounded search never made.
+    # THE STEP CARRIES A REAL `env:` FIRST, then the token again in a
+    # `run: |` script at the SAME depth. Without the leave-the-mapping
+    # reset the second one is still read as an env value - my first
+    # version of this arm had no `env:` at all, so the reset was never
+    # exercised and amputating it left the suite 38/38.
+    in_script = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - name: x\n"
+        "        env:\n          OTHER: 1\n"
+        "        run: |\n          echo hi\n"
+        f"          {SHARD_ENV}: 2\n"
+        "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+        " --row-re '^r '\n"
+    )
+    script_reason = ""
+    try:
+        _external_floors(in_script)
+    except BaseException as exc:  # noqa: BLE001 - see A28's rationale
+        script_reason = str(exc)
+    arm(
+        "A37 a count inside a `run: |` script is NOT the step's lane count",
+        "sit in a step-level `env:` mapping" in script_reason,
+        "the old search was unanchored over the whole block, so a line "
+        "in a script - inert to Actions - was silently honoured as the "
+        "lane count while the refusal asserted it had checked `env:`",
+    )
+    # NOT-A-STEP-LIST. R270-R2-N1 called this a deletion candidate it
+    # could not build a case for. IT IS LOAD-BEARING and here is the
+    # case: `steps:` whose first content line is not a `- ` item.
+    # Intact -> no blocks, so the gate line below is not parsed and the
+    # flags-count assertion reds. Amputated -> the line IS parsed as a
+    # step, from a mapping that is not a step list at all.
+    arm(
+        "A38 a `steps:` whose first content line is not an item yields NO blocks",
+        _step_blocks(
+            "jobs:\n  j:\n    steps:\n      notalist: x\n"
+            "      - run: bash scripts/ci-harness-gate.sh a.sh --min-rows 5"
+            " --row-re '^r '\n"
+        )
+        == [],
+        "measured both ways: amputated, the item below is collected as a "
+        "step of a mapping that is not a step list. R270-R2-N1 could not "
+        "build this case and suggested deleting the guard; it decides.",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -1378,7 +1532,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 34
+    arm_floor = 38
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
