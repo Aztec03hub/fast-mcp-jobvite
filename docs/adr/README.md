@@ -51,9 +51,32 @@ apart from carelessness.
 commit to TOUCH the line, which for prose is a later rewrite - it dated ADR-0019's citations three
 days after they were written, to a `DESIGN.md` the author never saw.
 
-**NO SHA IS WRITTEN INTO THE ADRs.** A per-file "citations are against `<sha>`" line is a retyped
-datum in 19 files, and this project has spent a night on what retyped data do. The acceptance
-commit is already recoverable from git, which is where provenance belongs.
+**NO SHA IS RETROFITTED INTO THE EXISTING ADRs**, and the reason is measured rather than argued.
+
+A "citations are against `<sha>`" line NEAR the citations **already exists in five of these
+files** - 0019, 0024, 0025, 0030, 0031, each naming a `DESIGN.md` blob with
+`git show <sha>:docs/DESIGN.md` - and it does not work.
+
+(That count was FIVE only on the second attempt. The first selector asked for "an ADR mentioning a
+seven-hex sha near the words `git show`", which also matched ADRs recording where a fix LANDED, and
+returned twelve. The discriminator is naming a `DESIGN.md` BLOB, not naming a commit. Third loose
+edge in one night on this repository, and the only reason it was caught is that a agent had already
+reported five and the numbers disagreed.) **`ADR-0019` is the proof**: `:18` says *"Verified against the frozen object `git show
+135c3ac:docs/DESIGN.md`"*, and all four of its `DESIGN.md:603` citations drifted anyway. **The ADR
+that best documented its own reference point is the one with four drifted citations in it.** A SHA
+sitting in a paragraph does not bind a citation three lines down, because each `DESIGN.md:603`
+still resolves on its own against the current freeze and a reader who lands on one never sees the
+paragraph.
+
+**THE FORM THAT BINDS PUTS THE SHA INSIDE THE CITATION**, and that exists too. `ADR-0025:117`:
+
+> `git show 8a9d63c:docs/DESIGN.md`, §4.5, lines 453-455 **of that blob**
+
+There is no number there that can drift, because the blob is named and immutable.
+
+**SO: NEW ADRs SHOULD CITE THE BINDING FORM. Existing ones are not rewritten.** Retrofitting is a
+sweep over a record set, which is the thing this whole section refuses; and adding the NEAR form
+would deploy, for the thirteenth time, a convention already measured not to work.
 
 | ADR | Decision | Status |
 |---|---|---|
