@@ -391,6 +391,145 @@ def classify(body: str) -> tuple[str, str]:
     return classify_block(lines)
 
 
+def checker_lines() -> list[str]:
+    """Every folded step line naming a `check-*.py`, deduped, in order.
+
+    THE CONTAINER FOR THE ARGUMENT ARM, enumerated rather than listed.
+    A hand-kept list of "the checkers CI runs with a flag" beside the
+    workflow that runs them is blind to the one nobody adds, and this
+    repository has measured that shape more than once.
+    """
+    seen: dict[str, None] = {}
+    for _, body in steps():
+        for line in _fold_guards(significant(body)):
+            if _CHECKER.search(line):
+                seen.setdefault(line, None)
+    return list(seen)
+
+
+def invocation_of(line: str) -> str | None:
+    """The bare `<script> [args...]` inside a step line, or None.
+
+    Unwraps the two wrappers this workflow uses - a trailing inert
+    `|| { ... }` guard, and `out=$(... 2>&1); rc=$?` - and then refuses
+    anything still carrying shell metacharacters. `None` means "this
+    arm could not isolate an invocation here", which is REPORTED, not
+    silently dropped: an unreachable line is a hole in the container,
+    and a container with unreported holes is the thing being fixed.
+    """
+    head, sep, tail = line.partition("||")
+    if sep and _guard_is_inert(tail):
+        line = head.strip()
+    match = _CAPTURE.match(line)
+    if match:
+        line = match.group("cmd").removesuffix("2>&1").strip()
+    return None if _SHELLY.search(line) else line
+
+
+def _split_arguments(command: str) -> tuple[list[str], list[str]] | None:
+    """`(argv, argv-with-the-checker's-own-arguments-removed)`."""
+    argv = shlex.split(command)
+    index = next((i for i, token in enumerate(argv) if _CHECKER.search(token)), None)
+    if index is None or index + 1 >= len(argv):
+        return None
+    return argv, argv[: index + 1]
+
+
+def argument_arm() -> tuple[int, list[str]]:
+    """Is any checker's BARE form a different, weaker question?
+
+    **THE ARM THAT WOULD HAVE CAUGHT THE 127-COMMIT RED.** CI runs
+    `check-committed-file-types.py --all`, which reads every TRACKED
+    file. Run bare it reads the STAGED set, which on a clean tree is
+    empty, so it examines nothing and exits 0. Two instruments agreed
+    and both were blind in the same direction. Nothing had ever looked
+    for a second instance of that shape.
+
+    For every checker `ci.yml` invokes WITH arguments, this runs the
+    same checker WITHOUT them and compares:
+
+    - **different exit codes is a FAILURE.** One of the two forms is
+      green while the other is red, right now, on this tree. Whichever
+      way round it is, somebody running the bare form locally is being
+      told something CI does not agree with.
+    - **same exit code, different output is REPORTED, not failed.** The
+      bare form is a different question that happens to agree today.
+      That is the state `--all` was in for every one of the 127 commits
+      before the tree finally broke, so it is worth printing and is not
+      by itself a defect.
+
+    Returns `(failures, report lines)`.
+    """
+    lines = checker_lines()
+    reached: list[str] = []
+    unreachable: list[str] = []
+    for line in lines:
+        command = invocation_of(line)
+        (reached if command else unreachable).append(command or line)
+
+    with_arguments: list[tuple[list[str], list[str]]] = []
+    refused: list[str] = []
+    for command in reached:
+        split = _split_arguments(command)
+        if split is None:
+            continue
+        if _DESTRUCTIVE.search(command):
+            refused.append(command)
+            continue
+        with_arguments.append(split)
+
+    out = [
+        "",
+        "ARGUMENT ARM. Is a checker's BARE form a weaker question than the",
+        "one CI asks? The container is every `check-*.py` invocation line",
+        f"in {WORKFLOW.name}, enumerated: {len(lines)} lines, of which this",
+        f"arm isolates an invocation from {len(reached)} and cannot reach"
+        f" {len(unreachable)}.",
+        f"{len(with_arguments) + len(refused)} of them carry arguments,"
+        f" {len(refused)} refused as tree-mutating, {len(with_arguments)} run"
+        " both ways below.",
+    ]
+    for line in unreachable:
+        out.append(f"  NOT REACHED  {line}")
+    for command in refused:
+        out.append(f"  not run      {command}")
+
+    failures = 0
+    for argv, bare in with_arguments:
+        flagged_run = subprocess.run(  # noqa: S603
+            resolve_argv(shlex.join(argv)), cwd=ROOT, capture_output=True, text=True
+        )
+        bare_run = subprocess.run(  # noqa: S603
+            resolve_argv(shlex.join(bare)), cwd=ROOT, capture_output=True, text=True
+        )
+        shown = " ".join(argv[len(bare) - 1 :])
+        if flagged_run.returncode != bare_run.returncode:
+            failures += 1
+            out.append(
+                f"  DISAGREE     {shown}: CI's form exits"
+                f" {flagged_run.returncode}, bare exits {bare_run.returncode}."
+                " A bare local run is not asking CI's question."
+            )
+        elif flagged_run.stdout != bare_run.stdout:
+            first = next(
+                (
+                    line
+                    for line in bare_run.stdout.splitlines()
+                    if line not in flagged_run.stdout.splitlines()
+                ),
+                "",
+            )
+            out.append(
+                f"  DIFFERENT    {shown}: same exit"
+                f" ({flagged_run.returncode}), different output. The bare form"
+                " asks a different question that agrees today."
+            )
+            out.append(f"                 bare says: {first.strip()[:96]}")
+        else:
+            out.append(f"  same         {shown}: the argument changes nothing here.")
+    return failures, out
+
+
 def resolve_argv(command: str) -> list[str]:
     """The argv to actually execute for one workflow command.
 
@@ -548,7 +687,10 @@ def main() -> int:
         return 2
 
     print(
-        f"\nRan {len(runnable)} of {len(all_steps)} run steps in {WORKFLOW.name} ONLY."
+        f"\nRan {len(runnable) - lifted} of {len(all_steps)} run steps in "
+        f"{WORKFLOW.name} ONLY, and executed {lifted} further invocation(s)\n"
+        "LIFTED out of steps that also assert on the checker's output - "
+        "those\nsteps are NOT covered and are counted below, not here."
     )
     print(
         f"{substituted} of them had a bare interpreter SUBSTITUTED for a "
@@ -561,6 +703,10 @@ def main() -> int:
     for reason, count in reasons.most_common():
         print(f"  {count:3d}  {reason}")
 
+    disagreements, report = argument_arm()
+    for line in report:
+        print(line)
+
     if failures:
         print(f"\n{len(failures)} step(s) that CI runs FAIL here:")
         for command, code, output in failures:
@@ -569,10 +715,21 @@ def main() -> int:
                 print(f"      {line}")
         return 1
 
+    if disagreements:
+        print(
+            f"\n{disagreements} checker(s) DISAGREE between CI's form and the "
+            "bare one.\nA local run of the bare form is not asking CI's "
+            "question. This is the\nshape that kept the trunk red for 127 "
+            "commits: one instrument selects\nthe staged set, the other the "
+            "whole tree, and both report a clean zero."
+        )
+        return 1
+
     print(
         "\nEvery step this probe ran is green. That is a claim about "
-        f"{len(runnable)} steps,\nNOT about CI: the majority are not run "
-        "here, and a green from this\nprobe licenses only what it executed."
+        f"{len(runnable) - lifted} steps and {lifted} lifted invocation(s),"
+        "\nNOT about CI: the majority are not run here, and a green from this"
+        "\nprobe licenses only what it executed."
     )
     return 0
 
