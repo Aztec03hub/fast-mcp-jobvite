@@ -161,11 +161,13 @@ assert _marked_linenos, (
 # widened for exactly this one call and restored, and the restore is
 # asserted.
 _saved_prefixes = repoint.LIVE_PREFIXES
-repoint.LIVE_PREFIXES = _saved_prefixes + ("docs/reviews/",)
+repoint.LIVE_PREFIXES = _saved_prefixes + (  # type: ignore[attr-defined]
+    "docs/reviews/",
+)
 try:
     moves, unreadable, _unruled = repoint.parse(moved(_SELF, _marked_linenos[0]))
 finally:
-    repoint.LIVE_PREFIXES = _saved_prefixes
+    repoint.LIVE_PREFIXES = _saved_prefixes  # type: ignore[attr-defined]
 assert repoint.classify(_SELF) == "UNRULED", "LIVE_PREFIXES not restored"
 row(
     "D. marker AND a register row IS skipped, and is not called unreadable",
