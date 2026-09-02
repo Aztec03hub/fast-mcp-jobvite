@@ -130,3 +130,4 @@ c60941d NONE #167: measure the anchor container first, then widen it,
 d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
 5e087eb NONE R17-H2 RULED: no change. Its path list was measured agai
 3987403 NONE #163 RULED: warn on untracked findings; `git add -N` and a pra
+e6333ef NONE Backlog +2: 5e087eb and 3987403, recorded in the commit 
