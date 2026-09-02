@@ -222,7 +222,13 @@ This section predicted a ~3.5-4 min wall and said so as (P), adding that
 measurement; these will be too." They were. Run `33610211810` (head
 `cb625f3`) is that measurement, read from the API:
 
-    MEASURED wall for full CI:  846s = 14.10 min   (G)
+    MEASURED wall, run 33610211810:  846s = 14.10 min   (G)
+    MEASURED wall, run 33614887374:  431s =  7.18 min   (G)
+    -- and the difference between them is NOT this repository. See
+       "the 306s is queue" below: the first run waited 305s for
+       runners and the second waited 5s. The STRUCTURAL wall is
+       431s; 14.10 min was one bad draw and must not be quoted as
+       the cost of this shape.
     MEASURED billed:            4204s = 70.1 job-min over 16 jobs  (G)
 
     against
@@ -276,15 +282,34 @@ Unresolved, and it matters, because a wrong (G) is worse than a wrong (P):
 the whole labelling scheme exists so a reader can tell which numbers were
 observed.
 
-**The unaccounted 306s.** Wall 846s minus pole job 540s leaves 306s that
-no job's duration explains. The previous run's equivalent gap was 5s
-(323s wall, 318s pole). A 5s gap is job startup, as this section
-originally said. A 306s gap is not, and it appeared when the run went
-from a handful of jobs to 16. The hypothesis - UNVERIFIED, and stated as
-one - is runner queueing against a concurrency ceiling. If that is right,
-the fan-out has a ceiling nobody measured before adopting it, and adding
-jobs makes the wall WORSE. Measuring that gap is the first task in the
-follow-up (#244), before any lever is chosen.
+**The 306s is QUEUE, and it is transient.** This paragraph previously
+carried a hypothesis - that the gap was runner queueing against a
+CONCURRENCY CEILING - and warned that if so, adding jobs would make the
+wall worse. Run 33614887374 settles it, and settles it the other way.
+Two runs, the same 16 jobs and the same workflow structure:
+
+    run    wall  pole   gap  maxQ  billed
+    first   846   540   306   305    4204
+    second  431   425     6     5    3973
+
+`gap` is wall minus the longest single job. `maxQ` is the largest
+per-job queue wait, job start minus run start, read from
+`/actions/runs/{id}/jobs`. maxQ tracks gap almost exactly in BOTH rows -
+305 against 306, then 5 against 6 - so the gap is queue wait and nothing
+else. Sixteen concurrent jobs got runners immediately on the second
+draw, so there is no ceiling at sixteen: the first run simply queued.
+
+Two things follow, and the second is a correction to this document's own
+headline. Widening the fan-out is NOT ruled out by a ceiling, though two
+draws prove only that we saw one bad queue and one clean one, so headroom
+is UNMEASURED rather than confirmed. And the mandate's real target is the
+431s wall with its 425s pole, not 14.10 min: the pole needs to fall below
+roughly 295s, a 1.44x cut, where the inflated figure implied 2.8x.
+
+The lever preference follows from the same table. Cutting ROW COST helps
+in both the queued and the unqueued case; adding JOBS helps only in the
+unqueued one. So the 17 bare invocations below are the first lever
+whichever way the queue falls.
 
 **What is left un-taken, and now looks larger.** Half the harness
 invocations never received the per-row selection this branch is built on:
