@@ -23,6 +23,38 @@ index is not carried by the artifact a reader opens.
 Format: Status, Type, Context, Decision, Consequences. Every ADR cites the clause it deviates from
 at its `file:line`, and says what evidence the decision rests on.
 
+## An ADR's citations are AS AT its acceptance, and are NOT repointed
+
+**MEASURED, all 64 `DESIGN.md:N` citations in this directory read one at a time
+(`docs/reviews/CITATION-READ-ADR-VERDICTS.md`): 46 DRIFTED, 14 CORRECT, 2 WRONG, 2 boundary.**
+Seventy-two per cent point at text that WAS the cited subject when written and is not any more,
+because `DESIGN.md` moved under them.
+
+**They stay.** An ADR is a DECISION RECORD: it states what was decided against the design as it
+stood. Repointing its citations rewrites the evidence for a decision already taken and makes every
+ADR silently claim to be about today's design. #111 ruled the same shape for `docs/plans` and the
+reasoning carries.
+
+**THE CASE THAT MAKES THIS NON-OBVIOUS IS IN THIS DIRECTORY.** `ADR-0034` cites `DESIGN.md:2063`
+for the words *"all eleven ADRs"*. At `e3b5c97^` line 2063 reads exactly that - and `e3b5c97` is
+the commit that APPLIED ADR-0034 and deleted the count. **The ADR's own accepted change falsified
+its own citation**, and the re-freeze made the stale reading official. That is drift arriving in
+one commit, from the decision itself, and no reader looking only at today's freeze can tell it
+apart from carelessness.
+
+**HOW TO READ A CITATION THAT DOES NOT MATCH.** Date the citation, then read the design as it was:
+
+    git log -S'DESIGN.md:2063' --reverse -- docs/adr/0034-*.md   # when the citation was written
+    git show <that sha>^:docs/DESIGN.md | sed -n '2063p'         # what it said then
+
+**`git blame` IS THE WRONG INSTRUMENT and gives a confidently wrong answer.** It returns the last
+commit to TOUCH the line, which for prose is a later rewrite - it dated ADR-0019's citations three
+days after they were written, to a `DESIGN.md` the author never saw.
+
+**NO SHA IS WRITTEN INTO THE ADRs.** A per-file "citations are against `<sha>`" line is a retyped
+datum in 19 files, and this project has spent a night on what retyped data do. The acceptance
+commit is already recoverable from git, which is where provenance belongs.
+
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-target-fastmcp-4-beta.md) | Target `fastmcp 4.0.0b4` and the sessionless spec, not the stable line | Accepted |
