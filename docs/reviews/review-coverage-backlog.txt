@@ -62,26 +62,25 @@ f2a7bce PARTIAL Merge review/r11 (#123): ADR-0030 gets its code half, an
 fc622e9 PARTIAL Protocol: what runs 3-5 measured, and the reviewer-befor
 ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
 0256438 PARTIAL PROTOCOL: the assignment echo is more dangerous than the
-0b90c2a PARTIAL fix(secrets): gate on the finding set, not on the baseli
 3aad1a3 PARTIAL Rewrite the handoff, which was wrong a THIRD time - and
-3cf6fa4 PARTIAL Answer the question I had only answered for today: what
 3d7a82f PARTIAL R1-M6: the control's BASELINE arm asserted the TRUNK was
 401689e PARTIAL Examine the three leftover branches that three handoffs
-4aca097 PARTIAL Mirror on a daily schedule, not on every push - 213 min
-a00d2ac PARTIAL docs(secrets): the findings, and CONTRIBUTING gains both
-a3fc38f PARTIAL Correct my own header: the currency check would NOT have
-c276a45 PARTIAL test(secrets): the end-to-end arms, and the gate's own f
-d0fce2a PARTIAL Record #157 with its numbers, its controls and four corr
 ffd36c7 PARTIAL #155 re-measured exactly, and the handoff was wrong a FO
 03da258 NONE docs(reviews): extend R16 to 2d886a4 after the trunk mov
 298ce89 NONE Merge fix/156-u1-boot-guards: the defect was a MISDIAGNO
 2b3fa4d NONE Record the ref shape the docstring did not have: it can 
 2eb2d2a PARTIAL Brief R17: the complementary round R15 asked for, with R
 3a5dbe9 PARTIAL Handoff: the trunk is 2d886a4 and the red is closed, unc
-6d8d02a NONE R16-N1: rewrite the docstring a mechanical reflow damage
 76863bb NONE The positive control, all three arms, and the review for
 96249f5 NONE Merge R16's extension: it READ the 15 and therefore clai
 b84b77d NONE Guard all 13 mutation heredocs in the U1 amputation harn
 c545ead PARTIAL Record the 15 commits I pushed while R16 was reading, wi
 e5c7aeb NONE #165 (R16-H1): the trap counters could not see a trap sp
 e61a668 PARTIAL docs(reviews): R16 over the 86 uncovered trunk commits, 
+#
+# 2026-09-01, -8: cleared because R17's declaration, merged just
+# above, now covers them. READ THAT AGAINST R17-H1 BEFORE TRUSTING
+# IT: a wide RANGE with a narrow PATH list moves commits out of
+# NONE without anyone reading them, and R17 measured that 24 of its
+# own 26 NONE-clears were range artifacts. Until H1 is closed, a
+# line LEAVING this file is weaker evidence than a line entering it.
