@@ -288,27 +288,62 @@ is Tier 0's call and not mine to take inside a performance task.
 
 ## 6a. R23's RUN-2 POLE - the number is right, the category is not
 
-R23 measured that run 33614887374's pole job, `Harness U6 + U7 + U9
+R23 measured that run `33614887374`'s pole job, `Harness U6 + U7 + U9
 controls` (425s), carries 288s of invocations with no `--row-re`. I
 re-derived it: u6 controls 45 + u6 amputation 18 + u7 controls 102 + u9
-controls 123 = 288. **The arithmetic is confirmed.**
+controls 123 = 288. **The arithmetic is confirmed**, and R24 confirmed it a
+second time from that run's own API: 45/18/102/123, five harness steps,
+420s of step time in the job.
 
-**The inference it invites is the one Tier 0 has just retracted.** `--row-re`
-is a row-COUNTING assertion; it does not say which tests a row runs. Split
-that same 288s by what the harnesses actually do:
+**THE MECHANISM, because this flag has now misled three documents.**
+`--row-re` is a gate ASSERTION over harness OUTPUT. `ci-harness-gate.sh:45`:
+`--min-rows N --row-re RE  require at least N lines matching RE`. It counts
+PRINTED LINES. It says nothing about which tests a row runs, and a harness can
+select one test per row while passing no `--row-re` at all. Any reading that
+treats a bare call as an unconverted harness is reading a row counter as a
+selection flag.
 
-    u7-resilience-controls   102s   ALREADY selected per row
-    u9-http-controls         123s   ALREADY selected per row
-    u6-paging-controls        45s   genuinely unconverted
-    u6-paging-amputation      18s   genuinely unconverted
+**Split by what the harnesses actually do - read in the scripts, one at a time,
+rather than matched with a pattern over them:**
 
-    already selected: 225s of 288 (78%)
-    genuinely bare:    63s of 288 (22%)
+    u7-resilience-controls   102s   SELECTS  :153 `pytest "$selector"`
+    u9-http-controls         123s   SELECTS  :146 `pytest "$selector"`
+    u6-paging-controls        45s   SELECTS  :151 `pytest "$selector"`, and
+                                             its call sites pass node ids -
+                                             :185 `"$SUITE::test_every_scan_
+                                             starts_at_zero_on_the_wire"`
+    u6-paging-amputation      18s   BARE     :141 `pytest $SUITE`, and
+                                             `amputate()` at :100-101 takes
+                                             `label file old new` - there is
+                                             no selector parameter at all
 
-So 78% of R23's block was never a selection gap. Reading it as one would be
-the third time this proxy has misled a reader today. **The honest residual is
-63s, and it is the two harnesses §7 already names** as still carrying the
-pre-flight.
+    already selecting: 270s of 288 (94%)
+    genuinely bare:     18s of 288  (6%)
+
+**An earlier version of this section put u6-paging-controls in the bare group
+and reached 225/63. That was wrong, and it is worth naming because it is NOT
+the `--row-re` mistake above - it is a second one, one column over.** u6c is
+one of the two harnesses §7 correctly reports as STILL CARRYING THE PRE-FLIGHT.
+Carrying the pre-flight and not selecting are different properties, and u6c has
+the first without the second: it runs one named test per row AND validates that
+name with a second process. "Unconverted" was true of its pre-flight and false
+of its selection, and the two were written into one column.
+
+So the residual is stated as a CATEGORY and not as a saving: **exactly one of
+the five harness steps on that job runs the whole suite per row, and it is
+`check-u6-paging-amputation.sh`.** Its 18s is what that step cost in that run,
+not a promise about the next one - §7's noise bullet applies to it as much as to
+anything else here.
+
+**And it should not be converted** - for §6's reason rather than for its size.
+An amputation's product is its SURVIVOR LIST, and narrowing the run shrinks that
+population by construction. That is the same ground on which
+`check-u3-audit-amputation.sh` is refused above: two harnesses, one rule.
+
+Its `$SUITE` is also a SINGLE FILE, `tests/test_pagination.py`
+(`check-u6-paging-amputation.sh:56`), so "the whole suite per row" there means
+one test file and not the 888-test suite. That is why the step is 18s rather
+than minutes, and it is a second reason the lever is not worth pulling.
 
 The pole itself does dissolve, but through the pre-flight removal rather than
 through selection:
