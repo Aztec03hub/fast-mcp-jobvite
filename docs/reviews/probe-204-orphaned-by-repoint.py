@@ -4,7 +4,7 @@
 **THE INSTANCE THIS EXISTS FOR.** `docs/adr/0017-...` names ONE range
 twice - qualified at `:16` and bare at `:67`:
 
-    :16  **The contradiction (D1).** `DESIGN.md:489-490` states that ...
+    :16  **The contradiction (D1).** `DESIGN.md:489-490` states that ...   # REPOINT-EXEMPT
     :67  - **`DESIGN.md:515` is amended**, and `:489-490`'s seven-member
          requirement then holds ...
 
@@ -76,7 +76,7 @@ qualified mention agrees with the bare half, there is nothing to find.
 
 **This test exists because the one CONFIRMED instance was still being
 reported after it was fixed.** `docs/adr/0017-...` carried
-`DESIGN.md:489-490` qualified and bare; `b0e86b8` moved the qualified
+`DESIGN.md:489-490` qualified and bare; `b0e86b8` moved the qualified   # REPOINT-EXEMPT
 half to `:495-496`; `be94bce` restored it to `489-490`, so the ADR
 agrees with itself again. The probe went on listing it FIRST, because it
 reads history and never looked at the present state of the other half. A
