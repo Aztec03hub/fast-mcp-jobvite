@@ -408,6 +408,18 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     # A gate refuses; these report. Wiring one would turn a number
     # somebody has to read into a build failure, which is how a real
     # measurement gets deleted rather than acted on.
+    "check-merge-invented.py": (
+        "its own docstring: it reports a population to READ, and a "
+        "reflow that re-wraps a paragraph surfaces there as many "
+        "'invented' lines while the sentence is unchanged. Wiring it "
+        "as-is would fail the build on formatting. Whether "
+        "merge-invented content should be GATED, and at what "
+        "threshold, is Tier 0's ruling and is open on task #222; the "
+        "instrument ships first so the ruling is made on a "
+        "measurement. It carries `--strict` for the day that ruling "
+        "arrives, and `--self-test` plus `--synthetic-test` are "
+        "runnable now."
+    ),
     "measure-xref-population.py": (
         "its own docstring: 'IT IS NOT A GATE and must not become one. "
         "It reports; it does not refuse.' It re-derives #139's numbers "
