@@ -70,3 +70,24 @@ ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
 # measured against 9e04411, five behind the trunk. No round covers them.
 b567974 PARTIAL #143: lint-clean the applier, update CONTRIBUTING's job
 c6e3cda PARTIAL #151 R1: two Highs closed, and H2 was my prose being fal
+#
+# 2026-09-01, +15: everything pushed past ccbdaae while R16 was
+# reading it - #161's secret-scan fix, #157's mirror change, and my
+# own handoff and protocol commits. R16 declined to claim them and
+# was right to: it never opened them. They belong to whoever pushed
+# them, which is me.
+0256438 NONE PROTOCOL: the assignment echo is more dangerous than the
+0b90c2a NONE fix(secrets): gate on the finding set, not on the baseli
+2d886a4 NONE Merge #157's tail: what happens when the token EXISTS, w
+3aad1a3 NONE Rewrite the handoff, which was wrong a THIRD time - and
+3cf6fa4 NONE Answer the question I had only answered for today: what
+3d7a82f NONE R1-M6: the control's BASELINE arm asserted the TRUNK was
+401689e NONE Examine the three leftover branches that three handoffs
+4aca097 NONE Mirror on a daily schedule, not on every push - 213 min
+5fb7a6f NONE Merge fix/161-secret-baseline: the trunk's red is closed
+6e07131 NONE Merge fix/157-mirror-minutes: the job billed 213 minutes
+a00d2ac NONE docs(secrets): the findings, and CONTRIBUTING gains both
+a3fc38f NONE Correct my own header: the currency check would NOT have
+c276a45 NONE test(secrets): the end-to-end arms, and the gate's own f
+d0fce2a NONE Record #157 with its numbers, its controls and four corr
+ffd36c7 NONE #155 re-measured exactly, and the handoff was wrong a FO
