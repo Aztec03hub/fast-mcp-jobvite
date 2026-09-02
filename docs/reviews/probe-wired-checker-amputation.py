@@ -389,7 +389,14 @@ def main() -> int:
     # of two container halves. Lowering it is a visible diff that has to
     # be defended.
     floor = 14
-    status = "ok" if not failures and rows >= floor else "breach"
+    # EQUALITY, NOT A LOWER BOUND (#193). `rows` is COMPUTED here, so
+    # `check-row-floor-exactness.py` cannot compare it to a static count
+    # - this file and `probe-131-gate-state.sh` are the only two members
+    # of its container in that position. `rows >= floor` therefore left
+    # the one instrument that could notice a slack floor unable to: add
+    # an arm without raising `floor` and nothing says so, which is u7's
+    # 26-against-31 in the one place the exactness checker cannot look.
+    status = "ok" if not failures and rows == floor else "breach"
     # The SAME canonical line every harness in `scripts/` prints (#107),
     # deliberately, rather than a second shape. The container that
     # `check-harness-result.sh` enforces is `scripts/*.sh` and this file
@@ -404,6 +411,11 @@ def main() -> int:
     if rows < floor:
         print(f"\n{rows}/{floor} ROWS - THE PROBE LOST ARMS. A probe with")
         print("fewer arms than its floor is green for the wrong reason.")
+        return 1
+    if rows > floor:
+        print(f"\n{rows} arms against floor={floor} - arms were ADDED and")
+        print(f"the floor was not raised. It is slack by {rows - floor}, and")
+        print(f"a slack floor says nothing when arms go later. Raise it to {rows}.")
         return 1
     if failures:
         print("\nAn arm moved. Either a control was lost or a construct")

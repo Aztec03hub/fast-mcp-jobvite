@@ -330,8 +330,23 @@ amp_lib "AMP-END   a gate that never clears state" \
 ROW_FLOOR=12
 harness_result_tally fired "$FIRED" "$TOTAL"
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
-if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
-  echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE PROBE LOST ROWS."
+# EQUALITY, NOT A LOWER BOUND (#193). This probe's row count is COMPUTED
+# at run time, so `check-row-floor-exactness.py` cannot compare it to a
+# static count - this file and one other are the only two members of its
+# container in that position. A `-lt` test therefore left the ONLY
+# instrument that could see a slack floor unable to see it: add a row
+# and forget to raise ROW_FLOOR, and nothing anywhere says so. That is
+# u7's 26-against-31 exactly, in the one place the checker built to
+# catch it cannot look.
+if [ "$TOTAL" -ne "$ROW_FLOOR" ]; then
+  if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
+    echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE PROBE LOST ROWS."
+  else
+    echo "::error::$TOTAL rows against ROW_FLOOR=$ROW_FLOOR - rows were"
+    echo "::error::ADDED and the floor was not raised. The floor is now"
+    echo "::error::slack by $((TOTAL - ROW_FLOOR)), and a slack floor says"
+    echo "::error::nothing when rows are deleted later. Raise it to $TOTAL."
+  fi
   exit 1
 fi
 if [ "$FIRED" -ne "$TOTAL" ]; then
