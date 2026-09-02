@@ -134,7 +134,8 @@ python3 scripts/check-committed-file-types.py --all
 uv run --frozen python scripts/check_advisories.py        # the expiry half
 uv run --frozen pip-audit $(uv run --frozen python scripts/check_advisories.py)
 
-# The `design-gates` job
+# The `static-gates` job (these were the `design-gates` job until #143 merged
+# it with the supply-chain and link-check jobs; the commands are unchanged)
 python3 docs/reviews/check-coupling.py docs/DESIGN.md
 python3 docs/reviews/check-cross-references.py   # every SSn.m resolves in its own document
 python3 docs/reviews/check-coupling-controls.py
