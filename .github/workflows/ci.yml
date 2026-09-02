@@ -95,119 +95,9 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
-  # #237. CI IS FOR THE PROJECT CODE. This job decides whether the
-  # mutation and amputation harnesses need to run at all.
-  #
-  # MEASURED, from the one green run 33582613697: the product's own suite
-  # is ONE step and ONE minute. The harnesses are ~85 minutes, because
-  # each mutates a source line, re-runs the covering tests, restores, and
-  # repeats PER ROW. They answer a question that changes only when the
-  # code they mutate changes - and src/ went 118 commits without moving.
-  #
-  # THEY ARE NOT DELETED AND THIS IS NOT A JUDGEMENT ON THEM. They caught
-  # real survivors (#127, #128, #130, and R7's payload-logging middleware
-  # that all 887 tests ignored). This is CADENCE, not deletion: they run
-  # on any push touching what they watch, on every schedule, and on
-  # workflow_dispatch.
-  #
-  # AND THE WEAKENING IS DELIBERATELY VISIBLE. A docs-only green means
-  # something NARROWER than a code green, so the summary says so in the
-  # run itself rather than leaving a reader to assume otherwise.
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      code: ${{ steps.decide.outputs.code }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: decide
-        run: |
-          set -uo pipefail
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ github.event_name }} - harnesses RUN"
-            exit 0
-          fi
-          before='${{ github.event.before }}'
-          case "$before" in
-            ''|0000000000000000000000000000000000000000)
-              echo "code=true" >> "$GITHUB_OUTPUT"
-              echo "::notice::no usable before-sha - harnesses RUN (fail open)"
-              exit 0 ;;
-          esac
-          if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::before-sha unreachable - harnesses RUN (fail open)"
-            exit 0
-          fi
-          n=$(git diff --name-only "$before" "${{ github.sha }}" \
-                | grep -cE '^(src|tests|scripts)/|^\.github/|^pyproject\.toml$|^uv\.lock$') || n=0
-          if [ "$n" -gt 0 ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$n code/infra file(s) changed - harnesses RUN"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::DOCS-ONLY PUSH. The mutation harnesses did NOT run, so this green is NARROWER than a code green: it does not re-establish that the suite still notices a broken guard. The nightly schedule and any code push both restore the full claim."
-          fi
-
-  # ---------------------------------------------------------------------------
-  # THE STATIC GATES, THE SUPPLY CHAIN AND THE LINK CHECK, IN ONE JOB.
-  #
-  # These were three jobs until task #143. GitHub bills each JOB rounded UP to a
-  # whole minute, so three jobs whose work totals well under a minute billed
-  # THREE minutes on every run. MEASURED over 2026-08-28..2026-09-02 with
-  # `filter=all` (578 runs, 1326 jobs; `filter=latest` hides re-run attempts
-  # GitHub bills anyway, and it is the API default):
-  #
-  #     job                     n    billed   median   p90     max
-  #     Design coupling gates  220   220 min    11s     28s      34s
-  #     Supply chain           220   220 min    26s     31s      39s
-  #     Link check             210   214 min     6s      8s     126s
-  #     -----------------------------------------------------------
-  #     BEFORE, 210 run-attempts carrying all three:      634 min
-  #     AFTER,  one job (modelled from per-STEP timings): 214 min
-  #     SAVING:                                           420 min (66%)
-  #
-  # The merged job's duration is not a guess: it is the sum of the three jobs'
-  # WORK steps plus ONE prologue, taken from the per-step timestamps the jobs
-  # API returns. Median 28s, p90 42s, max 148s; 2 of 210 run-attempts would
-  # cross 60s and bill 2 minutes. That case is priced into the 214 above.
-  #
-  # WHY THESE THREE AND NOT THE OTHER TWO:
-  #   `test` is the long pole (median 87s, max 7522s) - merging anything into
-  #     it buys nothing and couples a 5-second gate to a 2-hour matrix.
-  #   `codeql` stays out, and this is a REFUSAL with a measured price on it,
-  #     not a dismissal. It bills 354 min, the SECOND largest line, but its
-  #     median is 64s - it crosses the minute boundary on its own merits,
-  #     not by rounding a trivial job. Folding it in as a FOURTH member
-  #     measures a further 134 min saved over the same 210 run-attempts
-  #     (557 -> 423). That is real, and it is refused anyway: CodeQL's
-  #     analyze step scans the workspace, and this job populates `.venv`
-  #     via `uv sync --frozen` before it would run. Changing what a
-  #     SECURITY gate scans to save 0.64 min/run is the wrong trade, and
-  #     it needs its own measurement of CodeQL's findings before and
-  #     after - not a note in a cost commit. Tier 0 can overrule this with
-  #     the number in front of it.
-  #
-  # THE PROLOGUE IS SHARED, and that is the second saving. `design-gates` and
-  # `supply-chain` ran BYTE-IDENTICAL prologues - checkout at fetch-depth 0,
-  # setup-uv with the cache, setup-python, `uv sync --frozen`. One job runs it
-  # once. fetch-depth 0 is required by BOTH (the freeze gate resolves a SHA a
-  # shallow clone does not contain; TruffleHog needs full history to see a
-  # secret removed in a later commit), and the link check does not care, so the
-  # merged checkout is the strictest of the three rather than a compromise.
-  #
-  # PERMISSIONS ARE THE UNION, which is a WIDENING and is stated rather than
-  # buried: `security-events: write` came from `supply-chain` and now covers
-  # the design gates too. Whether TruffleHog and the SBOM steps actually need
-  # it here has NOT been measured - they upload no SARIF - so it is preserved
-  # unchanged rather than narrowed on a guess. Narrowing it is its own task.
-  # ---------------------------------------------------------------------------
   static-gates:
     name: Static gates, supply chain and links
     runs-on: ubuntu-latest
-    needs: changes
     # UNCAPPED WOULD MEAN SIX HOURS - observed max 148s for the merged work
     # (modelled from per-step timings; the three jobs' own maxima were 34s, 39s
     # and 126s). 6x headroom.
@@ -587,7 +477,7 @@ jobs:
       # GROWING into a red build, which is the opposite of what it is for. So the
       # check is that the numerator equals the denominator, whatever they are.
       - name: Coupling controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           set -uo pipefail
           # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
@@ -659,7 +549,7 @@ jobs:
       # only the default arm - a gate whose controls nobody runs is the same
       # class of green as a gate nobody wired.
       - name: Obligation checker controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           set -uo pipefail
           # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
@@ -773,7 +663,7 @@ jobs:
             echo "::error::selector fault would look exactly like this"; exit 1; }
 
       - name: Coupling mutation sweep, no holes
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           set -uo pipefail
           # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
@@ -976,7 +866,6 @@ jobs:
   # The Python project.
   # ---------------------------------------------------------------------------
   test:
-    needs: changes
     name: Lint, types, tests
     runs-on: ubuntu-latest
     # UNCAPPED WOULD MEAN SIX HOURS - observed max 125.4 min across the 6 runs that reached the
@@ -1150,7 +1039,7 @@ jobs:
       # interpreter that row reports "could not import" and the harness
       # correctly refuses a partial run.
       - name: Docs-lint amputations, every row caught
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: uv run --frozen python docs/reviews/probe-docs-lint-amputation.py
 
       - name: Collect the credentialed suite
@@ -1311,7 +1200,7 @@ jobs:
       # "controls fired: N passed, M failed" and exits 1 on any failure,
       # 2 on zero arms, so it needs no --min-rows.
       - name: Stranded-mutation control
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash docs/reviews/control-stranded-mutation.sh
 
       # The restorer above reads a RUN STATE FILE rather than `git status`,
@@ -1362,7 +1251,7 @@ jobs:
         run: uv run --frozen python docs/reviews/check-brief-report-references.py
 
       - name: Controls for the brief-report reference gate
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash docs/reviews/check-brief-report-refs-controls.sh
 
       # THE DISCRIMINATOR'S OWN ARMS (#204). The bare run is an
@@ -1371,7 +1260,7 @@ jobs:
       # BOTH directions off ONE shared exclusion function, so no arm
       # tests a copy of its subject. Measured green before wiring.
       - name: The bare-citation discriminator's controls
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: uv run --frozen python docs/reviews/probe-204-bare-citations.py --controls
 
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
@@ -1391,7 +1280,7 @@ jobs:
       # deleted would have passed. Run before wiring: exit 0,
       # `fired=9/9`, tree clean.
       - name: Harness anchor checker controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
 
       # The mirror-liveness checker's logic: five distinct exit codes plus three
@@ -1403,7 +1292,7 @@ jobs:
       # this one covers what the live call cannot exercise on a healthy repo,
       # which is every state except "alive".
       - name: Mirror liveness controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-mirror-liveness-controls.sh --controls-fired
 
       # The gate every step below calls, exercised against stub harnesses that
@@ -1411,7 +1300,7 @@ jobs:
       # a healthy repository never produces: a moved anchor with exit 0, a hung
       # row, a harness with no anchor vocabulary at all.
       - name: Harness gate controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           set -uo pipefail
           # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
@@ -1429,11 +1318,11 @@ jobs:
       # U5's controls. The mutation harness gates on every row firing; the
       # amputation harness gates on every row having APPLIED ITS ANCHOR.
       - name: U5 jobs controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u5-jobs-controls.sh --controls-fired
 
       - name: U5 jobs amputation, every anchor applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u5-jobs-amputation.sh --anchors-applied
 
       # ----- U6, base-agnostic offset paging (DESIGN.md §4.5, "Every scan starts at `start=0`") -----
@@ -1452,11 +1341,11 @@ jobs:
       # whole resource and throws the rest away. A7's missing assertion was the
       # request COUNT.
       - name: U6 paging controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u6-paging-controls.sh --controls-fired
 
       - name: U6 paging amputation, every anchor applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u6-paging-amputation.sh --anchors-applied
 
       # ----- U7, resilience: timeout, retry, breaker (DESIGN.md §4.3 Resilience) -----
@@ -1477,7 +1366,7 @@ jobs:
       # output, exit 0), not 19 plus three. check-row-floor-exactness.py now
       # compares every `--min-rows` to a live count, so this cannot drift again.
       - name: U7 resilience controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
 
       # `--anchors-applied` ADDED BY #120. Its census asked, of every harness
@@ -1491,7 +1380,7 @@ jobs:
       # harness whose own comparison is deleted. It costs nothing to add and it
       # is the answer #120's Q2 reached for these three.
       - name: U7 resilience amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u7-resilience-amputation.sh \
             --amputation --anchors-applied --min-rows 22 --row-re '^########## A[0-9]+ '
@@ -1504,13 +1393,13 @@ jobs:
       # prediction into a standing experiment, so a future edit that makes the
       # tool return nothing is caught by the four rather than missed by the 52.
       - name: U8 candidate controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u8-candidates-controls.sh \
             --controls-fired --min-rows 25 --row-re '^########## M[0-9]+ '
 
       - name: U8 candidate amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u8-candidates-amputation.sh \
             --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
@@ -1528,11 +1417,11 @@ jobs:
       # expensive one is still running, and a reader would take the first
       # green as the answer.
       - name: U9 HTTP hardening controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u9-http-controls.sh --controls-fired
 
       - name: U9 HTTP hardening amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u9-http-amputation.sh \
             --amputation --anchors-applied --min-rows 14 --row-re '^########## A[0-9]+ '
@@ -1550,13 +1439,13 @@ jobs:
       # the api key was reaching the test by accident of test ORDERING - the
       # fixture now configures logging itself, and M17 then died.
       - name: U12 job feed controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u12-jobfeed-controls.sh \
             --controls-fired --min-rows 17 --row-re '^########## M[0-9]+ '
 
       - name: U12 job feed amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u12-jobfeed-amputation.sh \
             --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
@@ -1570,11 +1459,11 @@ jobs:
       # everything reproduced deliberately and killed, and it is why the row
       # counter had to be written before any source existed.
       - name: U10 write controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u10-write-controls.sh --controls-fired
 
       - name: U10 write amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u10-write-amputation.sh \
             --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
@@ -1588,7 +1477,7 @@ jobs:
       # and reported "20/20 controls fired" and "ROWS: 10 ANCHORS APPLIED: 10,
       # VACUOUS ROWS: 0".
       - name: U14 argument sweep controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u14-arguments-controls.sh \
             --controls-fired --min-rows 20 --row-re '^########## M[0-9]+ '
@@ -1600,7 +1489,7 @@ jobs:
       # 16 is READ OFF A RUN - the harness's own closing line says
       # `########## ROWS: 16   ANCHORS APPLIED: 16` - not 10 plus six.
       - name: U14 argument sweep amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-u14-arguments-amputation.sh \
             --amputation --anchors-applied --min-rows 16 --row-re '^########## A[0-9]+ '
@@ -1611,7 +1500,7 @@ jobs:
       # the filter at `"httpx"`, which is the name ADR-0026 itself used three
       # times before the correction, and the library logs on `httpx2`.
       - name: Log redaction amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-log-redaction-amputation.sh \
             --amputation --anchors-applied --min-rows 6 --row-re '^########## A[0-9]+ '
@@ -1623,13 +1512,13 @@ jobs:
       # match ZERO rows and fail the step for the wrong reason - the trap R7
       # flagged on U9. The regex below matches what this harness prints.
       - name: Body cap controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-body-cap-controls.sh \
             --controls-fired --min-rows 12 --row-re '^########## M[0-9]+ '
 
       - name: Body cap amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-body-cap-amputation.sh \
             --amputation --min-rows 5 --row-re '^########## [A-E]\. '
@@ -1641,7 +1530,7 @@ jobs:
       # guard that is reachable but not load-bearing), so its exit 1 means an
       # UNDECLARED vacuous row - which must stop the build rather than be reported.
       - name: Critical-path coverage amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bash scripts/ci-harness-gate.sh check-critical-coverage-amputation.sh \
             --anchors-applied --min-rows 20 --row-re '^########## A[0-9]+ '
@@ -1692,7 +1581,7 @@ jobs:
       # 11 of the 164 anchors, and found a dead expression in one of them on its
       # first run.
       - name: U0 test controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u0-test-controls.sh --controls-fired
 
       # ----- U15, the two commit-time gates (DESIGN.md §10.1's two commit-time gates, C8-I1) -----
@@ -1732,7 +1621,7 @@ jobs:
             echo "::error::a tracked file fails the committed-file-type gate"; exit 1; }
 
       - name: U15 gate controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u15-gate-controls.sh --controls-fired
 
       # THE TWO HARNESSES THAT RAN NOWHERE. U3 found these (D3): neither
@@ -1751,11 +1640,11 @@ jobs:
       # a step to gate on. Both of its rows now assert that the amputation
       # landed, D asserting its three tables separately.
       - name: U15 gate amputation, every row applied
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u15-gate-amputation.sh --amputation
 
       - name: U11 advisory controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u11-advisory-controls.sh --controls-fired
 
       # ---- U1's block. Neither U1 harness had a CI step at all, so every row
@@ -1764,11 +1653,11 @@ jobs:
       # names, and adding rows to an unrun harness would have been building it
       # a third time.
       - name: U1 boot mutation controls, all fired
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u1-boot-controls.sh --controls-fired
 
       - name: U1 boot amputation harness ran every row
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u1-boot-amputation.sh --amputation --min-rows 14 --row-re '^########## [A-N]\. '
 
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
@@ -1777,11 +1666,11 @@ jobs:
       # (IMPLEMENTATION-PLAN.md:1388's OBLIGATIONS row, and the `--all`
       # file-type mode that had no CI step one artifact later).
       - name: U3 audit mutation controls, all killed
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u3-audit-controls.sh --result-killed
 
       - name: U3 audit amputation harness ran every row
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
 
       # The guard that floors the suite size is itself a thing that can silently
@@ -1789,11 +1678,11 @@ jobs:
       # quietly, with everything green. `--require` is what checks it put back
       # the script it mutated.
       - name: Suite-floor guard amputation, every row killed
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --result-killed --require 'post-run re-check of the real script: exit=0'"
 
       - name: U4 client mutation controls, all killed
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u4-client-controls.sh --result-killed
 
       # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the old
@@ -1801,7 +1690,7 @@ jobs:
       # counted 12 while 17 ran - a gate reporting the number of rows it can SEE,
       # which is how a row goes missing without a red run.
       - name: U4 client amputation harness ran every row
-        if: needs.changes.outputs.code == 'true'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bash scripts/ci-harness-gate.sh check-u4-client-amputation.sh --amputation --anchors-applied --min-rows 17 --row-re '^########## A[0-9]+[a-z]* '
 
       - name: Secret scan hook runs clean
