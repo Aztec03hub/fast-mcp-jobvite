@@ -19,20 +19,98 @@ mechanism: it does not survive the reviewer who does not think of it, and **ther
 **Prose about a measurement decays into a claim about one.**
 Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE-FROZEN at `c15b138`**
 
-> **THIS SHA IS LOAD-BEARING AND MUST NOT BE ADVANCED ON ITS OWN.** Every `DESIGN.md:NNN`
-> citation below is a line number **in `c15b138`**, and the design has been re-frozen since, at
-> `8a9d63c`. Measured 2026-08-29: of this document's 111 citations, 91 now name different text in
-> the current `DESIGN.md` - and all 111 remain correct against `c15b138`. **That is why this plan
-> was deliberately NOT repointed at the re-freeze**: all sixteen units U0-U15 are built, nothing
-> executes this document any more, and it is a RECORD of what was planned - the same standing as
-> a worklog, which is also left as written.
+> **THIS DOCUMENT HAS TWO REFERENCE FRAMES. THE CITATION'S FORM PREDICTS WHICH ONE, 130 TIMES OUT
+> OF 131 - AND THE 131st IS IN THIS FILE.** Re-derive anything you rely on; the tendency is strong
+> enough to plan by and not strong enough to trust.
 >
-> So: read the citations below with `git show c15b138:docs/DESIGN.md`, not with the working copy.
-> **Updating the SHA in the line above without repointing all 111 citations would turn a document
-> that is honestly out of date into one that is confidently wrong**, which is strictly worse. If
-> this plan ever becomes live again - a new unit is planned - the remedy is to replace the numbers
-> with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`, not to
-> repoint them.
+> This paragraph has now been wrong three times, each time in the direction opposite the last. It
+> said every citation resolves at `c15b138`; then that the FORM tells you which, with no measurement
+> behind it; then that NOTHING tells you which, which was the same unmeasured mistake pointing the
+> other way. The census below is the measurement that should have come first.
+>
+> **The frames are real.** Two citations 26 lines apart, each correct at its own blob and nonsense
+> at the other:
+>
+> | citation | resolves at | text there | at the other blob |
+> |---|---|---|---|
+> | `:1220`, §1 table row 1 | **`135c3ac`** | `- the 200-with-401-body trap;` | a blank line at `c15b138` |
+> | `DESIGN.md:1370-1371`, under that same table | **`c15b138`** | *"Every refusal-path test is paired with a positive control..."* | `]` at `135c3ac` |
+>
+> And they are not always sections apart. **The paragraph in §0 opening *"There was no CI, and the
+> design says so once, plainly"* carries `DESIGN.md:1466-1472` and a bare `:1426` two sentences
+> apart, in DIFFERENT frames**: `c15b138:1466` is *"No CI pipeline exists yet..."* while
+> `135c3ac:1466` is a `--ignore-vuln` fragment, and `135c3ac:1426` is *"CI must run..."* while
+> `c15b138:1426` is blank. Both halves are correct; neither blob serves both.
+>
+> ## The census
+>
+> **MEASURED AT `7e8adfa`, AND A DATED RECORD RATHER THAN A LIVE COUNT.** All 166 citations as this
+> file stood at that blob, resolved at both `135c3ac` and `c15b138` by
+> `docs/reviews/probe-218-frame-census.py`, which reports its own method and adjudicates by hand
+> every citation its proxy could not place. **The blockquote you are reading has itself added
+> citations since**, so the live commands below will return larger numbers than this table - that
+> is the table being pinned, not the table being wrong:
+>
+> |  | resolves at `135c3ac` | at `c15b138` | identical at both | undecidable |
+> |---|---|---|---|---|
+> | **qualified** `DESIGN.md:NNNN` | **0** | 88 | 18 | 5 |
+> | **bare** `:NNNN` | **42** | 3 | 1 | 9 |
+>
+> **ZERO of 111 qualified citations resolve at `135c3ac`**, at every threshold the probe sweeps and
+> after hand-reading every doubtful row. That zero was checked for comparability before it was
+> explained: the same code path, blob read and scoring function return 32 on the bare side, so the
+> `135c3ac` arm demonstrably fires and the zero is not an artifact of construction.
+>
+> **THE ONE EXCEPTION IS A SINGLE CITATION, AND IT IS WHY THE RULE IS NOT A RULE.** The three bare
+> `c15b138` hits are all `:300` - once at its site, twice where this blockquote quotes it. It lives
+> in **the ADR-0012 discharge paragraph under §4's Wave C**, and its own sentence names its blob:
+> *"`DESIGN.md:295` and `:300` at the frozen `c15b138`"*. Read a bare citation at `135c3ac` first;
+> expect to be wrong about one of them.
+>
+> ## Reading a citation here, and what the numbers do not tell you
+>
+> **19 of the 166 are BYTE-IDENTICAL at both blobs.** For those, resolving at one blob proves
+> nothing about the frame - roughly one citation in nine agrees with whichever blob you happen to
+> open. That is why "re-derive" above means at BOTH blobs, not at one.
+>
+> **THE TWO COUNTS ARE FLOORS, NOT EXACT.** `:2261` writes `DESIGN.md:295,300`, whose `,300` half
+> carries neither a colon-prefixed form nor a filename and so matches neither selector. Other
+> shapes may exist; nobody has swept for them.
+>
+>     grep -o 'DESIGN\.md:[0-9]' docs/plans/IMPLEMENTATION-PLAN.md | wc -l    # the qualified population
+>     grep -o '`:[0-9]'          docs/plans/IMPLEMENTATION-PLAN.md | wc -l    # the bare population
+>
+> **Both commands are `grep -o | wc -l` and both name this file, deliberately.** `grep -c` counts
+> LINES, not citations, because at least one line here carries four bare citations at once; and
+> `#111`'s repo-wide `grep -rno` returns thousands, of which 111 is this file's share. Earlier
+> revisions of this paragraph published both of those errors - a mis-counting instrument inside the
+> document about mis-counting instruments.
+>
+> ## Why no citation is repointed
+>
+> **`#111` IS APPLIED HERE, NOT OVERRULED.** It ruled `docs/plans` a RECORD: all sixteen units
+> U0-U15 are built, nothing executes this document any more, and its citations stand as written,
+> the same standing as a worklog. **Not one is moved.** What changes is the document's DECLARATION
+> about them, a live claim of fact rather than a record of a past decision - and `#111`'s own reason
+> is that a wrong sha *"would turn a document that is honestly out of date into one that is
+> confidently wrong"*. A declaration naming one frame for a two-frame document already is that
+> failure, read from the other end.
+>
+> Repointing the bare citations to `c15b138` was the other candidate remedy and is **REFUSED**: it
+> is the move-the-orphan-to-match shape ADR-0017 rejected, and it would be correct only until
+> `DESIGN.md` moved again. It has moved five times since `c15b138`, and the shas are written out
+> because an endpoint like `HEAD` is reader-relative and goes stale the same way a count does:
+>
+>     git log --oneline c15b138..d1f1a52 -- docs/DESIGN.md
+>     8a9d63c  aca9397  86ab20e  e3b5c97  d1f1a52
+>
+> If this plan ever becomes live again - a new unit is planned - the remedy is to replace the
+> numbers with subject phrases, as `OBLIGATIONS.md` did at `afaf226` and `ci.yml` did at `b4ddc57`,
+> not to repoint them.
+>
+> **The frames above concern citations into `DESIGN.md`.** This file also cites `tech-stack.md`,
+> `STANDARDS.md` and `CREDENTIAL-CHECKLIST.md` in the bare form; neither blob has anything to say
+> about those.
 where the eight-ADR batch landed - no open Critical,
 High or Medium findings and an empty must-mitigate table (`DESIGN.md:1846`). **The design being
 frozen changes what this plan is:** from here only a numbered ADR may change `DESIGN.md`, so a
@@ -247,12 +325,19 @@ exists to avoid, and the sweep is what proves it can fail without choosing its o
 
 ## 1. The count that governs the test plan
 
-§8's required-cases list holds **25 bullets**, spanning `DESIGN.md:1264` through `:1306`. I
-re-derived this mechanically against `9d65cc0` - extracting every top-level bullet between the
-*"Required cases"* header and the *"Transport substitution uses"* paragraph - rather than
-incrementing draft 1's 24, because a hand-carried count is the defect this project has spent the
-day repairing. The new member is **#18**, the SIGTERM teardown case Q2 added; everything below it
-shifted by one.
+§8's required-cases list holds **25 bullets**. It was derived mechanically - extracting every
+top-level bullet between the *"Required cases"* header and the *"Transport substitution uses"*
+paragraph - rather than by incrementing draft 1's 24, because a hand-carried count is the defect
+this project has spent the day repairing. **This sentence used to name a line span
+against a third blob, and that span is DELETED because it resolved nowhere**: it held 0 top-level
+bullets at the blob it named, 12 at `135c3ac` and 13 at `c15b138`, none of them 25. The digits are
+not repeated here - quoting a deleted citation leaves it in the file and in every selector that
+counts citations, which is the finding rebuilding itself inside its own remedy; `git log -p` has
+them if anyone needs them.
+
+The 25 is NOT deleted with the span, because it is checkable and it checks out: the table below
+spans row 1 to row 25, and that same span at `135c3ac` holds exactly 25 top-level bullets. The new
+member is **#18**, the SIGTERM teardown case Q2 added; everything below it shifted by one.
 
 Several cases are multi-arm and are **not satisfiable by a single arm**, which the list says in its
 own text:

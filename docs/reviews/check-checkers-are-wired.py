@@ -418,16 +418,71 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     # A gate refuses; these report. Wiring one would turn a number
     # somebody has to read into a build failure, which is how a real
     # measurement gets deleted rather than acted on.
+    "probe-218-frame-census.py": (
+        "a CENSUS of #218's two reference frames, and a census cannot "
+        "refuse. It resolves all 166 DESIGN.md citations in "
+        "IMPLEMENTATION-PLAN.md at 135c3ac and at c15b138 and reports "
+        "which blob each one belongs to. There is nothing to fail on: "
+        "the plan is a RECORD under #111, its citations are NOT "
+        "repointed, and a red here would demand a repoint the ruling "
+        "forbids. Its VERDICT is prose in the plan's own declaration, "
+        "which is where a reader meets it. Kept runnable because it is "
+        "the evidence for that declaration and prose about a "
+        "measurement decays into a claim about one; --controls fires "
+        "6/6. It carries 31 hand-adjudicated rows because its token-"
+        "overlap proxy cannot settle every citation, and a proxy that "
+        "needs a human for 31 of 166 is not a gate."
+    ),
+    "profile-harness-phases.sh": (
+        "a PROFILER. It times the phases of one harness row and prints "
+        "shares; there is no pass or fail in it, and a step that cannot "
+        "fail guards nothing. Its number - execution is 96.6% of a "
+        "75,879ms U9 row, collection 3.2% - is the evidence for #238 "
+        "choosing per-mutation test selection over collection reuse, "
+        "and prose about a measurement decays into a claim about one. "
+        "Re-run it when a harness changes shape; it is not a property "
+        "of the tree that can regress."
+    ),
+    "coverage-test-map.py": (
+        "it DERIVES a map from coverage.json - which source file each "
+        "test touches - and a derived record decays silently, so it "
+        "must be regenerated in the run that consumes it rather than "
+        "checked as a fixture. Wiring it would gate the trunk on a "
+        "map nothing yet reads. It becomes wired when #238 makes the "
+        "map load-bearing, and this row is the record that it is not "
+        "yet. NOTE ITS TWO MEASURED TRAPS: coverage with branch=true "
+        "puts data under `arc`, not `line_bits`, and reading the wrong "
+        "key returns a CLEAN ZERO with a plausible story; and an "
+        "autouse fixture makes a file look 888-covered until the "
+        "SETUP and TEARDOWN phases are excluded."
+    ),
+    "probe-240-selected-row.sh": (
+        "a TWO-ARMED PROOF of one row, not a gate. It replays U9 row "
+        "A1 against the 156 tests covering its file: ARM1 intact rc=0 "
+        "156 passed, ARM2 amputated rc=1 13 failed, then restores and "
+        "cmp-checks the tree. It exists to show that per-mutation "
+        "selection PRESERVES A VERDICT rather than to assert it, and "
+        "the intact arm is a negative control - without it a red in "
+        "ARM2 could be a broken selection rather than a catch. It "
+        "proves ONE row of ONE harness; rows A2 onward and the other "
+        "harnesses are unproven, which is why it is a probe and not a "
+        "guarantee. It mutates the tree, so it must not share a job "
+        "with the harness it replays."
+    ),
     "check-merge-invented.py": (
         "its own docstring: it reports a population to READ, and a "
         "reflow that re-wraps a paragraph surfaces there as many "
         "'invented' lines while the sentence is unchanged. Wiring it "
         "as-is would fail the build on formatting. Whether "
         "merge-invented content should be GATED, and at what "
-        "threshold, is Tier 0's ruling and is open on task #222; the "
-        "instrument ships first so the ruling is made on a "
-        "measurement. It carries `--strict` for the day that ruling "
-        "arrives, and `--self-test` plus `--synthetic-test` are "
+        "threshold, WAS Tier 0's ruling and is now MADE: RULING-231B "
+        "refuses --strict as a zero-demand and adopts a set-ratchet "
+        "over (merge, path) pairs. WHAT IS OPEN IS THE BASELINE, NOT "
+        "THE RULING. It is not written because 109 of the 122 invented "
+        "lines are genuine content, measured by review-231b, and nobody "
+        "has READ one of them as prose - a baseline over an unread "
+        "population records noise as accepted debt. Wiring follows the "
+        "baseline. --strict, --self-test and --synthetic-test are all "
         "runnable now."
     ),
     "measure-xref-population.py": (
