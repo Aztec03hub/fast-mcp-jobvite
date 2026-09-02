@@ -296,8 +296,32 @@ Two runs, the same 16 jobs and the same workflow structure:
 per-job queue wait, job start minus run start, read from
 `/actions/runs/{id}/jobs`. maxQ tracks gap almost exactly in BOTH rows -
 305 against 306, then 5 against 6 - so the gap is queue wait and nothing
-else. Sixteen concurrent jobs got runners immediately on the second
-draw, so there is no ceiling at sixteen: the first run simply queued.
+else.
+
+**AND THE 306s IS ONE JOB, not a spread.** #244 read the per-job waits:
+twelve jobs started within 4s, three more at 30s/51s/56s, and Harness
+U5+U8 waited 305s. Its `q_own` is 304s, so it was created with the rest
+and simply got no runner. 846 = 305 queued + 540 running, and the pole
+was the job queued longest.
+
+**WHAT NEITHER RUN ESTABLISHES IS A CEILING.** I first wrote here that
+sixteen jobs getting runners in 5s meant "there is no ceiling at
+sixteen". That over-claims from one draw, and #244 over-claimed the
+other way from its own single draw ("observed capacity: 12"). One clean
+draw no more disproves a ceiling than one bad draw proves one; both
+statements are withdrawn.
+
+What the two runs DO establish, and it is the more useful claim: hosted
+concurrency here is SHARED AND VARIABLE. `GET /orgs/evolvconsulting`
+reports `plan.name = "free"`, whose hosted-runner concurrency is an
+ORG-WIDE limit shared with the sibling repositories - it is not this
+repository's to spend. So the same 16-job shape can cost 305s of queue
+or 5s depending on what the rest of the org is doing, and no measurement
+taken from inside this repo can pin the number.
+
+That is enough to settle the lever without a ceiling: WIDENING THE
+FAN-OUT IS A BET ON A SHARED RESOURCE WE DO NOT CONTROL AND CANNOT
+MEASURE. Cutting row cost is not.
 
 Two things follow, and the second is a correction to this document's own
 headline. Widening the fan-out is NOT ruled out by a ceiling, though two
@@ -311,14 +335,33 @@ in both the queued and the unqueued case; adding JOBS helps only in the
 unqueued one. So the 17 bare invocations below are the first lever
 whichever way the queue falls.
 
-**What is left un-taken, and now looks larger.** Half the harness
-invocations never received the per-row selection this branch is built on:
-of 33 real `ci-harness-gate.sh` calls in ci.yml, 16 carry `--row-re` and
-17 are bare. Both harnesses in the 540s pole job are bare; so is the
-single harness in the 499s U3 job. #240 measured selection at 10s vs 76s
-on U9 row A1 with an identical verdict. That gap, applied to the 17, is
-the most likely route to the mandate, and it is a bigger lever than the
-33s secret-scan move this section previously called the remaining knob.
+**~~What is left un-taken~~ - WRONG, AND THE ERROR WAS A BROKEN PROXY.**
+This paragraph said half the harness invocations "never received the
+per-row selection this branch is built on", counting 16 of 33
+`ci-harness-gate.sh` calls as carrying `--row-re` and 17 as bare. The
+count is right and the INFERENCE is wrong, because `--row-re` does not
+mean what I read it to mean.
+
+`scripts/ci-harness-gate.sh:45` documents it: `--min-rows N --row-re RE
+require at least N lines matching RE`. It is a ROW-COUNTING assertion
+over the harness's OWN OUTPUT - it says how many result lines must
+appear, and it has nothing to do with which TESTS a row runs. I used a
+gate-side counting flag as a proxy for harness-side test selection, and
+the two are unrelated. The bare/flagged split says nothing about
+selection at all.
+
+MEASURED INSTEAD, by reading the harnesses (#244): EIGHT controls
+harnesses - U5, U8, U10, U12, U14, U9, U7 and body-cap - were ALREADY
+selecting one test per row, all along. And in those eight the cost was
+never execution: `uv run --frozen` overhead is 0.02s and a single
+selected test is 0.24s against 9.28s for a whole suite. What they were
+actually doing was starting TWO pytest processes per row, a
+`--collect-only` pre-flight and then the real run. The lever was one
+fewer PROCESS, not narrower selection.
+
+This is left as a struck-through correction rather than deleted, because
+the wrong inference drove a brief and two agent messages, and a reader
+who saw those needs to find the retraction where the claim was.
 
 ## 7b. The three ci/237-audit items, settled
 
