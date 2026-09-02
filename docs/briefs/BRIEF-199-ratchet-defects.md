@@ -63,10 +63,17 @@ no owner, and no way for a line to age out.
 
 R20 also established the sharper half: **the "designed to expire"
 mechanism does not fire by itself.** It goes red and WAITS FOR A HUMAN.
-A human cleared it three times tonight - `REVIEW-CHECKLIST.md`,
-`WORKLOG-187-floor-container.md`, `REVIEW-R20.md` - and **the record is
-empty right now**, which is both the proof the design works and the
-proof that it needs someone.
+A human cleared it three times tonight - one phantom name that a regex
+invented, one in-flight worklog, and one in-flight review report - and
+**the record is empty right now**, which is both the proof the design
+works and the proof that it needs someone.
+
+(Those three are NAMED in the git history of
+`brief-report-refs-known-missing.txt`, not here. Writing a report's
+BASENAME into a brief makes the brief CITE it, and this gate then
+requires it to exist - which is exactly what happened when this brief
+first named them: it went red on its own prose. That is the gate being
+right, and it is worth knowing before you widen the selector in #200.)
 
 WHAT TO DECIDE, and I am not pre-deciding it: a reason could be
 REQUIRED, or a date could be required and lines aged out, or the file
