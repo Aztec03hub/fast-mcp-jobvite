@@ -136,7 +136,14 @@ report() {  # $1 = label, $2.. = the test ids this row MUST kill
   # forever, and a hang is indistinguishable from a slow run until someone
   # looks. The interlock in tests/test_server.py fixes that specific case;
   # this cap is what stops the NEXT one costing half an hour.
-  timeout "$ROW_TIMEOUT" env PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE \
+  # The row's whole verdict is "does every MUST_DIE assertion die", and
+  # those ids were DERIVED BY MEASUREMENT from full-suite runs (see the
+  # note above), so the row runs exactly them (#238). The survivor test
+  # below is unchanged; an id that stops resolving yields no PASSED line
+  # and cannot fake a death, and the BASELINE still verifies every id
+  # against the intact $SUITE first. Before #238 each row ran all five
+  # $SUITE files: ~15 rows x ~25s made this step 620s in CI.
+  timeout "$ROW_TIMEOUT" env PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest "${must_die[@]}" \
     -p no:cacheprovider -q -rA >"$WORK/out.txt" 2>&1
   local rc=$?
   restore

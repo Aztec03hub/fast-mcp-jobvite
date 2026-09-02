@@ -81,7 +81,13 @@ if [ -n "$(git status --porcelain -- "$CLIENT")" ]; then
 fi
 
 echo "########## BASELINE - the intact tree"
-timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+# The baseline doubles as a per-test coverage map build (#238): each row
+# below runs only the tests that executed the amputated lines, selected
+# from this same run of this same tree, so the map cannot be stale. A row
+# with no in-process coverage of its lines falls back to the whole $SUITE.
+COVDB="$(mktemp /tmp/u4-amp-covdb-XXXXXX)"
+COVERAGE_FILE="$COVDB" timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
+  -p no:cacheprovider --cov --cov-context=test --cov-report= --cov-fail-under=0 >"$OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -122,6 +128,21 @@ amputate() {
 
   echo "########## $label"
 
+  # Selection from the PRISTINE file, before the mutation lands. Exit 4 =
+  # no in-process coverage, fall back WIDE to $SUITE; any other selector
+  # failure is a broken precondition and aborts loudly.
+  local sel sel_rc
+  sel=$(printf '%s' "$old" | COVERAGE_DB="$COVDB" \
+    python3 scripts/lib/select-covering-tests.py "$file")
+  sel_rc=$?
+  if [ "$sel_rc" -eq 4 ]; then
+    sel="$SUITE"
+    echo "  (no in-process coverage of these lines; running all of $SUITE)"
+  elif [ "$sel_rc" -ne 0 ]; then
+    echo "  SELECTOR FAILED (rc=$sel_rc) - fix the harness. STOPPING."
+    exit 3
+  fi
+
   if ! OLD="$old" NEW="$new" FILE="$file" python3 - <<'PY'
 import os, pathlib, sys
 p = pathlib.Path(os.environ["FILE"])
@@ -153,7 +174,10 @@ PY
   # `return`s above are exactly where they diverge.
   HR_APPLIED=$((HR_APPLIED + 1))
 
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
+  # Which tests executed the amputated lines (see the BASELINE note). The
+  # selection was computed BEFORE the mutation landed, from the pristine
+  # file. shellcheck disable=SC2086 -- $sel is a space-separated node list
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
   if [ "$rc" -eq 124 ]; then
     echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"

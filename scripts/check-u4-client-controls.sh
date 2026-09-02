@@ -116,8 +116,16 @@ PY
     return
   fi
 
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rf >/tmp/u4-mut.txt 2>&1
+  # The mutation question is "does the NAMED test notice", so the row runs
+  # exactly that node (#238). The verdict grep below is unchanged; a node
+  # that no longer resolves produces no FAILED line and the row reports
+  # SURVIVED, loudly - a renamed killer cannot pass silently. Before #238
+  # this ran the whole of $SUITE per row: 19 rows x ~24s on the runner.
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest "$SUITE::$want" -q -p no:cacheprovider -rf >/tmp/u4-mut.txt 2>&1
   local rc=$?
+  if [ "$rc" -eq 4 ]; then
+    echo "  NOTE: pytest exit 4 - the selector $SUITE::$want resolved no test."
+  fi
   if [ "$rc" -eq 124 ]; then
     echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
     echo "  not a survivor: no verdict below is a measurement of this row."

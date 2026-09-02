@@ -12,12 +12,17 @@
 # silently deleted test in this unit leaves every gate green, so this
 # harness is standing where a required case stands elsewhere.
 #
-# THE WHOLE SUITE IS RUN FOR EACH ROW, not this unit's file. That is
-# deliberate and it is what "does ANYTHING notice" means: an amputation
-# run against only the tests written for it answers the mutation
-# question a second time. It also catches the case that would be
-# invisible otherwise - a U9 behaviour whose removal breaks somebody
-# ELSE's assertion, which is coverage this unit did not know it had.
+# EACH ROW RUNS THE TESTS THAT EXECUTED THE AMPUTATED LINES, selected
+# from a coverage map the BASELINE below builds on this same tree
+# (#238). The question is still "does ANYTHING notice": a test that
+# never executes the amputated statements cannot go red because of
+# them, so the covering set - which crosses unit boundaries, including
+# somebody ELSE's assertion that happens to exercise this file - gives
+# the identical verdict to a full-suite run at a fraction of the cost.
+# Before #238 the full 888-test suite ran per row and this step alone
+# cost 1270s in CI (run 33582613697). The fail-safe direction is wide:
+# a row whose lines NO in-process test covered runs the FULL suite,
+# and a selector precondition failure aborts the harness loudly.
 #
 # WHAT IS DELIBERATELY NOT AMPUTATED HERE:
 #
@@ -82,7 +87,12 @@ echo "########## BASELINE - the intact tree"
 # messages and DIFFERENT exit codes: "never finished" and "finished red" need
 # different diagnoses, and this project has been bitten before by two states
 # that render identically.
-timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+# The baseline doubles as the map build: --cov-context records which test
+# executed which line, and each row below selects its tests from exactly
+# this run of exactly this tree - the map cannot be stale by construction.
+COVDB="$PRISTINE_DIR/covdb"
+COVERAGE_FILE="$COVDB" timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q \
+  -p no:cacheprovider --cov --cov-context=test --cov-report= --cov-fail-under=0 >"$OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
   echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
@@ -112,6 +122,23 @@ amputate() {
   ROWS=$((ROWS + 1))
 
   echo "########## $label"
+
+  # Which tests executed the lines this row is about to amputate. Read
+  # from the PRISTINE tree before the mutation lands. Exit 4 means "no
+  # in-process coverage" and falls back WIDE to the whole suite; any
+  # other failure is a broken precondition and aborts - a selection
+  # computed from a wrong precondition is a silent wrong zero.
+  local sel sel_rc
+  sel=$(printf '%s' "$old" | COVERAGE_DB="$COVDB" \
+    python3 scripts/lib/select-covering-tests.py "$file")
+  sel_rc=$?
+  if [ "$sel_rc" -eq 4 ]; then
+    sel="$SUITE"
+    echo "  (no in-process coverage of these lines; running the full suite)"
+  elif [ "$sel_rc" -ne 0 ]; then
+    echo "  SELECTOR FAILED (rc=$sel_rc) - fix the harness. STOPPING."
+    exit 3
+  fi
 
   # SC2155: declared and assigned separately.
   local backup
@@ -147,7 +174,8 @@ PY
   # `timeout` is a guard, not a policy. Every row here is believed
   # bounded, and a row that hangs anyway must report rather than stall
   # the gate.
-  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rf \
+  # shellcheck disable=SC2086 -- $sel is a space-separated node-id list
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rf \
     >"$OUT" 2>&1
   local rc=$?
 

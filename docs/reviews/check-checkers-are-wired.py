@@ -717,6 +717,16 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "on purpose. Its `--check` mode is the read-only half and is "
         "reached through `ci-harness-gate.sh`."
     ),
+    "select-covering-tests.py": (
+        "a per-row test SELECTOR, not a gate: it prints the pytest node "
+        "ids whose execution touched the lines an amputation is about "
+        "to mutate, from a coverage map its calling harness built in "
+        "its own baseline (#238). It is reached through the converted "
+        "harnesses (check-u9-http-amputation.sh, "
+        "check-u4-client-amputation.sh), which abort loudly on its "
+        "exit 2 and fall back to the full suite on its exit 4. Run "
+        "alone it measures nothing about the tree."
+    ),
     "repoint_exempt.py": (
         "a MODULE, not a script: it is the register that grants "
         "citation exemptions and it is imported by the gates that are "

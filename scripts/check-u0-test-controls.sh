@@ -125,8 +125,24 @@ run_control () {
     BAD=$((BAD + 1)); rm -rf "$work"; return
   fi
 
+  # The row's verdict is "did $expect fire", so the row runs the FILE that
+  # defines $expect rather than the whole suite (#238; each full run cost
+  # ~80s and this step alone was 927s in CI run 33582613697). The file is
+  # DERIVED from the expectation inside the copy, never typed beside it,
+  # so a moved test moves the selection with it - and an expectation whose
+  # definition cannot be found is a broken row, not a green one. Both
+  # verdict branches survive the narrowing: $expect failing still names
+  # itself, and a mutation $expect does not notice still exits 0. The
+  # BASELINE above stays a full run of the copy on purpose - "the staged
+  # tree is wholly green" is its claim, once, not per row.
+  local expect_file
+  expect_file=$(cd "$work" && grep -rl "def $expect" tests/ | head -1)
+  if [ -z "$expect_file" ]; then
+    echo "    NO FILE DEFINES $expect in the copy - this row cannot measure."
+    BAD=$((BAD + 1)); rm -rf "$work"; return
+  fi
   local out rc
-  out=$(cd "$work" && timeout -k 30 "$ROW_TIMEOUT" "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
+  out=$(cd "$work" && timeout -k 30 "$ROW_TIMEOUT" "${PY[@]}" -m pytest "$expect_file" -q -p no:cacheprovider 2>&1); rc=$?
   # A HANG IS NOT A RESULT. Without this branch a 124 falls through to the
   # `$expect` test below, where `$out` is empty, and the row reports "WRONG
   # TEST FIRED" - a real failure with a misleading cause. `TIMED OUT` is the
