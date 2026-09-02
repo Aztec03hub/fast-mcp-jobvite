@@ -1,0 +1,831 @@
+# FINDINGS #170 — the retyped-count container, measured
+
+<!-- REVIEW-COVERS: e845839..1cddd76 PATHS: docs pyproject.toml CONTRIBUTING.md .github/workflows -->
+
+**Measured at `1cddd76` unless a line says otherwise. The branch was
+later REBASED onto `origin/main` `642a3cf` — the first green trunk this
+project has had — and F1, F8 and F9 were re-derived there. The container
+figures in §0 are from `d30f1e1` on the pre-rebase base and are marked
+as such; they move with every commit and are not re-typed here.** The census tool
+is `docs/reviews/probe-170-retyped-counts.py`, committed on this branch;
+every number below is reproducible by running it. **DO NOT PUSH** — a CI
+run was in flight when this was written and nothing here has been pushed
+or merged.
+
+## §0 — THE CONTAINER, BEFORE ANY FINDING
+
+Nobody had this number. Here it is, at `d30f1e1` (this branch, one
+commit after `1cddd76`; the tool's own file adds candidates, which is
+disclosed rather than hidden):
+
+| Stage | Count | Files |
+|---|---|---|
+| tracked files | 485 | — |
+| skipped as binary/unreadable | **0** | — |
+| number-beside-plural adjacencies | **20,566** | 470 |
+| …whose noun is ENUMERABLE | **6,762** | 432 |
+| …of those, inside a DATED RECORD | **4,401** | — |
+| …**LIVE, and therefore checkable** | **2,361** | **298** |
+| …of those carrying a QUANTIFIER (`all`/`every`/`none`/`only`/`both`/`no`) | **530** | — |
+| …of those whose noun is a GLOB, so the true figure is MECHANICAL | **28** | — |
+
+**The last row is the one that got fully derived.** A glob names a set by
+construction, so `--derive` counts the tracked files it matches and
+compares. Every other noun needs a human to say which set it names, and
+2,361 sentences is not a night's reading — so §2's coverage is stated
+honestly in §5 rather than implied.
+
+**Population by kind, never by path** (#115). The tool reads every
+tracked text file: BASH-1 lived in a markdown table cell, #116's figures
+lived in shell comments and Python docstrings, and `pyproject.toml`
+below is a TOML comment. A `docs/*.md` filter would have found none of
+those three.
+
+### The zero was a finding about my selector, twice, and once it mattered
+
+**THE FIRST VERSION MISSED A LIVE THREE-NUMBER FINDING IN ITS OWN
+MOTIVATING FILE.** `docs/OBLIGATIONS.md:161` hard-wraps `13 of the 15`
+onto one line and `` `scripts/*.sh` exceed 100 lines `` onto the next. A
+line-based scan cannot see the pair. Joining each line with its
+successor moved the LIVE container **1,960 → 2,361**: the first census
+understated itself by 19% and reported nothing about the file BASH-1
+came from. That case is now self-test arm 8.
+
+Two more selector faults, each of which returned a **plausible wrong
+noun** rather than none — the dangerous kind:
+
+- a lazy noun regex truncated `assertions` to `as` and
+  `` `scripts/*.sh` `` to `scripts`;
+- a greedy one truncated the same glob to `scripts/*.s`.
+
+And one that produced a **clean zero that explained itself**: accepting
+any token with `/` and `*` as a glob admitted `6/min**` and `L/I.**` —
+markdown bold read as a path — each deriving a confident population of
+**0**.
+
+15/15 self-test arms pass, and all three historically measured instances
+(#116, #166, BASH-1) are planted and required back.
+
+## §1 — TWO INSTRUMENTS DISAGREE ABOUT `scripts/*.sh`, AND IT IS NOT ROUNDING
+
+Before any finding that cites this glob:
+
+    git ls-files -- 'scripts/*.sh'   ->  39
+    shell / PurePosixPath glob       ->  38
+
+A git pathspec wildcard **crosses `/`**, so it admits
+`scripts/lib/harness-result.sh`; a shell glob does not. BASH-1's own fix
+at `d0bdf2a` counted **39** and named that file as one of them, so git's
+reading is the one this repository means. `--derive` prints both
+whenever they differ, because a glob whose population depends on which
+tool reads it should not have a side picked for it silently.
+
+## §2 — FINDINGS, in the three classes the brief names
+
+### Class B — stale AND the surrounding claim is false. Rewrite the claim, do not swap the digit.
+
+---
+
+**F1 (HIGH) — `docs/DESIGN.md:2063` and `:2067`: "all eleven ADRs" / "eleven ADRs", against 33.**
+
+Derived at `1cddd76`: `git ls-files 'docs/adr/0*.md'` → **33**.
+
+This is #166's exact finding, in the document the two files it fixed
+both describe. #166 corrected `docs/README.md:22` and
+`docs/adr/README.md:7` — **both verified clean here, see §3** — and did
+not reach `DESIGN.md`, which says it twice.
+
+**AND THE WORD "all" IS FALSE INDEPENDENTLY OF THE NUMBER, which is why
+replacing 11 with 33 is the wrong fix.** `:2063` claims recording a
+deviation from a `priority: required` standard "is the job all eleven
+ADRs below do".
+
+**THIS IS MECHANICAL, NOT A READING — and my first pass under-stated it
+by naming six examples instead of deriving.** Every one of the 33
+carries a `Type:` field, so the claim can be counted:
+
+    17  Design change
+    14  Deviation
+     1  Standards deviation                     (ADR-0023)
+     1  Correction to a contract statement ...  (ADR-0022)
+
+**15 of 33 record a deviation. 18 do not.** A cell reading "all 33 ADRs"
+would still assert every member is a deviation, which is the same
+mistake BASH-1 made. Boarded as task **#179**, with no owner, because it
+blocks on a ruling rather than on effort.
+
+---
+
+**F8 (MEDIUM) — `docs/README.md:22`: "From ADR-0012 each carries a `Type:` field."**
+
+Derived at `642a3cf`: **all 33 carry it, ADR-0001 included**
+(`docs/adr/0001-target-fastmcp-4-beta.md:4` is `**Type:** Deviation`).
+Every file matches `grep -lE '^\*\*Type:\*\*'` — 33 of 33.
+
+**THIS IS THE SAME TABLE CELL #166 REPAIRED.** #166 deleted "Eleven
+decision records" from the first half of `docs/README.md:22` and left
+the second half of the same cell asserting a boundary that does not
+exist. A rewrite that fixes the number in a sentence and leaves the
+adjacent claim standing is the failure mode "a rewrite loses
+sentence-sized findings" describes, and this is a measured instance of
+it inside a cell somebody had already opened.
+
+**STILL LIVE at `cd1ad92`**, and now false over 34 rather than 33 —
+ADR-0034 did not touch it, because it is a different file from the one
+the ADR was written about.
+
+**Suggested fix — delete the clause, do not repair the boundary:**
+
+> `adr/`| The decision records, each citing the clause it deviates from.
+> `adr/README.md` explains the two jobs an ADR does here, and every
+> record carries a `Type:` field.
+
+---
+
+**F9 (LOW as first written; ESCALATED to HIGH below; RULED and LANDED at `d29937f`) — the `Type:` vocabulary has published values that ADRs sit outside.**
+
+**THIS FINDING SAID "EXACTLY TWO" AND THAT WAS WRONG. It is THREE.**
+`docs/adr/README.md:12` publishes the field vocabulary in one sentence —
+*"Every ADR carries a `Type:` field - `Deviation`, `Design change`, or
+`Both`"* — and I read the two NUMBERED HEADINGS at `:5` and `:9`
+instead, which enumerate the two *jobs*, not the field's values.
+Corrected by Tier 0 and re-verified here.
+
+**THAT IS THE SAME DEFECT AS THE `harness-result.sh` ONE, A SECOND
+TIME, IN THE SAME REPORT.** There I inherited an exception across two
+different rules; here I read one half of a paired source — a numbered
+list — and took it for the whole. Both are *reading a neighbour instead
+of the source*, and both produced a confident, specific, wrong number in
+a document about confident, specific, wrong numbers.
+
+**It does not weaken F9; it sharpens the "do not gate this yet" note.**
+`Both` is published and used by **zero** of the 34 ADRs
+(`grep -lE '^\*\*Type:\*\* *Both *$'` returns nothing). A checker over a
+vocabulary with a dead member is a gate encoding a guess about whether
+the member is aspirational or abandoned. Tier 0 recorded `Both` as
+explicitly unruled.
+
+At the time of the finding, three ADRs carried something outside it:
+
+- `docs/adr/0023-harnesses-drop-e-from-strict-mode.md` — `Standards
+  deviation`
+- `docs/adr/0022-no-cookie-jar-is-a-disable-not-an-omission.md` —
+  `Correction to a contract statement that an implementer can satisfy
+  while shipping the defect it was written to prevent`
+
+Not a stale count — a **published vocabulary with unlisted members**,
+which is the class ADR-0033 exists to name. It matters here because F1's
+suggested fix says "the `Deviation` ADRs", and whether those two are
+Deviations under another spelling or a third class changes that wording.
+Recorded on **#179** as a rider for whoever writes the ADR.
+
+**Suggested fix:** either normalise ADR-0023 to `Deviation` and give
+ADR-0022 a real third value that `adr/README.md` lists, or state in
+`adr/README.md` that the field is free text and nothing reads it. **Do
+not add a checker for it** until someone rules which — a gate over an
+undecided vocabulary is a gate that encodes the guess.
+
+#### F9 ESCALATED to HIGH by the fix for F1, verified at `cd1ad92`
+
+**F1 is CLOSED.** ADR-0034 landed at `e3b5c97`, DESIGN.md was re-frozen
+at `c0f1524`, and I verified it rather than taking the report's word:
+`grep -n 'eleven ADRs' docs/DESIGN.md` returns **nothing**; the repaired
+text carries **no count at all** (`grep -oE 'eleven|33|34'` over the
+section is empty), and it says *"NOT all of them"* outright. The declared
+freeze `e3b5c97` and the working blob both hash to `2539d80`. That is
+#166's ruling applied correctly at the third and fourth sites.
+
+**AND THE FIX REBUILT THE DEFECT ONE COLUMN OVER.** DESIGN.md now reads:
+
+> This is the job the **`Type: Deviation`** ADRs below do - NOT all of
+> them, and the count is deliberately not written here
+
+**That makes the `Type:` field LOAD-BEARING IN THE FROZEN DESIGN**, and
+its vocabulary still has two published values and now **three** members
+outside them — because **ADR-0034 itself added the third**:
+
+    17  Design change
+    14  Deviation
+     1  Standards deviation                              (ADR-0023)
+     1  Correction to a contract statement ...           (ADR-0022)
+     1  Correction to a count that is false about its
+        own subject                                      (ADR-0034)  <-- NEW
+
+**ADR-0023 is a deviation from a `priority: required` standard** — it
+records dropping `-e` against `devops/bash.md:36-41`, which is the exact
+job DESIGN.md's repaired sentence describes. But its Type string is
+`Standards deviation`, so **any reader or checker selecting
+`Type: Deviation` misses it.** The sentence written to stop a false
+claim about ADRs is now itself false about one ADR, by one word.
+
+This is the shape the project already records: *a fix rebuilds its own
+defect one column over.* The count was deleted correctly; the SELECTOR
+that replaced it was never derived.
+
+**Suggested fix, and it is small:** normalise
+`docs/adr/0023-harnesses-drop-e-from-strict-mode.md:4` to
+`**Type:** Deviation` — its body already argues it is one — and rule
+whether `Correction to ...` is a third published value or prose. **Only
+then** is a checker over the field worth having, and at that point it is
+worth having precisely because DESIGN.md now selects on it.
+`docs/DESIGN.md` is frozen again, so if the ruling is that ADR-0022 and
+ADR-0034 are a third class, the design sentence needs an ADR too.
+
+#### RULED AND LANDED at `d29937f`, verified at `38d8742`
+
+Tier 0 normalised the three outliers onto the vocabulary already
+published rather than minting a class — **ADR-0023 → `Deviation`,
+ADR-0022 → `Design change`, ADR-0034 → `Design change`** — and the
+census is now:
+
+    19  Design change
+    15  Deviation
+    34  total, every value published
+
+Verified here: `docs/DESIGN.md` is **untouched** and
+`check-design-freeze.py` exits 0, so the selector the frozen sentence
+names now selects exactly the 15 it was written for.
+
+**Normalising the ADRs made the frozen sentence TRUE rather than moving
+the sentence.** That is the cheaper direction and it avoids a second
+freeze cycle — the fix went to the 34 cheap artifacts instead of the one
+expensive one. Worth recording as a pattern, not just an outcome.
+
+**And ADR-0034's own body was rewritten IN PLACE rather than annotated**,
+because its census table went stale the instant the normalisation landed
+and its Consequences argued it was "a correction and not a Design
+change" against its own new Type. An ADR that hides the cost of its own
+fix is the artifact class this project keeps finding.
+
+**Still deliberately NOT ruled, and not to be touched:** whether a
+checker should gate the vocabulary. `Both` having zero users is the
+reason — nobody has decided the vocabulary is final.
+
+**Suggested fix — and it needs an ADR, because `DESIGN.md` is FROZEN**
+(freeze `5d17cd7`; the working tree blob `639f4b7` was verified
+identical to the freeze blob before reading). Proposed ADR text for §13:
+
+- `:2063` → "This is the job of the `Deviation` ADRs below, and it has
+  **nothing to do with the freeze**."
+- `:2067` → "That is why `Deviation` ADRs exist against a document that
+  is not frozen…"
+
+No count in either. That is #166's ruling — delete the number, do not
+replace it with today's — applied to the third and fourth sites.
+
+---
+
+**F2 (HIGH) — `docs/OBLIGATIONS.md:161-162`: "13 of the 15 `scripts/*.sh` exceed 100 lines; the largest is 469."**
+
+Derived at `1cddd76`:
+
+    tracked `scripts/*.sh`                 39 (git) / 38 (shell glob)
+    ...of those, over 100 lines            38
+    the largest                            598  (scripts/check-u1-boot-amputation.sh)
+
+**Three numbers stale in one sentence, in the same file as BASH-1, about
+the same population, fifteen lines below the row `d0bdf2a` had just
+fixed.** The section it heads exists to weigh `bash.md:799` honestly, and
+it currently weighs it against a population less than half the real one.
+
+The `13 of 15` framing also carries an implied claim that **two members
+are under the guideline**. Today the exception is **one**, and it is
+**`scripts/check-suite-floor.sh` at 66 lines**.
+
+**THIS SENTENCE FIRST NAMED THE WRONG FILE, AND THE MISTAKE IS THE ONE
+THIS WHOLE TASK IS ABOUT.** It said `scripts/lib/harness-result.sh` —
+reasoned across from BASH-1's own cell, which names that file as the
+legitimate exception to the `set -uo pipefail` rule. **It is a different
+rule.** `harness-result.sh` is 175 lines and is comfortably OVER the
+100-line guideline; being outside one rule buys nothing from another.
+Corrected by Tier 0's independent re-derivation and re-verified here:
+`git ls-files 'scripts/*.sh'` piped through `wc -l` returns exactly one
+member at or under 100, and it is `check-suite-floor.sh`.
+
+**A claim inherited from a neighbouring sentence instead of derived is
+the same defect as a count retyped from a neighbouring commit** — and
+`--derive` could not have caught it, because it derives glob POPULATIONS
+and this was a claim about a per-member PROPERTY with no derivation
+behind it at all. The headline figures either side of it (39 tracked, 38
+over, largest 598) were derived and all held.
+
+**Suggested fix — REWRITE, no count retyped** (this file is not mine to
+edit; §B of the brief reserves it):
+
+> **`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or
+> Go". Nearly every tracked `scripts/*.sh` exceeds 100 lines — derive it:
+> list them with `git ls-files 'scripts/*.sh'` and count those whose
+> `wc -l` exceeds 100. Do not assume the exception is the file BASH-1
+> names: that row is about `set -uo pipefail`, a different rule, and its
+> exception `scripts/lib/harness-result.sh` is 175 lines.**
+
+Landed by Tier 0 at `30be0ce` (local, held), re-derived rather than
+transcribed from this report — which is how the wrong file above was
+caught.
+
+---
+
+**F3 (MEDIUM) — `pyproject.toml:345`: "the file count moves 96 -> 105 and there are exactly 9 `scripts/*.py`".**
+
+Derived at `1cddd76`:
+
+    tracked `scripts/*.py`                       14 (git) / 13 (shell glob)
+    mypy `files` population, without `scripts`   122
+    mypy `files` population, with `scripts`      136
+
+All three numbers are stale and `exactly` is the quantifier that makes
+it a claim rather than an estimate.
+
+**But the digits are LOAD-BEARING EVIDENCE, not decoration:** `105 - 96
+= 9` is the arithmetic that justifies adding `"scripts"` to
+`tool.mypy.files`. Swapping in today's figures breaks nothing about the
+argument and everything about its tense — the measurement was made once,
+at a commit, and was correct then. **The remedy is tense, not
+arithmetic.**
+
+**Suggested fix** — one word, preserving the internal consistency:
+
+> `MEASURED BOTH WAYS AT THE TIME, because a nine-file addition
+> reporting ZERO errors under `strict = true` was a suspiciously clean
+> number. The file count moved 96 -> 105, the size of `scripts/*.py`
+> then; …`
+
+### Class A — merely stale. Delete the number, or derive it.
+
+---
+
+**F4 (MEDIUM) — `CONTRIBUTING.md:219`: "There are 847 `DESIGN.md:N` citations across 82 files".**
+
+Derived at `1cddd76` **by this repository's own checker**,
+`python3 docs/reviews/check-design-citations.py`:
+
+    1988 DESIGN.md citations across 216 files
+
+**Tier 0 read 1987 across 215 on the main checkout, and that is the SAME
+measurement, not a disagreement**: this branch carries one file the main
+checkout does not — the census tool itself, which quotes a citation.
+Recorded because two instruments differing by one is exactly the shape
+that should be explained rather than averaged, and Tier 0 used its own
+figure when it landed the fix.
+
+Stale by 2.3x in both figures. This sentence is live guidance: it is the
+argument a contributor reads to decide whether skipping the repointer
+matters. Understating it by 1,141 citations argues the wrong way.
+
+**Suggested fix — derive, do not retype**, exactly as `CONTRIBUTING.md`
+already does for the harness list twenty lines above it:
+
+> **The count is deliberately absent — derive it, because it moves with
+> every edit:** `python3 docs/reviews/check-design-citations.py` prints
+> the inventory. A five-line insertion moves most of them, so an edit
+> that skips this ships hundreds of wrong citations.
+
+---
+
+**F5 (LOW) — `.github/workflows/ci.yml:1143`: "18 checkers, 16 wired".**
+
+Derived at `1cddd76`: `docs/reviews/check-*.py` → **24**; and the
+container that comment's own subject now uses is **130 members, 71
+wired** (#153's widening). Not mine to edit — reported for Tier 0.
+
+**Suggested fix:** make it past tense and name the sha —
+"found by enumerating `docs/reviews/check-*.py` against this file at the
+time: 18 checkers, 16 wired" — or drop both digits and point at
+`check-checkers-are-wired.py`, which now prints the live figure.
+
+---
+
+**F6 (LOW) — `docs/reviews/check-checkers-are-wired.py:63`: "33 of the 34 probes here are unwired".**
+
+Derived at `1cddd76`: `probe-*` in that file's own container
+(tracked `.py`/`.sh` under `docs/reviews/` and `scripts/`) → **38**.
+
+The number is inside the bullet explaining #155's finding, so it is
+arguably a record of what #155 measured — but it sits in a live
+docstring with no date, in the file whose entire subject is that a
+container grows. **Suggested fix:** "`probe-*` was never in the
+population, so nobody was ever ASKED for a reason — at the time, 33 of
+34 probes here were unwired."
+
+---
+
+**F7 (LOW) — `docs/reviews/probe-wired-checker-amputation.py:38`: "23 Python probes".**
+
+Derived at `1cddd76`: `docs/reviews/probe-*.py` → **24**. Stale by one.
+It is the size of a container the file's ruling declines to widen into,
+so the digit does real work in the argument. **Suggested fix:** "Widening
+that container to the Python probes here would be a large unasked sweep".
+
+### Class C — inside a DATED RECORD. Correct as written, LEFT ALONE.
+
+Recorded so they are visibly considered rather than overlooked. #166
+measured this distinction and deliberately left `REPORT-147` §6's stale
+13 in place; the same ruling applies.
+
+| Site | Claim | Today | Left alone because |
+|---|---|---|---|
+| `docs/briefs/HANDOFF-2026-09-01-orchestration.md:52` | "Only 4 of 28 `docs/reviews/probe-*` files are wired" | **37** tracked; and task #155 records the truth as **1 of 30** | a dated handoff. It was already known wrong on its own date, which is exactly what a record preserves |
+| `docs/briefs/HANDOFF-2026-09-01-orchestration.md:185` | "(24 of 28 probes)" | 37 | same record |
+| `docs/reviews/COMPLIANCE-SPEC-PASS.md:260` | "`docs/` holds 8 research documents, 16 ADRs, 24 review documents" | 7 research `.md`, 33 ADRs, 147 entries under `docs/reviews/` | a dated conformance pass |
+| `docs/reviews/DESIGN-DELTA-REVIEW.md:37`, `DESIGN-FREEZE-REVIEW.md:26` | "32/32 controls fired", "34/34" | superseded by later rounds | review documents; each records one run |
+| `docs/DESIGN.md:1615` | "the conformance sweep found eleven consecutive documentation obligations unaddressed" | — | a past sweep's RESULT stated in the past tense, and `fourteen README sections` beside it is the STANDARD's number, not this repo's |
+
+### Class D — a historical justification inside a LIVE file. RULED AND ADOPTED.
+
+**Tier 0 ruled this class in, as framed.** It is neither a dated record
+nor a plain stale count: the file is load-bearing and undated, but the
+number is **evidence for a decision already taken**, so swapping the
+digit falsifies the argument it supports. The remedy is **TENSE** — say
+when it was measured — a fifth remedy distinct from delete, derive, and
+rewrite-the-claim. **F3, F5, F6 and F7 are class D and take it.**
+
+### RULING — `docs/briefs/` IS NOT a dated-record class
+
+Tier 0 ruled, on a precedent already on the books: `check-review-coverage.py`
+refuses `docs/briefs` as a RECORD path **by name**, because a brief
+INSTRUCTS an agent and has carried substantive rulings. One ruling, one
+place — briefs are not records for one tool and records for another. The
+conservative default this tool already used is therefore correct and
+stays: `RECORD_PREFIXES` does not admit them.
+
+**THE TWO RULINGS COMPOSE, and that is what settles the 41 brief
+candidates:**
+
+- a count in a brief **already dispatched and completed** is **class D**
+  — true at dispatch, and it justified a decision since taken. Tense,
+  not correction.
+- a count in a brief **still live and still steering an agent** is
+  **class A** — derive it or delete it.
+
+That is the rule to apply to the `docs/briefs/` remainder, and it is
+sharper than either ruling alone.
+
+## §3 — CHECKED, AND FOUND CORRECT
+
+Named because a findings list that only lists failures says nothing
+about how hard it looked.
+
+- **`docs/README.md:22`** — #166's "Eleven decision records" is **gone**;
+  the cell now reads "The decision records". The fix holds at `1cddd76`.
+- **`docs/adr/README.md:7`** — #166's "eleven ADRs" is **gone**; the
+  clause now reads "that is why the ADRs exist". Holds.
+- **`docs/README.md:25` "Seven reports"** — #166 cleared this and it is
+  **still right**: `docs/research/` holds exactly 7 `.md` files
+  (COMPLIANCE-SPEC, FASTMCP-SPIKE-4, FASTMCP, JOBVITE-API,
+  JOBVITE-CONTRACT, LICENSING-SURVEY, STANDARDS) plus 15 fixtures.
+- **`docs/README.md:26` "Six further gates"** — **still right**, and it
+  is self-enumerating: it names all six (design-freeze blob, no-errexit,
+  row-floor exactness, row-floor firing, citation-shape scan,
+  settings-are-read), so it can be checked by reading.
+- **`docs/OBLIGATIONS.md:146` (the BASH-1 cell itself)** — the
+  `--derive` pass flags "all 20 `scripts/*.sh`" here. **It is a
+  QUOTATION** of the text `d0bdf2a` removed, inside the sentence
+  explaining why it was wrong. Correct as written; a scanner cannot tell
+  a quotation from a claim and this one should not be "fixed".
+- **`docs/reviews/check-row-floor-exactness.py:201`** — flagged as
+  "CLAIMS 5 against 39". **False positive**: the 5 is `ROW_FLOOR=5` from
+  the neighbouring clause, and "Enumerating `scripts/*.sh`" carries no
+  count at all. Nothing to fix.
+- **`docs/reviews/lib/harness-state.sh:25` and
+  `docs/reviews/restore-stranded-mutation.sh:33`** — "every
+  `scripts/check-*.sh` writing its own state". **Correct**: a statement
+  about a hypothetical future change, carrying no population claim. 36
+  tracked members today, and the sentence would still be true at any
+  number.
+- **`docs/adr/0023:130` "only in `scripts/*.sh`"** — **correct**: a scope
+  statement, not a count.
+- **`docs/briefs/BRIEF-156-u1-boot-unguarded.md:44` "the other 36
+  `scripts/*.sh`"** — 39 tracked, the brief owns 1
+  (`scripts/check-u1-boot-amputation.sh`), so the arithmetic wanted 38.
+  **Reported as a nit only**: it is a dispatch document, dated, and its
+  purpose (do not touch scripts you do not own) is unaffected.
+
+## §4 — WHERE THIS BRIEF WAS WRONG
+
+1. **§A says to cut the worktree "from `origin/main`", and the command it
+   gives has no start-point** — so it branches from local `HEAD`.
+   Branching from `origin/main` would have been **wrong**: `d0bdf2a`,
+   the worked example §A tells you to read, is one of the three
+   local-only commits and is not on `origin/main`. The command is right
+   and the sentence above it is not. Fix: delete "from `origin/main`".
+2. **§A's canon list omits `docs/briefs/PREAMBLE.md`**, which
+   `PROTOCOL-sub-orchestrators.md` §1 makes the *first* thing a Tier-1
+   brief must order. It carries the evidence standards, the
+   derive-the-freeze-SHA rule and the delivery protocol. Fix: add it as
+   item 0.
+3. **§C says BASH-1 measured "39 tracked, 37 with the option".** True,
+   but `39` is only true under `git ls-files`; a shell glob gives 38.
+   §E asks every count to carry its container — it should also carry its
+   **instrument** when the two disagree (§1).
+4. **§E's suite figure (887 passed, 0 skipped) was RIGHT** — measured,
+   not assumed. Reported because a correction list that only lists
+   errors is its own kind of stale claim.
+5. Task #170's description is dated `2026-09-02` and `d0bdf2a` is
+   authored `Tue Sep 1 22:29:48 2026 -0500`. Not acted on; noted so the
+   next reader is not confused by a future-dated raise.
+
+## §4b — SECOND SWEEP: the floor and tally nouns, and the answer is CLEAN
+
+Dispatched by Tier 0 as the highest-value remainder, on the reasoning
+that `rows`/`arms`/`controls`/`citations` are where this project's floors
+live and **a stale one there is a floor carrying slack**. Measured at
+`b0040fd`.
+
+**The four nouns hold 619 live candidates** (`rows` 303, `arms` 190,
+`controls` 69, `citations` 57). Reading 619 sentences is not the answer;
+the answer is that a sub-class of them has a **mechanical derivation
+nothing in the tree currently reads.** `check-row-floors.py` compares a
+harness's internal `ROW_FLOOR` against `ci.yml`'s `--min-rows`, and
+`check-row-floor-exactness.py` compares the floor against the table.
+**Neither reads the PROSE.** So `--tallies` was built to compare a
+docstring's claimed count against the floor declared in the same file.
+
+**RESULT: 17 prose tallies in 11 files, and NOT ONE IS STALE.**
+
+- 10 agree exactly with their file's own `ROW_FLOOR`.
+- 7 differ, and **every one of the 7 is a dated narrative** — a class D
+  sentence already carrying the remedy class D prescribes. The largest
+  delta, `scripts/check-u7-resilience-controls.sh:557`, claims 26 against
+  `ROW_FLOOR=31` and says so itself: *"this harness printed '26/26
+  controls fired.' at 2b31e82, and that number went five rows stale
+  WITHOUT FAILING ANYTHING"*, then re-derives 31 two ways. Verified
+  independently: `grep -cE '^mutate "'` returns **31**, matching the
+  floor.
+
+**SO THE HARNESS FAMILY ALREADY APPLIES THE CLASS-D REMEDY, SYSTEMATICALLY.**
+That is the finding. The class Tier 0 ruled in was not invented for this
+report — the harnesses had converged on it independently, and the four
+documents in §2 are where it has not reached.
+
+### The zero is proved non-vacuous, and two false-positive classes were killed first
+
+**An empty finding list is a claim about the selector.** So:
+
+- **POSITIVE CONTROL (self-test arm 19):** a synthetic stale
+  `26 controls` is planted against `check-u7-resilience-controls.sh`'s
+  real floor and **must come back as `(floor 31, claimed 26)`**. It does.
+  The plant is synthetic rather than a tree mutation deliberately — a
+  harness that edits its own repository has to prove it restored, and
+  this proves the same property with nothing to restore.
+- **NEGATIVE CONTROL (arm 20):** a file declaring no `ROW_FLOOR` yields
+  **no tally**, rather than a `0` that would read as agreement.
+
+And the first two runs of `--tallies` were **wrong in the alarming
+direction**, which is why the clean result is only reportable now:
+
+1. **38 tallies, of which 14 were shell positionals.** `local
+   label="$1" file="$2" old="$3" new="$4"` sits one line above
+   `ROWS=$((ROWS + 1))` in nine amputation harnesses, so `$3` and `$4`
+   were read as "3 rows" and "4 rows" against floors of 14 and 20 —
+   deltas of −17 and −16, the top of the sorted list, every one a
+   variable.
+2. **Then 24, of which 7 were assignments.** `ROWS=0` beside `APPLIED=0`
+   read as a claim of "0 rows"; worse, **`ROW_FLOOR=15` was read as a
+   claim about the very floor it defines** — the instrument agreeing
+   with itself, which is the one agreement that proves nothing.
+
+Both are now self-test arms (16, 17, 18). **Had I reported the first
+run, I would have filed fourteen findings against nine harnesses that
+are all correct** — the mirror image of the wrap defect in §0, and in the
+more damaging direction.
+
+## §4c — THIRD SWEEP: `citations`, the last unswept noun
+
+Measured at `38d8742`. **58 live candidates.** The question Tier 0 set
+was narrow: are there other citation counts in live files, and does each
+have a derivation? **The answer is not "F4 was the only one" — there are
+two more, and the second is the most interesting count in this whole
+report.**
+
+---
+
+**F10 (MEDIUM) — `867 citations` at two live sites, against 1992.**
+
+    docs/reviews/repoint-design-citations.py:167
+        "repoint 867 citations against the wrong map"
+    docs/reviews/probe-repoint-fail-closed.py:11
+        "fail-open on error in the tool that rewrites 867 citations"
+
+Derived at `38d8742` by the repo's own checker: **1992 citations across
+218 files.** Stale by 1,125 — a factor of 2.3.
+
+**It is the BLAST RADIUS of a fail-open bug, in the probe whose whole
+reason to exist is that blast radius.** Understating how much a broken
+repointer would corrupt is the direction that makes a reader skip the
+guard, which is the same failure mode F4 had in `CONTRIBUTING.md` and
+the same direction.
+
+**Suggested fix — derive it, in both files:** the repointer already
+imports the inventory; print it rather than assert it. Failing that,
+delete the digit — "the tool that rewrites every `DESIGN.md` citation in
+the tree" is true at any size and needs no maintenance.
+
+---
+
+**F11 (MEDIUM) — "nine wrong-subject citations": a count with NO DERIVABLE CONTAINER, retyped at eleven sites, and two of them still say six.**
+
+This is the sharpest instance of the shape in the report, and it is
+different in kind from every other finding here.
+
+    7 sites say "nine wrong-subject citations"
+    2 sites say "six wrong-subject citations"   (ADR-0012:14, ADR-0014:8)
+
+Live, non-record sites carrying the tally: `.github/workflows/ci.yml`,
+`docs/OBLIGATIONS.md:58`, `docs/CODE-REVIEW-CHECKLIST.md:115`,
+`docs/adr/0019-design-603-cites-a-section-that-does-not-exist.md:51`,
+and `docs/reviews/check-clause-citations.py` twice.
+
+**THE DRIFT IS MEASURED, NOT HYPOTHESISED.** The set grew from six to
+nine at some point and **two live ADRs never moved with it.** That is
+this shape caught mid-divergence inside one corpus, without needing an
+external derivation to prove it — the corpus disagrees with itself.
+
+**AND THE CONTAINER CANNOT BE ENUMERATED AT ALL.** Every other finding
+in this report compares a claim against a set the repository can list —
+a glob, a table, an ADR directory, a `ROW_FLOOR`. "Wrong-subject
+citations found on this project" is **a historical event log kept only
+in prose.** There is no register. So the number cannot be derived by
+anyone, can only ever grow, and is replicated in six live places —
+which is the precise condition under which a retyped count is
+guaranteed to rot.
+
+It is also very likely already wrong upward: #52 recorded 10 wrong
+citations in one round, #114 found five more, #132 and #133 two others.
+Whether those are the same defect class as the "nine" is exactly what
+nobody can check. **Listed under §5 as unsettleable rather than
+asserted.**
+
+**Suggested fix, and the choice is the finding:**
+
+1. **Make the container real** — a `docs/reviews/WRONG-SUBJECT-REGISTER.md`
+   listing each instance with its sha, so the count is derived by
+   `wc -l` and the ADR-documenting-the-defect-class claim becomes
+   checkable too. This is the option that makes the sentence keep
+   working.
+2. **Or delete every digit** and say "wrong-subject citations have been
+   found repeatedly on this project, including inside the ADR
+   documenting the defect class" — true at six, at nine, and at
+   whatever it is now.
+
+**Do not simply update six to nine in the two ADRs.** That is the
+BASH-1 trap in its purest form: it would make the corpus agree with
+itself while leaving nine underivable and nine sites still needing hand
+maintenance.
+
+### Checked and found CORRECT in this sweep
+
+- **`CONTRIBUTING.md:219`, F4 as Tier 0 landed it.** It now reads "it
+  read **1987 citations across 215 files** the last time this paragraph
+  was touched" and adds *"READ THE NUMBER OFF THE TOOL rather than off
+  this sentence"*. The tool says **1992 across 218** today — and the
+  sentence is still **correct as written**, because it is explicitly a
+  dated reading with the live source named. **Class D done right, and a
+  naive re-run of this sweep would flag it wrongly.** Recorded so the
+  next sweep does not.
+- **`docs/reviews/check-clause-citations.py:77`** — "31 mappings
+  against 23 clause citations". `docs/OBLIGATIONS.md` has **31** rows
+  today, so the live half agrees; the 23 is a past-tense narrative of a
+  defect that was found ("It was found by comparing the two counts").
+  Correct.
+- **`.github/workflows/ci.yml:336, :1176`** and the checker docstrings
+  citing 47, 875 and 148 — all dated narratives of specific runs, class
+  D, correct as written.
+- **`docs/adr/0012:14` and `0014:8`** are inside `>` quotation blocks,
+  quoting an older statement verbatim. Their "six" is correct **as a
+  quotation** — which is why F11's remedy is a register or a deletion,
+  not an edit to those two lines.
+- **`CHANGELOG.md`** carries three citation counts. Keep a Changelog
+  entries are dated records by construction; they are correct as
+  written. **My tool does not classify `CHANGELOG.md` as a record and
+  should** — noted in §5 as an instrument gap, not a finding.
+
+## §4d — RE-MEASUREMENT after #183 widened the record classifier
+
+**This is a NEW measurement with its own date, not a correction to §0.**
+§0 is the record of what the instrument saw on 2026-09-02 before the
+classifier knew four record shapes; it stays as written. What follows is
+what the same corpus looks like once it does.
+
+**Both classifiers were run over ONE tree**, because the trunk moved
+five times during this work and a delta across two trees would have
+conflated the classifier change with the repository change — the
+join-key error this report flags elsewhere.
+
+| | OLD rule | NEW rule |
+|---|---|---|
+| ENUMERABLE candidates | 7,319 | 7,319 |
+| **LIVE** | **2,544** in 303 files | **2,204** in 297 files |
+
+**DELTA: −340, or 13.4% of the old LIVE figure.** So §0's headline was an
+upper bound overstating LIVE by roughly an eighth. **The direction is the
+one predicted** — noise, not hidden findings — and none of the seven
+findings moves class.
+
+### The kind, stated before the patterns
+
+A record **states what was true at one moment and is superseded by
+writing a new one rather than by being edited.** Maintained vs
+superseded, not "has a date in it".
+
+### THE TEMPTING SIGNAL IS THE WRONG ONE AND IT FAILS TOWARD SILENCE
+
+Matching a date or sha in the CONTENT was tried and measured **first**:
+`measured at <sha>` selects **19** files and `Seeded: <date>` selects
+**2** — and among them are `CONTRIBUTING.md`, `docs/OBLIGATIONS.md`,
+ADR-0023, ADR-0025 and a live brief.
+
+**Two of this report's three HIGH findings live in exactly those two
+files.** A content-date heuristic would have reclassified them as
+records and hidden both. **Refused with the numbers rather than tuned**,
+and both are now self-test arms.
+
+### AND MY FIRST WIDENING MADE THAT EXACT MISTAKE
+
+The stem-suffix rule (`-SWEEP`, `-VERDICTS`, `-AUDIT`, …) is a NAME rule
+wearing a KIND rule's clothes, and its first version silenced:
+
+- `docs/reviews/check-coupling-sweep.py` — **a CI gate named in `CONTRIBUTING.md`**
+- `docs/reviews/check-resweep-verdicts.py` — **a CI gate**
+- `check-review-coverage.py`, `probe-142-exempt-inventory.py`, `probe-coverage-ratchet.py`
+- `docs/data-inventory.md` — the Article 30 record of processing, maintained compliance prose
+- 47 candidates across six `docs/briefs/`, which Tier 0 **ruled** are not records
+
+**They end in `-SWEEP` and `-VERDICTS` because that is what they CHECK,
+not what they are.** Two corrections: the stem rule applies to `.md`/`.txt`
+only — **an executable is never a record, whatever it is called** — and
+`docs/briefs/` short-circuits to LIVE before any name rule runs.
+
+**That also fixed a defect older than #183:** the ORIGINAL prefix list
+was already recording nine briefs named `CODE-REVIEW-R*` and
+`CITATION-READ*`, against the briefs ruling. The −340 is therefore a net
+of two opposite movements, and both are right.
+
+**Arms 25 → 37.** The negatives are the load-bearing ones: every file in
+the list above is now an arm requiring `False`.
+
+## §5 — WHAT I COULD NOT SETTLE (separate from what I did not attempt)
+
+**COULD NOT SETTLE:**
+
+- **Whether "nine wrong-subject citations" (F11) is still nine.** It
+  cannot be settled by anyone from this repository, because the set has
+  no register — that is the finding, not an excuse for it. #52 recorded
+  10 wrong citations in one round, #114 five more, #132 and #133 two
+  others; whether those fall in the same class as the "nine" is exactly
+  what no artifact records. **Settling it requires creating the
+  container first.**
+
+- **Whether `docs/briefs/` is a DATED RECORD class.** It has the
+  properties of one (dated, superseded, a snapshot of what was known at
+  dispatch) and it is not in #166's enumerated list. 41 LIVE candidates
+  sit in `docs/briefs/`, and the answer moves them all between class A
+  and class C. **This is a Tier-0 ruling, not mine.** The tool's
+  `RECORD_PREFIXES` currently does NOT treat them as records, so the
+  container above counts them as live — the conservative direction.
+- **`docs/OBLIGATIONS.md:21-23`: "Of the twelve obligations CONF-6 found
+  **met**, exactly **one** — B58 — … The other **nine** are met by
+  accident."** `1 + 9 = 10`, not 12. This is not staleness against a
+  container — it is internally inconsistent as written, and I cannot
+  tell from this repository whether CONF-6 found 10 or 12, because the
+  audit it cites (`CONF-6-PROPAGATION-AUDIT.md`) is the record and
+  correcting a record is exactly what class C forbids. **Needs someone
+  who can read CONF-6's tally.** Flagged rather than guessed.
+- **`docs/OBLIGATIONS.md:181`: "3374 lines of amputation-verified
+  harness".** Derived: all tracked `scripts/*.sh` total **13,760** lines;
+  the 16 matching `scripts/*amputation*.sh` total **5,967**. 3,374
+  matches neither, and I could not reconstruct which container it named
+  when written.
+- **`docs/OBLIGATIONS.md:94`: "the 28 open obligations"** against 31 table
+  rows today. The sentence says "Seeded from CONF-6's population", which
+  may make 28 correct as a description of the SEED rather than the
+  table. I could not settle which without CONF-6's own tally, same
+  blocker as above.
+
+**NOT ATTEMPTED, and stated so it is not mistaken for an absence:**
+
+- **`citations` IS NOW SWEPT — see §4c.** It was the last of Tier 0's
+  four. **`arms` was reached only where the file declares a floor**;
+  arm counts in review prose were not.
+- **INSTRUMENT GAP, found by the citations sweep and not fixed:**
+  `CHANGELOG.md` is a dated record by construction (Keep a Changelog)
+  and my `RECORD_PREFIXES`/`RECORD_DIRS` do not classify it as one, so
+  its entries appear as LIVE candidates. Same for
+  `docs/reviews/DESIGN-142-scoped-exemption.md` (my prefix is
+  `DESIGN-R`, so `DESIGN-1…` misses), `EVIDENCE-*` and `TASK-*`. **This
+  inflates the LIVE container and deflates the RECORD bucket** — it does
+  not hide findings, it manufactures noise, which is the safer
+  direction but is still wrong. Left unfixed deliberately: changing the
+  classifier changes every container figure in this report, and the
+  report is the record of what was measured. **A follow-up should widen
+  it and re-measure, and the figures will move.**
+- **2,333 of the 2,361 live candidates were not individually derived.**
+  Only the 28 GLOB candidates have a mechanical derivation; the rest
+  ("222 rows", "148 arms", "77 gates") name sets that need a human to
+  say which container is meant. §2 is the yield of the derivable
+  sub-container plus a hand pass over the `adrs`/`checkers`/`probes`/
+  `obligations`/`decisions` nouns. **The remaining nouns — `rows`,
+  `arms`, `sites`, `controls`, `citations`, `commits` — were not swept**,
+  and at 222 and 148 members the two largest are where I would look next.
+- I did not run `check-clause-citations.py` (needs the standards sibling
+  checkout, exits 2 when absent) or the harness gates. Nothing in this
+  change touches a harness.

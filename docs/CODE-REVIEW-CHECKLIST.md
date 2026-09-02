@@ -111,9 +111,9 @@ missed them.
       440 errors once reported "0 failures".
 - [ ] **Zero skips**, and the passed-count is quoted rather than the word "green". A skip is a green
       that tested nothing.
-- [ ] **Citations were verified by subject**, not by checking that a `file:line` is non-blank. Nine
-      wrong-subject citations have been found on this project; four were inside the ADR documenting
-      that defect class.
+- [ ] **Citations were verified by subject**, not by checking that a `file:line` is non-blank.
+      The instances found so far are in `docs/reviews/WRONG-SUBJECT-REGISTER.md`; read it before
+      assuming this class is rare.
 - [ ] **A new test was checked for vacuity by amputation**, not only by mutation. Deleting the
       behaviour outright has exposed an assertion that survived mutation in every unit built so far.
 - [ ] **A claimed absence states where the search looked.** "It exists nowhere" after two greps is
