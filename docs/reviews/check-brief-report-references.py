@@ -80,21 +80,53 @@ agent; a red here costs a sentence. Compare the defect it exists to
 catch: a 28KB report written into a worktree, declared destroyed, and
 recoverable only because someone looked in a third place.
 
-Re-derive the population without trusting this file:
+**RE-DERIVING THE POPULATION, AND WHAT THAT IS STILL FOR.** Print the
+shell recipe and run it:
 
-    grep -rhoE '(REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+[.]md' \
-      docs/briefs | sort -u
+    CHK=docs/reviews/check-brief-report-references.py
+    uv run --frozen python "$CHK" --recipe
+    uv run --frozen python "$CHK" --list-names
 
-`grep -r` over the DIRECTORY, not `docs/briefs/*.md`: the glob stops
-at the top level and the gate no longer does. A re-derivation recipe
-that reads a narrower population than the gate is how the two drift
-apart without either looking wrong.
+The first prints a `grep` one-liner; the second prints the gate's own
+population. They must agree exactly, and arm A23 of the controls
+proves they do by running one against the other.
+
+**THE RECIPE USED TO BE A SECOND, HAND-WRITTEN SELECTOR, AND IT
+MANUFACTURED THE FALSE FINDING THE COMMENT ON `REF` BELOW RECORDS.** It
+read `grep -rhoE '(REVIEW|WORKLOG|FINDINGS)-...'` with NO left
+boundary, so it returned `REVIEW-CHECKLIST.md` - the truncated name
+`1985471` retracted, which has never been a file. Measured over
+`docs/briefs`: the loose recipe gave 27 names, `REF` gave 26, and the
+one name between them was that phantom. A reader following the
+paragraph that exists *so nobody has to trust this file* got 27
+against the gate's 26 and would read the gap as a gate MISS.
+
+That was one edge of three. The same hunk had already fixed the
+recipe's DIRECTORY edge (`docs/briefs/*.md` -> `docs/briefs`, because
+the glob stops at the top level and `cited()` does not) and left the
+LEFT edge loose; the FILE-TYPE edge was loose too, since `grep -r`
+reads every file while `cited()` reads `*.md` only.
+
+**SO THE SELECTOR IS NOW WRITTEN ONCE.** `BOUNDARY` and `NAME` below
+are shared: `REF` is composed from them and so is `RECIPE`. There is
+no second pattern left to drift.
+
+**WHAT THE RECIPE STILL CHECKS, HONESTLY.** It no longer checks the
+SELECTOR independently - by construction it cannot, and that is the
+point, because a second hand-written selector is what published a false
+finding. What it still checks is everything AROUND the selector, with a
+standard tool and a traversal this file does not control: that
+`cited()` walks the directory the recipe walks, that it opens the files
+the recipe opens, and that the count this gate prints is the count of
+that population. Those are the parts that were wrong in `1985471`'s
+neighbourhood twice, and a `grep` still falsifies them.
 """
 
 from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import subprocess
 import sys
 from datetime import UTC, date, datetime
@@ -124,11 +156,24 @@ RECORD = ROOT / "docs/reviews/brief-report-refs-known-missing.txt"
 # catching it, because we were both searching for the string my
 # instrument produced. An anchor is not decoration; a pattern with a
 # free left edge selects for names it was never shown.
-REF = re.compile(
-    r"(?<![A-Za-z0-9._-])"
-    r"(docs/(?:reviews|worklogs)/)?"
-    r"((?:REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+\.md)"
-)
+BOUNDARY = r"(?<![A-Za-z0-9._-])"
+NAME = r"(?:REVIEW|WORKLOG|FINDINGS)-[A-Za-z0-9._-]+\.md"
+REF = re.compile(BOUNDARY + r"(docs/(?:reviews|worklogs)/)?" + f"({NAME})")
+
+# THE PUBLISHED RECIPE IS COMPOSED FROM THE SAME TWO STRINGS `REF` IS,
+# so it cannot say something different from the gate. It used to be
+# typed out a second time and it drifted on two edges at once - the
+# module docstring above records which, and what a recipe that shares
+# the selector is still good for.
+#
+# `-P`, not `-E`: the lookbehind is PCRE and is NOT optional. Without it
+# this returns `REVIEW-CHECKLIST.md`, the name `1985471` retracted.
+# `--include='*.md'`: `cited()` reads `*.md`, and `grep -r` reads every
+# file. Today `docs/briefs` holds 83 files and all 83 are `.md`, so the
+# flag changes nothing NOW - it changes what happens the first time
+# somebody drops a `.txt` in there, which is the same reason `rglob`
+# replaced `glob`. Arm A25 is the one that would notice.
+RECIPE = "grep -rhoP --include='*.md' '" + BOUNDARY + NAME + "' {briefs} | sort -u"
 
 
 def tracked_index(listing: Path | None = None) -> tuple[set[str], set[str]] | None:
@@ -226,6 +271,16 @@ def main() -> int:
     ap.add_argument("--briefs", type=Path, default=BRIEFS)
     ap.add_argument("--record", type=Path, default=RECORD)
     ap.add_argument("--tracked", type=Path, default=None)
+    ap.add_argument(
+        "--recipe",
+        action="store_true",
+        help="print the shell re-derivation recipe for --briefs and exit",
+    )
+    ap.add_argument(
+        "--list-names",
+        action="store_true",
+        help="print the gate's own population, one name per line, and exit",
+    )
     args = ap.parse_args()
 
     # A MISSING BRIEFS DIRECTORY IS A BROKEN INSTRUMENT, NOT AN EMPTY
@@ -247,6 +302,21 @@ def main() -> int:
         print("checked. This is a refusal, not a pass - an empty scan over")
         print("a path that does not exist reads exactly like a clean tree.")
         return 2
+
+    # --recipe and --list-names are BELOW the missing-directory refusal
+    # on purpose: a recipe pointed at a path that does not exist, and an
+    # empty population read off one, are both the clean-zero this file
+    # already refuses once. They are ABOVE `tracked_index` because
+    # neither needs git, and refusing them when the index is unreadable
+    # would make the controls depend on a thing they are not testing.
+    if args.recipe:
+        print(RECIPE.format(briefs=shlex.quote(str(args.briefs))))
+        return 0
+
+    if args.list_names:
+        for n in sorted(cited(args.briefs)[0]):
+            print(n)
+        return 0
 
     index = tracked_index(args.tracked)
     if index is None:
