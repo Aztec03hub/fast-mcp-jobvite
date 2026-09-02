@@ -228,6 +228,26 @@ def main() -> int:
     ap.add_argument("--tracked", type=Path, default=None)
     args = ap.parse_args()
 
+    # A MISSING BRIEFS DIRECTORY IS A BROKEN INSTRUMENT, NOT AN EMPTY
+    # ONE. `rglob` on a path that does not exist returns empty WITHOUT
+    # erroring, so `--briefs /nonexistent` would report a perfect result
+    # over a population of zero - indistinguishable from a clean tree.
+    # `suborch-199` hit exactly that on itself: a bad extraction gave
+    # "Briefs scanned: 0 ... rc=0".
+    #
+    # THIS FILE ALREADY MADE THIS DISTINCTION ONE COLUMN OVER.
+    # `tracked_index` returns None for unreadable and [] for empty, and
+    # the caller below refuses on None. The same author, in the same
+    # file, drew the line for one input and not the other - and the one
+    # left undrawn is on the CONTROLS' path, which is the code that
+    # proves the gate works. A gate that prints a SUCCESS IT HAS NOT
+    # EARNED is worse than one that prints a failure nobody reads.
+    if not args.briefs.is_dir():
+        print(f"::error::{args.briefs} is not a directory, so NOTHING was")
+        print("checked. This is a refusal, not a pass - an empty scan over")
+        print("a path that does not exist reads exactly like a clean tree.")
+        return 2
+
     index = tracked_index(args.tracked)
     if index is None:
         print("::error::could not read `git ls-files`, so NOTHING was checked.")

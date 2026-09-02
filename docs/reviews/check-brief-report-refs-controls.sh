@@ -45,7 +45,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CHECKER="$ROOT/docs/reviews/check-brief-report-references.py"
 PY=(uv run --frozen python)
 
-ROW_FLOOR=20
+ROW_FLOOR=22
 ROWS=0
 FIRED=0
 
@@ -277,6 +277,45 @@ fi
 if amputate wellformed 's/^        if not WELL_FORMED\.match(reason):$/        if False:/'; then
   record 'REVIEW-ABSENT.md'
   row "A19 AMP well-formedness -> A16 survives at 0" "$AMP" 0
+fi
+
+# A21 - #205: a MISSING --briefs directory must REFUSE at 2, not report
+# a clean scan over nothing. `rglob` on a path that does not exist
+# returns empty without erroring, so before this the checker printed
+# "Briefs scanned: 0 ... rc=0" - a SUCCESS IT HAD NOT EARNED, which is a
+# worse member of the family than a failure nobody reads.
+record 'REVIEW-ABSENT.md  2026-09-02 ok'
+ROWS=$((ROWS + 1))
+rc=0
+"${PY[@]}" "$CHECKER" --briefs "$tmp/no-such-dir" --record "$tmp/record" \
+  --tracked "$tmp/tracked" >/dev/null 2>&1 || rc=$?
+if [ "$rc" -eq 2 ]; then
+  FIRED=$((FIRED + 1)); echo "  ok   A21 missing --briefs dir -> 2 (refusal) (rc=$rc)"
+else
+  echo "  FAIL A21 missing --briefs dir (rc=$rc, wanted 2)"
+fi
+
+# A22 - delete that refusal and A21 must stop refusing. Without this the
+# guard can be removed and nothing notices. THE ANCHOR IS DERIVED FROM
+# THE FILE, not copied from a report: R20-N3's suggested sed named a
+# variable that had been renamed and would have matched nothing.
+if amputate briefsdir 's/^    if not args\.briefs\.is_dir():$/    if False:/'; then
+  # THE RECORD MUST BE EMPTY HERE. With the guard gone the scan finds no
+  # briefs, so a recorded entry becomes UNCITED and the `unreferenced`
+  # branch fires at rc=1 - the arm would then be red for a reason that
+  # has nothing to do with the guard it names. Third time this exact
+  # confound has appeared in this harness; an arm must isolate the ONE
+  # branch it is about.
+  record ""
+  ROWS=$((ROWS + 1))
+  rc=0
+  "${PY[@]}" "$AMP" --briefs "$tmp/no-such-dir" --record "$tmp/record" \
+    --tracked "$tmp/tracked" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    FIRED=$((FIRED + 1)); echo "  ok   A22 AMP briefs-dir -> A21 scans nothing at 0 (rc=$rc)"
+  else
+    echo "  FAIL A22 AMP briefs-dir (rc=$rc, wanted 0)"
+  fi
 fi
 
 harness_result_tally fired "$FIRED" "$ROWS"
