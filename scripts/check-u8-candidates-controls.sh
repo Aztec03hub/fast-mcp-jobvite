@@ -93,33 +93,23 @@ echo
 FIRED=0
 TOTAL=0
 
+# Every selector a row aims at, in row order. Verified ONCE against the INTACT
+# tree after the last row - see the block above harness_result_ran.
+SELECTORS=()
+
 # ---------------------------------------------------------------------------
 # mutate <label> <file> <test-selector> <old> <new>
 # ---------------------------------------------------------------------------
 mutate() {
   local label="$1" file="$2" selector="$3" old="$4" new="$5"
   TOTAL=$((TOTAL + 1))
+  # Recorded for the ONE intact-tree check after the last row (#249/R24-H1).
+  # Appended here, beside the TOTAL it must equal, so a row added without a
+  # selector shows up as a count mismatch rather than as silent under-coverage.
+  SELECTORS+=("$selector")
 
   echo "########## $label"
   echo "  target: $selector"
-
-  # DOES THE SELECTOR STILL RESOLVE? (R4-M3). pytest exits 4 when a
-  # selector matches nothing, and this harness treats ANY non-zero exit
-  # as a kill - so a renamed, moved or misspelled test would report
-  # KILLED on every run, forever, while testing nothing.
-  timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "$selector" --collect-only -q \
-       -p no:cacheprovider >/dev/null 2>&1
-  local probe_rc=$?
-  if [ "$probe_rc" -ne 0 ]; then
-    if [ "$probe_rc" -eq 124 ]; then
-      echo "  SELECTOR PROBE TIMED OUT after ${SELECTOR_TIMEOUT}s - collection NEVER FINISHED."
-      echo "  Read this, not the lines below: a hang, not a rename."
-    fi
-    echo "  SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
-    echo "  This row has been reporting KILLED without running. Fix the harness."
-    echo
-    return
-  fi
 
   # SC2155: declared and assigned separately, so a failing `echo`/`tr`
   # cannot be masked by `local`'s own exit status (task #38).
@@ -519,6 +509,78 @@ mutate "M25 the page output schema is built in validation mode" \
 # all deleted - or all skipped - reports fully green. Lowering this
 # number is a visible diff that has to be defended.
 ROW_FLOOR=25
+
+# ===========================================================================
+# DO ALL THE SELECTORS STILL RESOLVE? ONE process, on the INTACT tree.
+# ===========================================================================
+#
+# The property: a renamed, moved or misspelled test must not report a verdict
+# forever while running nothing. Until now it was bought with a SECOND pytest
+# process per row - `--collect-only`, inside mutate(), before each mutation
+# landed. That doubled the process count of the whole harness, and process
+# startup is what a per-row harness is made of.
+#
+# It also asked the question in the wrong place. The property is about the
+# INTACT tree, and mutate() is a loop over MUTATED ones. #244 tried replacing
+# the per-row probe with a per-row rule reading pytest's rc plus its
+# `^ERROR <file> - <Exception>` line, and R24 measured that rule wrong in BOTH
+# directions:
+#
+#   * A mutation that breaks an import reached from `tests/conftest.py` makes
+#     pytest abort at CONFTEST LOAD: rc=4, "ImportError while loading conftest",
+#     and NO short-test-summary section - so the discriminating line is absent
+#     and a REAL KILL reads as a renamed selector.
+#   * A genuinely renamed selector PLUS a mutation that breaks the TEST
+#     module's own import DOES print that line, so the guard stayed silent and
+#     the row was counted KILLED on a test that does not exist.
+#
+# Neither direction is answerable from a MUTATED run. So ask the intact tree,
+# ONCE, after the last row. Every row above restored its file and compared it
+# to the pristine copy (exit 3 if it differed), so the tree here is the tree
+# row 1 started on, and one `pytest "${SELECTORS[@]}" --collect-only` covers
+# the whole row set: one extra process per HARNESS in place of one per ROW.
+#
+# The recorded count is checked against TOTAL first, so a row that ran without
+# recording its selector cannot pass as covered. It REFUSES rather than
+# reporting - exit 3, and `harness_result_emit`'s EXIT trap prints
+# `status=refused`, which is the honest word for a harness that cannot aim.
+#
+# Ported from 84d4959 (R24-H1), which was written, reviewed and never landed.
+# The same shape already sits on main in check-u3-audit-controls.sh, arrived at
+# from the other direction by #252's per-row selection work.
+# `-eq 0` FIRST, and it is not redundant with the mismatch test beside it
+# (R249-L2). At TOTAL=0 - every `mutate` call deleted - `0 -ne 0` is FALSE, so
+# the mismatch arm alone passes, `pytest "${SELECTORS[@]}" --collect-only` runs
+# with NO node ids, collects the WHOLE suite, exits 0, and the success line
+# below announces a check that asked nothing. `check-u3-audit-controls.sh:461`
+# carries this guard for the same reason; dropping it was this port's own
+# defect, not one inherited from 84d4959.
+if [ "$TOTAL" -eq 0 ] || [ "${#SELECTORS[@]}" -ne "$TOTAL" ]; then
+  echo "########## RECORDED ${#SELECTORS[@]} SELECTORS FOR $TOTAL ROWS."
+  echo "The check below covers exactly the selectors it is handed. At zero rows"
+  echo "it would collect the whole suite and pass having asked nothing; at a"
+  echo "mismatch it cannot cover every row. Either way its pass would mean less"
+  echo "than it claims. Fix the harness."
+  exit 3
+fi
+timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "${SELECTORS[@]}" \
+  --collect-only -q -p no:cacheprovider >"$OUT" 2>&1
+sel_rc=$?
+if [ "$sel_rc" -ne 0 ]; then
+  echo "########## A SELECTOR DOES NOT RESOLVE ON THE INTACT TREE (pytest rc=$sel_rc)."
+  if [ "$sel_rc" -eq 124 ]; then
+    echo "Read this, not the lines below: collection NEVER FINISHED within"
+    echo "${SELECTOR_TIMEOUT}s. That is a hang, not a rename."
+  fi
+  echo "At least one row named a test that was renamed or moved, so that row"
+  echo "has been reporting a verdict without ever running its killer."
+  echo "pytest, on the restored tree:"
+  tail -20 "$OUT"
+  echo "Any row above whose target appears in those ERROR lines printed a"
+  echo "verdict it did not earn - read the target, not the verdict."
+  exit 3
+fi
+echo "########## ALL $TOTAL SELECTORS RESOLVE (one intact-tree process)"
 # The canonical result line's numbers, taken from the harness's own
 # counter and its own floor - never a second copy. Called BEFORE the
 # comparison below, because that branch exits.
