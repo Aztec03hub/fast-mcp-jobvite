@@ -122,7 +122,10 @@ bash scripts/check-harness-anchors-controls.sh   # and the controls on that chec
 # list here does not, and the list keeps looking right. It is now DERIVED from
 # ci.yml, so it cannot disagree with what CI actually runs.
 #
-# Read it before you run it - it is thirteen harnesses and takes a while.
+# Read it before you run it - it is every harness the workflow names, and
+# it takes a while. The COUNT is deliberately absent: this paragraph exists
+# to say the list is DERIVED so it cannot go stale, and it carried a
+# hand-typed 13 while the command below returned 32.
 # The trailing `"` is stripped: one step must be a QUOTED YAML scalar because
 # its --require pattern contains ": ", which a plain scalar reads as a mapping.
 grep -hoE "scripts/ci-harness-gate\.sh [^\"]*" .github/workflows/ci.yml

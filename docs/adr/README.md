@@ -4,7 +4,7 @@ An ADR here does **two different jobs**, and they must stay distinguishable:
 
 1. **`Deviation`** - records a decision that departs from a `priority: required` standard, or that a
    reviewer would otherwise be right to file as a defect. **This is independent of the freeze.** A
-   deviation is recorded when it is decided; that is why eleven ADRs exist against a design that is
+   deviation is recorded when it is decided; that is why the ADRs exist against a design that is
    not yet frozen, which is correct rather than contradictory.
 2. **`Design change`** - after the freeze, an ADR is the only instrument that may change
    `docs/DESIGN.md`. This job begins at the freeze and not before.
