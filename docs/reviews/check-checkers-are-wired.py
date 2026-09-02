@@ -305,6 +305,18 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "they can argue with. `check-cross-references.py` is the gate, "
         "and its population is deliberately narrower."
     ),
+    "probe-167-mutation-site-census.py": (
+        "a census, not a refusal: it counts every mutation site in every "
+        "harness's Python heredocs by KIND, so the anchor checker's "
+        "count can be compared against the container it samples from. "
+        "It always exits 0 unless it cannot parse something, and a step "
+        "that cannot fail is a step that guards nothing. The refusing "
+        "half is `scripts/check-harness-anchors.py --floor`, which is "
+        "wired. Kept runnable because the number it produces - 3 of 44 "
+        "sites hidden at 22c9873 - is the evidence for #167's floor "
+        "rise, and prose about a measurement decays into a claim about "
+        "one."
+    ),
     "probe-142-exempt-inventory.py": (
         "an inventory, not a refusal: it prints every REPOINT-EXEMPT "
         "line across BOTH citation gates' containers so the two numbers "
