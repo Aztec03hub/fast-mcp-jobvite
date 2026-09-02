@@ -123,7 +123,7 @@ the map exists to make visible.
 | B52 | MET | `pyproject.toml` | `pep8-naming` | `backend/python.md:64-71` | The `N` rule family |
 | B53 | MET | `.env.example` | `JOBVITE_API_KEY=` | `architecture/security.md:418` | Committed template, names only, every value empty |
 | B58 | MET | `tests/test_collection_guard.py` | `test_every_test_file_is_reachable_from_testpaths` | `backend/testing.md:138` | The only obligation in this map whose fix already carried its own B-number |
-| B59 | MET | `.github/workflows/ci.yml` | `uv run --frozen pytest 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
+| B59 | MET | `.github/workflows/ci.yml` | `uv run --frozen pytest --cov --cov-report=term-missing --cov-report=json 2>&1` | `backend/testing.md:166` | No positional path, so `testpaths` stays authoritative |
 | B61 | ABSENT | - | - | `documentation/agentic-coding-standard.md:346` | Test names are descriptive sentences, not `test_{what}_{when}_{expected}`; the convention is stated nowhere |
 | B73 | SUPERSEDED | `docs/research/COMPLIANCE-SPEC.md` | `by ruling C4` | `devops/quality-gates.md:49` | Ruling C4 excludes the `[FEAT-XXX]` check as irreconcilable with semantic titles |
 | B74 | ABSENT | - | - | `documentation/agentic-coding-standard.md:171` | No TODO in code and no CI check. Inherits B73's prefix problem and nothing connects them |

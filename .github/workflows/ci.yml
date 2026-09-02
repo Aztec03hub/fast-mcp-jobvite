@@ -13,7 +13,8 @@ name: CI
 #     pytest (default, network and --collect-only arms) / the three coupling gates
 #     scripts/check-u0-test-controls.sh / pip-licenses / cyclonedx-py
 #
-#   NEVER EXECUTED - GitHub-hosted actions that cannot run on a developer machine:
+#   FIRST EXECUTED in green run 33582613697 (2026-09-02) - GitHub-hosted actions
+#   that cannot run on a developer machine, so that run was their first evidence:
 #     codeql / trufflehog / sbom (anchore). They are written to the standards'
 #     pinned versions and their first real run is their first evidence.
 #     The `Lint the workflows` step joins them WITH ONE DIFFERENCE worth
@@ -715,7 +716,8 @@ jobs:
             --format=markdown \
             --fail-on="GPL;GPL v2;GPL v3;GNU General Public License;GNU General Public License v2 (GPLv2);GNU General Public License v3 (GPLv3);AGPL;GNU Affero General Public License v3;LGPL;GNU Lesser General Public License;SSPL;BUSL;Business Source License"
 
-      # NEVER EXECUTED. Tool and pin are fixed by quality-gates.md:269-271:
+      # EXECUTED GREEN in run 33582613697 (2026-09-02); before that, never.
+      # Tool and pin are fixed by quality-gates.md:269-271:
       # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
       # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
       # produced from an unfrozen resolve documents a build nobody shipped
@@ -734,7 +736,8 @@ jobs:
           format: spdx-json
           artifact-name: sbom.spdx.json
 
-      # NEVER EXECUTED. Full history is the point; --only-verified keeps it from
+      # EXECUTED GREEN in run 33582613697 (2026-09-02); before that, never.
+      # Full history is the point; --only-verified keeps it from
       # drowning the gate in unverifiable candidates.
       # Pinned to a release tag, NOT @main. The standards corpus fixed this exact
       # defect in itself - devops/log.md:31, "fix(F-078): pin Trivy and TruffleHog
@@ -751,7 +754,8 @@ jobs:
       # history; it rides the checkout this job already has.
       # ---------------------------------------------------------------------
       # ---------------------------------------------------------------------------
-      # NEVER EXECUTED as an action - lychee is not installed on this machine. The
+      # EXECUTED GREEN as an action in run 33582613697 (2026-09-02); before that,
+      # never - lychee is not installed on this machine. The
       # PROPERTY it asserts was verified locally against the tree with an equivalent
       # offline walk: every relative markdown link resolves on disk, and that walk
       # was positive-controlled against a deliberately broken link before its zero
@@ -933,7 +937,18 @@ jobs:
           # code. Measured: bash -e exits 2 and prints nothing; without
           # -e the branch runs. This line is what makes `rc` reachable.
           set +e
-          out=$(uv run --frozen pytest 2>&1); rc=$?
+          # ONE run, under --cov (#238/#241). The suite ran TWICE in this
+          # job - plain here, instrumented again in a later Coverage step -
+          # 241s of the job's 318s, with no stated reason anywhere. #241
+          # verified all four ways this merge could have been wrong: the
+          # --cov summary line is identical, the skip guard below FIRES on
+          # a synthetic skip in the --cov output shape (positive-controlled),
+          # test outcomes are identical (888/6 both ways), and the coverage
+          # floors (fail_under=80 in pyproject per ADR-0010, --cov-fail-under
+          # deliberately NOT passed so the floor lives in ONE place) now
+          # gate through this same run. coverage.json feeds the per-module
+          # floors step below.
+          out=$(uv run --frozen pytest --cov --cov-report=term-missing --cov-report=json 2>&1); rc=$?
           [ "$rc" -eq 0 ] || { echo "$out"; exit "$rc"; }
           # THE HERE-STRING BELONGS TO THE GREP, NOT AFTER `then`. It was
           # `... skipped'; then <<< "$out"` from the SIGPIPE sweep (#85) until
@@ -1492,13 +1507,6 @@ jobs:
           name: fastmcp-inspect
           path: inspect.json
 
-      # Floors are ADR-0010's, configured in pyproject.toml already
-      # (fail_under = 80, branch = true). --cov-fail-under is NOT passed here:
-      # the floor must live in ONE place, and a flag would silently win over
-      # the file the ADR points at.
-      - name: Coverage
-        run: uv run --frozen pytest --cov --cov-report=term-missing --cov-report=json
-
       # ADR-0010's PER-MODULE floors, which `fail_under` cannot express and which
       # `pyproject.toml` used to say were "enforced by the units that create those
       # modules" - an obligation enforced by nobody. Two critical paths were under
@@ -1512,7 +1520,8 @@ jobs:
         run: python3 docs/reviews/check-coverage-floors.py
 
   # ---------------------------------------------------------------------------
-  # NEVER EXECUTED. github/codeql-action/*@v3 per the standards' pinned set.
+  # EXECUTED GREEN in run 33582613697 (2026-09-02, analyze 51s); before that,
+  # never. github/codeql-action/*@v3 per the standards' pinned set.
   # ---------------------------------------------------------------------------
   codeql:
     name: CodeQL
