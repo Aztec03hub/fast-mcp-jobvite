@@ -66,6 +66,38 @@ the file written to enforce container thinking.
 **AN EXEMPTION NEEDS A NON-EMPTY REASON (R12-M5), A GIT FAILURE EXITS 3
 (R12-L3), AND TWO DECLARATIONS REFUSE (R12-N2).**
 
+## IT IS A RATCHET, NOT A DEMAND FOR ZERO (#151)
+
+This used to return 1 whenever any trunk commit was uncovered. **On a
+trunk anyone is still committing to that is red by construction** -
+every merge adds commits no round has yet examined - and a gate that
+can never be green gets switched off, which is how 119 consecutive CI
+failures went unread here once already.
+
+So it enforces a recorded SET, `review-coverage-backlog.txt`, and fails
+on any DIFFERENCE from what it measures. The question becomes *"did the
+unread set change without anyone saying so?"*, which has an attainable
+yes. A HOLDING RATCHET IS NOT FULL COVERAGE and the output says so.
+
+**A SET, NOT A COUNT**, because a count lets one commit entering and
+another clearing cancel to zero. **BOTH KINDS**, because ratcheting
+`NONE` alone leaves the 39 `PARTIAL` commits red by construction - the
+same defect, one column over, which is how the first version of this
+change was written. **NO `--write-backlog`**, because a gate that
+regenerates its own baseline certifies whatever it just saw.
+
+Pinned by `docs/reviews/probe-coverage-ratchet.py`, 8 arms, none of
+which modifies the tree - hence `--backlog`.
+
+**THE ONE-MERGE LAG IS REAL, AND IT IS WHY THIS IS A PR GATE.** A commit
+cannot record its own sha, so a merge's commits enter the backlog in the
+NEXT change, not in themselves. Run against `origin/main` from a pull
+request that is what you want: the PR's own commits are not on the trunk
+yet, so the gate is green, and whoever opens the next PR pastes the
+lines this checker prints for the merge before it. Run it on a push to
+main instead and it is red for exactly one commit every time, which is
+red-by-construction wearing a different hat.
+
 **WHAT IT STILL CANNOT DO.** It checks that a commit's files fall inside
 some round's declared range and paths. It cannot check the round READ
 them. A declaration is a claim by its author; this only makes the claim
@@ -153,6 +185,68 @@ assert all(v.strip() for v in RECORD_PATHS.values()), (
 def is_record(path: str) -> bool:
     """Is this path a record of work rather than the work itself?"""
     return any(path == p or path.startswith(p.rstrip("/") + "/") for p in RECORD_PATHS)
+
+
+#: The RATCHET. Task #151 ruled that this gate cannot demand
+#: `COVERED BY NOTHING == 0` on a trunk anyone is still committing to:
+#: every merge adds commits that no round has yet examined, so a
+#: zero-demanding gate is red by construction and gets switched off,
+#: which is how 119 consecutive failures went unread here once already.
+#:
+#: So the gate checks a SET, not a count. This file records exactly
+#: which commits are known to be uncovered. The measured set must EQUAL
+#: it: a commit that entered the backlog unrecorded fails, and so does
+#: one still recorded after a round covered it. A count would let two
+#: errors in opposite directions cancel; a set cannot.
+#:
+#: **THERE IS DELIBERATELY NO `--write-backlog`.** A gate that rewrites
+#: the baseline it then checks passes for free, which is how a secret
+#: scanner here spent an hour certifying its own output. The exact lines
+#: to paste are printed instead; adding them is a human act, recorded in
+#: a diff, with a commit message that has to say why the backlog grew.
+BACKLOG = REVIEWS / "review-coverage-backlog.txt"
+
+
+#: The two ways a commit can be outstanding, and they are NOT the same
+#: fact: NONE means no round's range contains it, PARTIAL means a round
+#: claimed the range but not every file it touches. A commit moving
+#: NONE -> PARTIAL is real progress, so the backlog records the kind and
+#: the ratchet notices the move. Collapsing them to one count would let
+#: a half-read commit and an unread one print identically, which is the
+#: distinction this checker was written to keep.
+KINDS = ("NONE", "PARTIAL")
+
+
+def read_backlog(path: pathlib.Path) -> dict[str, tuple[str, str]]:
+    """Recorded outstanding commits: short sha -> (kind, subject).
+
+    Missing file is NOT an empty backlog - an absent baseline that reads
+    as "nothing is outstanding" is a false green. It exits 3, the code
+    reserved for a broken instrument.
+    """
+    if not path.exists():
+        print(f"{path} is missing. An absent backlog is not an empty")
+        print("one; it would report the whole backlog as new. Exit 3.")
+        raise SystemExit(3)
+    recorded: dict[str, tuple[str, str]] = {}
+    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        sha, _, rest = line.partition(" ")
+        kind, _, subject = rest.strip().partition(" ")
+        if kind not in KINDS:
+            print(f"{path.name}:{number} has kind {kind!r}, not one of")
+            print(f"{KINDS}. A malformed line is a broken instrument, and")
+            print("skipping it would silently shrink the baseline. Exit 3.")
+            raise SystemExit(3)
+        if sha in recorded:
+            print(f"{path.name}:{number} repeats {sha}. Two lines for one")
+            print("commit make the recorded count disagree with the recorded")
+            print("SET, and only one of them can be right. Exit 3.")
+            raise SystemExit(3)
+        recorded[sha] = (kind, subject.strip())
+    return recorded
 
 
 class Round:
@@ -253,6 +347,18 @@ def main() -> int:
         default="origin/main",
         help="trunk ref; never HEAD - under checkout that is a merge commit",
     )
+    parser.add_argument(
+        "--backlog",
+        type=pathlib.Path,
+        default=BACKLOG,
+        # A CONTROL MUST NOT MUTATE THE TREE TO TEST THIS. Without this
+        # flag the only way to prove the ratchet fires is to edit the
+        # real backlog and put it back, and a harness killed mid-row
+        # then leaves the edit behind for the next run to blame on
+        # someone else (#131, #146 - and I stranded two plant files
+        # that way myself tonight).
+        help="the backlog file to enforce; for controls, never the tree's",
+    )
     args = parser.parse_args()
 
     docs, skipped = review_documents()
@@ -312,13 +418,50 @@ def main() -> int:
     for name, why in sorted(RECORD_PATHS.items()):
         print(f"  RECORD   {name}: {why}")
 
-    for sha in untouched[:15]:
-        print(f"  NONE     {git('log', '-1', '--format=%h %s', sha)[:78]}")
-    for sha, unread in partial[:10]:
-        print(f"  PARTIAL  {git('log', '-1', '--format=%h %s', sha)[:62]}")
-        print(f"           {len(unread)} file(s) unclaimed, e.g. {unread[0]}")
+    # THE RATCHET. Compare SETS of (sha, kind), and say the size of
+    # each before printing any sample - an earlier version of this
+    # report printed `untouched[:15]` and a reader (me) took 15 for the
+    # population while writing a handoff about that exact mistake.
+    #
+    # PARTIAL is in the ratchet for the same reason NONE is (#151): 39
+    # commits are partially covered right now, so a gate that demanded
+    # zero of either would be red by construction and would get
+    # switched off, which is how 119 consecutive CI failures went
+    # unread here once already.
+    recorded = read_backlog(args.backlog)
+    measured: dict[str, str] = {}
+    for sha in untouched:
+        measured[git("rev-parse", "--short", sha)] = "NONE"
+    for sha, _ in partial:
+        measured[git("rev-parse", "--short", sha)] = "PARTIAL"
 
-    if untouched or partial or unexplained:
+    entered = sorted(sha for sha in measured if sha not in recorded)
+    cleared = sorted(sha for sha in recorded if sha not in measured)
+    moved = sorted(
+        sha for sha in measured if sha in recorded and recorded[sha][0] != measured[sha]
+    )
+
+    print(f"\nBacklog recorded in {args.backlog.name}: {len(recorded)}")
+    print(f"Backlog measured now: {len(measured)}")
+    print(f"ENTERED, unrecorded: {len(entered)}")
+    print(f"CLEARED, still recorded: {len(cleared)}")
+    print(f"CHANGED KIND: {len(moved)}")
+
+    if entered:
+        print("\nOutstanding and not in the backlog. Either declare a round")
+        print("that covers them, or paste these lines into the backlog in")
+        print("the SAME commit that explains why it grew:")
+        for sha in entered:
+            subject = git("log", "-1", "--format=%s", sha)[:56]
+            print(f"  {sha} {measured[sha]} {subject}")
+    for sha in cleared:
+        kind, subject = recorded[sha]
+        print(f"  CLEARED  {sha} {kind} {subject[:52]} - delete this line")
+    for sha in moved:
+        was, now = recorded[sha][0], measured[sha]
+        print(f"  KIND     {sha} recorded {was}, measured {now} - update it")
+
+    if entered or cleared or moved or unexplained:
         print(
             "\nNOTE: this proves a commit's files fall inside some round's\n"
             "declared range and paths, NOT that the round read them - a\n"
@@ -326,7 +469,12 @@ def main() -> int:
         )
         return 1
 
-    print("\nEvery trunk commit is fully covered by a declared round.")
+    if measured:
+        print(f"\nThe backlog holds at {len(measured)}, every commit recorded.")
+        print("A HOLDING RATCHET IS NOT FULL COVERAGE. It says the unread")
+        print("set did not grow and nothing in it went unnoticed.")
+    else:
+        print("\nEvery trunk commit is fully covered by a declared round.")
     return 0
 
 

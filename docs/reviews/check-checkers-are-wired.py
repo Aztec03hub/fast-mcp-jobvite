@@ -73,10 +73,13 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 #: `check-no-errexit.py` and `check-settings-are-read.py` use.
 UNWIRED_BY_DECISION: dict[str, str] = {
     "check-review-coverage.py": (
-        "reports a real backlog of trunk commits no review round covered "
-        "and exits 1 until it clears. Wiring it now lands a permanently "
-        "red gate, which this repo has twice proved people learn to "
-        "ignore. Wire it when the count reaches zero - task #119."
+        "no longer waiting on a zero: #151 made it a RATCHET against "
+        "docs/reviews/review-coverage-backlog.txt, so it exits 0 today "
+        "at 58 recorded and fails only when the unread set changes "
+        "unrecorded. It is unwired for a different reason now - it "
+        "belongs on PULL REQUESTS against origin/main (a merge cannot "
+        "record its own sha), and ci.yml is owned by another agent this "
+        "run. Wire it with #153's widening, in one ci.yml change."
     ),
     "check-row-floor-control.sh": (
         "a control OF a control: it proves `check-row-floors.py` can still "
