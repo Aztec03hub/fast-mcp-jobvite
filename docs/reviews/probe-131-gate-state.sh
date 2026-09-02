@@ -224,10 +224,110 @@ printf 'original\n' >"$SCRATCH/subject.txt"
 printf 'original\n' >"$SCRATCH/other.txt"
 git -C "$SCRATCH" checkout -q -- subject.txt other.txt
 
+# ---------------------------------------------------------------------------
+# AMPUTATIONS (R18-L2). Nine positive assertions and no amputation at all was
+# the state this file shipped in: nothing held them to being non-vacuous, and
+# ARM 4's turned out to be exactly that. R18 ran the three missing arms by hand
+# against copies and all three killed - a result that then lived only in a
+# review document, which is the decay shape R18-M4 is about one file over.
+#
+# THE SUBSTITUTION IS COUNTED. `sed -i` with no match exits 0, so a stale
+# anchor would look like a successful amputation and the arm would score a kill
+# it never made.
+# ---------------------------------------------------------------------------
+amputate_file() {
+  local path="$1" pattern="$2" replacement="$3"
+  python3 - "$path" "$pattern" "$replacement" <<'PYAMP'
+import sys
+import pathlib
+
+path, pattern, replacement = sys.argv[1], sys.argv[2], sys.argv[3]
+text = pathlib.Path(path).read_text()
+hits = text.count(pattern)
+if hits == 0:
+    print(f"MUTATION TARGET NOT FOUND: {pattern!r}")
+    raise SystemExit(1)
+if hits > 1:
+    print(f"ANCHOR NOT UNIQUE: {pattern!r} matched {hits} times, want 1")
+    raise SystemExit(1)
+pathlib.Path(path).write_text(text.replace(pattern, replacement))
+PYAMP
+}
+
+LIB="$SCRATCH/docs/reviews/lib/harness-state.sh"
+LIB_BACKUP="$WORK/harness-state.sh.orig"
+cp "$LIB" "$LIB_BACKUP"
+
+# amp_lib <name> <pattern> <replacement> <stub> <want-present> <why>
+#
+# Amputates the SCRATCH copy of the state library, runs the UNamputated gate
+# over it, and asserts what the state file must then look like. Restored from
+# a byte backup rather than by re-editing, because a `sed` that matches nothing
+# succeeds silently.
+amp_lib() {
+  local name="$1" pattern="$2" replacement="$3" stub="$4" want="$5" why="$6"
+  TOTAL=$((TOTAL + 1))
+  rm -f "$HARNESS_STATE_FILE"
+  if ! amputate_file "$LIB" "$pattern" "$replacement"; then
+    echo "::error::  FAIL  $name: nothing was amputated, so the arm proves nothing"
+    cp "$LIB_BACKUP" "$LIB"
+    return
+  fi
+  # COMMIT THE AMPUTATION, and this is the arm's own dependency laid bare.
+  # The library is TRACKED in the scratch repo, so editing it makes the tree
+  # DIRTY - and a dirty tree sends the gate down the branch where it records
+  # nothing at all. The first version of these two arms did exactly that: both
+  # read "absent", AMP-BEGIN scored a kill it had not made, and AMP-END read a
+  # wrong answer. Committing puts the amputated library in place with a CLEAN
+  # tree, so the only thing that differs from a healthy run is the code.
+  git -C "$SCRATCH" add -A
+  git -C "$SCRATCH" commit -qm "amputate for $name"
+  # THE PRECONDITION IS ASSERTED, NOT ASSUMED. Both of these arms read an
+  # ABSENT or PRESENT state file, and a DIRTY tree produces "absent" for a
+  # completely different reason - the gate records nothing at all. The
+  # first version of AMP-BEGIN passed on exactly that, which is the
+  # vacuity these arms exist to remove, reproduced inside them.
+  local dirt
+  dirt=$(git -C "$SCRATCH" status --porcelain)
+  if [ -n "$dirt" ]; then
+    echo "::error::  FAIL  $name: the scratch tree was DIRTY before the arm ran,"
+    echo "::error::            so the gate records nothing and this arm is vacuous:"
+    printf '            %s\n' "$dirt"
+    cp "$LIB_BACKUP" "$LIB"
+    return
+  fi
+  run_gate "$stub" >/dev/null 2>&1
+  local present="absent"
+  [ -f "$HARNESS_STATE_FILE" ] && present="present"
+  cp "$LIB_BACKUP" "$LIB"
+  git -C "$SCRATCH" add -A
+  git -C "$SCRATCH" commit -qm "restore after $name"
+  if [ "$present" = "$want" ]; then
+    FIRED=$((FIRED + 1))
+    echo "  PASS  $name: state file $present, so $why"
+  else
+    echo "::error::  FAIL  $name: state file $present (want $want) - the"
+    echo "::error::            assertion it kills does not depend on this code"
+  fi
+  rm -f "$HARNESS_STATE_FILE"
+  printf 'original\n' >"$SCRATCH/subject.txt"
+  printf 'original\n' >"$SCRATCH/other.txt"
+  git -C "$SCRATCH" checkout -q -- subject.txt other.txt
+}
+
+echo "ARMS 6-7 - AMPUTATE THE LIBRARY, and ARMS 1 and 2 must stop holding:"
+amp_lib "AMP-BEGIN a gate that never writes state" \
+  '  f=$(harness_state_file "$repo")' '  f=$(harness_state_file "$repo"); return 0' \
+  check-stub-strands-other.sh absent "ARM 2's PRESENT depends on the write"
+amp_lib "AMP-END   a gate that never clears state" \
+  '  rm -f "$(harness_state_file "$1")"' '  :' \
+  check-stub-clean.sh present "ARM 1's ABSENT depends on the clear"
+
 # THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0. DERIVED from the
-# calls above at the commit that adds them: five arms, ten assertions - the
-# fifth being R18-M3's amputation of the branch ARM 4 depends on.
-ROW_FLOOR=10
+# calls above at the commit that adds them: seven arms, twelve assertions -
+# ARM 5 amputating the branch ARM 4 depends on (R18-M3), and ARMS 6-7
+# amputating the state library ARMS 1 and 2 depend on (R18-L2).
+ROW_FLOOR=12
 harness_result_tally fired "$FIRED" "$TOTAL"
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then

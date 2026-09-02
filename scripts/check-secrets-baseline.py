@@ -257,11 +257,22 @@ def _warn_untracked() -> None:
     than importing detect_secrets: the library ships no type stubs and
     the first version of this function failed mypy for that reason.
     """
+    # A SKIP ANNOUNCES ITSELF (R18-L1). Every one of these three exits
+    # used to be a bare `return`, so the gate's output on a run that
+    # could not look was BYTE-IDENTICAL to a run that looked and found
+    # nothing. The same author wrote "an instrument that cannot see
+    # reports that it cannot see" into check-mirror-liveness.py the same
+    # evening, and did the opposite here three times.
     git = shutil.which("git")
     if git is None:
+        print("\n  (untracked pre-check skipped: git is not on PATH)")
         return
     listed = _untracked_paths(git)
     if not listed:
+        # NOT a skip: there is genuinely nothing untracked. Said
+        # plainly so it cannot be confused with the branches above,
+        # which are failures to LOOK.
+        print("\n  (no untracked files to check ahead of tracking)")
         return
     try:
         done = subprocess.run(  # noqa: S603
@@ -271,7 +282,15 @@ def _warn_untracked() -> None:
             check=False,
         )
         results = json.loads(done.stdout)["results"]
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError) as exc:
+        # The exception TYPE and nothing from the payload. A scan of
+        # untracked files could hold a secret, and its stdout is not a
+        # safe thing to print from a gate that exists to keep secrets
+        # out of logs.
+        print(
+            "\n  (untracked pre-check skipped: the scan could not be"
+            f" read - {type(exc).__name__})"
+        )
         return
     if not results:
         print(
@@ -322,10 +341,13 @@ def _untracked_paths(git: str) -> list[str]:
             ).stdout.split("\0")
             if path
         ]
-    except (OSError, subprocess.CalledProcessError):
-        # An empty list and a failed listing must not be confused
-        # by the CALLER either: both mean "nothing to warn about",
-        # and neither is a claim that the set is clean.
+    except (OSError, subprocess.CalledProcessError) as exc:
+        # SAYS SO, for R18-L1's reason - and a FOURTH instance of the
+        # shape its list named three of. An empty list and a failed
+        # listing must not be confused by the CALLER either: both mean
+        # "nothing to warn about", and neither is a claim that the set
+        # is clean.
+        print(f"\n  (untracked pre-check skipped: {type(exc).__name__})")
         return []
     return listed
 

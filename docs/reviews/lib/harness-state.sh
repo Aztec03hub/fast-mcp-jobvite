@@ -56,6 +56,14 @@ harness_state_file() {
     printf '%s\n' "$HARNESS_STATE_FILE"
     return 0
   fi
+  # NORMALISED HERE TOO, not only in the tool (R18-N1). The key is a
+  # cksum of the path STRING, so `/x/y` and `/x/y/` name different files
+  # for one checkout - and since the restorer began comparing `repo=`,
+  # they also produce a false "DIFFERENT repository" refusal. The tool
+  # normalises its `--repo`; this closes the same hole for any OTHER
+  # caller, which is where the two-lists defect this function's header
+  # warns about would come back.
+  repo="${repo%/}"
   local key
   key=$(printf '%s' "$repo" | cksum | awk '{print $1}')
   printf '%s/fmj-harness-state-%s.state\n' "${TMPDIR:-/tmp}" "$key"
