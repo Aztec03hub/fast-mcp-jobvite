@@ -30,6 +30,13 @@
 
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=300
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -108,7 +115,7 @@ report() {  # $1 = label, $2.. = the test ids this row MUST kill
   # forever, and a hang is indistinguishable from a slow run until someone
   # looks. The interlock in tests/test_server.py fixes that specific case;
   # this cap is what stops the NEXT one costing half an hour.
-  timeout 300 env PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE \
+  timeout "$ROW_TIMEOUT" env PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest $SUITE \
     -p no:cacheprovider -q -rA >"$WORK/out.txt" 2>&1
   local rc=$?
   restore
@@ -116,7 +123,7 @@ report() {  # $1 = label, $2.. = the test ids this row MUST kill
     # NOT just a note. A timed-out run produces no PASSED lines, so every
     # MUST_DIE id "did not survive" and the row would read as a pass. A
     # row that could not be measured is a row that failed.
-    echo "  TIMED OUT after 300s - the amputated tree HANGS rather than failing."
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - the amputated tree HANGS rather than failing."
     echo "  THIS ROW MEASURED NOTHING; treat it as a FAILURE, not a pass."
     UNEXPECTED=1
     echo
@@ -254,11 +261,11 @@ MUST_M=(
 )
 
 echo "########## BASELINE - the intact tree"
-PYTHONDONTWRITEBYTECODE=1 timeout 900 uv run --frozen pytest $SUITE -q -rA \
+PYTHONDONTWRITEBYTECODE=1 timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -rA \
      -p no:cacheprovider >"$WORK/base.txt" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
   echo "       This is NOT a red suite: it never finished. Nothing below ran."
   echo "       Rationale for the bound: scripts/check-u9-http-amputation.sh."
   exit 4

@@ -45,6 +45,14 @@
 # is EXPECTED to fail. See docs/adr/0023-harnesses-drop-e-from-strict-mode.md
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=300
+SELECTOR_TIMEOUT=120
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -81,10 +89,10 @@ echo "########## BASELINE - the intact tree"
 # messages and DIFFERENT exit codes: "never finished" and "finished red" need
 # different diagnoses, and this project has been bitten before by two states
 # that render identically.
-timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
   echo "       This is not a red suite. Nothing below ran, and the harness is"
   echo "       not at fault until this is explained. Last 20 lines:"
   tail -20 "$OUT"
@@ -116,12 +124,12 @@ mutate() {
   # kill - so a renamed or misspelled test would report KILLED on every
   # run, forever, while running nothing. TOTAL is already incremented,
   # so returning here makes fired != total and the run exits 1.
-  timeout 120 uv run --frozen pytest "$selector" --collect-only -q \
+  timeout "$SELECTOR_TIMEOUT" uv run --frozen pytest "$selector" --collect-only -q \
        -p no:cacheprovider >/dev/null 2>&1
   local probe_rc=$?
   if [ "$probe_rc" -ne 0 ]; then
     if [ "$probe_rc" -eq 124 ]; then
-      echo "  SELECTOR PROBE TIMED OUT after 120s - collection NEVER FINISHED."
+      echo "  SELECTOR PROBE TIMED OUT after ${SELECTOR_TIMEOUT}s - collection NEVER FINISHED."
       echo "  Read this, not the lines below: a hang, not a rename."
     fi
     echo "  SELECTOR DOES NOT RESOLVE - the test was renamed or moved."
@@ -161,7 +169,7 @@ PY
     return
   fi
 
-  timeout 300 uv run --frozen pytest "$selector" -q -p no:cacheprovider \
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest "$selector" -q -p no:cacheprovider \
     >"$OUT" 2>&1
   local rc=$?
 
@@ -173,7 +181,7 @@ PY
   fi
 
   if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after 300s - this row is unbounded. Rewrite it."
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row is unbounded. Rewrite it."
   fi
 
   if [ "$rc" -ne 0 ]; then
