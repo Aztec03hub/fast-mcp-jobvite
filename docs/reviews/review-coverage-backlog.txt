@@ -147,3 +147,4 @@ e3b5c97 NONE ADR-0034: DESIGN.md's "all eleven ADRs" is DELETED, not
 9fbef31 NONE R18 L1, L2 and N1: three gate-hygiene items, and buildin
 cfc0835 NONE R18-M1: two halves of one file disagreed about whether t
 d29937f NONE ADR-0034 made `Type:` load-bearing in a FROZEN document,
+f38f7c3 NONE #170 F3, fixed by TENSE not by arithmetic - the fourth c
