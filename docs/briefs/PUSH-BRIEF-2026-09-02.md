@@ -1,98 +1,97 @@
-# PUSH BRIEF — what this push changes, so it can be watched
+# PUSH BRIEF - what this push changes, and the one measurement that sizes it
 
-**FOR PHIL. Only Phil pushes.** This is the "brief him on exactly what
-the push changes before it lands" half of the rule; the other half is
-that after it lands, the run is WATCHED TO A CONCLUSION before anything
-else is pushed.
+**Derive every number here before you trust it.** The commands are beside each
+one. This file has already been wrong once, in the way described under
+"A CORRECTION TO THE VERSION YOU MAY HAVE READ".
 
-Derive everything below rather than trusting it:
+## The measurement that sizes the whole risk
 
-    git rev-list --count origin/main..HEAD
-    git diff --shortstat origin/main...HEAD
-    git diff --name-only origin/main...HEAD | grep -E '^(src|tests)/'
+    git diff --name-only origin/main...HEAD | grep -cE '^(src|tests)/'
 
-## The one fact that sizes the risk
+**0.** Not one file under `src/` or `tests/` changes.
 
-**NOTHING UNDER `src/` OR `tests/` CHANGES. Zero files.** Measured, not
-assumed:
+That is what bounds this push. The 86-minute test job cannot behave differently
+for any reason internal to what it tests, because what it tests did not move.
+The suite is 887 passed / 0 skipped locally, against `ci.yml`'s floor of 887.
 
-    git diff --name-only origin/main...HEAD | grep -cE '^(src|tests)/'   ->  0
+    total files changed   git diff --name-only origin/main...HEAD | wc -l
+    held commits          git rev-list --count origin/main..HEAD
 
-So the 86-minute `Lint, types, tests` job cannot behave differently for
-any reason internal to what it tests. Every changed file is
-documentation, a checker, a control, or CI wiring.
+At the time of writing those were 65 and 89. **They rise with every commit, so
+run them.**
 
-    23  docs/reviews      the checkers, controls and reports
-    11  docs/briefs       agent briefs and the handoff
-     5  docs/adr          ADR-0035, and edits to 0017/0034
-     4  docs              README, OBLIGATIONS, DESIGN-FREEZE
-     2  scripts
-     2  docs/worklogs
-     2  .github/workflows ci.yml and mirror.yml
+## A CORRECTION TO THE VERSION YOU MAY HAVE READ
 
-## What is genuinely new in CI, and what each costs
+The first version of this brief said every gate was green. **That was false when
+written.** `check-design-citation-shape.py` was exiting 1 on `main`, and
+`ci.yml:353` runs it with no `|| true`, so CI would have failed on it.
 
-FIVE new steps. Each was run before being wired, and timed here on this
-machine - a runner will differ, but not by minutes:
+I had not run that particular checker. I ran the ones I had been thinking about
+and reported the set I ran as though it were the set that exists. Another agent
+found it while doing unrelated work and correctly refused to fix a file that was
+not its own.
 
-    The floor container's own arms                358ms
-    Controls for the brief-report reference gate   817ms
-    The mirror refuses a zero-ref push              35ms
-    Every report a brief cites is committed         42ms
-    The bare-citation discriminator's controls      33ms
+It is fixed now. The two flagged lines were not citations at all - they
+REPRODUCE ADR-0017's own lines inside the probe whose subject IS that ADR, and
+`DESIGN.md:489` being blank is the point of the probe. Both obvious repairs were
+wrong: repointing the quotation falsifies it, and repointing the ADR is refused
+by `ec57a65`. Closed with the exemption register, proved in both directions.
 
-**Under 1.3 seconds in total.** None of them touches the network, and
-none runs pytest. They join the fast static job, not the long one.
+**The general lesson for reading this brief: a green list is a claim about what
+I ran, not about the repo.**
 
-## The change with real blast radius, and why it is small
+## What actually changes
 
-`mirror.yml`'s push step gained a guard that REFUSES a zero-ref push:
+Documentation, checkers, controls, and CI wiring. Concretely:
 
-    refs=$(git for-each-ref ... | wc -l)
-    if [ "$refs" -eq 0 ]; then ... exit 1; fi
+- **Nine R21 review findings closed** (#209-#217), plus #194, #208, #212, #214.
+- **Two new gates** and several widened containers.
+- **One new probe**, `probe-stale-branch-regression.sh`, deliberately NOT wired
+  and registered as such - see below.
+- **`docs/DESIGN.md` does not move.** `check-design-freeze.py` rc=0.
 
-**That step has never executed in this repository's history**, because
-there is no `MIRROR_TOKEN` and its `if:` has skipped it on every run.
-So the guard changes the behaviour of code that does not currently run,
-and it was proved by a probe that EXTRACTS the guard out of `mirror.yml`
-with `awk` rather than retyping it - it cannot pass against a stale
-copy. **No remote was touched to test it**: a mirror push is
-`--force --prune` and is not a thing to test by running.
+## The two workflow files, which is where the real uncertainty is
 
-The same file also writes `GITHUB_STEP_SUMMARY` so a no-op mirror run
-says so on the run's front page rather than only in the log.
+    git diff --name-only origin/main...HEAD | grep '^\.github/'
 
-## What is still NOT verified, and cannot be from here
+`ci.yml` and `mirror.yml`.
 
-- **`actionlint` is NOT INSTALLED on this machine.** Two workflow files
-  changed and neither has been linted. CI runs it with
-  `SHELLCHECK_OPTS=--severity=warning`; **that step is the first real
-  test of both files.**
-- **Nothing here has been through CI at all.** Every green in this
-  session is local.
-- The full `pytest` suite was not re-run for the last several commits,
-  on the reasoning that nothing in `src/` or `tests/` changed. That
-  reasoning is stated so it can be rejected: if you want it run first,
-  it is `uv run --frozen pytest -q` and the floor is derived in `ci.yml`.
+**`ci.yml` NOW CARRIES HUNKS FROM THREE DIFFERENT AGENTS** - #194 added a
+wiring-probe self-test step, #214 rewrote a comment that had frozen a live
+census, #210 folded an ADR-index check into an already-wired step. All three
+survived the merges; I verified each by name rather than trusting a clean
+`git merge`. It parses as YAML.
 
-## What green looks like, and what to do if it is not
+**`actionlint` IS NOT INSTALLED HERE AND HAS NEVER SEEN ANY OF IT.** CI's own
+actionlint step will be the first thing to lint these hunks. That is the single
+largest unverified thing in this push and it is not a footnote.
 
-The trunk has **one** green run in its history (`33582613697`, head
-`22c9873`). A second establishes that it repeats, which is the whole
-reason this push was held.
+**`mirror.yml`'s push step gained a zero-ref refusal** - counted before the
+push, exit 1 on zero. That step has NEVER EXECUTED, because there is no
+`MIRROR_TOKEN`. Proved by a probe that EXTRACTS the guard with `awk` rather than
+retyping it. No remote was touched, because a mirror push is `--force --prune`.
 
-**DO NOT PUSH AGAIN UNTIL THIS RUN CONCLUDES.** GitHub cancels older
-QUEUED runs in a concurrency group regardless of `cancel-in-progress`,
-so a second push destroys the evidence the first was pushed to gather.
+## What is NOT resolved, and could bite
 
-If a NEW step is the thing that goes red, it is one of the five above
-and each is under a second - read its own output, which is written to
-argue its case rather than to assert a verdict. If `actionlint` goes
-red, that is the expected first failure mode and it is on `ci.yml` or
-`mirror.yml`.
+**25 CI steps invoke a checker under a bare inherited `python3`** - not one or
+two. And `check-plan-measurements.py` gives a DIFFERENT VERDICT depending on
+which interpreter answers:
 
-## Local gate state at this sha
+    /usr/bin/python3         [STALE] M3, [STALE] M4   rc=1
+    uv run --frozen python   [PASS] M1-M4             rc=0
 
-All green, each read from its own exit code: eight doc checkers, ruff
-check, ruff format, mypy, shellcheck, the floor exactness checker and
-its `--self-test`, and every control harness named above.
+Same file, same commit. **So CI's green may be an accident of what `python3`
+resolves to on the runner.** Nobody has read a run log to find out; the risk is
+conditional and I am not asserting the step is red. This is #221, in flight.
+
+The one green run this project has ever had is `33582613697`, head `22c9873`,
+and it presumably had all 25 of these steps green - which is evidence, and is
+the thing to read first if CI fails on one of them.
+
+## After you push
+
+**WATCH THE RUN TO A CONCLUSION BEFORE PUSHING AGAIN.** GitHub supersedes older
+QUEUED runs in a concurrency group regardless of `cancel-in-progress`, so a
+second push destroys the evidence the first was sent to gather. The trunk has
+exactly ONE green run in its history; a second would establish that it repeats,
+and that is the whole point of this push.
