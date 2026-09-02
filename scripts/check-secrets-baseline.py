@@ -388,6 +388,59 @@ _A = {"type": "Secret Keyword", _DIGEST: "aaa", "line_number": 1}
 _B = {"type": "Secret Keyword", _DIGEST: "bbb", "line_number": 2}
 
 
+def arm_verdict(arms: int, floor: int, failed: int) -> tuple[str, list[str], int]:
+    """The canonical line, the diagnosis and the exit code, in ONE spot.
+
+    **EQUALITY, NOT A LOWER BOUND (#223, the direction #193 closed for
+    the two COMPUTED members).** `len(arms) >= floor` was green at
+    `arms=10 floor=9 status=ok`, measured by planting a tenth arm - so
+    the harness could not see its own floor go slack.
+
+    It was not the ONLY instrument, and saying so would overstate this.
+    `check-row-floor-exactness.py` statically counts the `arm(` sites
+    in this file and printed "SLACK by 1", exit 1, on the same planted
+    tree. That checker is the reason the hole here is narrow rather
+    than open: what this change buys is a harness that fails on its own
+    evidence instead of leaving the whole claim to a second file.
+
+    **THE TALLY CANNOT SEE A LOST ARM, AND THE FLOOR CANNOT SEE A
+    FAILED ONE.** `failed=0` reads exactly the same whether nine arms
+    passed or eight did, so only `arms` against `floor` separates them;
+    and an arm that RUNS and fails leaves `arms == floor` satisfied, so
+    only `failed` catches that. Both are asserted below because neither
+    can see the other's case.
+    """
+    status = "ok" if not failed and arms == floor else "breach"
+    line = (
+        f"secrets-baseline-controls: arms={arms} failed={failed}"
+        f" floor={floor} status={status}"
+    )
+    if arms < floor:
+        return (
+            line,
+            [
+                f"::error::{arms} arms against a floor of {floor} -"
+                " an arm was DELETED, which is the whole reason the"
+                " floor is here."
+            ],
+            1,
+        )
+    if arms > floor:
+        return (
+            line,
+            [
+                f"::error::{arms} arms against a floor of {floor} -"
+                f" arms were ADDED and the floor was not raised. It is"
+                f" slack by {arms - floor}, and a slack floor says"
+                f" nothing when arms go later. Raise it to {arms}."
+            ],
+            1,
+        )
+    if failed:
+        return (line, [], 1)
+    return (line, [], 0)
+
+
 def controls() -> int:
     """Each arm names what would be true if the comparison broke."""
     arms: list[tuple[str, bool, str]] = []
@@ -520,39 +573,57 @@ def controls() -> int:
                 "the gate would warn about files .gitignore excludes",
             )
 
-    failed = [a for a in arms if not a[1]]
-    for name, ok, meaning in arms:
-        print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
-
     # THE ARM FLOOR (R19-M2), and it was a MEASURED SURVIVOR before it
     # existed. `failed == 0` is satisfied by zero arms, and nothing else
-    # held the count: this file has no floor, ci.yml passes no
-    # --min-rows, the step is not routed through ci-harness-gate.sh, and
-    # check-row-floor-exactness.py enumerates `scripts/*.sh` so a `.py`
-    # is outside its container by construction. R19 deleted C7-C9 - the
-    # three arms that exist BECAUSE R18-H1 shipped - and the step stayed
-    # GREEN at `arms=6 failed=0`.
+    # held the count: R19 deleted C7-C9 - the three arms that exist
+    # BECAUSE R18-H1 shipped - and the step stayed GREEN at
+    # `arms=6 failed=0`.
     #
     # That is R18-M4's own defect one column over: M4 was "nothing makes
     # it run", this was "nothing makes it keep existing".
     #
+    # THE PARAGRAPH HERE USED TO SAY this file was outside
+    # `check-row-floor-exactness.py`'s container "by construction",
+    # because that checker "enumerates `scripts/*.sh` so a `.py` is
+    # outside it". #187 widened the container to tracked `.py` and
+    # `.sh` under `scripts/` and `docs/reviews/`, and this file has
+    # been a member since. MEASURED (#223): plant a tenth arm and the
+    # exactness checker prints "SLACK by 1" and exits 1. The sentence
+    # that argued a lower bound was harmless here was describing a
+    # container that had already moved.
+    #
     # DERIVED, not chosen: C1-C6 are the comparison arms, C7-C9 the
-    # listing arms added with the R18-H1 fix. Raise it in the commit
-    # that adds an arm; lowering it is a visible diff that has to
-    # be defended.
-    arm_floor = 9
-    status = "ok" if not failed and len(arms) >= arm_floor else "breach"
-    print(
-        f"secrets-baseline-controls: arms={len(arms)} failed={len(failed)}"
-        f" floor={arm_floor} status={status}"
+    # listing arms added with the R18-H1 fix, C10-C11 the arms that
+    # exercise the verdict itself. Raise it in the commit that adds an
+    # arm; lowering it is a visible diff that has to be defended.
+    arm_floor = 11
+
+    # C10-C11 ARM THE VERDICT, and they call the SAME function the
+    # canonical line below is built from rather than a copy of it. A
+    # self-check that re-implements the comparison it is checking
+    # passes for as long as the two copies agree, which is until one
+    # is edited.
+    arm(
+        "C10 an ADDED arm against an unraised floor is a breach",
+        arm_verdict(arm_floor + 1, arm_floor, 0)[2] != 0,
+        "arms could be added without the floor being raised, and a "
+        "slack floor says nothing when arms go later",
     )
-    if len(arms) < arm_floor:
-        print(
-            f"::error::{len(arms)} arms against a floor of {arm_floor} -"
-            " an arm was DELETED, which is the whole reason the floor is here."
-        )
-        return 1
-    return 1 if failed else 0
+    arm(
+        "C11 a DELETED arm is a breach, in the other direction",
+        arm_verdict(arm_floor - 1, arm_floor, 0)[2] != 0,
+        "the direction the floor was built for would stop firing",
+    )
+
+    failed = [a for a in arms if not a[1]]
+    for name, ok, meaning in arms:
+        print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
+
+    line, diagnosis, code = arm_verdict(len(arms), arm_floor, len(failed))
+    print(line)
+    for detail in diagnosis:
+        print(detail)
+    return code
 
 
 def main() -> int:

@@ -258,21 +258,43 @@ field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
 # WHETHER A MEMBER HAS ITS OWN `--self-test` IS DERIVED FROM THE FILE, never
 # asserted here. A refusal that names a remedy the file does not carry is the
 # same class of defect as the "is not bash" it replaces.
+#
+# THE DERIVATION USED TO BE `grep -q -- '--self-test'` AND IT WAS WRONG,
+# measured under #223 by running what it printed. `check-secrets-baseline.py`
+# mentions a `--self-test` in a COMMENT - "three of four mutants have survived
+# a `--self-test` in this repository before" - and has never had the flag. The
+# refusal printed `python3 scripts/check-secrets-baseline.py --self-test`, and
+# that command exits 2 with "unrecognized arguments: --self-test". A grep for a
+# defect pattern finds the prose ABOUT the pattern; that false HAS is what
+# #194's own derivation carried, which is why its report named three static
+# members with one gap when the truth is a different member and a different
+# gap.
+#
+# The test is now the DOUBLE-QUOTED form, which is how a flag is written in
+# code here - `add_argument("--self-test")`, `"--self-test" in sys.argv` - and
+# not how it is written in prose, where every mention is in backticks. It asks
+# about `--self-test` ONLY: a member may arm its floor behind a differently
+# named flag, and this refusal is not the place to enumerate them.
 if [ "$MODE" = static ]; then
   echo "REFUSED: $TARGET is a mode=static row."
   echo "  This control mutates bash and reads a bash library's canonical line."
   case "$TARGET" in
     *.py)
       echo "  It is Python, so an arm here would measure the interpreter."
-      if grep -q -- '--self-test' "$S"; then
+      if grep -q -F -- '"--self-test"' "$S"; then
         echo "  It carries a --self-test, which is where a Python member's"
         echo "  floor is armed - the shape check-row-floor-exactness.py uses:"
         echo "      python3 $TARGET --self-test"
         echo "  RUN IT. This refusal proves the FLAG exists; only the run"
         echo "  says whether that self-test arms the floor."
       else
-        echo "  It carries NO --self-test, so nothing watches its floor fire."
-        echo "  That is a gap in the harness, not a property of this control."
+        echo "  It carries no --self-test in the form code declares one (a"
+        echo "  DOUBLE-QUOTED \"--self-test\"). A backticked mention in prose"
+        echo "  is not a flag - this refusal said otherwise until #223 ran"
+        echo "  the command it printed and got exit 2."
+        echo "  If nothing else arms this file's floor, that is a gap in the"
+        echo "  harness, not a property of this control. Read its argparse"
+        echo "  block: another flag may be doing the job under another name."
       fi
       ;;
     *)
