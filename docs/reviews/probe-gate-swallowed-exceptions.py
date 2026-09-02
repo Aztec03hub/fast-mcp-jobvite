@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import re
 import subprocess
 import sys
 from types import ModuleType
@@ -62,6 +63,126 @@ def row(name: str, ok: bool, detail: str) -> None:
     RAN.append(name)
     if not ok:
         FAILURES.append(name.split(".")[0])
+
+
+def verdict(ran: int, floor: int, failures: list[str]) -> tuple[list[str], int]:
+    """The lines and the exit code, in ONE place.
+
+    Split out of the tail of this file so `--self-test` arms THE SAME
+    rules rather than a copy of them. A self-check that re-implements
+    the comparison it is checking passes for as long as the two copies
+    agree, which is until one of them is edited.
+
+    **EQUALITY, NOT A LOWER BOUND (#223).** `len(RAN) < ROW_FLOOR` was
+    blind in the ADD direction: a row added without raising the floor
+    left it slack, and a slack floor says nothing when rows go later.
+    `check-row-floor-exactness.py` does statically count this file's
+    labelled `row(` sites and would report the slack, so this is the
+    harness failing on its own evidence rather than a hole nothing
+    else could see.
+
+    **NEITHER HALF CAN SEE THE OTHER'S CASE, so both are asserted.**
+    Delete a row and `ran` falls below `floor` while `failures` stays
+    EMPTY - a reader watching the failure list sees a clean run. Break
+    a row and `failures` fills while `ran == floor` is satisfied - a
+    reader watching the count sees a full one. The first is what this
+    floor exists for; the second is what `probe-docs-lint-amputation.py`
+    already watches, by amputating the two guarded call sites and
+    asserting WHICH rows die.
+    """
+    lines = [f"  {ran}/{floor} rows ran."]
+    if ran < floor:
+        lines.append(f"  ONLY {ran} of {floor} rows ran. A partial run is not a pass.")
+        return (lines, 1)
+    if ran > floor:
+        lines.append(
+            f"  {ran} rows ran against a floor of {floor}. Rows were ADDED "
+            f"and the floor was not raised: it is slack by {ran - floor}, "
+            f"so that many can be deleted unnoticed. Raise it to {ran}."
+        )
+        return (lines, 1)
+    if failures:
+        lines.append(f"  {len(failures)} row(s) did not behave: {failures}")
+        return (lines, 1)
+    lines.append("  every row behaved. Both swallows now catch only what they name.")
+    return (lines, 0)
+
+
+#: THE ARM SET, NAMED. This is a floor by another mechanism, and the
+#: mechanism is deliberate: a second `*_floor = <int>` in this file is
+#: a HARD FAILURE of `check-row-floor-exactness.py` for a mode=static
+#: row - "2 floor assignments (ROW_FLOOR, arm_floor) and nothing says
+#: which one the table's row count is about", exit 1, MEASURED under
+#: #223 by planting one. The two-floor permission #194 added is for
+#: COMPUTED rows only, and this row's count is static.
+#:
+#: A name list buys what an integer floor buys - defeating it takes a
+#: TWO-PLACE edit, delete the arm AND delete its name - while carrying
+#: no integer for the container to be ambiguous about. #194's own S9
+#: arm is the same device.
+SELF_TEST_ARMS = ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8")
+
+
+def self_test() -> int:
+    """Arm `verdict()` in memory. Runs no rows and mutates nothing."""
+    seen: list[str] = []
+    bad: list[str] = []
+
+    def check(label: str, ok: bool, meaning: str) -> None:
+        seen.append(label)
+        print(f"{'PASS' if ok else 'FAIL'}  {label}  {meaning}")
+        if not ok:
+            bad.append(label)
+
+    full = verdict(ROW_FLOOR, ROW_FLOOR, [])
+    check("S1", full[1] == 0, "a full row set with no failures is exit 0")
+
+    lost = verdict(ROW_FLOOR - 1, ROW_FLOOR, [])
+    check("S2", lost[1] == 1, "DELETE one row and the floor BREACHES: exit 1")
+    check(
+        "S3",
+        any("ONLY" in line for line in lost[0]),
+        "the breach SAYS a row was lost rather than exiting quietly",
+    )
+    check(
+        "S4",
+        verdict(ROW_FLOOR + 1, ROW_FLOOR, [])[1] == 1,
+        "an ADDED row against an unraised floor also breaches",
+    )
+    check(
+        "S5",
+        verdict(ROW_FLOOR, ROW_FLOOR, ["C"])[1] == 1,
+        "THE OTHER DIRECTION: the floor is SATISFIED and only the "
+        "failure list catches a row that ran and misbehaved",
+    )
+    check(
+        "S6",
+        verdict(0, ROW_FLOOR, [])[1] == 1,
+        "a run that executed NO rows is a breach, not a green",
+    )
+    own = pathlib.Path(__file__).read_text(encoding="utf-8")
+    check(
+        "S7",
+        len(re.findall(r"(?m)^ROW_FLOOR = \d+$", own)) == 1,
+        "ROW_FLOOR is exactly ONE literal assignment the container "
+        "can see - two would be a hard failure for a static row",
+    )
+    check(
+        "S8",
+        tuple(seen) + ("S8",) == SELF_TEST_ARMS and len(set(seen)) == len(seen),
+        "SELF_TEST_ARMS names exactly these arms, in order, with no "
+        "duplicate label - deleting an arm takes a two-place edit",
+    )
+
+    print(f"  {len(seen)}/{len(SELF_TEST_ARMS)} self-test arms ran.")
+    if bad:
+        print(f"  {len(bad)} arm(s) did not behave: {bad}")
+        return 1
+    return 0
+
+
+if "--self-test" in sys.argv:
+    raise SystemExit(self_test())
 
 
 def load(stem: str) -> ModuleType:
@@ -216,12 +337,7 @@ else:
     )
 
 print()
-print(f"  {len(RAN)}/{ROW_FLOOR} rows ran.")
-if len(RAN) < ROW_FLOOR:
-    print(f"  ONLY {len(RAN)} of {ROW_FLOOR} rows ran. A partial run is not a pass.")
-    raise SystemExit(1)
-if FAILURES:
-    print(f"  {len(FAILURES)} row(s) did not behave: {FAILURES}")
-    raise SystemExit(1)
-print("  every row behaved. Both swallows now catch only what they name.")
-raise SystemExit(0)
+REPORT, CODE = verdict(len(RAN), ROW_FLOOR, FAILURES)
+for report_line in REPORT:
+    print(report_line)
+raise SystemExit(CODE)
