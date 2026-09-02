@@ -35,6 +35,11 @@
 # number is the finding: five rows can be deleted from it today without its
 # floor noticing.
 #
+# A `mode=computed` row deletes exactly ONE, and it can, because its
+# baseline run has already ASSERTED the floor is tight (#194). The row count
+# there is read from the harness rather than derived from its source, so
+# `rows - floor + 1` has no static inputs to be computed from at all.
+#
 # NOT A CI GATE, on purpose: it edits a tracked file in the working tree, and
 # it refuses to run when that file is already dirty. It restores by
 # byte-comparison against a backup rather than by re-editing, because a `sed`
@@ -90,13 +95,22 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # `arm_floor = 9` and a bare `floor = 14` are all live today and a fourth
 # would be caught without an edit here.
 #
-# The exactness claim covers all 24 rows below, and SO DOES THE FIRING CLAIM
-# NOW. #91 watched the first nine; #102 watched the remaining fourteen at
-# `0c25ae3` and found all of them tight, with the evidence written up in
-# `docs/worklogs/FLOOR-FIRING-REPORT.md`; `check-u15-gate-amputation.sh` was
-# watched by the singular `check-row-floor-control.sh` and has been re-watched
-# through this script since it became row 24 (R12-M1). Every row here has been
-# seen to fire.
+# THE EXACTNESS CLAIM COVERS EVERY ROW BELOW. THE FIRING CLAIM COVERS EVERY
+# ROW THIS SCRIPT WILL RUN, AND THE COUNT IS DELIBERATELY NOT WRITTEN HERE -
+# `--list` prints the table and the modes are in it. #91 watched the first
+# nine; #102 watched the next fourteen at `0c25ae3` and found all of them
+# tight, with the evidence in `docs/worklogs/FLOOR-FIRING-REPORT.md`;
+# `check-u15-gate-amputation.sh` was watched by the singular
+# `check-row-floor-control.sh` and re-watched here once it became a row
+# (R12-M1); #194 watched the two `docs/reviews/` shell members and then built
+# `mode=computed` for `probe-131-gate-state.sh`.
+#
+# WHAT IS NOT COVERED BY THIS SCRIPT, NAMED SO IT CANNOT PASS FOR DONE: the
+# `mode=static` rows. They are Python, their remedy is their own
+# `--self-test`, and whether each one HAS that is a question for the file,
+# not for this comment - the refusal below derives it per member rather than
+# asserting it here, because a coverage claim written in prose is exactly
+# what went stale the last three times this paragraph was edited.
 #
 # R12-L1: THESE LINES SAID THE OPPOSITE UNTIL NOW, and the shape is worth
 # keeping. They read *"the fourteen added afterwards have been checked but never
@@ -129,6 +143,25 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # THE FOURTH COLUMN IS NOT DECORATION EITHER. `check-u11-advisory-controls.sh`
 # exits 6 on a floor breach, not 1. A control asserting `rc -eq 1` everywhere
 # would have called it broken.
+#
+# THE FIFTH COLUMN IS THE MODE, AND THERE ARE FOUR OF THEM:
+#
+#   cmd       a row is a shell COMMAND. It is neutralised by prefixing the
+#             `:` builtin, and the row count is a STATIC property of the
+#             source, so this control PREDICTS what the harness must report.
+#   data      the rows are lines of a here-document rather than commands, so
+#             they are deleted outright; a `:` in front of one would only
+#             edit a data field.
+#   computed  the row count is built at RUN TIME and no static count exists,
+#             so this control READS `rows=N` from a first run before it
+#             deletes anything (#194). Column 2 then reads `COMPUTED <ere>`:
+#             the token FIRST, because `check-row-floor-exactness.py` selects
+#             on it to skip its own static comparison, and the deletion ERE
+#             after it. A COMPUTED count is UNPREDICTABLE, not unwatchable,
+#             and reading it is the whole difference.
+#   static    EXACTNESS ONLY - see the refusal below. What is left in this
+#             mode is the Python members, whose remedy is their own
+#             `--self-test`.
 TABLE="
 check-harness-anchors-controls.sh|^row \"|1|1|cmd
 check-suite-floor-amputation.sh|^amputate \"|0|1|cmd
@@ -157,7 +190,7 @@ check-u15-gate-amputation.sh|^report \"|0|1|cmd
 check-mirror-liveness-controls.sh|^(row|amputate|transport) \"|0|1|cmd
 docs/reviews/probe-gate-swallowed-exceptions.py|row\(\n\s*\"(?P<label>[A-Z])\.|0|1|static
 scripts/check-secrets-baseline.py|arm\(\n\s*\"(?P<label>C[0-9]+) |0|1|static
-docs/reviews/probe-131-gate-state.sh|COMPUTED|0|1|static
+docs/reviews/probe-131-gate-state.sh|COMPUTED ^row \"|0|1|computed
 docs/reviews/probe-wired-checker-amputation.py|COMPUTED|0|1|static
 docs/reviews/check-brief-report-refs-controls.sh|^ *row \"|2|1|cmd
 docs/reviews/probe-mirror-zero-refs.sh|^row |1|1|cmd
@@ -196,6 +229,13 @@ case "$TARGET" in
 esac
 [ -f "$S" ] || { echo "ABORT: $S does not exist - prove the path resolves"; exit 2; }
 
+# Field extraction with no shape list of its own: the canonical line is
+# `key=value` pairs separated by spaces, so it is split on spaces and the key
+# is looked up by name. A field added to the grammar later cannot break this.
+# Defined HERE rather than beside its first reader because `mode=computed`
+# parses a BASELINE run's line before any mutation happens.
+field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
+
 # MODE `static`: EXACTNESS ONLY, AND THE REFUSAL IS THE POINT.
 #
 # Everything below this line is bash surgery - it neutralises a row with the
@@ -209,32 +249,39 @@ esac
 # the same equality as every other row - that is what put them in the table.
 # Columns 4-5 have no meaning here, and this refuses rather than pretending.
 #
-# WHAT IS STILL MISSING, NAMED SO IT CANNOT PASS FOR DONE: nobody has watched
-# these two floors FIRE. Task #194 is the Python arm of this control.
+# THIS BLOCK USED TO PRINT "is not bash" FOR EVERY static ROW, which was
+# FALSE about `probe-131-gate-state.sh`, a `.sh` file. Its real blocker was a
+# COMPUTED row count - and a COMPUTED count is UNPREDICTABLE, not
+# unwatchable. It is `mode=computed` now and this control watches it fire, so
+# what is left in `static` is the Python members and one reason covers them.
+#
+# WHETHER A MEMBER HAS ITS OWN `--self-test` IS DERIVED FROM THE FILE, never
+# asserted here. A refusal that names a remedy the file does not carry is the
+# same class of defect as the "is not bash" it replaces.
 if [ "$MODE" = static ]; then
   echo "REFUSED: $TARGET is a mode=static row."
   echo "  This control mutates bash and reads a bash library's canonical line."
-  # THE REASON IS DERIVED, NOT ASSUMED. This block used to print "is not
-  # bash" for EVERY static row, which is FALSE for the two that are
-  # `.sh`: `probe-131-gate-state.sh` is bash and its actual blocker is
-  # that its row count is COMPUTED at run time, so no static count
-  # exists to predict. A refusal that misdiagnoses is worse than a bare
-  # one - a reader told "not bash" about a `.sh` file stops believing
-  # the tool, and the two members have DIFFERENT reasons that need
-  # DIFFERENT remedies.
-  if [ "$ROW_RE" = COMPUTED ]; then
-    echo "  Its row count is COMPUTED at run time, so this control has no"
-    echo "  static count to predict and cannot say what a deletion should"
-    echo "  produce. It could still be watched by reading rows=N from a"
-    echo "  first run - that mode does not exist yet."
-  fi
   case "$TARGET" in
-    *.py) echo "  It is Python; this control mutates bash, so an arm here"
-          echo "  would measure the interpreter. It needs its own --self-test,"
-          echo "  the shape check-row-floor-exactness.py already uses." ;;
+    *.py)
+      echo "  It is Python, so an arm here would measure the interpreter."
+      if grep -q -- '--self-test' "$S"; then
+        echo "  It carries a --self-test, which is where a Python member's"
+        echo "  floor is armed - the shape check-row-floor-exactness.py uses:"
+        echo "      python3 $TARGET --self-test"
+        echo "  RUN IT. This refusal proves the FLAG exists; only the run"
+        echo "  says whether that self-test arms the floor."
+      else
+        echo "  It carries NO --self-test, so nothing watches its floor fire."
+        echo "  That is a gap in the harness, not a property of this control."
+      fi
+      ;;
+    *)
+      echo "  It is NOT Python, so this refusal cannot say why it is static."
+      echo "  A refusal that misdiagnoses is worse than a bare one: read the"
+      echo "  table row rather than believing a guess printed here."
+      ;;
   esac
   echo "  Its EXACTNESS is checked - check-row-floor-exactness.py names it."
-  echo "  Its FIRING is not watched by anything yet; that is task #194."
   exit 4
 fi
 
@@ -268,16 +315,93 @@ case "$FLOOR" in
   ''|*[!0-9]*) echo "ABORT: no literal ROW_FLOOR=<n> in $TARGET"; exit 9 ;;
 esac
 
-MATCHED=$(grep -cE "$ROW_RE" "$S")
-ROWS=$((MATCHED + EXTRA))
-DELETE=$((ROWS - FLOOR + 1))
-EXPECT=$((ROWS - DELETE))
+# MODE `computed`: THE COUNT IS READ FROM A RUN, NOT PREDICTED.
+#
+# `probe-131-gate-state.sh` builds `TOTAL` at run time from three different
+# helpers plus inline increments, so no count of source sites reaches the
+# number it prints: nine increment sites, twelve rows. That made it look
+# unwatchable, and the refusal above said so for months.
+#
+# IT IS UNPREDICTABLE, NOT UNWATCHABLE, AND THE DIFFERENCE IS ONE RUN.
+# Nothing here has to know what N is in advance:
+#
+#     run it once     -> rows=N floor=N status=ok rc=0
+#     delete ONE row  -> rows=N-1 status=breach rc=<column 4>
+#     restore         -> byte-identical to the backup AND to the index
+#
+# THE BASELINE IS AN ASSERTION, NOT A READING. If the first run is already
+# breaching, or reports a floor its source does not declare, then the second
+# run's breach is attributable to nothing and this control must refuse rather
+# than report a firing it cannot own. It runs BEFORE the backup and the trap,
+# on the untouched file, so a refusal here has mutated nothing.
+if [ "$MODE" = computed ]; then
+  case "$ROW_RE" in
+    "COMPUTED "*) ROW_RE="${ROW_RE#COMPUTED }" ;;
+    *)
+      echo "ABORT: mode=computed requires column 2 to read 'COMPUTED <ere>' -"
+      echo "       the token first, because check-row-floor-exactness.py"
+      echo "       selects on it, and the deletion ERE after it. It reads:"
+      echo "       $ROW_RE"
+      exit 9
+      ;;
+  esac
+
+  BASE_OUT="$(mktemp)"
+  echo "--- baseline run: READING the row count rather than predicting it ---"
+  PYTHONDONTWRITEBYTECODE=1 bash "$S" > "$BASE_OUT" 2>&1
+  base_rc=$?
+  BASE_LINE=$(grep -E "^HARNESS-RESULT name=$(basename "$TARGET") " "$BASE_OUT" | tail -1)
+  echo "${BASE_LINE:-<the harness printed no canonical line at all>}"
+  echo "baseline exit: $base_rc"
+  if [ -z "$BASE_LINE" ]; then
+    echo "::error::the baseline run printed no canonical line, so there is no"
+    echo "         row count to read. Nothing was mutated."
+    rm -f "$BASE_OUT"
+    exit 9
+  fi
+  BASE_ROWS=$(field "$BASE_LINE" rows)
+  BASE_FLOOR=$(field "$BASE_LINE" floor)
+  BASE_STATUS=$(field "$BASE_LINE" status)
+  rm -f "$BASE_OUT"
+  if [ "$base_rc" -ne 0 ] || [ "$BASE_STATUS" != ok ]; then
+    echo "::error::the baseline run is not healthy (exit $base_rc,"
+    echo "         status=$BASE_STATUS). A breach after a deletion would not be"
+    echo "         attributable to the deletion, so this refuses to claim one."
+    exit 9
+  fi
+  if [ "$BASE_FLOOR" != "$FLOOR" ]; then
+    echo "::error::the baseline reported floor=$BASE_FLOOR and the source says"
+    echo "         ROW_FLOOR=$FLOOR. Two opinions about one number."
+    exit 9
+  fi
+  if [ "$BASE_ROWS" != "$FLOOR" ]; then
+    echo "::error::the baseline reported rows=$BASE_ROWS against floor=$FLOOR."
+    echo "         A COMPUTED member is held to EQUALITY (#193); this control"
+    echo "         cannot watch a floor that is already slack or already red."
+    exit 9
+  fi
+  MATCHED=$(grep -cE "$ROW_RE" "$S")
+  ROWS="$BASE_ROWS"
+  DELETE=1
+  EXPECT=$((ROWS - DELETE))
+else
+  MATCHED=$(grep -cE "$ROW_RE" "$S")
+  ROWS=$((MATCHED + EXTRA))
+  DELETE=$((ROWS - FLOOR + 1))
+  EXPECT=$((ROWS - DELETE))
+fi
 
 echo "harness            : $TARGET"
 echo "floor (from source): $FLOOR"
-echo "rows               : $ROWS  ($MATCHED matched by the ERE + $EXTRA inline)"
-echo "rows to delete     : $DELETE   (rows - floor + 1)"
-echo "expected count     : $EXPECT   (must print as $EXPECT/$FLOOR)"
+if [ "$MODE" = computed ]; then
+  echo "rows               : $ROWS  (READ from the baseline run; $MATCHED site(s) match the ERE)"
+  echo "rows to delete     : $DELETE   (one is enough against a TIGHT floor)"
+  echo "expected count     : $EXPECT   (must report rows=$EXPECT against floor=$FLOOR)"
+else
+  echo "rows               : $ROWS  ($MATCHED matched by the ERE + $EXTRA inline)"
+  echo "rows to delete     : $DELETE   (rows - floor + 1)"
+  echo "expected count     : $EXPECT   (must print as $EXPECT/$FLOOR)"
+fi
 
 if [ "$DELETE" -lt 1 ]; then
   echo "::error::the floor is at or above the row count already; this harness is"
@@ -408,11 +532,6 @@ RESULT=$(grep -E "^HARNESS-RESULT name=$TARGET_BASE " "$B.out" | tail -1)
 echo "${RESULT:-<the harness printed no canonical line at all>}"
 echo "exit with $DELETE row(s) deleted: $rc (must be $WANT_RC)"
 
-# Field extraction with no shape list of its own: the line is `key=value` pairs
-# separated by spaces, so it is split on spaces and the key is looked up by
-# name. A field added to the grammar later cannot break this.
-field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"; }
-
 ok=0
 if [ -z "$RESULT" ]; then
   echo "::error::the harness printed NO 'HARNESS-RESULT name=$TARGET_BASE ...' line."
@@ -450,6 +569,21 @@ else
     echo "         'refused' means it never reached its floor comparison at all;"
     echo "         an 'ok' means the comparison ran and did not fire."
     ok=1
+  fi
+
+  # WHICH ASSERTION CAUGHT WHAT, PRINTED RATHER THAN LEFT TO BE INFERRED.
+  # `fired=N/N` IN A BREACH IS THE TRAP. When a row is DELETED every
+  # SURVIVING row still fires, so the tally reads full on a harness that has
+  # lost a row - it is the same `fired=12/12` shape a healthy run prints,
+  # one smaller. Nothing in the tally can see the loss. Only `rows` against
+  # `floor` can, which is why this control asserts the count and treats the
+  # tally as evidence about the tally, never as a pass.
+  GOT_TALLY=$(field "$RESULT" fired)
+  if [ -n "$GOT_TALLY" ]; then
+    echo "note: with $DELETE row(s) deleted the harness still reports"
+    echo "      fired=$GOT_TALLY - every SURVIVING row fired, so the tally"
+    echo "      cannot see the loss. rows=$GOT_ROWS against floor=$GOT_FLOOR is"
+    echo "      the assertion that caught it, together with exit $rc."
   fi
 fi
 [ "$rc" -eq "$WANT_RC" ] || {

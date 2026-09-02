@@ -98,8 +98,20 @@ guarantee:
   is what it looks like: one of the two is a `.sh`.** They carry the
   token `COMPUTED` in the table, so the equality still holds in both
   directions and the default for a NEW member stays red. Task #193
-  closes the gap by asserting equality on the canonical line both
-  publish.
+  closed the gap by asserting equality on the canonical line both
+  publish, and #194 built the two mechanisms that WATCH those floors
+  fire: `mode=computed` in `check-row-floor-controls.sh` for the `.sh`,
+  which reads `rows=N` from a first run instead of predicting it, and a
+  `--self-test` for the `.py`. The token is now the FIRST WORD of the
+  cell rather than the whole of it, because that control's deletion ERE
+  rides after it - see `is_computed()`.
+* **A COMPUTED member may carry MORE THAN ONE floor, and nothing else
+  may.** `probe-wired-checker-amputation.py` has `FLOOR` for its own
+  arms and `arm_floor` for its `--self-test`: two harnesses in one file
+  with two different watchers. Where a source-derived row count IS being
+  compared, two floors make the comparison unattributable and stay a
+  finding - `_row_exactness()` draws that line and arms A19/A20 hold it
+  in both directions.
 
 **WHAT THIS STILL DOES NOT COVER, stated because a partial check selects
 for the form it cannot see.** The agreement claim reaches only the
@@ -397,6 +409,100 @@ def _live_rows(text: str, row_re: str) -> int | str:
     return matched
 
 
+def is_computed(ere: str) -> bool:
+    """Does this table cell declare a run-time row count?
+
+    **THE TOKEN IS THE FIRST WORD, NOT THE WHOLE CELL.** It was an
+    equality against the whole field, and `mode=computed` in
+    `check-row-floor-controls.sh` (#194) now writes `COMPUTED <ere>`:
+    the token first, so this selector still sees it, and a deletion ERE
+    after it so that control can neutralise one row and watch the floor
+    breach. Two consumers, one cell, and the token has to be readable by
+    the one that cannot use the rest.
+
+    An equality here read `COMPUTED ^row "` as an ordinary ERE, counted
+    ZERO rows in the harness and reported the floor as impossible. That
+    is a red for a reason nobody would have chased to this line, which
+    is why the rule is a token test rather than a longer literal.
+    """
+    return ere.strip().split()[:1] == ["COMPUTED"]
+
+
+def _row_exactness(
+    rel: str,
+    ere: str,
+    extra: int,
+    declared: list[tuple[str, int]],
+    text: str,
+) -> tuple[list[str], list[str]]:
+    """One table row's verdict: `(findings, lines to print)`.
+
+    Split out of `main()` so `--self-test` arms THE SAME rules rather
+    than a copy of them, and so the two-floor case below can be measured
+    without planting a floor in a tracked file.
+
+    **A FILE MAY CARRY MORE THAN ONE FLOOR ONLY WHEN ITS ROW COUNT IS
+    COMPUTED, AND THAT IS A NARROW PERMISSION, NOT A RELAXATION.** For a
+    static row the ambiguity is real and fatal: this function compares a
+    source-derived row count against A floor, and with two of them
+    nothing says which. For a COMPUTED row it compares NOTHING - there
+    is no static count to attribute - so the question the refusal asks
+    has no referent.
+
+    `probe-wired-checker-amputation.py` is the member that needs it and
+    the reason is structural rather than convenient: `FLOOR` gates its
+    ten arms plus its container halves, and `arm_floor` gates the arms
+    of its own `--self-test` (#194). They are two harnesses in one file
+    with two different watchers, and collapsing them into one number
+    would make one of the two unwatched again.
+    """
+    if not declared:
+        return ([f"{rel}: no literal floor assignment"], [])
+
+    computed = is_computed(ere)
+    if len(declared) > 1 and not computed:
+        return (
+            [
+                f"{rel}: {len(declared)} floor assignments "
+                f"({', '.join(n for n, _ in declared)}) and nothing says "
+                "which one the table's row count is about."
+            ],
+            [],
+        )
+    if computed:
+        return (
+            [],
+            [
+                f"  {rel:52} floor {val:3}  rows   ?  "
+                f"COMPUTED at run time - no static count (#193), `{name}`"
+                for name, val in declared
+            ],
+        )
+
+    floor = declared[0][1]
+    rows = static_rows(text, ere, extra)
+    lines = [f"  {rel:52} floor {floor:3}  rows {rows:3}"]
+    if rows > floor:
+        return (
+            [
+                f"{rel}: SLACK by {rows - floor}. It has {rows} rows and a "
+                f"floor of {floor}, so {rows - floor} row(s) can be deleted "
+                "without the floor noticing. This is the direction that "
+                "never announces itself."
+            ],
+            lines,
+        )
+    if rows < floor:
+        return (
+            [
+                f"{rel}: floor {floor} exceeds its {rows} rows, so the "
+                "harness cannot pass its own floor."
+            ],
+            lines,
+        )
+    return ([], lines)
+
+
 def _container_gap(table: list[tuple[str, str, int]]) -> list[str]:
     """Harnesses carrying a `ROW_FLOOR` that the table does not name.
 
@@ -677,6 +783,49 @@ def self_test() -> int:
         "an empty container and a fully-covered one are the same green",
     )
 
+    # -- THE `COMPUTED` TOKEN, AND THE CELL THAT CARRIES MORE --------
+    # #194 gave `check-row-floor-controls.sh` a `computed` mode, and the
+    # deletion ERE it needs lives after the token in the SAME cell. An
+    # equality test read that cell as an ordinary regex, matched zero
+    # rows and called the floor impossible - a red nobody would have
+    # traced back to a string comparison.
+    arm(
+        "A17 `COMPUTED <ere>` is still a COMPUTED cell",
+        is_computed('COMPUTED ^row "') and is_computed("COMPUTED"),
+        "the token is the FIRST WORD. Two consumers share this cell and "
+        "the one that cannot use the ERE must still read the token.",
+    )
+    arm(
+        "A18 NEGATIVE CONTROL: an ERE that merely mentions it is not",
+        not is_computed('^row "COMPUTED'),
+        "a substring test would make any harness whose row opener quoted "
+        "the word exempt from the static comparison, silently",
+    )
+
+    # -- TWO FLOORS IN ONE FILE, BOTH DIRECTIONS ----------------------
+    # `probe-wired-checker-amputation.py` carries `FLOOR` for its own
+    # arms and `arm_floor` for its `--self-test` (#194): two harnesses
+    # in one file with two different watchers. That is permitted ONLY
+    # where no static count is being attributed to either.
+    two = [("FLOOR", 14), ("arm_floor", 11)]
+    arm(
+        "A19 two floors are ACCEPTED on a COMPUTED row",
+        _row_exactness("x.py", "COMPUTED", 0, two, "")[0] == [],
+        "a COMPUTED row compares nothing, so 'which one is the row count "
+        "about' has no referent - and collapsing the two would leave one "
+        "of the file's two harnesses unwatched again",
+    )
+    arm(
+        "A20 two floors are STILL a finding on a static row",
+        any(
+            "floor assignments" in line
+            for line in _row_exactness("x.sh", '^row "', 0, two, "")[0]
+        ),
+        "this is the permission's bound. Where a source-derived row count "
+        "IS compared, two floors make the comparison unattributable, and "
+        "A19 must not have widened that away.",
+    )
+
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
         print(f"{'PASS' if ok else 'FAIL'}  {name}" + ("" if ok else f"  -> {meaning}"))
@@ -692,7 +841,7 @@ def self_test() -> int:
     # under `docs/reviews/` carrying a literal floor, so it needs a row
     # in the control table like every other member - and a run of
     # `main()` says so if it does not have one.
-    arm_floor = 16
+    arm_floor = 20
     status = "ok" if not failed and len(arms) >= arm_floor else "breach"
     print(
         f"\nHARNESS-RESULT name={pathlib.Path(__file__).name} "
@@ -729,17 +878,6 @@ def main() -> int:
         # reported them as carrying no floor - which is the finding
         # this widening exists for, restated one column over.
         declared = [(nm, val) for r, nm, val in floor_sites() if r == rel and val > 0]
-        if not declared:
-            bad.append(f"{rel}: no literal floor assignment")
-            continue
-        if len(declared) > 1:
-            bad.append(
-                f"{rel}: {len(declared)} floor assignments "
-                f"({', '.join(n for n, _ in declared)}) and nothing says "
-                "which one the table's row count is about."
-            )
-            continue
-        floor = declared[0][1]
 
         # COMPUTED: THE CHECKER SAYS SO PER FILE RATHER THAN SKIPPING.
         # Two members build their row count at run time - `TOTAL` is
@@ -752,31 +890,20 @@ def main() -> int:
         # two is a `.sh`. The axis is whether the row count is a
         # property of the SOURCE at all, and for these it is not.
         #
-        # The token is in the TABLE, not in a register beside it, so
-        # the container equality still holds in both directions and the
-        # DEFAULT for a new member stays RED. Task #193 closes the gap
-        # by asserting equality on the canonical line these two publish.
-        if ere.strip() == "COMPUTED":
-            print(
-                f"  {rel:52} floor {floor:3}  rows   ?  "
-                "COMPUTED at run time - no static count (#193)"
-            )
-            continue
-
-        rows = static_rows(text, ere, extra)
-        print(f"  {rel:52} floor {floor:3}  rows {rows:3}")
-        if rows > floor:
-            bad.append(
-                f"{rel}: SLACK by {rows - floor}. It has {rows} rows and a "
-                f"floor of {floor}, so {rows - floor} row(s) can be deleted "
-                "without the floor noticing. This is the direction that "
-                "never announces itself."
-            )
-        elif rows < floor:
-            bad.append(
-                f"{rel}: floor {floor} exceeds its {rows} rows, so the "
-                "harness cannot pass its own floor."
-            )
+        # The token is in the TABLE, not in a register beside it, so the
+        # container equality still holds in both directions and the
+        # DEFAULT for a new member stays RED. Task #193 closed the gap
+        # by asserting equality on the canonical line these two publish,
+        # and #194 built the two mechanisms that WATCH those floors
+        # fire: `mode=computed` in the control for the `.sh`, and a
+        # `--self-test` for the `.py`.
+        #
+        # The whole verdict is `_row_exactness()` so that `--self-test`
+        # arms it rather than a second copy of these rules.
+        findings, lines = _row_exactness(rel, ere, extra, declared, text)
+        for line in lines:
+            print(line)
+        bad.extend(findings)
 
     external = _external_floors()
     paired = 0
@@ -856,7 +983,7 @@ def main() -> int:
     zeros = sorted({(r, n) for r, n, v in sites if v == 0})
     members = sorted({r for r, _, v in sites if v > 0})
     named = {path for path, _, _ in table}
-    computed = sorted(p for p, e, _ in table if e.strip() == "COMPUTED")
+    computed = sorted(p for p, e, _ in table if is_computed(e))
     dirs = ", ".join(f"{d}/" for d in CONTAINER_DIRS)
     kinds = ", ".join(CONTAINER_SUFFIXES)
     print(f"\nCONTAINER: tracked {kinds} under {dirs} carrying a literal floor")
