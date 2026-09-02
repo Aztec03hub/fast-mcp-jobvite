@@ -39,6 +39,10 @@ ROW_TIMEOUT=900
 # and nowhere else - the shape lists it replaces are why.
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+# ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
+# the reasoning and the measurement that established it live in the file.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -160,46 +164,25 @@ PY
     exit 3
   fi
 
-  # ONLY 0 AND 1 ARE MEASUREMENTS (#254).
+  # ONLY 0 AND 1 ARE MEASUREMENTS (#254). The reasoning, and the measurement
+  # that established it, live in the sourced function - see
+  # scripts/lib/verdict-guard.sh. It is ONE copy because the same hole was
+  # found in every amputation harness here, and thirteen copies of a guard
+  # are thirteen things that drift.
   #
-  # This harness reads its verdict by counting `^PASSED ` lines, and treats
-  # "no PASSED lines" as "every assertion died", i.e. a successful kill. That
-  # inference is only valid if pytest actually COLLECTED and RAN the suite.
-  #
-  # It fails OPEN, not closed. A collection error (rc=2), an internal error
-  # (rc=3), a usage error (rc=4) or a timeout (rc=124) all produce an output
-  # file with no `PASSED ` lines in it, so the loudest possible breakage is
-  # reported as the cleanest possible result: "survivors: NONE".
-  #
-  # Nothing made that safe. rc=2 and rc=4 are simply unreachable TODAY
-  # because this harness passes a bare `$SUITE` rather than a per-row
-  # selector, so there is no node id to mistype and no coverage map to be
-  # missing. That is an accident of the current arguments, not a property of
-  # the code - the sibling controls harness DID acquire a selector, and it
-  # DID produce exactly this false verdict (#263, fixed at c03a3a3).
+  # rc=2 and rc=4 were called unreachable in THIS harness because it passes a
+  # bare `$SUITE` rather than a per-row selector, so there is no node id to
+  # mistype and no coverage map to be missing. That was an accident of the
+  # current arguments, not a property of the code: the sibling controls
+  # harness DID acquire a selector and DID produce exactly this false verdict
+  # (#263, fixed at c03a3a3), and check-u4-client-amputation.sh has had a
+  # selector all along - measured mis-scoring a SyntaxError as
+  # "survivors: NONE", exit 0, before this change.
   #
   # The timeout branch already knew: it printed "no verdict below is a
   # measurement of this row" and then let the verdict be printed and counted
-  # anyway. It is folded in here rather than left as a second, weaker guard.
-  case "$rc" in
-    0|1) ;;
-    124)
-      echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED."
-      echo "  REFUSING: an unfinished row has no verdict. A timeout produces the"
-      echo "  same empty output as a perfect kill, so continuing would count it"
-      echo "  as one. Raise ROW_TIMEOUT (currently ${ROW_TIMEOUT}s) or fix what"
-      echo "  is hanging, then re-run."
-      exit 5
-      ;;
-    *)
-      echo "  REFUSING: pytest exited $rc, which is not a measurement."
-      echo "  This harness reads 'no PASSED lines' as 'everything died', so a"
-      echo "  collection error (2), internal error (3) or usage error (4) would"
-      echo "  be counted as a successful kill. The last 20 lines of its output:"
-      sed 's/^/    /' "$OUT" | tail -20
-      exit 5
-      ;;
-  esac
+  # anyway. It is folded in rather than left as a second, weaker guard.
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
 
   tail -1 "$OUT" | sed 's/^/  /'
   local survivors

@@ -197,6 +197,7 @@ docs/reviews/probe-mirror-zero-refs.sh|^row |1|1|cmd
 docs/reviews/check-row-floor-exactness.py|arm\(\n\s*\"(?P<label>A[0-9]+) |0|1|static
 docs/reviews/probe-252-selection-can-fail.sh|^arm \"|0|1|cmd
 docs/reviews/probe-252-rc4-verdict-trap.sh|^row \"|0|1|cmd
+docs/reviews/probe-254-amputation-rc.sh|^    ok \"ARM|0|1|cmd
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }

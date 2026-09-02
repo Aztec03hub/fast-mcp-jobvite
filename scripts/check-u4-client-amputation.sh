@@ -51,6 +51,10 @@ ROW_TIMEOUT=900
 # and nowhere else - the shape lists it replaces are why.
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+# ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
+# the reasoning and the measurement that established it live in the file.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -187,16 +191,14 @@ PY
   # shellcheck disable=SC2086
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
-  if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
-    echo "  not a survivor: no verdict below is a measurement of this row."
-  fi
 
   git checkout -- "$file"
   if ! git diff --quiet -- "$file"; then
     echo "  RESTORE FAILED - $file still differs from the commit. STOPPING."
     exit 3
   fi
+
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
 
   tail -1 "$OUT" | sed 's/^/  /'
   local survivors

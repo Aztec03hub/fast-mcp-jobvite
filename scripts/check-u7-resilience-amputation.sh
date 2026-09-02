@@ -52,6 +52,10 @@ ROW_TIMEOUT=300
 # and nowhere else - the shape lists it replaces are why.
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+# ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
+# the reasoning and the measurement that established it live in the file.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -154,10 +158,9 @@ PY
     exit 3
   fi
 
-  if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row is unbounded. Move it to the"
-    echo "  mutation harness, where the change is bounded."
-  fi
+  # If this ever refuses with 124, the row is unbounded: move it to the
+  # mutation harness, where the change is bounded.
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
 
   tail -1 "$OUT" | sed 's/^/  /'
 

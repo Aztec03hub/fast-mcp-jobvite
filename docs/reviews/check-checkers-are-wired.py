@@ -480,6 +480,27 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "a test that never ran - is held in the harness itself by two "
         "independent guards, the rc 4/5 branch and the anchored regex."
     ),
+    "probe-254-amputation-rc.sh": (
+        "it PLANTS AN IMPORT-BREAKING MUTATION in "
+        "src/fast_mcp_jobvite/audit.py - twice: once directly, and once by "
+        "running a one-row derivative of check-u3-audit-amputation.sh whose "
+        "A1 replacement is invalid Python. A killed job leaves the product "
+        "source broken in the checkout, which is the reason "
+        "probe-252-rc4-verdict-trap.sh is unwired too and the reason "
+        "restore-stranded-mutation.sh exists. Cost is NOT the reason: "
+        "MEASURED at 35s (five runs of the three-file $SUITE), well inside "
+        "the five-minute mandate. **AND THE HONEST HALF: its subject is NOT "
+        "already covered by a wired step.** ci.yml runs "
+        "check-u3-audit-amputation.sh through ci-harness-gate.sh, but that "
+        "run never trips verdict_guard - every row exits 0 or 1 - so nothing "
+        "in CI would notice the guard being deleted or its source line "
+        "dropped. MEASURED: on the tree where the source line was missing, "
+        "the harness printed `verdict_guard: command not found`, scored the "
+        "row anyway and exited 0; this probe caught it and CI would not "
+        "have. Re-run it by hand whenever verdict-guard.sh, the A1 row, or "
+        "the A2 section header changes - the probe ABORTS rather than "
+        "measuring a stale copy if any of those anchors move."
+    ),
     "probe-252-selection-can-fail.sh": (
         "it AMPUTATES THE TEST SUITE, not the product: each arm strips the "
         "assertion out of a real test in tests/ and restores it, three "
@@ -801,6 +822,14 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "a sourced LIBRARY - the one place the run-state file's path "
         "and format are derived. It is not executed; it is `source`d by "
         "the probes that own a mutation."
+    ),
+    "verdict-guard.sh": (
+        "a sourced LIBRARY holding the one copy of the non-measurement "
+        "guard (#254). No shebang, no `__main__`, executed by nothing: "
+        "fourteen amputation harnesses `source` it, and each of those is a "
+        "wired step. It exists precisely so the guard is not fourteen "
+        "copies that drift. docs/reviews/probe-254-amputation-rc.sh is its "
+        "control and is deliberately hand-run - see its entry above."
     ),
     "harness-result.sh": (
         "a sourced LIBRARY holding the one canonical HARNESS-RESULT "
