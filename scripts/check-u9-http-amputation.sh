@@ -18,11 +18,25 @@
 # never executes the amputated statements cannot go red because of
 # them, so the covering set - which crosses unit boundaries, including
 # somebody ELSE's assertion that happens to exercise this file - gives
-# the identical verdict to a full-suite run at a fraction of the cost.
+# the identical VERDICT as a full-suite run at a fraction of the cost.
 # Before #238 the full 888-test suite ran per row and this step alone
 # cost 1270s in CI (run 33582613697). The fail-safe direction is wide:
 # a row whose lines NO in-process test covered runs the FULL suite,
 # and a selector precondition failure aborts the harness loudly.
+#
+# THE IDENTITY IS OF THE VERDICT, NOT OF THE KILLER LIST, and #286
+# measured the difference: all 14 rows go red on the selected set and
+# on the full suite alike, but row A14 has FIVE killers under the
+# suite and ONE inside its covering set. The four it loses
+# (tests/test_boot.py, tests/test_shutdown.py) run this file's lines
+# in a CHILD PROCESS that `--cov-context` does not observe, so the map
+# says "not covered" where the truth is "not covered IN THIS PROCESS".
+# That is why the `killed by:` count below is a count WITHIN the
+# selected set. It cannot make a vacuous row look killed - the
+# selected ids are a subset of $SUITE, so a red here is a red there -
+# but it can make a real kill look vacuous, which this harness's gate
+# then reports loudly rather than swallowing. See
+# docs/reviews/MEASURED-286-u9-selection.md and probe-286-u9-coverage.sh.
 #
 # WHAT IS DELIBERATELY NOT AMPUTATED HERE:
 #
@@ -229,6 +243,10 @@ PY
   # WHICH tests went red, so the report can say what each row is held
   # up by. `-rf` lists the failures; the suite is 500+ cases and
   # listing every survivor would bury the answer.
+  # THIS COUNT IS WITHIN THE SELECTED SET (#286): a killer that only
+  # runs this file in a spawned child is invisible to the map that
+  # built $sel, and row A14 loses four such killers. The row's VERDICT
+  # is unaffected - see the header.
   local killers
   killers=$(grep -E '^FAILED ' "$OUT" | sed 's/^FAILED //' | cut -d' ' -f1 || true)
   if [ -z "$killers" ]; then

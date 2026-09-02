@@ -51,19 +51,23 @@ The brief asked me to stop if my design blurred this line. It does not, and the
 distinction is worth stating precisely because it is the only reason this task
 was permitted at all:
 
-- **Per-row SELECTION** narrows the tests a row runs. An amputation's product
+- **Per-row SELECTION** narrows the tests a row runs. *This* harness's product
   is its SURVIVOR LIST - the set of assertions that still passed against a
-  mutilated tree - so narrowing the suite shrinks that population *by
-  construction*. Refused at #254 and #259; the refusal stands and I did not
-  reopen it.
+  mutilated tree, extracted with `-rA` and `grep -E '^PASSED '` - so narrowing
+  the suite shrinks that population *by construction*. Refused at #254 and
+  #259; the refusal stands for U3 and I did not reopen it. **The refusal is
+  scoped to the survivor-list product, not to amputation harnesses in
+  general.** `check-u9-http-amputation.sh` reports a KILLER list instead
+  (`-rf`, `grep -E '^FAILED '`) and has selected per row since `50b006d`;
+  #286 measures that selection and finds it verdict-preserving on all 14 rows.
 - **SHARDING THE ROW SET** changes only which lane executes which rows. Every
-  row still runs the whole `$SUITE` (`check-u3-audit-amputation.sh:56`,
+  U3 row still runs the whole `$SUITE` (`check-u3-audit-amputation.sh:162`,
   unchanged). The union of the shards is the identical row set, so the survivor
   list is preserved by construction.
 
 The design below preserves that: the shard predicate gates *which
 `amputate` calls execute*, and never touches `$SUITE`, `-rA`, or the
-`grep -E '^PASSED '` survivor extraction at `:166`.
+`grep -E '^PASSED '` survivor extraction at `:196`.
 
 ## 2. THE REFUTATION - what the runs actually say
 
