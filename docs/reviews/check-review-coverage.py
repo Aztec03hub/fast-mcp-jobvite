@@ -110,6 +110,17 @@ want - the PR's own commits are not on the trunk yet, so the gate is
 green, and whoever opens the next PR pastes the lines printed for the
 merge before it.
 
+**AND IT CAN MOVE FORWARD UNDER YOU, WHICH IS THE OPPOSITE SHAPE AND
+WAS RECORDED NOWHERE.** R16 ran one command minutes apart and got 287
+trunk commits / 60 merges, then 300 / 62; two of its measurements
+disagreed until it found the cause. Tier 0 and R16 also reported 13 and
+15 for "the same" set - `ccbdaae..6e07131` against `ccbdaae..2d886a4`.
+Both arithmetics were right and only the POPULATION differed, which is
+the same shape as 80-vs-78 and 389-vs-115 elsewhere in this repository.
+**A long-running reader must PIN a sha, say which, and re-derive at the
+end** - the printed `Trunk ref: <ref> = <sha>` line exists so that two
+reports can be compared at all.
+
 **AND THE REF IT READS CAN BE STALE (found by the same measurement).**
 `origin/main` is a LOCAL remote-tracking ref. Mine sat five commits
 behind a trunk I had already pushed, so the whole backlog was measured
