@@ -2,7 +2,11 @@
 
 <!-- REVIEW-COVERS: e845839..1cddd76 PATHS: docs pyproject.toml CONTRIBUTING.md .github/workflows -->
 
-**Measured at `1cddd76` unless a line says otherwise.** The census tool
+**Measured at `1cddd76` unless a line says otherwise. The branch was
+later REBASED onto `origin/main` `642a3cf` — the first green trunk this
+project has had — and F1, F8 and F9 were re-derived there. The container
+figures in §0 are from `d30f1e1` on the pre-rebase base and are marked
+as such; they move with every commit and are not re-typed here.** The census tool
 is `docs/reviews/probe-170-retyped-counts.py`, committed on this branch;
 every number below is reproducible by running it. **DO NOT PUSH** — a CI
 run was in flight when this was written and nothing here has been pushed
@@ -94,13 +98,68 @@ not reach `DESIGN.md`, which says it twice.
 **AND THE WORD "all" IS FALSE INDEPENDENTLY OF THE NUMBER, which is why
 replacing 11 with 33 is the wrong fix.** `:2063` claims recording a
 deviation from a `priority: required` standard "is the job all eleven
-ADRs below do". It is not the job of all of them: ADR-0019, ADR-0021,
-ADR-0028, ADR-0029, ADR-0031 and ADR-0033 record design defects,
-rulings and published vocabularies, not standards deviations — and
-`docs/adr/README.md` itself now distinguishes `Deviation` from
-`Design change` as two `Type:` values. A cell reading "all 33 ADRs"
-would still claim every member is a deviation, which is the same
-mistake BASH-1 made.
+ADRs below do".
+
+**THIS IS MECHANICAL, NOT A READING — and my first pass under-stated it
+by naming six examples instead of deriving.** Every one of the 33
+carries a `Type:` field, so the claim can be counted:
+
+    17  Design change
+    14  Deviation
+     1  Standards deviation                     (ADR-0023)
+     1  Correction to a contract statement ...  (ADR-0022)
+
+**15 of 33 record a deviation. 18 do not.** A cell reading "all 33 ADRs"
+would still assert every member is a deviation, which is the same
+mistake BASH-1 made. Boarded as task **#179**, with no owner, because it
+blocks on a ruling rather than on effort.
+
+---
+
+**F8 (MEDIUM) — `docs/README.md:22`: "From ADR-0012 each carries a `Type:` field."**
+
+Derived at `642a3cf`: **all 33 carry it, ADR-0001 included**
+(`docs/adr/0001-target-fastmcp-4-beta.md:4` is `**Type:** Deviation`).
+Every file matches `grep -lE '^\*\*Type:\*\*'` — 33 of 33.
+
+**THIS IS THE SAME TABLE CELL #166 REPAIRED.** #166 deleted "Eleven
+decision records" from the first half of `docs/README.md:22` and left
+the second half of the same cell asserting a boundary that does not
+exist. A rewrite that fixes the number in a sentence and leaves the
+adjacent claim standing is the failure mode "a rewrite loses
+sentence-sized findings" describes, and this is a measured instance of
+it inside a cell somebody had already opened.
+
+**Suggested fix — delete the clause, do not repair the boundary:**
+
+> `adr/`| The decision records, each citing the clause it deviates from.
+> `adr/README.md` explains the two jobs an ADR does here, and every
+> record carries a `Type:` field.
+
+---
+
+**F9 (LOW) — the `Type:` vocabulary has two published values and two rows outside it.**
+
+`docs/adr/README.md:5,9` defines exactly two: `Deviation` and
+`Design change`. Two ADRs carry something else:
+
+- `docs/adr/0023-harnesses-drop-e-from-strict-mode.md` — `Standards
+  deviation`
+- `docs/adr/0022-no-cookie-jar-is-a-disable-not-an-omission.md` —
+  `Correction to a contract statement that an implementer can satisfy
+  while shipping the defect it was written to prevent`
+
+Not a stale count — a **published vocabulary with unlisted members**,
+which is the class ADR-0033 exists to name. It matters here because F1's
+suggested fix says "the `Deviation` ADRs", and whether those two are
+Deviations under another spelling or a third class changes that wording.
+Recorded on **#179** as a rider for whoever writes the ADR.
+
+**Suggested fix:** either normalise ADR-0023 to `Deviation` and give
+ADR-0022 a real third value that `adr/README.md` lists, or state in
+`adr/README.md` that the field is free text and nothing reads it. **Do
+not add a checker for it** until someone rules which — a gate over an
+undecided vocabulary is a gate that encodes the guess.
 
 **Suggested fix — and it needs an ADR, because `DESIGN.md` is FROZEN**
 (freeze `5d17cd7`; the working tree blob `639f4b7` was verified

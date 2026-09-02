@@ -92,11 +92,27 @@ one was the one being pasted into briefs.
 
 **What is actually verified**, stated at the width it was tested:
 `ToolSearch select:TaskGet,TaskList` returns both schemas from a Tier-1
-session, and `TaskGet <id>` returns the live row. **`TaskUpdate` and
-`TaskCreate` have NOT been tested from Tier 1** — the agent that found
-this declined to test them, correctly, because writing to a board it
-does not own is not its call. Do not widen this sentence until someone
-with a write mandate measures it.
+session; `TaskGet <id>` returns the live row; and `TaskUpdate` writes
+`status`, `owner`, `subject` and `description` (measured by
+`suborch-170` closing #170, under a brief that explicitly granted the
+write mandate). **`TaskCreate` has NOT been tested from Tier 1** — the
+agent that could have declined, because deciding what becomes a task is
+Tier 0's, not because the tool was thought absent.
+
+**THE PREVIOUS SENTENCE ASKED NOT TO BE WIDENED WITHOUT A MEASUREMENT,
+AND THAT IS EXACTLY HOW IT GOT WIDENED.** It read *"`TaskUpdate` and
+`TaskCreate` have NOT been tested from Tier 1"* and gave the reason as
+*"writing to a board it does not own is not its call"* — one reason
+covering two tools, which hid that they are untested for **different**
+reasons. `TaskUpdate` on an agent's OWN task was never a board it does
+not own; it was simply never tried. A brief that granted the mandate got
+it measured in one call. **`TaskCreate` remains untested for the reason
+that actually applies, and that reason is a RULING, not a gap**: Tier 1
+reports findings and Tier 0 decides what becomes a task, so a Tier-1
+agent has no occasion to call it. Do not "fix" that by testing it.
+
+This is the third canon claim about tool behaviour on this project to be
+wrong in prose that no gate reads, and the second inside this file.
 
 **A TIER-1 AGENT MUST `TaskGet` ITS OWN TASK BEFORE ACTING ON ANY
 ASSIGNMENT.** That is the check the false claim suppressed, and it is
