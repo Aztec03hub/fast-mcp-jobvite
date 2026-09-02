@@ -230,6 +230,78 @@ ADR-0034's surviving sites were written days ago against the current freeze.
 right and the old ones have drifted, which is what a drift hypothesis predicts and
 a carelessness hypothesis does not.
 
+## ADR-0030: two sites READ but OUTSIDE the 64, added by `#224`
+
+**This section is not part of the sweep above and deliberately does not join its
+counts.** The tally, the 46/14/2/2 split and the 64/19 population all describe one
+SPELLING, `DESIGN.md:N`. ADR-0030's citations are written in the BARE form, so a
+selector requiring the filename could never see them, and folding them into the
+totals would silently redefine what those totals measure. They are recorded here
+instead, with the same evidence standard.
+
+| ADR | Sites | Cited | Verdict | What it says now at the frozen SHA |
+|---|---|---|---|---|
+| 0030 | 2 | `:356-359`, `:361-362` | **DRIFTED** (both) | the ordered timeout/retry/breaker paragraph, and the excluded-from-retry rule |
+
+**Re-measured for `#224` by `suborch-224`, independently of `#210`, and the two
+measurements AGREE.** The blob the ADR names is at `0030:29`, three lines above
+the citations; the freeze was derived from `docs/DESIGN-FREEZE.txt` and never
+retyped:
+
+```bash
+$ grep -n ':[0-9]\+\(-[0-9]\+\)\?`' docs/adr/0030-*.md
+31:- `:356-359` - an open breaker and an outage share `/problems/service-unavailable` ...
+33:- `:361-362` - *"Jobvite's `429`, if it exists, is retried and then mapped to 503 ...
+
+$ FREEZE=$(cat docs/DESIGN-FREEZE.txt); echo "$FREEZE"
+d1f1a52
+
+$ git show c15b138:docs/DESIGN.md | sed -n '356,359p'
+- **An open breaker is distinguishable from an outage without inventing a type.** Both use
+  `/problems/service-unavailable` at 503, per the registry; what distinguishes them is `detail`,
+  which says whether Jobvite failed or whether we have stopped calling it, plus a `retry_after`
+  hint. An earlier revision minted two slugs for this. The distinction is real and worth making;
+
+$ git show "$FREEZE":docs/DESIGN.md | sed -n '356,359p'
+Ordered timeout, then retry, then circuit breaker.
+
+- **Timeouts explicit and per-phase.** No SDK default, no single scalar.
+- **Retries live inside this module**, via `tenacity` with jitter, and only for connection errors,
+
+$ git show c15b138:docs/DESIGN.md | sed -n '361,362p'
+- **Jobvite's `429`, if it exists, is retried and then mapped to 503**, honouring `Retry-After`
+  when present. No 429 has ever been observed and no rate-limit header is returned (§4.4), so this
+
+$ git show "$FREEZE":docs/DESIGN.md | sed -n '361,362p'
+  inbound request's deadline, because there is no inbound deadline here - see the note below.
+- **`create_candidate` is excluded from retry by construction**, not by configuration. This is
+```
+
+Both citations are EXACT at the blob ADR-0030 names and land on unrelated prose at
+the freeze. That is DRIFTED, not WRONG, and under `#203`'s ruling at `ec57a65` an
+ADR's citations are AS AT acceptance and are NOT repointed. **Nothing here obliges
+an edit to ADR-0030.**
+
+### Which selector missed them, and why naming it matters
+
+Three selectors were run over this corpus and all three require the filename:
+
+- this document's own, `DESIGN\.md:[0-9]+(-[0-9]+)?`, quoted in the population block above;
+- `BRIEF-196-adr-citation-read.md`'s, which is the same regex;
+- the register's population query, recorded in the *"What I did NOT verify"* section below.
+
+A bare citation inherits its target from the prose that last named a document, so
+no regex over the citing line can resolve it. **`#204`'s discriminator is the
+instrument that reads the surrounding prose, and it is what would have caught
+these two.**
+
+**ADR-0030 IS NOT THE ONLY ONE.** This document's own closing section already
+names seven ADRs carrying a bare form and no `DESIGN.md:N` form at all: 0002,
+0008, 0009, 0011, 0015, 0023 and 0030. **Adding this row closes ONE of those
+seven.** The other six remain unread, and a row that recorded 0030 without saying
+so would leave the next selector free to miss them - which is the whole reason
+this section names the blindness and not just the finding.
+
 ## The qualifier: what I measured, and what I am NOT ruling
 
 The claim under audit is *"nine wrong-subject citations have been found on this
