@@ -56,13 +56,54 @@ answer:
     34  total   (this ADR included)
 
 **THIS TABLE IS NOT THE ACCEPTANCE CENSUS AND SAID IT WAS.** It was labelled "AT ACCEPTANCE" until
-R20-M2 checked: at `e3b5c97` the partition read `17 / 14 / 1 Standards deviation / 1 Correction to
-a contract statement`, total 33. **The paragraph immediately below says exactly that**, so the ADR
-carried a table and a contradiction of it eight lines apart, and the label was the half nobody
-re-read. A tense fix is not a provenance fix: making a figure past-tense says WHEN it stopped being
-live, never WHICH moment produced it.
+R20-M2 checked. At `e3b5c97` the partition read `17 Design change / 14 Deviation / 1 Standards
+deviation / 1 Correction to a contract statement / 1 Correction to a count that is false about its
+own subject`, total **34** - and the fifth row is THIS ADR, the file `e3b5c97` was adding. **The
+paragraph below already recorded that census**, so the ADR carried a table and a contradiction of it
+eight lines apart, and the label was the half nobody re-read. A tense fix is not a provenance fix:
+making a figure past-tense says WHEN it stopped being live, never WHICH moment produced it.
 
+**THAT CENSUS WAS ITSELF SHORT BY ONE UNTIL R21-M2, AND THE MISSING ROW WAS THIS ADR'S OWN.** The
+R20-M2 fix - a fix for a COUNT finding - retyped `e3b5c97`'s commit message (*"There are 33"*,
+*"Fifteen of thirty-three do job 1"*) instead of re-deriving at the blob, and that message had
+counted the corpus it was adding TO and not the file it was adding. Four kinds totalling 33 became
+five kinds totalling 34 the moment anyone measured. At `e3b5c97` this ADR's own `Type:` line read
+`Correction to a count that is false about its own subject`; it is spelled `Design change` today
+only because the normalisation eight lines below changed it.
+
+**WHY THIS FIGURE IS CORRECTED AND NOT DELETED, WHICH IS THE OPPOSITE OF WHAT THIS ADR RULES
+EVERYWHERE ELSE.** Two rules of this project point in opposite directions at this line. The answer
+is a SCOPE question, not a compromise:
+
+- **"A stale count is DELETED, not corrected"** - this ADR's own Decision, inherited from #166. Its
+  stated reason is that *"a corrected count is a count that will be wrong again"*. That reason has
+  no purchase here: this figure is pinned to an IMMUTABLE blob, so once right it cannot go stale
+  again. Its prescribed remedy is unavailable here too. DELETE works by *pointing at the command
+  that answers the question live* - and no live command answers what the partition was at
+  `e3b5c97`. The published `grep` reads the working tree; the past needs `git ls-tree` plus
+  `git show`.
+- **"A dated, provenanced record is not a live count"** - the fourth outcome class named under
+  *"What this ADR does NOT do"* below (*"a historical justification inside a live file"*), and the
+  label eight lines above, where the `d29937f` table is KEPT as *"the evidence for this ruling and
+  NOT as a live figure"*. This census is the same kind of object, and it is the EVIDENCE for the
+  sentence at the head of this paragraph. Deleting it would destroy the proof of the ruling it
+  exists to support.
+
+**THE SECOND RULE GOVERNS, BECAUSE THE FIRST ONE'S SCOPE IS LIVE COUNTS.** Deleting this line while
+keeping the `d29937f` table eight lines above would have been incoherent - two blob-pinned censuses
+in one document, one deleted and one kept, on no stated principle. For a dated record the remedy is
+arithmetic precisely BECAUSE its provenance is already pinned; for a live count it is deletion
+precisely because no provenance can pin it. The dividing question is not "is this a count?" but
+"can this figure be wrong again?"
+
+    # the live answer
     grep -h '^\*\*Type:\*\*' docs/adr/[0-9]*.md | sort | uniq -c
+
+    # the answer at a past blob - the live grep above CANNOT give this
+    git ls-tree --name-only e3b5c97 docs/adr/ | grep -E '^docs/adr/[0-9]' \
+      | while read -r f; do git show "e3b5c97:$f" | grep -h '^\*\*Type:\*\*'; done \
+      | sort | uniq -c
+
 
 **A MINORITY OF ADRs DO JOB 1** - fifteen of thirty-four when this was written. A word-grep would
 have said 16, because `deviat` appears in ADRs that merely discuss the concept, which is why the
