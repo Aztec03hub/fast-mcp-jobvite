@@ -21,6 +21,19 @@
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+
+# THE ONE CANONICAL RESULT LINE (#107), sourced rather than re-typed.
+# This harness printed its own `HARNESS-RESULT ...` by hand at first, and
+# that is exactly the "second shape" the library exists to delete: it
+# emitted `name=brief-report-refs-controls` where every consumer looks
+# for `name=<the path it was invoked as>`, so
+# `check-row-floor-controls.sh` could neutralise a row, watch this
+# harness go red for the right reason, and still refuse - "the harness
+# printed NO 'HARNESS-RESULT name=...' line ... A missing line is NOT a
+# pass". Hand-rolling the line is what made this floor unwatchable
+# (#194), not the directory it lives in.
+# shellcheck source=../../scripts/lib/harness-result.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/lib/harness-result.sh"
 CHECKER="$ROOT/docs/reviews/check-brief-report-references.py"
 PY=(uv run --frozen python)
 
@@ -29,7 +42,7 @@ ROWS=0
 FIRED=0
 
 tmp=$(mktemp -d) || exit 3
-trap 'rm -rf "$tmp"' EXIT
+trap 'harness_result_emit; rm -rf "$tmp"' EXIT
 
 if [ ! -f "$CHECKER" ]; then
   echo "MUTATION TARGET NOT FOUND: $CHECKER"
@@ -173,10 +186,14 @@ if amputate boundary '/(?<!/d'; then
 fi
 fixture_default
 
-status=ok
-if [ "$FIRED" -ne "$ROWS" ] || [ "$ROWS" -lt "$ROW_FLOOR" ]; then
-  status=breach
+harness_result_tally fired "$FIRED" "$ROWS"
+harness_result_ran "$ROWS" "$ROW_FLOOR"
+if [ "$ROWS" -ne "$ROW_FLOOR" ]; then
+  echo "::error::$ROWS rows against ROW_FLOOR=$ROW_FLOOR."
+  exit 1
 fi
-echo "HARNESS-RESULT name=brief-report-refs-controls rows=$ROWS" \
-  "floor=$ROW_FLOOR fired=$FIRED/$ROWS status=$status"
-[ "$status" = ok ]
+if [ "$FIRED" -ne "$ROWS" ]; then
+  echo "::error::$FIRED of $ROWS fired. Read WHICH arm failed."
+  exit 1
+fi
+echo "$FIRED/$ROWS controls fired."

@@ -2,7 +2,21 @@
 # Does the mirror push step REFUSE a zero-ref push? The guard is extracted from
 # mirror.yml itself, never retyped, so this cannot pass against a copy.
 set -uo pipefail
-YML="${1:?path to mirror.yml}"
+
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+
+# THE ONE CANONICAL RESULT LINE (#107), sourced rather than re-typed.
+# Hand-rolling it emitted `name=mirror-zero-refs` where every consumer
+# looks for `name=<the path it was invoked as>`, which is what made this
+# floor unwatchable by `check-row-floor-controls.sh` (#194).
+# shellcheck source=../../scripts/lib/harness-result.sh
+. "$REPO/scripts/lib/harness-result.sh"
+
+# THE ARGUMENT DEFAULTS, and that is not a convenience. The floor control
+# runs a harness with NO arguments; a mandatory `${1:?}` made this probe
+# exit 3 there and report nothing, so its floor could never be watched by
+# the machinery built to watch floors. An explicit path still overrides.
+YML="${1:-$REPO/.github/workflows/mirror.yml}"
 ROWS=0; FIRED=0
 
 guard() {  # runs the extracted guard in $1, returns its exit code
@@ -22,7 +36,7 @@ row() {  # row <label> <dir> <expected-rc>
   else echo "  FAIL $1 (rc=$rc, wanted $3)"; fi
 }
 
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d); trap 'harness_result_emit; rm -rf "$tmp"' EXIT
 
 # ARM 1 - a repo with NO refs/remotes/origin and NO tags: the guard must REFUSE.
 git init -q "$tmp/empty"
@@ -46,6 +60,14 @@ else echo "  FAIL amputation still refused (rc=$rc) - arm 1 proves nothing"; fi
 GUARD="$GUARD_SAVED"
 
 FLOOR=3
-status=ok; [ "$FIRED" -eq "$ROWS" ] && [ "$ROWS" -ge "$FLOOR" ] || status=breach
-echo "HARNESS-RESULT name=mirror-zero-refs rows=$ROWS floor=$FLOOR fired=$FIRED/$ROWS status=$status"
-[ "$status" = ok ]
+harness_result_tally fired "$FIRED" "$ROWS"
+harness_result_ran "$ROWS" "$FLOOR"
+if [ "$ROWS" -ne "$FLOOR" ]; then
+  echo "::error::$ROWS rows against FLOOR=$FLOOR."
+  exit 1
+fi
+if [ "$FIRED" -ne "$ROWS" ]; then
+  echo "::error::$FIRED of $ROWS fired. Read WHICH row failed."
+  exit 1
+fi
+echo "$FIRED/$ROWS controls fired."
