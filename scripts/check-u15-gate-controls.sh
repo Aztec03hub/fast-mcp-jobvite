@@ -22,8 +22,8 @@ set -uo pipefail
 
 # Timeout bounds - each declared ONCE and interpolated into the abort
 # message that explains it, so a changed bound cannot leave prose behind
-# still quoting the old one. Three names because the arms are three
-# separate decisions, even where two of them share a value today.
+# still quoting the old one. The names below are separate decisions,
+# even where two of them share a value today.
 ROW_TIMEOUT=900
 
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints

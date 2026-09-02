@@ -51,6 +51,11 @@ import urllib.parse
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
+# PRIVATE ON PURPOSE, and the failure mode is loud (ADR-0026). The
+# logger NAME is not public API; ADR-0026 forbids the string literal,
+# so the symbol is imported instead. If httpx2 moves it this raises
+# ImportError at import time - a red gate, never a silent unredacted
+# log - which is why the private path is accepted rather than guarded.
 from httpx2._client import logger as _httpx2_logger  # noqa: SLF001
 
 from ..models.fencing import (

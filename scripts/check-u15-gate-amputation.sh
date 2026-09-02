@@ -18,8 +18,8 @@ set -uo pipefail
 
 # Timeout bounds - each declared ONCE and interpolated into the abort
 # message that explains it, so a changed bound cannot leave prose behind
-# still quoting the old one. Three names because the arms are three
-# separate decisions, even where two of them share a value today.
+# still quoting the old one. The names below are separate decisions,
+# even where two of them share a value today.
 BASELINE_TIMEOUT=900
 ROW_TIMEOUT=900
 

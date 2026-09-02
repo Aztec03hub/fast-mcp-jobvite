@@ -111,8 +111,8 @@ def main() -> None:
             "# Timeout bounds - each declared ONCE and interpolated into the abort\n",
             "# message that explains it, so a changed bound cannot leave prose "
             "behind\n",
-            "# still quoting the old one. Three names because the arms are three\n",
-            "# separate decisions, even where two of them share a value today.\n",
+            "# still quoting the old one. The names below are separate\n",
+            "# decisions, even where two of them share a value today.\n",
         ]
         for a in ("BASELINE", "ROW", "SELECTOR"):
             if a in vals:
