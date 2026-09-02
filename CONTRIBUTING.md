@@ -134,8 +134,11 @@ grep -hoE "scripts/ci-harness-gate\.sh [^\"]*" .github/workflows/ci.yml \
   | while read -r cmd; do bash $cmd || echo "FAILED: $cmd"; done
 
 python3 scripts/check-committed-file-types.py --all
-# The commit-time gates, exactly as the `Secret scan hook runs clean` step
-# runs them. The `--controls` line is part of that step: it proves the
+# The commit-time gates, exactly as the `Commit-time hooks run clean` step
+# runs them - all three hooks, not just the secret scan. That step was called
+# `Secret scan hook runs clean` until it failed on ShellCheck and the name
+# sent the diagnosis at the wrong hook.
+# The `--controls` line is part of that step: it proves the
 # baseline comparison can still go red, and a comparison that has stopped
 # comparing looks exactly like a clean tree.
 python3 scripts/check-secrets-baseline.py --controls

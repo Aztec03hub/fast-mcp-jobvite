@@ -1344,10 +1344,34 @@ jobs:
           scripts/check-committed-file-types.py --all || {
             echo "::error::a tracked file fails the committed-file-type gate"; exit 1; }
 
-      - name: Secret scan hook runs clean
-        # THIS STEP COVERS THE SECRET SCAN, NOT THE FILE-TYPE GATE. Measured,
-        # because the obvious reading is wrong and a wrong reading here is a
-        # green that tested nothing:
+      - name: Commit-time hooks run clean - secret scan, shellcheck, file types
+        # THIS STEP RUNS ALL THREE COMMIT-TIME HOOKS, and the name now says so.
+        # `.pre-commit-config.yaml` defines exactly three: committed-file-types,
+        # secrets-baseline and shellcheck. `run --all-files` runs every one, so
+        # a failure here is as likely to be ShellCheck as the secret scan.
+        #
+        # IT WAS CALLED "Secret scan hook runs clean" AND THAT COST A DIAGNOSIS.
+        # Run 33610211810 failed on this step; the secret scan PASSED and the
+        # real failure was a malformed shellcheck directive in a harness. The
+        # name sent the first hypothesis at detect-secrets and the baseline -
+        # the failure shape this repo has measured three times in an hour - and
+        # the whole cycle was spent on the wrong subsystem. A failing step's
+        # name is the highest-leverage text in a run, and this one described a
+        # third of what the step does.
+        #
+        # The name was DEFENSIBLE WHEN WRITTEN and went stale under it. db5c21e
+        # named it on 2026-08-28 when there were two hooks, one of which is
+        # inert here (see below); 567dcc4 added shellcheck eleven hours later
+        # and nothing re-read the name. Adding a hook must mean re-reading the
+        # name of every step that runs the whole set.
+        #
+        # "secret scan" is KEPT as a substring on purpose: twelve docs cite the
+        # old step name, and by ec57a65 dated records are not repointed. This
+        # way their citations still resolve by grep while the name stops lying.
+        #
+        # THE FILE-TYPE GATE IS PRESENT BUT INERT HERE. Measured, because the
+        # obvious reading is wrong and a wrong reading is a green that tested
+        # nothing:
         #
         #   $ pre-commit run committed-file-types --all-files --verbose
         #   committed-file-type gate: 0 file(s) checked, none refused.
