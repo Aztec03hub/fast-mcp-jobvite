@@ -174,7 +174,15 @@ PY
   # `timeout` is a guard, not a policy. Every row here is believed
   # bounded, and a row that hangs anyway must report rather than stall
   # the gate.
-  # shellcheck disable=SC2086 -- $sel is a space-separated node-id list
+  # $sel is a space-separated node-id list.
+  # MEASURED, because a suppression that suppresses nothing is the defect
+  # this project keeps finding: at `--severity=warning` - the one threshold
+  # the hook, ci.yml and SHELLCHECK_OPTS all share - SC2086 is BELOW the
+  # line and this directive is INERT. Delete it and shellcheck stays
+  # silent. At DEFAULT severity it fires twice in this file, so the
+  # directive is kept: it is correct, it documents that the split is
+  # WANTED, and it becomes load-bearing the day the threshold tightens.
+  # shellcheck disable=SC2086
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rf \
     >"$OUT" 2>&1
   local rc=$?

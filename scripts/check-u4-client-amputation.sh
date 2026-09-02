@@ -176,7 +176,15 @@ PY
 
   # Which tests executed the amputated lines (see the BASELINE note). The
   # selection was computed BEFORE the mutation landed, from the pristine
-  # file. shellcheck disable=SC2086 -- $sel is a space-separated node list
+  # file. $sel is a space-separated node list.
+  # MEASURED, because a suppression that suppresses nothing is the defect
+  # this project keeps finding: at `--severity=warning` - the one threshold
+  # the hook, ci.yml and SHELLCHECK_OPTS all share - SC2086 is BELOW the
+  # line and this directive is INERT. Delete it and shellcheck stays
+  # silent. At DEFAULT severity it fires twice in this file, so the
+  # directive is kept: it is correct, it documents that the split is
+  # WANTED, and it becomes load-bearing the day the threshold tightens.
+  # shellcheck disable=SC2086
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $sel -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
   if [ "$rc" -eq 124 ]; then
