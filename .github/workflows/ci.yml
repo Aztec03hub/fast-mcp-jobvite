@@ -869,12 +869,35 @@ jobs:
       # its own thing: the fixture-fed controls all inject JSON, so not one of
       # them builds a URL, and the first live run 404'd on a path the API does
       # not accept. A control that never runs the artifact does not check it.
+      #
+      # THE FORK GUARD IS A BRANCH INSIDE THE STEP, NOT AN `if:` ON IT
+      # (R18-M2). A fork carries mirror.yml because it forks the file, so
+      # the API answers "active, zero runs" and this checker correctly says
+      # NEVER RUN - exit 2 - on a repository that has no mirror to watch.
+      # That is a red for something no commit contains.
+      #
+      # An `if:` would fix it and would go SILENTLY OFF the day this
+      # repository is renamed or moved, which is the shape that let 119 red
+      # mirror runs go unread: switched-off and broken rendering the same.
+      # A branch inside the run block always executes and always PRINTS,
+      # so a skip is visible in the log with the repository that caused it.
+      #
+      # This is the only repository-identity-dependent call in this file.
       - name: The mirror workflow is still running
         env:
           GH_TOKEN: ${{ github.token }}
+          THIS_REPO: ${{ github.repository }}
         run: |
+          set -uo pipefail
+          if [ "$THIS_REPO" != "evolvconsulting/fast-mcp-jobvite" ]; then
+            echo "SKIPPED: $THIS_REPO is not the repository the mirror copies"
+            echo "         FROM, so it has no mirror run history to watch. A"
+            echo "         fork inherits mirror.yml but never its runs."
+            echo "         Nothing is wrong; nothing was checked."
+            exit 0
+          fi
           uv run --frozen python scripts/check-mirror-liveness.py \
-            --repo "${{ github.repository }}" || exit 1
+            --repo "$THIS_REPO" || exit 1
 
   # ---------------------------------------------------------------------------
   # The Python project.
