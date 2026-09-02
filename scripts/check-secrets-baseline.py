@@ -88,6 +88,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -259,15 +260,7 @@ def _warn_untracked() -> None:
     git = shutil.which("git")
     if git is None:
         return
-    try:
-        listed = subprocess.run(  # noqa: S603
-            [git, "ls-files", "--others", "--exclude-standard"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split()
-    except (OSError, subprocess.CalledProcessError):
-        return
+    listed = _untracked_paths(git)
     if not listed:
         return
     try:
@@ -294,6 +287,47 @@ def _warn_untracked() -> None:
     )
     for path, found in sorted(results.items()):
         print(f"  {path}: {len(found)} finding(s)")
+
+
+def _untracked_paths(git: str) -> list[str]:
+    """The untracked, non-ignored paths, one per element.
+
+    SPLIT OUT SO IT CAN BE CONTROLLED. R18-M4 found `_warn_untracked`
+    had no arms at all, and R18-H1 is what that cost: the listing was
+    wrong and only an end-to-end run with a space in a filename could
+    have shown it. This half is a pure function of git's output, so
+    `controls()` can drive it over a scratch repository without
+    detect-secrets and without touching this tree.
+    """
+    try:
+        # `-z` AND `split("\0")`, NOT `.split()`. R18-H1, measured
+        # with a firing control: `git ls-files` does NOT quote a
+        # filename that
+        # merely contains a SPACE, and `str.split()` splits on any
+        # whitespace - so `my notes.md` arrived as two paths, neither of
+        # which exists. detect-secrets then found nothing in either, and
+        # this function printed "5 untracked file(s) checked ahead of
+        # tracking: none would be a finding" over a real file holding
+        # three. THE ALL-CLEAR WAS PRINTED PRECISELY WHERE IT FAILED TO
+        # LOOK, and the count was inflated by the same bug. The control
+        # arm differed only by deleting the space and it reported the
+        # three findings correctly.
+        listed = [
+            path
+            for path in subprocess.run(  # noqa: S603
+                [git, "ls-files", "-z", "--others", "--exclude-standard"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.split("\0")
+            if path
+        ]
+    except (OSError, subprocess.CalledProcessError):
+        # An empty list and a failed listing must not be confused
+        # by the CALLER either: both mean "nothing to warn about",
+        # and neither is a claim that the set is clean.
+        return []
+    return listed
 
 
 # ---------------------------------------------------------------------
@@ -386,6 +420,60 @@ def controls() -> int:
         and not pairs(emptied) - pairs(base),
         "a deletion would be reported as an unaudited new finding",
     )
+
+    # C7-C9  THE LISTING HALF, which had NO arms at all until R18-M4
+    #        said so - and R18-H1 is what that cost. Every arm drives
+    #        `_untracked_paths` over a SCRATCH repository: no
+    #        detect-secrets, no network, and nothing in this tree is
+    #        read or written.
+    git = shutil.which("git")
+    if git is None:
+        arm(
+            "C7-C9 the listing arms could not run",
+            False,
+            "`git` is not on PATH, and a skipped arm is a green that tested nothing",
+        )
+    else:
+        with tempfile.TemporaryDirectory(prefix="untracked-arms-") as tmp:
+            scratch = pathlib.Path(tmp)
+            for cmd in (["init", "-q"], ["config", "user.email", "a@b.invalid"]):
+                subprocess.run([git, "-C", str(scratch), *cmd], check=True)  # noqa: S603
+            (scratch / "plain.md").write_text("x\n")
+            (scratch / "with space.md").write_text("x\n")
+            (scratch / "ignored.md").write_text("x\n")
+            (scratch / ".gitignore").write_text("ignored.md\n")
+            cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(scratch)
+                found = _untracked_paths(git)
+            finally:
+                os.chdir(cwd)
+
+            # C7  THE ONE THAT WOULD HAVE CAUGHT R18-H1. Under
+            #     `.split()` this filename arrived as `with` and
+            #     `space.md`, neither of which exists, so the scan
+            #     found nothing in it and the run printed an all-clear.
+            arm(
+                "C7 a filename containing a space survives intact",
+                "with space.md" in found,
+                "a path with a space would be split into two nonexistent ones,"
+                " and the gate would print a clean line over an unread file",
+            )
+            # C8  THE COUNT IS THE OTHER HALF OF THE SAME BUG: splitting
+            #     one path into two also INFLATES the number reported.
+            arm(
+                "C8 the count matches the files",
+                len(found) == 3,
+                f"the reported population would be wrong; got {len(found)}: {found}",
+            )
+            # C9  `--exclude-standard` still honours .gitignore. Without
+            #     this the fix could have been "stop excluding", which
+            #     would scan files the author never chose to write.
+            arm(
+                "C9 an ignored file stays out of the population",
+                "ignored.md" not in found,
+                "the gate would warn about files .gitignore excludes",
+            )
 
     failed = [a for a in arms if not a[1]]
     for name, ok, meaning in arms:
