@@ -64,8 +64,7 @@ def git(repo: str, *args: str) -> str:
     )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"git {' '.join(args)} failed rc={proc.returncode}: "
-            f"{proc.stderr.strip()}"
+            f"git {' '.join(args)} failed rc={proc.returncode}: {proc.stderr.strip()}"
         )
     return proc.stdout
 
@@ -99,9 +98,7 @@ def changed_paths(repo: str, merge: str, parent_revs: list[str]) -> list[str]:
     """
     paths: set[str] = set()
     for parent in parent_revs:
-        out = git(
-            repo, "diff", "--name-only", "--diff-filter=d", parent, merge
-        )
+        out = git(repo, "diff", "--name-only", "--diff-filter=d", parent, merge)
         paths.update(x for x in out.splitlines() if x)
     return sorted(paths)
 
@@ -117,9 +114,7 @@ def invented(
     """
     parent_revs = parents(repo, merge)
     if len(parent_revs) < 2:
-        raise RuntimeError(
-            f"{merge} is not a merge commit ({len(parent_revs)} parent)"
-        )
+        raise RuntimeError(f"{merge} is not a merge commit ({len(parent_revs)} parent)")
 
     scanned: list[str] = []
     findings: dict[str, list[str]] = {}
@@ -158,9 +153,7 @@ def report(repo: str, merge: str) -> int:
     short = git(repo, "rev-parse", "--short", merge).strip()
     subject = git(repo, "log", "-1", "--format=%s", merge).strip()
     parent_revs, scanned, findings = invented(repo, merge)
-    shorts = [
-        git(repo, "rev-parse", "--short", p).strip() for p in parent_revs
-    ]
+    shorts = [git(repo, "rev-parse", "--short", p).strip() for p in parent_revs]
     total = sum(len(v) for v in findings.values())
     print(
         f"{short}  parents={','.join(shorts)}  "
@@ -235,8 +228,7 @@ def self_test(repo: str) -> int:
         )
     else:
         print(
-            f"NEGATIVE CONTROL FAIL: {NEGATIVE_MERGE} cc={neg_cc}B "
-            f"invented={neg_total}"
+            f"NEGATIVE CONTROL FAIL: {NEGATIVE_MERGE} cc={neg_cc}B invented={neg_total}"
         )
         for path in sorted(neg):
             for line in neg[path]:
@@ -274,9 +266,7 @@ def synthetic_test() -> int:
             with open(f"{tmp}/table.md", "w") as handle:
                 handle.write(text)
 
-        subprocess.run(
-            ["git", "init", "-q", tmp], check=True, capture_output=True
-        )
+        subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
         g("config", "user.email", "control@example.invalid")
         g("config", "user.name", "control")
         write("row one\nrow two\nrow three\n")
@@ -352,9 +342,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="find merge-invented lines")
     ap.add_argument("revs", nargs="*", help="merge commits to inspect")
     ap.add_argument("--repo", default=".", help="repository (default: cwd)")
-    ap.add_argument(
-        "--range", dest="rng", help="inspect every merge in a commit range"
-    )
+    ap.add_argument("--range", dest="rng", help="inspect every merge in a commit range")
     ap.add_argument(
         "--self-test",
         action="store_true",
@@ -365,9 +353,7 @@ def main() -> int:
         action="store_true",
         help="build two merges from scratch and separate them",
     )
-    ap.add_argument(
-        "--strict", action="store_true", help="exit 1 on any finding"
-    )
+    ap.add_argument("--strict", action="store_true", help="exit 1 on any finding")
     args = ap.parse_args()
 
     if args.synthetic_test:
