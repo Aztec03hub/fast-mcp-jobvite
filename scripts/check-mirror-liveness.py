@@ -174,9 +174,27 @@ def check(
         wf_id = meta.get("id")
         if not isinstance(wf_id, int):
             raise UnmeasurableError("workflow payload has no numeric `id`")
+        # THE PAGE SIZE IS THE ORDERING ASSUMPTION, WRITTEN DOWN
+        # (R18-M1). `_newest_run` takes the max rather than the head
+        # because the API documents no ordering guarantee - and this
+        # query then DEPENDS on the ordering that comment distrusts,
+        # because the newest run must be ON THE PAGE for a max over
+        # the page to find it. The two halves contradicted each
+        # other and only one said so.
+        #
+        # WIDENING REDUCES THE EXPOSURE AND CANNOT REMOVE IT. At 100
+        # - the API's maximum for one page - the newest run is
+        # missed only if 100 runs were created out of order, a
+        # different failure from "the list is not sorted". One
+        # request either way, so it is free.
+        #
+        # Not paginated further ON PURPOSE. This answers "has it run
+        # lately", and a workflow whose newest run is past page one
+        # of 100 has run plenty; walking pages would spend requests
+        # sharpening a number already answered.
         runs = _load(
             runs_json,
-            f"repos/{repo}/actions/workflows/{wf_id}/runs?per_page=10&filter=all",
+            f"repos/{repo}/actions/workflows/{wf_id}/runs?per_page=100&filter=all",
         )
         newest = _newest_run(runs)
     except UnmeasurableError as exc:
