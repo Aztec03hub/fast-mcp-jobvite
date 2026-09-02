@@ -42,7 +42,14 @@ ROW_TIMEOUT=900
 # ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
 # the reasoning and the measurement that established it live in the file.
 # shellcheck source=lib/verdict-guard.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. Without it every"
+  echo "         row below scores a broken pytest run as a perfect kill (#254). A"
+  echo "         missing source is SILENT: 'command not found' is not fatal without"
+  echo "         'set -e' (ADR-0023), shellcheck at --severity=warning does not"
+  echo "         follow a source, and the harness would exit 0 with status=ok."
+  exit 3
+}
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -133,6 +140,24 @@ PY
 
   timeout "$ROW_TIMEOUT" uv run --frozen pytest "$SUITE" -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
+
+  # RESTORE, THEN GUARD, THEN VERDICT - the order every other adopter
+  # uses, and the one scripts/lib/verdict-guard.sh's header requires.
+  # This file had the guard LAST, below the `survivors:` block, and a
+  # refused row therefore printed the exact false kill the guard exists
+  # to suppress before refusing it: MEASURED with ROW_TIMEOUT=1,
+  # "survivors: NONE - no assertion passed against this tree" appeared
+  # one line above "REFUSING: an unfinished row has no verdict". The
+  # exit code was right and the log was a lie.
+  cp "$BACKUP_DIR/hardening.py" "$file"
+  if ! cmp -s "$file" "$PRISTINE_DIR/hardening.py"; then
+    echo "  RESTORE FAILED - $file still differs from the pristine copy"
+    echo "  taken before row 1. STOPPING."
+    exit 3
+  fi
+
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
+
   tail -1 "$OUT"
 
   local survivors
@@ -143,15 +168,6 @@ PY
     echo "  survivors (assertions that still reported success):"
     echo "$survivors" | sed 's/^/    /'
   fi
-
-  cp "$BACKUP_DIR/hardening.py" "$file"
-  if ! cmp -s "$file" "$PRISTINE_DIR/hardening.py"; then
-    echo "  RESTORE FAILED - $file still differs from the pristine copy"
-    echo "  taken before row 1. STOPPING."
-    exit 3
-  fi
-
-  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
   echo
 }
 

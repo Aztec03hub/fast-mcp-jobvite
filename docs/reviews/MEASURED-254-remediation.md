@@ -102,7 +102,7 @@ with the CALL and no `source` line:
 A missing `source` makes the guard vanish SILENTLY — `command not found` is
 not fatal under `set -uo pipefail`, the row scored anyway, and the harness
 exited 0 with `status=ok`. `bash -n`, `shellcheck --severity=warning` and all
-fourteen repo checkers were clean on that tree. This is a second, worse
+every repo checker was clean on that tree. This is a second, worse
 instance of the defect #254 is about, and the only instrument that saw it was
 the arm that runs the artifact. That is C1's whole argument, measured on
 itself.
@@ -287,19 +287,59 @@ SWEEP check-u1-boot  rc=5  28s  HARNESS-RESULT ... rows=0 floor=0 status=refused
     E   ModuleNotFoundError: No module named 'fast_mcp_jobvite.config'
 ```
 
-Both have a row whose DESIGNED amputation deletes the module under test, and
-`tests/` imports it at collection time. For those rows pytest cannot return 0
-or 1: a collection error is the intended consequence of the amputation, not a
-broken run. Dropping the guard in makes both harnesses permanently red in CI,
-which is the H1 sin one level down.
+Dropping the guard in makes both harnesses permanently red in CI, which is the
+H1 sin one level down. So both were reverted, and both re-run green after the
+revert (`check-u1-boot-amputation.sh` rc=0, `rows=15 floor=0 status=ok`). The
+DECISION to refuse stands.
 
-The defect is nonetheless REAL in both — `survivors: NONE` and *"every declared
-assertion died"* there are still derived from a run that collected nothing —
-but the remedy is a per-row expected-rc declaration, not a blanket guard, and
-that is a design change larger than this branch. Reverted; both re-run green
-after the revert (`check-u1-boot-amputation.sh` rc=0, `rows=15 floor=0
-status=ok`). **This is the unfinished remainder and it is named, not implied
-complete.**
+**THE REASON I FIRST RECORDED FOR THAT DECISION WAS TOO BROAD, AND REVIEW-254-R2
+MEASURED IT FALSE.** This paragraph said *"Both have a row whose DESIGNED
+amputation deletes the module under test"* and stopped there. I had run each
+harness once and read the first row that refused; I had NOT enumerated which
+rows can produce a non-0/1 rc, and I said so in `## What I did NOT verify`
+rather than papering over it. R2 enumerated them, by instrumenting the
+unconverted harnesses to print each row's rc. What is in that gap:
+
+| harness | rows with non-0/1 rc | is it a design consequence? |
+|---|---|---|
+| `check-u15-gate-amputation.sh` | A (rc=2), **E (rc=127)** | A yes, **E NO** |
+| `check-u1-boot-amputation.sh` | A (rc=4), B (rc=4), **F (rc=4)** | A and B yes, **F NO** |
+
+**u15 row E is not a design consequence, it is a live false verdict.** Row E
+strips `$PATH` to a directory of symlinks built at
+`scripts/check-u15-gate-amputation.sh:201`, and that list — `sh env sed grep
+cat` — omits `timeout`, which `report()` invokes at `:69`. Verified in the
+source, both lines. pytest is therefore never launched at all; the row exits
+127, prints `survivors: NONE - no assertion passed against this tree` — the
+harness's BEST possible result — and the harness exits 0. R2 measured that
+adding `timeout` to the list turns row E into `28 passed, 8 errors` with
+**sixteen named survivors the row has been hiding**. Row E's subject is *"git is
+absent"*, not *"coreutils are absent"*.
+
+**u1-boot row F is not a design consequence either, and it deletes nothing.**
+Row F empties the `KNOWN_TOOLS` table. That makes the parametrised node id
+`tests/test_config.py::test_a_recognised_tool_name_starts`
+(`scripts/check-u1-boot-amputation.sh:215`) stop RESOLVING, so pytest exits 4
+with no `PASSED ` lines, and the row's verdict — "none of the must-die ids
+appeared in the PASSED list" — reads that as `every declared assertion died
+(2 of 2)`. The amputation made the assertion vanish and the harness scored the
+vanishing as a kill. The comment at `check-u1-boot-amputation.sh:142-143`
+asserts the opposite in prose (*"an id that stops resolving yields no PASSED
+line and cannot fake a death"*); it is exactly backwards.
+
+So the honest split is: **rows u15-A, u1-A and u1-B need a per-row expected-rc
+exemption; rows u15-E and u1-F are plain defects that the exemption reasoning
+must not be allowed to cover.** With u15 row E fixed, u15's rc set is
+`{2,1,1,1,1}` and only row A needs an exemption — a small change, not the
+design project this paragraph originally implied.
+
+**Both harnesses are PRE-EXISTING and outside this branch's diff, and they are
+filed as #280.** They are deliberately NOT fixed here, including the false
+comment at `check-u1-boot-amputation.sh:142-143`: a fix landing inside an
+unrelated change is how a merge puts damage back. What was in this diff is the
+paragraph you are reading, and it has been rewritten in place rather than
+appended to. **This is the unfinished remainder, and it is now named at row
+granularity rather than implied complete.**
 
 ---
 
@@ -419,9 +459,197 @@ checker is itself `UNWIRED_BY_DECISION`, so this costs CI nothing.
 - `check-u15-gate-amputation.sh` and `check-u1-boot-amputation.sh` were run
   once each with the guard and once without. I did not enumerate WHICH of their
   rows can legitimately produce a non-0/1 rc — only that row A of each does.
-- I did not re-run the full CI workflow. Sixteen checkers plus fourteen harness
-  runs were run locally with CI's own invocations; the workflow as a whole was
-  not.
+- I did not re-run the full CI workflow. The checkers listed above plus every
+  adopted harness were run locally with CI's own invocations; the workflow as a
+  whole was not. Counts are given as tables above rather than as prose figures,
+  because a hand-kept count in a sentence decays where no step looks - this
+  document said `fourteen` here against a real thirteen until R2 measured it.
+
+## ROUND 2 — remediation of REVIEW-254-R2 (0C/3H/2M/2L)
+
+R2 ran the artifacts rather than reading this document, planted six mutants
+against the probe, and killed five. Everything below is the fix for the sixth
+and for what it found around it. R2's own H2 and H3 are **pre-existing, outside
+this diff, and filed as #280** — they are NOT fixed here; only the record above
+was corrected, and it was rewritten in place.
+
+### H1 — the lift created a single point of SILENT failure across thirteen harnesses
+
+R2's measurement, which I reproduced before fixing: move
+`scripts/lib/verdict-guard.sh` aside and run `check-u12-jobfeed-amputation.sh`
+unmodified. Ten rows scored by the pre-#254 inference, `status=ok`, **exit 0** —
+and `shellcheck --severity=warning` green on that same tree, because neither
+`ci.yml:184` nor the pre-commit hook passes `-x`, so shellcheck never follows a
+source at all.
+
+This is the defect that actually happened during round 1, generalised: the lift
+concentrated thirteen harnesses onto one file and removed nothing that would
+notice its absence. Two forms, two fixes.
+
+**Form 1, the library is gone.** The bare `.` in all thirteen becomes fail-closed:
+
+```bash
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. ..."
+  exit 3
+}
+```
+
+BEFORE (R2's number, reproduced): u12 `rc=0`, `rows=10 applied=10/10 status=ok`.
+AFTER, same amputation:
+
+```
+FORM 1 (library deleted), AFTER fix: u12 rc=3
+scripts/check-u12-jobfeed-amputation.sh: line 49: scripts/lib/verdict-guard.sh: No such file or directory
+::error::scripts/lib/verdict-guard.sh could not be sourced. Without it every
+         row below scores a broken pytest run as a perfect kill (#254). ...
+HARNESS-RESULT name=check-u12-jobfeed-amputation.sh rows=0 floor=0 status=refused
+```
+
+Zero rows scored, `status=refused`, and rc=3 already has a bespoke
+"could not run" diagnosis in `ci-harness-gate.sh`.
+
+**Form 2, the source line is deleted and the call stays.** This is the one that
+bit me, and it is silent: `command not found` is not fatal without `set -e`
+(ADR-0023), `bash -n` sees a syntactically valid call, and shellcheck at CI's
+threshold does not follow sources. Closed with a **wired** pairing assertion in
+`docs/reviews/check-checkers-are-wired.py`, which `ci.yml:251` already runs.
+
+**The pairing is DERIVED, not listed.** Function names are read out of every
+`scripts/lib/*.sh` and matched against every `.sh` in the container. A hardcoded
+`verdict_guard` would have been a list that misses the next library somebody
+adds — and it would have missed `harness-result.sh`, which has the same shape
+today.
+
+**Three false positives, each killed by a control rather than by an exemption.**
+This is the part worth reading:
+
+1. *A bare name search finds the mutation probe that NAMES the function.*
+   `docs/reviews/probe-floor-checker-planted-defect.sh` was reported as calling
+   `harness_result_ran`. It does not: its arms are `sed` expressions that name
+   the function in order to corrupt its call site (`:120`, `:127`, `:132`).
+   Fixed by asking for COMMAND POSITION, the signal bash itself carries.
+2. *`)` and `}` are not command positions.* Including them reported
+   `docs/reviews/check-harness-result.sh` as a caller, from the ERE
+   `'(^|[^_[:alnum:]])harness_result_ran '` at its `:133` — which is that
+   checker's SEARCH PATTERN for the call. Bash cannot start a command after
+   either token (`(sub) cmd` and `{ ...; } cmd` are syntax errors), so dropping
+   them is a correctness fix, not a concession.
+3. *The membership test found the file's own DOCUMENTATION.* The first form
+   asked `lib in body`. **Its control did not fire:** with the source lines
+   deleted from u3 and u12 and the calls left in, the checker said rc=0. The
+   `# shellcheck source=lib/verdict-guard.sh` directive and a comment naming the
+   library both contain the string. Fixed by requiring an actual `.`/`source`
+   COMMAND, with comments stripped first.
+
+   A fourth, in the other direction: the corrected regex used `\S*` for the
+   argument, which matches none of the 94 real source lines here — the argument
+   is `"$(dirname "${BASH_SOURCE[0]}")/lib/<file>"` and contains a SPACE inside
+   the command substitution. That produced a wrong 100%, which looked exactly
+   like the wrong 0% had. Both directions get a control now.
+
+**Controls, both directions, on the final form:**
+
+| tree | checker rc | what it named |
+|---|---|---|
+| clean | **0** | — |
+| `verdict-guard.sh` source deleted from u3 + u12, calls kept | **1** | both files, `calls verdict_guard() but never sources verdict-guard.sh` |
+| `harness-result.sh` source deleted from `check-u5-jobs-controls.sh` | **1** | `harness_result_ran`, `harness_result_tally` — so the check is not `verdict_guard`-specific |
+
+`check-checkers-are-wired.py --self-test` rc=0, 35/35 controls, 105 run steps.
+
+### M1 — body-cap printed the false kill one line before refusing it
+
+`check-body-cap-amputation.sh` was the only one of the thirteen with the guard
+DOWNSTREAM of the verdict. Driven with `ROW_TIMEOUT=1`:
+
+```
+BEFORE:  ########## A. BodySizeLimitMiddleware.__call__ is a bare passthrough
+         tests/test_body_cap.py ...  survivors: NONE - no assertion passed against this tree
+           TIMED OUT after 1s - this row NEVER FINISHED.
+           REFUSING: an unfinished row has no verdict. ...
+         rc=5,  `survivors` lines in the log: 1
+
+AFTER:   ########## A. BodySizeLimitMiddleware.__call__ is a bare passthrough
+           TIMED OUT after 1s - this row NEVER FINISHED.
+           REFUSING: an unfinished row has no verdict. ...
+         rc=5,  `survivors` lines in the log: 0
+```
+
+The exit code was always right; the LOG stated the exact false kill the guard
+exists to suppress. Reordered to `rc capture -> restore -> verdict_guard ->
+verdict`, matching u3 and u4.
+
+**The constraint is now in the library header, not just in this document**, as
+the second of two: *"CALL IT AFTER THE RESTORE, ALWAYS"* and *"AND BEFORE THE
+VERDICT"* — because satisfying only the first is a real state one adopter
+shipped in. Verified mechanically across all thirteen (guard line number vs
+first `^PASSED `/`^FAILED ` line): thirteen of thirteen now guard-first.
+
+### M2 — the probe never called the guard with rc=0, and that mutant survived
+
+R2's sixth mutant, `0|1) return 0` narrowed to `1) return 0` — a guard that
+refuses every clean row — passed the five-arm probe 5/5, exit 0. Both ARM 3 and
+ARM 4 drive rows whose pytest FAILS (rc=2 and rc=1), so nothing reached the
+guard's accept arm. That mutant is not academic: rc=0 on an amputated row is the
+VACUOUS ROW case, and `check-u9-http-amputation.sh:216-221` has an explicit
+`if [ "$rc" -eq 0 ]` branch downstream of the guard whose finding it would have
+switched off in silence.
+
+**ARM 5** added, calling the real sourced function directly — the artifact under
+test IS the library, so this is not C1's retyped-copy mistake. `ROW_FLOOR` 5 -> 6;
+the `check-row-floor-controls.sh` entry needed no edit because its ERE counts
+`ok "ARM` openers, and `check-row-floor-exactness.py` re-derives the count (rc=0,
+35 harnesses).
+
+```
+MUTANT '0|1)' -> '1)':  verdict_guard 0 -> 5 (want 0, ACCEPT)   verdict_guard 2 -> 5
+                        FAIL  ARM 5   arms passed: 5  failed: 1   status=breach   rc=1
+UNMUTATED:              verdict_guard 0 -> 0 (want 0, ACCEPT)   verdict_guard 2 -> 5 (want 5, REFUSE)
+                        PASS  ARM 5   arms passed: 6  failed: 0   status=ok       rc=0
+```
+
+**ARM 5 also caught its own first draft.** It initially sourced the library via
+`. "$GUARD_LIB"`, and the H1 pairing check — added an hour earlier in this same
+session — reported the probe as calling `verdict_guard` without sourcing it.
+The source is now hoisted to the top of the probe in the same shape every
+adopter uses, which removed the duplication as well.
+
+### L1 — a hand-kept count in prose, decayed
+
+`check-checkers-are-wired.py` said "fourteen amputation harnesses" against a real
+thirteen, and this document said "fourteen harness runs". Both corrected, and
+both restated so they cannot decay again: the exemption now states the POPULATION
+AS A RULE (*"every amputation harness whose verdict reads `^PASSED `"*) with the
+count marked *"thirteen today"*, and names
+`check-suite-floor-amputation.sh` as the deliberate non-member with its reason.
+This document now points at its tables instead of restating their totals.
+
+### L2 — a single-machine timing stated as a flat number
+
+Recorded as `MEASURED at 35s`. R2 measured 51.2s on its box; this box measures
+34s for the six-arm version. Restated as `35-55s ... MACHINE-DEPENDENT, and
+stated as a range for that reason`, with the note that a flat figure is the
+shape that later gets quoted as a budget. The exemption does not rest on cost
+either way.
+
+### What I did NOT verify, round 2
+
+This section found two live defects on main last round. Round 2's list:
+
+- I did not run `check-u15-gate-amputation.sh` or `check-u1-boot-amputation.sh`
+  with R2's fixes applied. I verified R2's two MECHANISMS in the source — u15
+  invokes `timeout` at `:69` and omits it from the symlink list at `:201`;
+  u1-boot's `MUST_F[0]` at `:215` is a parametrised id that `KNOWN_TOOLS` feeds
+  — but the 16 survivors and the row-F rc=4 are R2's measurements, not mine.
+  They belong to #280.
+- The pairing check's KNOWN CEILING is stated in its docstring rather than
+  discovered later: a call written as `x=$(func ...)` is not in command position
+  and would be missed. No adopter uses that form; these libraries are called for
+  their side effects and their exit code.
+- I did not re-drive the full ten-row `ci.yml:1667` gate invocation; the rc=5
+  arm was driven with a one-row derivative, as in round 1.
+- I did not re-run the full CI workflow.
 
 ## Escalation attempts
 

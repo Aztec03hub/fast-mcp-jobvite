@@ -50,6 +50,14 @@ set -uo pipefail
 
 # shellcheck source=../../scripts/lib/harness-result.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/lib/harness-result.sh"
+# The library ARM 5 exercises, sourced ONCE and at the top - the same shape
+# every adopter uses, and the shape docs/reviews/check-checkers-are-wired.py
+# requires of anything that calls a scripts/lib/ function.
+# shellcheck source=../../scripts/lib/verdict-guard.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/lib/verdict-guard.sh" || {
+  echo "REFUSING: scripts/lib/verdict-guard.sh could not be sourced; ARM 5 is its control." >&2
+  exit 2
+}
 
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." || {
     echo "REFUSING: could not reach the repo root from ${BASH_SOURCE[0]}" >&2; exit 2; }
@@ -57,6 +65,7 @@ REPO=$PWD
 export PYTHONDONTWRITEBYTECODE=1
 
 HARNESS=scripts/check-u3-audit-amputation.sh
+GUARD_LIB=scripts/lib/verdict-guard.sh
 DERIV=scripts/zz-probe-254-one-row.sh
 AUDIT="src/fast_mcp_jobvite/audit.py"
 # Bounded, like every other pytest call in a tracked .sh here: a hung suite
@@ -66,7 +75,7 @@ AUDIT="src/fast_mcp_jobvite/audit.py"
 # lines and not `timeout` arguments.
 PYTEST_TIMEOUT=300
 
-for required in "$HARNESS" "$AUDIT"; do
+for required in "$HARNESS" "$GUARD_LIB" "$AUDIT"; do
     [ -f "$required" ] || { echo "REFUSING: $required absent at $REPO"; exit 2; }
 done
 if [ -n "$(git status --porcelain -- "$AUDIT")" ]; then
@@ -214,10 +223,36 @@ else
 fi
 
 echo
+echo "=== ARM 5: the library's own case arms, both of them, called directly ==="
+echo "    artifact: $GUARD_LIB"
+# WHY THIS IS NOT THE RETYPED-COPY MISTAKE C1 WAS ABOUT. C1's probe modelled the
+# guard in a local function and tested the model. This arm SOURCES THE REAL FILE
+# and calls the real function; the artifact under test is the library itself.
+#
+# WHY IT IS NEEDED AT ALL. ARMs 3 and 4 both drive the harness, and in both the
+# derivative's single row makes tests FAIL - pytest returns 2 in ARM 3 and 1 in
+# ARM 4 - so NOTHING above ever calls verdict_guard with 0. MEASURED: narrowing
+# `0|1)` to `1)`, a guard that refuses every clean row, SURVIVED this probe at
+# 5/5 exit 0 before this arm existed. That mutant is not academic - rc=0 on an
+# amputated row is the VACUOUS ROW case, and check-u9-http-amputation.sh has an
+# explicit `if [ "$rc" -eq 0 ]` branch downstream of the guard whose finding
+# would have been switched off silently.
+( verdict_guard 0 /dev/null 1 ) >/dev/null 2>&1
+g0=$?
+( verdict_guard 2 /dev/null 1 ) >/dev/null 2>&1
+g2=$?
+echo "  verdict_guard 0 -> $g0 (want 0, ACCEPT)   verdict_guard 2 -> $g2 (want 5, REFUSE)"
+if [ "$g0" -eq 0 ] && [ "$g2" -eq 5 ]; then
+    ok "ARM 5: rc=0 is accepted and rc=2 refuses - both arms of the case reached"
+else
+    no "ARM 5: verdict_guard 0 -> $g0 (want 0), verdict_guard 2 -> $g2 (want 5)"
+fi
+
+echo
 echo "arms passed: $pass   failed: $fail"
 ROWS=$((pass + fail))
 harness_result_tally fired "$pass" "$ROWS"
-ROW_FLOOR=5
+ROW_FLOOR=6
 harness_result_ran "$ROWS" "$ROW_FLOOR"
 if [ "$ROWS" -lt "$ROW_FLOOR" ]; then
     echo "FEWER ARMS THAN THE FLOOR ($ROWS/$ROW_FLOOR) - arms were lost."

@@ -30,6 +30,18 @@
 # note saying why. Every call site below the `git checkout --` is correct;
 # one above it is not.
 #
+# AND BEFORE THE VERDICT. Both constraints, because satisfying only the first
+# is a real state one adopter shipped in: check-body-cap-amputation.sh had the
+# guard after its restore AND after its `survivors:` block, so with
+# ROW_TIMEOUT=1 a refused row printed
+#     survivors: NONE - no assertion passed against this tree
+#     REFUSING: an unfinished row has no verdict.
+# in that order. The exit code was correct and the log stated the false kill
+# this function exists to suppress, one line before suppressing it. A guard
+# downstream of the verdict does not guard the verdict; it annotates it.
+#
+# The order is therefore: capture rc -> restore -> verdict_guard -> verdict.
+#
 # EXIT 5, a code no harness here used before. It is not 1 (a FINDING - an
 # assertion survived something that should have killed it) and not 3 (could
 # not run - a red baseline or a dirty tree). A refusal is a third thing: the

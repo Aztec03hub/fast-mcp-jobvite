@@ -64,7 +64,14 @@ ROW_TIMEOUT=900
 # ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
 # the reasoning and the measurement that established it live in the file.
 # shellcheck source=lib/verdict-guard.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. Without it every"
+  echo "         row below scores a broken pytest run as a perfect kill (#254). A"
+  echo "         missing source is SILENT: 'command not found' is not fatal without"
+  echo "         'set -e' (ADR-0023), shellcheck at --severity=warning does not"
+  echo "         follow a source, and the harness would exit 0 with status=ok."
+  exit 3
+}
 
 export PYTHONDONTWRITEBYTECODE=1
 

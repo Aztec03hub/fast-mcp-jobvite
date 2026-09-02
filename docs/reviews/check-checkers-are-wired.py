@@ -488,7 +488,10 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "source broken in the checkout, which is the reason "
         "probe-252-rc4-verdict-trap.sh is unwired too and the reason "
         "restore-stranded-mutation.sh exists. Cost is NOT the reason: "
-        "MEASURED at 35s (five runs of the three-file $SUITE), well inside "
+        "MEASURED at 35-55s (six runs of the three-file $SUITE; "
+        "MACHINE-DEPENDENT, and stated as a range for that reason - 35s "
+        "here, 51s on a reviewer's box. A flat figure is the shape that "
+        "later gets quoted as a budget), well inside "
         "the five-minute mandate. **AND THE HONEST HALF: its subject is NOT "
         "already covered by a wired step.** ci.yml runs "
         "check-u3-audit-amputation.sh through ci-harness-gate.sh, but that "
@@ -826,10 +829,22 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     "verdict-guard.sh": (
         "a sourced LIBRARY holding the one copy of the non-measurement "
         "guard (#254). No shebang, no `__main__`, executed by nothing: "
-        "fourteen amputation harnesses `source` it, and each of those is a "
-        "wired step. It exists precisely so the guard is not fourteen "
-        "copies that drift. docs/reviews/probe-254-amputation-rc.sh is its "
-        "control and is deliberately hand-run - see its entry above."
+        "every amputation harness whose verdict reads `^PASSED ` sources "
+        "it - thirteen today - and each of those is a wired step. THE "
+        "POPULATION IS STATED AS A RULE AND THE COUNT ONLY AS OF TODAY: "
+        "the first draft of this sentence said `fourteen` twice against a "
+        "real thirteen, which is a hand-kept figure decaying where no step "
+        "looks. check-suite-floor-amputation.sh is the amputation harness "
+        "deliberately NOT in that set - its verdict reads `tail -1` for "
+        "`failed` and treats the ABSENCE as a FINDING, so a collection "
+        "error there fails CLOSED. The library exists so the guard is not "
+        "thirteen copies that drift, and "
+        "docs/reviews/check-checkers-are-wired.py itself now refuses a "
+        "script that CALLS a scripts/lib/ function without sourcing the "
+        "file that defines it - the silent form of this dependency "
+        "failing. docs/reviews/probe-254-amputation-rc.sh is the "
+        "library's behavioural control and is deliberately hand-run - see "
+        "its entry above."
     ),
     "harness-result.sh": (
         "a sourced LIBRARY holding the one canonical HARNESS-RESULT "
@@ -1202,6 +1217,117 @@ def bare_python_steps(text: str) -> list[tuple[str, list[str]]]:
         if needed:
             seen.add(name)
             problems.append((name, needed))
+    return problems
+
+
+def _sources(text: str, lib: str) -> bool:
+    """Is `lib` actually SOURCED here, or merely mentioned?
+
+    **MEASURED, AS THE CONTROL FOR THE CHECK ABOVE.** The first form of
+    this test was `lib in body` - the basename appearing anywhere. It
+    reported CLEAN on a tree where the `source` lines had been deleted
+    from `check-u3-audit-amputation.sh` and
+    `check-u12-jobfeed-amputation.sh` and the calls left in place: the
+    exact defect, and the check said nothing. What kept it quiet was the
+    file's own DOCUMENTATION - the `# shellcheck source=lib/...`
+    directive and a comment pointing at the library both contain the
+    name, so a substring test finds the prose that describes the
+    dependency instead of the dependency.
+
+    So the question asked here is the one bash answers: is there a `.`
+    or `source` COMMAND naming this file. Comments are stripped before
+    it is asked.
+    """
+    #: `[^\n]*` and NOT `\S*`: the argument is
+    #: `"$(dirname "${BASH_SOURCE[0]}")/lib/<file>"`, which contains a
+    #: SPACE inside the command substitution. `\S*` matched none of the
+    #: 94 real source lines in this repository and reported every one of
+    #: them as unsourced - a wrong 100% that looked exactly like a wrong
+    #: 0% would have, which is why both directions get a control.
+    return re.search(rf"(?m)^\s*(?:\.|source)\s+[^\n]*{re.escape(lib)}", text) is not None
+
+
+def _calls(text: str, func: str) -> bool:
+    """Is `func` used in COMMAND POSITION, rather than named as data?
+
+    **A BARE NAME SEARCH IS A FALSE POSITIVE MACHINE, MEASURED.** The
+    first form of this check reported
+    `docs/reviews/probe-floor-checker-planted-defect.sh` as calling
+    `harness_result_ran` without sourcing the library. It does not call
+    it at all: it is a mutation probe whose arms are `sed` expressions
+    that NAME the function in order to delete or corrupt its call site
+    (`:120`, `:127`, `:132`). The name appears; the call does not.
+
+    So the test is the signal bash itself carries - command position -
+    and not a substring. A command starts a line, or follows one of
+    `; & | ( ) { }` or a `then`/`else`/`do`. Inside `sed 's/^func /'`
+    the name follows `/^`, which is none of those.
+
+    KNOWN CEILING, stated rather than discovered later: a call written
+    as the right-hand side of a command substitution assignment
+    (`x=$(func ...)`) is not matched. No adopter uses that form - these
+    libraries are called for their side effects and their exit code -
+    and widening to catch it would re-admit the `sed` string this
+    docstring exists to explain. Revisit if one ever does.
+    """
+    #: `)` and `}` are deliberately NOT in this set, and that is a
+    #: correctness point rather than a concession. Bash cannot start a
+    #: command straight after either - `(sub) cmd` and `{ ...; } cmd`
+    #: are syntax errors, both need a `;` or a newline first - so a
+    #: name following one is always data. MEASURED: with `)` included,
+    #: `docs/reviews/check-harness-result.sh` was reported as calling
+    #: `harness_result_ran`, from the ERE `'(^|[^_[:alnum:]])harness_result_ran '`
+    #: at its `:133`, which is the checker's SEARCH PATTERN for that call.
+    pattern = rf"(?m)(?:^|[;&|(]|\bthen\b|\belse\b|\bdo\b)\s*{re.escape(func)}\b"
+    return re.search(pattern, text) is not None
+
+
+def unsourced_library_calls() -> list[tuple[str, str, str]]:
+    """Scripts that CALL a `scripts/lib/` function without sourcing its file.
+
+    **THIS IS THE FAILURE THAT ACTUALLY HAPPENED, AND EVERY OTHER
+    INSTRUMENT WAS GREEN FOR IT.** #254 lifted a guard out of one
+    harness into `scripts/lib/verdict-guard.sh` and adopted it in
+    thirteen. One harness got the CALL and no `source` line. Bash
+    without `-e` (ADR-0023) prints `verdict_guard: command not found`,
+    carries on, scores the row by the exact inference the guard exists
+    to forbid, and exits 0 with `status=ok`. `bash -n` cannot see it -
+    the call is syntactically fine. `shellcheck` cannot see it either:
+    CI and the pre-commit hook both pass `--severity=warning` with no
+    `-x`, so it never follows a source. A one-file library is a single
+    point of SILENT failure across every adopter, and the lift removed
+    nothing that would notice.
+
+    The pairing is DERIVED, never listed. Function names come out of
+    every `scripts/lib/*.sh` by reading its definitions, and the
+    membership test is the library's BASENAME appearing in the caller -
+    which matches both the `scripts/` form
+    (`"$(dirname ...)"/lib/verdict-guard.sh`) and the `docs/reviews/`
+    form (`.../../scripts/lib/harness-result.sh`). A hardcoded
+    `verdict_guard` here would have been a list that misses the next
+    library somebody adds, which is the shape this file was widened
+    twice to escape.
+
+    Returns (caller, function, library-basename) triples.
+    """
+    #: `name() {` at the start of a line - the one form every
+    #: definition in `scripts/lib/` uses. A definition indented inside
+    #: another function is not a library export.
+    definition = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{", re.M)
+    libs: dict[str, str] = {}
+    for path in sorted((ROOT / "scripts" / "lib").glob("*.sh")):
+        for func in definition.findall(path.read_text()):
+            libs[func] = path.name
+
+    problems: list[tuple[str, str, str]] = []
+    for rel in container():
+        if not rel.endswith(".sh") or rel.startswith("scripts/lib/"):
+            continue
+        stripped = strip_comments((ROOT / rel).read_text())
+        for func, lib in sorted(libs.items()):
+            if not _calls(stripped, func) or _sources(stripped, lib):
+                continue
+            problems.append((rel, func, lib))
     return problems
 
 
@@ -1644,6 +1770,21 @@ def main() -> int:
             "`uv run --frozen python ...`, and declare the module in\n"
             "pyproject's dev group - a transitive dependency is a fact\n"
             "nobody promised you."
+        )
+
+    unsourced = unsourced_library_calls()
+    if unsourced:
+        problems = True
+        print(f"\n{len(unsourced)} script(s) CALL a scripts/lib/ function without")
+        print("sourcing the file that defines it:")
+        for caller, func, lib in unsourced:
+            print(f"  {caller}  calls {func}()  but never sources {lib}")
+        print(
+            "\nWithout `set -e` this is SILENT: bash prints 'command not\n"
+            "found', the script carries on, and it exits 0. `bash -n` sees\n"
+            "nothing wrong and shellcheck at --severity=warning does not\n"
+            "follow a source. Add the `. .../lib/<file>` line, and give it\n"
+            "a `|| { ...; exit 3; }` so a missing library is loud too."
         )
 
     if unknown:
