@@ -29,6 +29,25 @@ trap 'harness_result_emit; rm -rf "$WORK"' EXIT
 
 export PYTHONDONTWRITEBYTECODE=1
 
+# THE INTERPRETER IS CHOSEN, NOT INHERITED. Since #246 the subject
+# imports pyyaml to derive its population, and pyyaml is a DEV-GROUP
+# dependency of this project - present in `.venv`, and present on the
+# runner's bare `python3` only by luck. Every row below ran under bare
+# `python3` until now and would have started failing on an import in
+# CI while passing on any laptop with PyYAML in its user site. The
+# fallback is deliberate and loud: with no `.venv` the rows still run,
+# and an ImportError is a traceback, not a quiet skip.
+PY="$REPO/.venv/bin/python"
+[ -x "$PY" ] || PY="$(command -v python3)"
+
+# EXTRA ARGUMENTS FOR THE NEXT ROWS, prepended to every invocation.
+# The array rather than a seventh positional parameter because
+# `amputate` already spends the seventh on its needle, and because
+# ORDER MATTERS: `--workflow-json` is repeatable and pairs with the
+# population in the order given, so a fixture placed here is the FIRST
+# workflow's and the one `row` passes is the second's.
+EXTRA=()
+
 # The instant every age below is measured against. Pinned, so "47.9h" is a
 # property of the fixture and not of when the harness happened to run.
 NOW="2026-09-02T00:00:00Z"
@@ -87,8 +106,15 @@ row() {
   local name="$1" want="$2" checker="$3" wf="$4" runs="$5" needle="${6-}"
   TOTAL=$((TOTAL + 1))
   local out rc
-  out="$(python3 "$checker" --now "$NOW" \
-      --workflow-json "$wf" --runs-json "$runs" 2>&1)"
+  # `-` FOR A FIXTURE MEANS PASS NONE. The zero-population rows must
+  # reach a refusal that fires BEFORE fixtures are paired with the
+  # population, and a row that always injected a pair could only ever
+  # see the pairing complaint - which would have let the amputation
+  # below score a fire on the wrong message.
+  local fixtures=(--workflow-json "$wf" --runs-json "$runs")
+  [ "$wf" = "-" ] && fixtures=()
+  out="$("$PY" "$checker" --now "$NOW" ${EXTRA[@]+"${EXTRA[@]}"} \
+      ${fixtures[@]+"${fixtures[@]}"} 2>&1)"
   rc=$?
   if [ "$rc" -ne "$want" ]; then
     echo "::error::  FAIL  $name: exit $rc (want $want)"
@@ -110,6 +136,13 @@ row() {
 }
 
 CHECKER="$REPO/$CHECKER_REL"
+
+# EVERY ROW BELOW NAMES ITS WORKFLOW. They always were mirror rows -
+# their fixtures carry mirror.yml's id and path - but they said so only
+# by relying on a default that #246 deleted. Naming it keeps them
+# single-target, which is what a single fixture pair means, and leaves
+# the DERIVED default to the rows built for it further down.
+EXTRA=(--workflow .github/workflows/mirror.yml)
 
 echo "POSITIVE ROWS - each distinct exit code, from the real checker:"
 row "FRESH     a run 2h old is alive"              0 "$CHECKER" "$WORK/fx/active.json"   "$WORK/fx/fresh.json"
@@ -149,7 +182,7 @@ echo "TRANSPORT ROWS - these actually enter _gh:"
 # "python3: No such file or directory" and was measuring the shell, not the
 # checker. PATH then points at an empty directory: `shutil.which("gh")` must
 # find nothing while the interpreter still runs.
-PY_ABS="$(command -v python3)"
+PY_ABS="$PY"
 mkdir -p "$WORK/empty" "$WORK/bin"
 cat >"$WORK/bin/gh" <<'STUB'
 #!/usr/bin/env bash
@@ -173,7 +206,8 @@ transport() {
   local name="$1" path="$2" want="$3" needle="$4"
   TOTAL=$((TOTAL + 1))
   local out rc
-  out="$(PATH="$path" "$PY_ABS" "$CHECKER" --now "$NOW" --repo o/r 2>&1)"
+  out="$(PATH="$path" "$PY_ABS" "$CHECKER" --now "$NOW" --repo o/r \
+      --workflow .github/workflows/mirror.yml 2>&1)"
   rc=$?
   if [ "$rc" -ne "$want" ]; then
     echo "::error::  FAIL  $name: exit $rc (want $want)"
@@ -268,13 +302,113 @@ amputate "AMP-EMPTY without the zero-run branch, an empty page crashes" \
   "if newest is None:" "if False:" 1 "$WORK/fx/active.json" "$WORK/fx/empty.json" \
   "TypeError"
 
+# ---------------------------------------------------------------------------
+# THE DERIVED POPULATION (#246), which nothing above reaches.
+#
+# Every row so far names one workflow, because until #246 the default named
+# one: `.github/workflows/mirror.yml`, written when that was the repository's
+# only cron. `ci.yml` acquired a `schedule:` afterwards, so THE CHECKER THAT
+# EXISTS TO NOTICE A SILENTLY-DISABLED CRON COULD NOT SEE THE DISABLING OF THE
+# WORKFLOW IT IS INVOKED FROM. The rows below feed a planted workflow
+# directory and pair one fixture per derived workflow, so they exercise the
+# derivation, the pairing and the empty-population refusal without a network.
+# ---------------------------------------------------------------------------
+echo "DERIVED-POPULATION ROWS - the default is computed, not named:"
+
+mkdir -p "$WORK/wf2" "$WORK/wf0"
+# A scheduled workflow, in the shape ci.yml actually carries: `on:` is the
+# YAML 1.1 boolean `true`, and `schedule` is one key among several.
+cat >"$WORK/wf2/ci.yml" <<'YML'
+name: CI
+on:
+  push:
+  schedule:
+    - cron: '0 0 * * 0'
+jobs: {}
+YML
+cat >"$WORK/wf2/mirror.yml" <<'YML'
+name: Mirror
+on:
+  schedule:
+    - cron: "17 4 * * *"
+jobs: {}
+YML
+# NOT SCHEDULED, and it lives in BOTH planted directories. In wf2 it must not
+# take a fixture slot; in wf0 it is the only file, so the population is empty
+# and the checker must refuse rather than report a green over nothing.
+for d in "$WORK/wf2" "$WORK/wf0"; do
+  cat >"$d/pr-title.yml" <<'YML'
+name: PR title
+on:
+  pull_request:
+    types: [opened]
+jobs: {}
+YML
+done
+# A DISABLED ci.yml. The `path` field is not read - the checker keys on
+# `state` and `id` - but it is written truthfully so a reader of a failing row
+# is not misled about which workflow the fixture stands for.
+cat >"$WORK/fx/ci-disabled.json" <<'JSON'
+{"id": 344103801, "path": ".github/workflows/ci.yml", "state": "disabled_inactivity"}
+JSON
+
+# EXTRA carries the FIRST workflow's fixture pair; `row` carries the second.
+# Sorted, so the population is ci.yml then mirror.yml.
+EXTRA=(--workflows-dir "$WORK/wf2" --workflow-json "$WORK/fx/active.json" --runs-json "$WORK/fx/fresh.json")
+row "DERIVED   two scheduled workflows are both read"   0 "$CHECKER" "$WORK/fx/active.json" "$WORK/fx/fresh.json" "ci.yml: active"
+
+# THE POSITIVE CONTROL FOR #246. Same planted directory, ci.yml disabled and
+# mirror.yml healthy. Pre-#246 this state was reported as GREEN, because the
+# default named mirror.yml and mirror.yml is fine.
+EXTRA=(--workflows-dir "$WORK/wf2" --workflow-json "$WORK/fx/ci-disabled.json" --runs-json "$WORK/fx/fresh.json")
+row "DISABLED-CI a disabled ci.yml is caught beside a healthy mirror" 3 "$CHECKER" "$WORK/fx/active.json" "$WORK/fx/fresh.json" "ci.yml is in state"
+
+# The pairing refusal: two workflows, one fixture pair. A short zip would have
+# left a workflow unchecked and said nothing about it.
+EXTRA=(--workflows-dir "$WORK/wf2" --workflow-json "$WORK/fx/active.json")
+row "PAIRING   one fixture for two workflows is refused"  4 "$CHECKER" "$WORK/fx/active.json" "$WORK/fx/fresh.json" "population of 2"
+
+# Zero derived, and NO fixtures - the refusal must fire before pairing.
+EXTRA=(--workflows-dir "$WORK/wf0")
+row "ZERO-POP  a directory whose only workflow has no schedule" 4 "$CHECKER" - - "no scheduled workflow found"
+
+echo "DERIVED-POPULATION AMPUTATIONS:"
+
+# THE PRE-#246 STATE, RESTORED. Replacing the derivation with a named default
+# is exactly what this file did before, so this row IS the old checker run on
+# the planted state above - and it must stop reporting the disabled ci.yml.
+EXTRA=(--workflows-dir "$WORK/wf2" --workflow-json "$WORK/fx/ci-disabled.json" --runs-json "$WORK/fx/fresh.json")
+amputate "AMP-DERIVE with a NAMED default, the disabled ci.yml vanishes" \
+  "args.workflow or scheduled_workflows(args.workflows_dir)" \
+  'args.workflow or [str(args.workflows_dir / "mirror.yml")]' \
+  4 "$WORK/fx/active.json" "$WORK/fx/fresh.json" "population of 1"
+
+# Delete the empty-population refusal and the loop below it runs zero times,
+# so `max` is handed an empty sequence and RAISES. That crash is the point:
+# the refusal is the only thing that turns an empty population into a
+# sentence, and without it the tool cannot speak about one at all - the same
+# shape, and the same reasoning, as AMP-EMPTY above.
+#
+# NOTE THE NEEDLE, for the same reason AMP-EMPTY carries one: an uncaught
+# exception exits 1, which is also STALE's code. `max(codes, default=OK)`
+# would have let this row assert a green instead, and was refused - it is a
+# branch no reachable input can take once the refusal above stands, so it
+# would be inoperative code written to make a control prettier.
+EXTRA=(--workflows-dir "$WORK/wf0")
+amputate "AMP-ZERO  without the empty refusal, an empty population crashes" \
+  "if not workflows:" "if False:" 1 - - "ValueError"
+
+EXTRA=()
+
 harness_result_tally fired "$FIRED" "$TOTAL"
+
 
 # THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0, so a harness whose
 # rows stopped being counted reports fully green. DERIVED: 11 positive and
-# unmeasurable rows plus 3 amputations, counted from the calls above at the
-# commit that adds them.
-ROW_FLOOR=17
+# unmeasurable rows, 3 transport rows and 3 amputations, counted from the calls
+# above at the commit that adds them - plus #246's 4 derived-population rows
+# and 2 further amputations, 17 -> 23.
+ROW_FLOOR=23
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then
   echo "::error::$TOTAL/$ROW_FLOOR ROWS - THE HARNESS LOST ROWS."

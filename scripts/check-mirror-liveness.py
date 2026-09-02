@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
-"""Notice when the mirror workflow has STOPPED, which no run can report.
+"""Notice when a SCHEDULED workflow has STOPPED, which no run reports.
+
+THE POPULATION IS DERIVED, NOT NAMED (#246). This file was written when
+`mirror.yml` was the only cron in the repository, so it named that path
+as its default. `ci.yml` acquired `schedule:` later and nothing re-read
+the default, so the checker built to catch a silently-disabled cron
+could not see the disabling of the workflow it is invoked from - the
+"a path allowlist selects for the path nobody thought of" shape, which
+this project has now measured eight times. With no `--workflow` the
+default is therefore every workflow in `.github/workflows` that carries
+a `schedule:` trigger, and a derivation that finds NONE refuses (exit
+4) rather than reporting a green over an empty population.
+
+THE TREE IS THE AUTHORITY, not the Actions API. The API lists what
+GitHub still remembers, which includes workflows deleted from the tree;
+the tree is what a reviewer edits and what a `schedule:` key means to
+say. A cron that is not in the tree cannot run, so it is not a cron
+this check is answerable for. The cost is stated rather than hidden:
+the tree read is of the CHECKED-OUT ref, while the crons GitHub
+actually fires come from the default branch, so a schedule added on a
+branch is watched one merge before it can fire - early, not late.
 
 `.github/workflows/mirror.yml` reports three states from inside a run:
 configured-off, broken, and running-but-copying-nothing. It cannot
@@ -49,7 +69,12 @@ itself was built from:
   1  STALE: active, but the newest run is older than the window
   2  NEVER RUN: the workflow exists and has no runs at all
   3  DISABLED: the workflow's state is not `active`
-  4  COULD NOT MEASURE: the API call failed or was unreadable
+  4  COULD NOT MEASURE: the API call failed or was unreadable, or
+     the population could not be derived at all
+
+With more than one workflow in the population every one is checked
+and the WORST code is returned, because a run that stopped at the
+first failure would report on a subset and say nothing about it.
 
 Exit 4 is a failure, not a pass. An instrument that cannot see reports
 that it cannot see; it never reports the thing it could not look at.
@@ -66,8 +91,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 DEFAULT_REPO = "evolvconsulting/fast-mcp-jobvite"
-DEFAULT_WORKFLOW = ".github/workflows/mirror.yml"
+DEFAULT_WORKFLOW_DIR = Path(__file__).resolve().parent.parent / ".github/workflows"
 DEFAULT_MAX_AGE_HOURS = 48
 
 OK, STALE, NEVER_RUN, DISABLED, UNMEASURABLE = 0, 1, 2, 3, 4
@@ -79,6 +106,58 @@ class UnmeasurableError(Exception):
     Distinct from looking and finding nothing, which is what the
     NEVER_RUN branch reports.
     """
+
+
+def scheduled_workflows(directory: Path) -> list[str]:
+    """Every workflow under `directory` carrying a `schedule:` trigger.
+
+    PARSED, NOT GREPPED. `grep -l schedule:` counts the word in a
+    comment and in a job step name, and this repository has already
+    mislabelled four checkers that way; `check-checkers-are-wired.py`
+    carries the same reasoning and the same pyyaml dependency.
+
+    `on:` IS THE KEY `True`. YAML 1.1 - which pyyaml implements -
+    resolves the bare token `on` to a boolean, so a workflow's trigger
+    block arrives under the key `True` and NOT under `"on"`. A lookup
+    of only `"on"` returns nothing for every workflow ever written and
+    would make this function a confident empty. Both spellings are read
+    so a quoted `"on":` is also seen.
+
+    A FILE THAT WILL NOT PARSE IS A MEASUREMENT FAILURE, not a file
+    without a schedule. Skipping it would let a broken workflow drop
+    silently out of the population, which is the exact silence this
+    checker exists to break.
+    """
+    if not directory.is_dir():
+        raise UnmeasurableError(f"{directory} is not a directory")
+    found: list[str] = []
+    for path in sorted(directory.iterdir()):
+        if path.suffix not in (".yml", ".yaml") or not path.is_file():
+            continue
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            raise UnmeasurableError(f"{path}: {exc}") from exc
+        if not isinstance(doc, dict):
+            continue
+        triggers = doc.get(True, doc.get("on"))
+        if isinstance(triggers, dict):
+            names: list[Any] = list(triggers)
+        elif isinstance(triggers, list):
+            names = list(triggers)
+        else:
+            names = [triggers]
+        if "schedule" in names:
+            # RELATIVE WHERE IT CAN BE. The default directory is
+            # resolved from `__file__`, so an absolute path is what
+            # every message would otherwise carry - and the reader of
+            # a CI log wants `.github/workflows/ci.yml`, which is also
+            # what the rest of this repository's checkers print.
+            try:
+                found.append(str(path.relative_to(Path.cwd())))
+            except ValueError:
+                found.append(str(path))
+    return found
 
 
 def _gh(path: str) -> dict[str, Any]:
@@ -200,8 +279,8 @@ def check(
     except UnmeasurableError as exc:
         print(f"COULD NOT MEASURE: {exc}")
         print(
-            "  This is a failure, not a pass. Nothing here observed the"
-            " mirror workflow, so nothing here may report on it."
+            "  This is a failure, not a pass. Nothing here observed"
+            f" {workflow}, so nothing here may report on it."
         )
         return UNMEASURABLE
 
@@ -222,14 +301,17 @@ def check(
             f"STALE: {workflow} last ran {hours:.1f}h ago"
             f" ({newest.isoformat()}), over the {limit}h window."
         )
-        # DERIVED from the age, not from the default. The workflow is
-        # scheduled daily, so the number of schedules that did not
-        # happen is the age in whole days - a sentence that stays true
-        # when the window is overridden.
+        # THE CADENCE IS NOT ASSUMED (#246). This line used to read
+        # "it is scheduled daily, so at least N scheduled run(s) did
+        # not happen", which was true of mirror.yml's 04:17 daily cron
+        # and FALSE of ci.yml's Sunday one - the same widening that
+        # made the population derived made that sentence a guess. The
+        # age is measured; how many schedules it swallowed is not, so
+        # only the age is printed.
         print(
-            f"  It is scheduled daily, so at least {int(hours // 24)}"
-            " scheduled run(s) did not happen. Check the Actions tab"
-            " before assuming the copy is current."
+            f"  That is {hours / 24:.1f} day(s) without a run of any"
+            " event. Check the Actions tab and the workflow's own"
+            " `schedule:` before assuming it is still firing."
         )
         return STALE
 
@@ -243,16 +325,39 @@ def check(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=DEFAULT_REPO)
-    parser.add_argument("--workflow", default=DEFAULT_WORKFLOW)
+    # REPEATABLE, and empty by default. The default is DERIVED (#246),
+    # so there is no path literal here to go stale the next time a
+    # workflow acquires a `schedule:`.
+    parser.add_argument(
+        "--workflow",
+        action="append",
+        default=[],
+        help="check this workflow only; repeatable. Default: every"
+        " scheduled workflow in --workflows-dir",
+    )
+    parser.add_argument(
+        "--workflows-dir",
+        type=Path,
+        default=DEFAULT_WORKFLOW_DIR,
+        help="where the population is derived from when --workflow is absent",
+    )
     parser.add_argument("--max-age-hours", type=float, default=DEFAULT_MAX_AGE_HOURS)
+    # PAIRED WITH THE POPULATION, IN ORDER, one of each per workflow.
+    # The controls feed N workflows N fixtures; a count that disagrees
+    # is refused rather than zipped short, because a short zip would
+    # leave a workflow unchecked and print nothing about it.
     parser.add_argument(
         "--workflow-json",
         type=Path,
+        action="append",
+        default=[],
         help="read the workflow object from a file, not the API (controls)",
     )
     parser.add_argument(
         "--runs-json",
         type=Path,
+        action="append",
+        default=[],
         help="read the runs page from a file, not the API (controls)",
     )
     parser.add_argument(
@@ -267,14 +372,61 @@ def main(argv: list[str] | None = None) -> int:
         else datetime.now(UTC)
     )
 
-    return check(
-        repo=args.repo,
-        workflow=args.workflow,
-        max_age=timedelta(hours=args.max_age_hours),
-        workflow_json=args.workflow_json,
-        runs_json=args.runs_json,
-        now=now,
+    try:
+        workflows = args.workflow or scheduled_workflows(args.workflows_dir)
+    except UnmeasurableError as exc:
+        print(f"COULD NOT MEASURE: {exc}")
+        print("  The population could not be derived, so nothing was checked.")
+        return UNMEASURABLE
+
+    # A DERIVED POPULATION MUST REFUSE ITS OWN EMPTY. Without this the
+    # loop below runs zero times and the max over nothing is 0 - a
+    # green printed by an instrument that looked at no workflow at
+    # all, which is the failure this whole file exists to break. This
+    # project has measured a clean zero from a bad path three times in
+    # one day; a mistyped --workflows-dir is exactly that path.
+    if not workflows:
+        print(
+            f"COULD NOT MEASURE: no scheduled workflow found in {args.workflows_dir}."
+        )
+        print(
+            "  A repository with a cron has at least one. Either the"
+            " directory is wrong or every `schedule:` has been removed;"
+            " both are findings, and neither is a pass."
+        )
+        return UNMEASURABLE
+
+    fixtures = (
+        ("--workflow-json", args.workflow_json),
+        ("--runs-json", args.runs_json),
     )
+    for name, given in fixtures:
+        if given and len(given) != len(workflows):
+            print(
+                f"COULD NOT MEASURE: {len(given)} {name} fixture(s) given"
+                f" for a population of {len(workflows)}."
+            )
+            print("  " + ", ".join(workflows))
+            return UNMEASURABLE
+
+    codes = [
+        check(
+            repo=args.repo,
+            workflow=workflow,
+            max_age=timedelta(hours=args.max_age_hours),
+            workflow_json=args.workflow_json[i] if args.workflow_json else None,
+            runs_json=args.runs_json[i] if args.runs_json else None,
+            now=now,
+        )
+        for i, workflow in enumerate(workflows)
+    ]
+    # THE WORST CODE, not the first and not the last. Every workflow is
+    # checked before anything is returned, so a disabled ci.yml is
+    # still reported when mirror.yml is healthy. The codes are ordered
+    # by severity already - OK 0 < STALE 1 < NEVER_RUN 2 < DISABLED 3 <
+    # UNMEASURABLE 4 - so `max` IS "the worst"; that ordering is a
+    # property of the constants above and moves if they do.
+    return max(codes)
 
 
 if __name__ == "__main__":
