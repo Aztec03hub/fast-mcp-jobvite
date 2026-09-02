@@ -43,6 +43,12 @@ git -C "$SCRATCH" config user.name probe
 # would show as `??` rather than ` M`, and the gate's tree comparison would
 # still see a change but the restorer would have nothing to restore it to.
 printf 'original\n' >"$SCRATCH/subject.txt"
+# A SECOND tracked file, and the reason is a real trap. `git status --porcelain`
+# reports a STATUS LINE, not content: a stub that rewrites the same file a
+# person already edited leaves the porcelain output BYTE-IDENTICAL, so the
+# gate's tree comparison sees nothing appear and clears the state. ARM 5 needs
+# a strand that APPEARS beside the human's edit, which means a different file.
+printf 'original\n' >"$SCRATCH/other.txt"
 
 # The state file is pinned into the scratch dir by the env override the library
 # honours, so an arm can never read or clobber the real one.
@@ -124,6 +130,9 @@ echo "ARM 2 - a harness that strands a mutation:"
 stub "check-stub-strands.sh" "$STUB_HEAD
 printf 'MUTATED\\n' > \"\$(dirname \"\$0\")/../subject.txt\"
 $STUB_TAIL"
+stub "check-stub-strands-other.sh" "$STUB_HEAD
+printf 'MUTATED\\n' > \"\$(dirname \"\$0\")/../other.txt\"
+$STUB_TAIL"
 out=$(run_gate check-stub-strands.sh); rc=$?
 row "STRANDED  the state file SURVIVES a tree that did not come back" present
 TOTAL=$((TOTAL + 1))
@@ -161,9 +170,20 @@ else
 fi
 rm -f "$HARNESS_STATE_FILE"
 
-echo "ARM 4 - a dirty tree records nothing, and says so:"
+# ARM 4's "absent" assertion WAS VACUOUS AND R18-M3 CAUGHT IT. With the
+# dirty-tree branch amputated, the gate wrote the state, ran, and cleared it -
+# so the file was absent for the WRONG REASON and the arm passed on the mutant
+# it exists to catch. Only its sibling NOTE assertion failed.
+#
+# THE FIX IS THE STUB, NOT THE ASSERTION. Paired with a harness that STRANDS,
+# "absent" becomes discriminating: correct code records nothing on a dirty tree
+# so there is nothing to leave, while the mutant records state, fails to get
+# the tree back, and LEAVES THE FILE. ARM 5 amputates the branch and requires
+# exactly that, so this file now checks its own vacuity instead of asserting
+# it is fine.
+echo "ARM 4 - a dirty tree records nothing, even when the harness strands:"
 printf 'edited by a person\n' >>"$SCRATCH/subject.txt"
-out=$(run_gate check-stub-clean.sh)
+out=$(run_gate check-stub-strands-other.sh)
 row "DIRTY     nothing recorded on a tree that was already dirty" absent
 TOTAL=$((TOTAL + 1))
 if grep -q "already dirty" <<<"$out"; then
@@ -172,11 +192,42 @@ if grep -q "already dirty" <<<"$out"; then
 else
   echo "::error::  FAIL  DIRTY     the gate recorded nothing and did not say why"
 fi
-git -C "$SCRATCH" checkout -q -- subject.txt
+printf 'original\n' >"$SCRATCH/subject.txt"
+printf 'original\n' >"$SCRATCH/other.txt"
+rm -f "$HARNESS_STATE_FILE"
+
+echo "ARM 5 - AMPUTATION: delete the dirty-tree branch, ARM 4 must stop holding:"
+AMPUTATED="$SCRATCH/scripts/ci-harness-gate-amputated.sh"
+python3 - "$SCRATCH/scripts/ci-harness-gate.sh" "$AMPUTATED" <<'PY'
+import sys
+import pathlib
+
+src = pathlib.Path(sys.argv[1]).read_text()
+anchor = 'elif [ -n "$tree_before" ]; then'
+if src.count(anchor) != 1:
+    print(f"ANCHOR NOT UNIQUE: matched {src.count(anchor)} times")
+    raise SystemExit(1)
+pathlib.Path(sys.argv[2]).write_text(src.replace(anchor, "elif false; then"))
+PY
+printf 'edited by a person\n' >>"$SCRATCH/subject.txt"
+bash "$AMPUTATED" check-stub-strands-other.sh --controls-fired >/dev/null 2>&1
+TOTAL=$((TOTAL + 1))
+if [ -f "$HARNESS_STATE_FILE" ]; then
+  FIRED=$((FIRED + 1))
+  echo "  PASS  AMP-DIRTY without the dirty-tree branch the state file IS written"
+else
+  echo "::error::  FAIL  AMP-DIRTY the amputated gate still recorded nothing, so"
+  echo "::error::            ARM 4's 'absent' proves nothing about that branch"
+fi
+rm -f "$AMPUTATED" "$HARNESS_STATE_FILE"
+printf 'original\n' >"$SCRATCH/subject.txt"
+printf 'original\n' >"$SCRATCH/other.txt"
+git -C "$SCRATCH" checkout -q -- subject.txt other.txt
 
 # THE ROW FLOOR. `FIRED -ne TOTAL` is satisfied by 0 == 0. DERIVED from the
-# calls above at the commit that adds them: four arms, nine assertions.
-ROW_FLOOR=9
+# calls above at the commit that adds them: five arms, ten assertions - the
+# fifth being R18-M3's amputation of the branch ARM 4 depends on.
+ROW_FLOOR=10
 harness_result_tally fired "$FIRED" "$TOTAL"
 harness_result_ran "$TOTAL" "$ROW_FLOOR"
 if [ "$TOTAL" -lt "$ROW_FLOOR" ]; then

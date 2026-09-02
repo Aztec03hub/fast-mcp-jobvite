@@ -1,9 +1,11 @@
-# HANDOFF — 2026-09-01 08:26 PM CDT, written against compaction
+# HANDOFF — 2026-09-02 03:35Z, written against compaction
 
-Verified by running it at `3d7a82f`. Trunk is `ccbdaae` on both remotes;
-`3d7a82f` is one commit ahead, local, unpushed.
+Verified by running it at `8986e64`. `origin/main` is `e845839`; six
+commits are ahead of it, LOCAL and DELIBERATELY UNPUSHED — see "Why
+nothing is pushed" below, because that is the one thing here you must
+not undo without reading.
 
-## READ THIS FIRST: this document has been wrong FOUR times
+## READ THIS FIRST: this document has been wrong FIVE times
 
 Version 1 said **"Main is GREEN locally, on every gate"** and listed six
 gates, all 0. Every number was true and the claim was false: the gate
@@ -12,180 +14,212 @@ that had refused the tree for 127 commits was not on the list.
 Version 2 said **"15 trunk commits are covered by no round"**. 15 was a
 DISPLAY CAP (`untouched[:15]`); the population printed one line above.
 
-Version 3 (this one's predecessor) said main was `09477ee` and listed
-five gates that no longer exist under those names, because #143
-consolidated three CI jobs into one.
+Version 3 said main was `09477ee` and listed five gates that no longer
+exist under those names, because #143 consolidated three CI jobs.
 
-Version 4 is THIS one, corrected before you read it: it listed four
-hand-run probes under "Gates ... run with CI's exact invocation" when CI
-runs none of them. True about my terminal, false about the repository.
+Version 4 listed four hand-run probes under "Gates ... run with CI's
+exact invocation" when CI ran none of them. True about my terminal,
+false about the repository.
 
-All four are one defect: **a claim about a whole, evidenced by a sample
-or a snapshot.** So every count below carries its container and its sha,
-and anything CI does not run says so on its line.
+Version 5 is THIS one, and its predecessor's error was the same family
+again, so it is named rather than quietly fixed: version 4 said
+*"THE RUNNING JOB IS THE FIRST TO REACH THE LONG POLE"* about run
+`203e5af`. **That run never reached the long pole.** It died at the
+secret-scan step, exactly as version 4 itself predicted two sentences
+later, and the run that actually reached it is a different one, listed
+below. A prediction and a measurement were written in one breath and
+only one of them was true.
+
+All five are one defect: **a claim about a whole, evidenced by a sample,
+a snapshot, or a prediction.** So every count below carries its
+container and its sha, anything CI does not run says so on its line, and
+anything not yet observed is marked NOT YET OBSERVED.
 
 ## Where the trunk actually is
 
-    origin/main   2d886a4   pushed to BOTH remotes, nothing held locally
-    CI            203e5af   in_progress   <-- RUNNING, holds the slot
-                  2d886a4   pending       0 jobs, consumes nothing
+    origin/main   e845839   pushed to BOTH remotes
+    local HEAD    8986e64   SIX commits ahead, all held on purpose
 
-**THE RUNNING JOB IS THE FIRST TO REACH THE LONG POLE.** `203e5af`'s
-run has 4 of 5 jobs green and `Lint, types, tests` still going after 45
-minutes. It PREDATES the secret-scan fix, so it will fail at that step
-regardless - **and I am deliberately not cancelling it**, because it is
-the first run in this project's history to get that far, and its step
-timings are the measurement #154 has been unable to make. A failing
-trunk under-reports its own durations; this is the run that stops doing
-that.
+    9c08427  #131  the shared gate records who is mutating
+    6de1b4a  #154  a duration tool that will not print a max without n
+    d0bdf2a  BASH-1: "all 20" against a population of 39
+    1cddd76  the #170 brief
+    9ce969f  the restorer never read the `repo=` field it is given
+    8986e64  both briefs were missing their §0 tools block
 
-**THE CI RULE, MEASURED TWICE NOW.** `cancel-in-progress: github.ref !=
-'refs/heads/main'` protects a RUNNING run on main. A push evicts PENDING
-runs only, and a pending run has 0 jobs started. So pushing on top of a
-pending run is free; pushing while you care about a RUNNING one is not.
+## WHY NOTHING IS PUSHED, and do not undo this casually
 
-## Gates at `3d7a82f`, every one run with CI's exact invocation
+    CI run 33582613697   head 22c9873   IN PROGRESS since 02:20:43Z
+    CI run for e845839                  PENDING behind it since 03:16Z
 
-**AND FOUR OF THESE ARE NOT IN CI AT ALL.** `probe-coverage-ratchet`,
-`probe-ci-checker-steps`, `probe-ci-checker-steps-control` and
-`control-stranded-mutation.sh` are named in no workflow: I ran them, CI
-does not. Only 4 of 28 `docs/reviews/probe-*` files are wired anywhere,
-and `check-checkers-are-wired.py` cannot see the other 24 because its
-container is `check-*` BY PREFIX (#155). Listing a hand-run probe under
-"gates" without that mark is this document's fourth version of its own
-recurring defect - a claim about the repository, evidenced by my
-terminal.
+**Run 33582613697 is the first in this project's history to reach the
+deep harness steps.** Four earlier runs on this trunk were cancelled by
+GitHub, which evicts older QUEUED runs in a concurrency group REGARDLESS
+of `cancel-in-progress` — the setting protects a RUNNING run, not a
+queued one. So every push while that run is queued-or-running costs the
+trunk another completed record, and this run is the measurement #154 has
+been unable to make for two days.
 
-    ruff check . / format --check / mypy                    0
-    scripts/check-committed-file-types.py --all             0   RUN IT WITH --all
-    check-cross-references / design-freeze                  0
-    check-checkers-are-wired                                0
-    check-landing-published                                 0   NEW (#152)
-    check-review-coverage                                   0   backlog 86
-    probe-coverage-ratchet                                  0   9/9 arms, NOT IN CI
-    probe-ci-checker-steps / -control                       0   34-block bucket now 0, NOT IN CI
-    check-harness-result.sh                                 0   30 print == 30 publish
-    control-stranded-mutation.sh                            0   26 arms, NOT IN CI
-    check-no-errexit / no-sigpipe / row-floors / exactness   0
-    check-obligations                                       0
-    check-harness-anchors --self-check --floor 458          0
-    actionlint (SHELLCHECK_OPTS=--severity=warning)         0
-    pytest                        887 passed, 0 skipped, 6 deselected
-    check-suite-floor.sh 887                                0
+Push when it concludes. Then record the six commits in the backlog,
+which cannot be done before the push: see "The backlog order" below.
 
-**THE RED IS CLOSED (#161), AND CI HAS NOT YET CONFIRMED IT.**
-`pre-commit run --all-files` now exits 0 on the merged trunk with three
-hooks passed and an empty `git status --porcelain`. The confirming CI
-run is the pending one above. Until it finishes, "the step is green"
-is a claim about my terminal - which is this document's recurring
-defect, so it is marked rather than assumed. What follows is the
-history, kept because the mechanism recurs:
-`Secret scan hook runs clean` fails because detect-secrets **rewrites
-the baseline it then checks**: a recorded `line_number` for the literal
-`inspect-only-not-a-credential` drifted 1344 -> 1431, the hook updated
-`.secrets.baseline` in place, and pre-commit fails when a hook modifies
-a file. In CI nothing can be re-staged, so it cannot recover. 22 entries
-across 13 live files all carry line numbers. `suborch-161` has it.
+## What that run has measured, and it corrects a task headline
 
-**RUN CI'S EXACT INVOCATION, FLAGS AND ALL.** I broke this rule THREE
-times in one evening: `check-committed-file-types.py` bare (staged set,
-0 files, exit 0 - which hid a red trunk for 127 commits), `python3`
-where CI uses `uv run --frozen python`, and `actionlint` without
-`SHELLCHECK_OPTS=--severity=warning`, which reads an INFO diagnostic as
-a failure. Copy the line out of `ci.yml`.
+Read live from the Actions API at 03:31Z, 51 completed steps of
+`Lint, types, tests`, 3193s (53.2 min) between them:
+
+    1270s   U9 HTTP hardening amputation, every row applied
+     927s   U0 test controls, all fired
+     621s   U1 boot amputation harness ran every row
+     331s   U4 client mutation controls, all killed
+     118s   U1 boot mutation controls, all fired
+      93s   Critical-path coverage amputation
+      83s   Default suite, zero skips
+
+    Static gates, supply chain and links    47s   success   (#143's fold)
+    CodeQL                                  70s   success
+
+**#154's headline was WRONG and this run is what says so.** The task
+said "the U4 client amputation harness is the step holding CI past 73
+minutes". U9 and U0 are 69% of the completed time between them, and at
+the moment I wrote that sentence U4's amputation had not run at all.
+A failing trunk under-reports its own durations, so the ranking I built
+was a ranking of the steps that got to run.
+
+`docs/reviews/measure-ci-step-durations.py` (`6de1b4a`) exists so the
+next person cannot repeat that: it refuses to print a maximum without
+the number of runs that REACHED the step, and separately lists steps
+that have never completed at all, because a ranked table can only rank
+what finished.
+
+**NOT YET OBSERVED:** the job total, the conclusion, and whether the
+trunk has its first green run. Do not write that it does until the run
+says so.
+
+## Gates at `8986e64`, and which of them CI actually runs
+
+    ruff check . / ruff format --check .                    0
+    mypy                                    0   136 source files
+    pytest                    887 passed, 0 skipped, 6 deselected
+    pre-commit run --all-files                              0
+    check-review-coverage                   1   see the backlog note
+    probe-coverage-ratchet                  0   10/10 arms
+    check-checkers-are-wired                0   + --self-test 35/35
+    check-row-floor-exactness               0   25 harnesses
+    check-no-sigpipe-pipelines              0
+    check-obligations                       0   31 mappings, 25 verified
+    check-clause-citations                  0
+    check-landing-published                 0
+    measure-xref-population                 0
+    check-harness-result.sh                 0   38 container, 31 tallies
+    control-stranded-mutation.sh            0   32 arms (was 26)
+    probe-131-gate-state.sh                 0   9 assertions, NEW
+    check-mirror-liveness-controls.sh       0   14 arms, NEW
+    probe-wired-checker-amputation.py       0   14 arms, floor 14, NEW
+    scripts/check-harness-anchors.py        0   464 anchors
+    shellcheck --severity=warning -x        0
+
+**`check-review-coverage` exits 1 ON PURPOSE right now**: `e845839` is
+the backlog top-up commit itself and cannot be in the file it writes.
+That tail is inherent and the gate ratchets a SET rather than demanding
+a zero for exactly this reason.
+
+**actionlint is NOT INSTALLED on this machine.** CI runs it with
+`SHELLCHECK_OPTS=--severity=warning`; I could not, and say so rather
+than claiming the gate. That is the whole of what I could not run.
+
+**RUN CI'S EXACT INVOCATION, FLAGS AND ALL.** Broken three times in one
+evening: `check-committed-file-types.py` bare (staged set, 0 files, exit
+0 — which hid a red trunk for 127 commits), `python3` where CI uses
+`uv run --frozen python`, and `actionlint` without its `SHELLCHECK_OPTS`.
+Copy the line out of `ci.yml`.
+
+## The backlog order, learned tonight and worth keeping
+
+**Push first, THEN record.** `check-review-coverage.py` measures
+`origin/main`, so a line added to the backlog before its commit is on
+the trunk reads as recorded-with-nothing-under-it — which is precisely
+the drift the SUBJECT column exists to catch. I tried it the other way
+and the checker refused, correctly.
+
+Backlog is at 65 recorded = 65 measured plus the one inherent tail.
 
 ## Agents live right now
 
-    suborch-153   #153+#155+#149, OWNS .github/workflows/ci.yml and
-                  docs/reviews/check-checkers-are-wired.py
-    suborch-156   #156 (High), scripts/check-u1-boot-amputation.sh
-    review-r16    the 86-commit review round; OWNS the coverage backlog
-                  file, read-only everywhere else
+    review-r18    reviews tonight's five gate commits; own worktree,
+                  read-only outside its report and the backlog file
+    suborch-170   sweeps for retyped counts beside growing containers;
+                  owns its sweep tool and its findings .md
 
-Collected and merged since the last version: #161 (the trunk's red),
-#157 (the mirror), #143, #146/#131, #147, #152.
+Both briefs are `docs/briefs/BRIEF-*.md` and both were dispatched
+MISSING their §0 tools block — the Task tools are DEFERRED and absent
+from an agent's opening toolset, so every "TaskGet before acting"
+instruction in them was unfollowable. Fixed at `8986e64`, and BOTH
+AGENTS WERE TOLD BY SendMessage, because an agent that has already read
+a brief does not re-read it.
 
-Each has a brief in `docs/briefs/BRIEF-<n>-*.md`. **Ownership is stated
-in each brief's §B and the three do not overlap.** Do not put a fourth
-agent in `ci.yml`.
+**Panes are the binding cap on dispatch.** Finished agents do not
+release their pane, and `Agent` fails outright with "no space for new
+pane". Thirteen were held when this shift began; two were stopped
+deliberately to make room for these. Check `ListAgents` and stop a
+finished one before assuming you cannot dispatch.
 
-## Unmerged branches — all three EXAMINED now, all superseded
+## What tonight closed
 
-    fix/kind-not-path            1 ahead   superseded, see below
-    rescue/adr-0024-scan-bound   1 ahead   superseded, see below
-    rescue/r6-probe-half-open    1 ahead   superseded, see below
+    #163  the secret gate warns about untracked would-be findings
+    #164  the mirror's fourth state - not running at all - has a check
+    #149  M-4: the wiring probe runs, in its own job, held to a floor
+    #131  the shared gate writes the run state file  (LOCAL)
+    #154  a duration tool that carries its reach count  (LOCAL)
 
-They sat as "pre-existing, unexamined" for three handoffs. Checked
-against the CODE, not against their commit messages:
+Two rulings worth not re-litigating:
 
-- **`rescue/adr-0024-scan-bound`** — ADR-0024's scan bound IS on main,
-  in `services/jobvite_client.py`, `tools/jobs.py`,
-  `tests/test_scan_incomplete.py` and `tests/test_resilience.py`. #74
-  landed it at `1e55129` by a different route.
-- **`rescue/r6-probe-half-open`** — main's `probe-r6-breaker-reset.py`
-  is 267 lines with 17 half-open references; the branch's is 228 with
-  14. #75 landed it at `3ef01f5`.
-- **`fix/kind-not-path`** — #138's successor `e199dd8` IS an ancestor of
-  main (verified with `merge-base --is-ancestor`), so its task note
-  saying UNMERGED is stale, not a stranded piece of work.
+- **The `HARNESS-RESULT` container stays `scripts/*.sh`.** Its three
+  enforced properties are bash constructs with no Python meaning, and
+  what they buy — an aborted harness cannot look like a pass — Python
+  already has. `probe-wired-checker-amputation.py` prints the canonical
+  line anyway so a future widening can count it.
+- **`git add -N` and a `pragma: allowlist secret` convention are both
+  REFUSED** as ways to see untracked secret-scan findings. The first
+  mutates the index against a standing ruling; the second trades a
+  surprise for a habit of silencing the scanner.
 
-**WHAT I VERIFIED IS THAT THE SUBJECT LANDED, NOT THAT THE BRANCH HOLDS
-NOTHING UNIQUE.** A superset in one dimension is not a superset. They
-are kept as records under #111's ruling; nobody needs to re-open them
-unless a specific claim points back at one.
+## What keeps being true
 
-Everything else merged at `ccbdaae`: #143, #146/#131, #147, #152, plus
-#130 and #151.
+**A CONTROL THAT CANNOT REACH ITS SUBJECT PASSES ANYWAY, and the
+isolated form is not exempt.** `check-mirror-liveness-controls.sh` has
+14 arms that all inject JSON so none touches the network — deliberate,
+and it means none of them could see that the first LIVE call used the
+workflow's PATH where the API takes its FILE NAME. Fourteen green rows
+and a 404. Isolation removes the outside world from what a control can
+check, so the live call needs its own step and the isolated rows must
+say what they cannot reach.
 
-## What tonight established
+**THE GATES FOUND SIX FAULTS IN MY OWN WORK TONIGHT**, which is the
+argument for running all of them before believing any: a `printf | grep
+-q` that reports a present string as absent under pipefail; a published
+tally field with no printed tally beside it; a control table row with
+its columns swapped; a harness with no anchor-failure vocabulary, which
+`ci-harness-gate.sh` refused outright; an untracked file that
+`check-checkers-are-wired.py` could not see until it was staged; and a
+`git status` with no `-C` that measured whatever directory it was
+invoked from.
 
-**EVERY SUB-ORCHESTRATOR CORRECTED ITS BRIEF, TEN FOR TEN.** A report
-with no correction is now the anomaly, and the corrections have been
-load-bearing: #152's showed my shape rule was wrong on 4 of the 6
-harnesses it named; #143's found a SIXTH billed job my ledger omitted;
-#147's found fourteen steps filed under a reason untrue of them.
-
-**READING THE SITES BEATS A RULE OVER THEIR NAMES, four times.** #152's
-shape rule (4 of 6 wrong), my #130 operator (wrong at exactly the
-assignment sites), #159's premise (a grep over the WORD `VACUOUS`, when
-10 of 10 harnesses already GATE on it at exit nonzero), and #147's
-`classify()` counting physical lines.
-
-**THE MERGE FINDS WHAT NO BRANCH CAN SEE.** Wiring #152's flags turned
-`check-harness-result.sh` red: the fields were published with no printed
-tally beside them. Invisible on its branch BY CONSTRUCTION, because the
-field only appears once the flag is passed and the flag lived in a file
-it did not own. Also: resolving #152's conflict by taking its hunk whole
-would have put back a literal `900` that #116 had replaced with
-`$ROW_TIMEOUT`.
-
-**A FIX CAN REBUILD ITS OWN DEFECT ONE COLUMN OVER, twice in one
-evening.** #151's ratchet first covered `NONE` and left `PARTIAL` red by
-construction; then its CONTROL asserted the trunk was current, so the
-probe went red after every push - the same defect relocated from the
-checker into its control.
-
-**A CONTROL PASSING IS NOT A CONTROL WORKING.** Three vacuous controls
-tonight, all found by asking WHY an arm passed: my PLANT arm (planted
-`origin/main` where the regex needs hex, so the plant never parsed),
-#146's A2 (the amputated copy was untracked, so the probe aborted having
-measured nothing), and both of #147's new pairs.
-
-**MY OWN DEFAULT TIMEOUT IS AN UNNAMED ACTOR.** The Bash tool's
-two-minute default killed my probe mid-row and stranded its two plant
-files - #131 by my own hand, an hour after briefing an agent on it.
-`nohup` and an explicit timeout; better, design the tree-mutation out,
-as `--backlog` and `--reviews` do.
+**A STALE NUMBER CAN BE THE SYMPTOM OF A FALSE CLAIM.** BASH-1 said
+"all 20 `scripts/*.sh`" against 39 tracked, 37 with the option — and
+replacing 20 with 37 would have HIDDEN that "all" was wrong
+independently: two members are outside the rule and both are correct.
+#170 is the sweep for the rest of that shape.
 
 ## What I would pick up first
 
-1. **Collect `suborch-161`.** It is the last thing between this trunk
-   and the first green CI run it has ever had.
-2. **#155 + #153 together** - the wiring checker is blind BY PREFIX
-   (24 of 28 probes) and BY PATH (`scripts/` excluded). Same checker,
-   two dimensions, one fix. Needs `ci.yml`, so it waits for #161.
-3. **#154 when the machine is quiet** - the 1800s bound rests on an
-   inherited 1040s figure nobody reproduced, and settling it needs one
-   unbounded run that must not be killed.
-4. **#158 and #9 are PHIL'S**, not mine: no branch protection, and six
-   OIDC roles with wildcard subject claims.
+1. **Watch run 33582613697 to a conclusion, then push the six.** A
+   monitor is armed on it. Nothing else should touch the remote first.
+2. **Collect `review-r18` and `suborch-170`.** Neither has reported yet.
+3. **Finish #154 with the run's job total**, and size the per-harness
+   cap from U9's 1270s rather than the inherited 1040s figure — which
+   the measurement has already shown to be BELOW the largest real row.
+4. **#158 and #9 are PHIL'S**, not mine: `main` has no branch protection
+   and zero rulesets, and six OIDC roles use wildcard subject claims.
+5. **#160 and #106 stay blocked** on a CodeQL findings before/after and
+   on `STANDARDS_TOKEN` respectively.
