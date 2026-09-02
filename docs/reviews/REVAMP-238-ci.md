@@ -540,7 +540,10 @@ retracted that by scoring it only at the 14-lane target (275s against
 277s, two seconds) - the one lane count where it does not matter.
 
 At **12 lanes**, feeding its published numbers (2 x 78.5s shards plus a
-141s map job) through this LPT gives **307.5s against 311s unsharded**.
+141s map job) through this LPT gives **307.8s against 311s unsharded**
+- a 3.2s IMPROVEMENT where the unhoisted shard plan is a 12s
+regression. (R4 reported 307.5s; I re-derived 307.8s. The 0.3s is
+immaterial and the number here is the one I ran.)
 That ERASES the +12s regression which is this section's headline claim.
 Withdrawing the option retracted a true statement about the picture the
 section is actually about.
