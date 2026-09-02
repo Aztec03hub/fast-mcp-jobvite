@@ -2061,8 +2061,8 @@ revision listed it here while two other sections answered it.
 **An ADR here does two different jobs, and conflating them was a real defect in this document.**
 
 1. **Recording a deviation from a `priority: required` standard.** This is the job the
-   **`Type: Deviation`** ADRs below do - NOT all of them, and the count is deliberately not
-   written here - and it has **nothing to do with the freeze**. A deviation must be recorded the moment
+   **`Type: Deviation`** and **`Type: Both`** ADRs below do - NOT all of them, and the count
+   is deliberately not written here - and it has **nothing to do with the freeze**. A deviation must be recorded the moment
    it is decided - `httpx2` instead of the mandated `httpx` is a deviation whether or not anything
    is frozen, and waiting for a freeze would just mean an unrecorded deviation in the meantime.
    That is why deviation ADRs exist against a document that is not frozen, which reads as a
@@ -2072,7 +2072,7 @@ revision listed it here while two other sections answered it.
 
 **These are separate and must stay distinguishable**, because after the freeze the question "is
 ADR-0012 a standards deviation, a design change, or both?" has to have an answer - the freeze rule's
-teeth depend on it. **Every ADR from 0012 onward carries a `Type:` field**, `Deviation`,
+teeth depend on it. **Every ADR carries a `Type:` field**, `Deviation`,
 `Design change`, or `Both`. The eleven below are all `Deviation`, recorded before any freeze, and
 `docs/adr/README.md` states the same split so a reader arriving there is not misled by its title.
 
