@@ -22,18 +22,24 @@
 # `git ls-files` exit 128 for real. `check-adr-numbers.py` derives
 # ROOT from `__file__/../../..`, so a skeleton tree without `docs/adr`
 # reproduces the absent-directory precondition exactly.
-set -euo pipefail
+# NO ERREXIT. Every sibling probe under docs/reviews/ uses this exact
+# line, and check-no-errexit.py gates it: a probe runs ARMS, and an arm
+# that fails must be REPORTED, not kill the probe before the remaining
+# arms run. My first version had `-e` here and turned that gate red.
+set -uo pipefail
 
 REPO=/home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite
-WORK=$(mktemp -d)
+WORK=$(mktemp -d) || { echo "REFUSING: mktemp -d failed" >&2; exit 2; }
+[ -d "$WORK" ] || { echo "REFUSING: no work directory" >&2; exit 2; }
 trap 'rm -rf "$WORK"' EXIT
 
 pass=0
 fail=0
 
-# Read the script's OWN exit code. `rc=0; cmd || rc=$?` is safe under errexit
-# because the `||` makes it a compound command; a bare `rc=$(cmd)` would make
-# the assignment itself the failing command and never reach the check.
+# Read the script's OWN exit code, which is the whole point: a control that
+# never runs the artifact tests a proxy. `rc=0; cmd || rc=$?` keeps the
+# nonzero code instead of letting it vanish, and it is the form that also
+# survives errexit, so the arms read the same whether or not `-e` is set.
 arm() {
     local label=$1 want=$2 dir=$3
     shift 3

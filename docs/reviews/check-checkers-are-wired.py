@@ -187,6 +187,32 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 #: bare name is refused: the reason IS the exemption**, the same shape
 #: `check-no-errexit.py` and `check-settings-are-read.py` use.
 UNWIRED_BY_DECISION: dict[str, str] = {
+    "probe-236-exit-2-preconditions.sh": (
+        "a ONE-SHOT discharge of #236's stated residual, not a gate. "
+        "MEASURED-236 closed by naming two hunks it had never driven to "
+        "a real exit 2 - check-committed-file-types.py needed a git "
+        "ls-files failure and check-adr-numbers.py an absent ADR "
+        "directory. This stages both and reads each script's own exit "
+        "code: 4 arms, each amputated arm paired with a control that "
+        "exits 0 on the same invocation, because this repository has "
+        "measured the correct exit code arriving by the wrong mechanism. "
+        "It is UNWIRED because its subjects are already wired - both "
+        "scripts run in CI - and a second step asserting they still "
+        "refuse a precondition they cannot meet on a healthy runner "
+        "would be a step that can never fail."
+    ),
+    "probe-243-forced-exit-window.py": (
+        "a TWO-ARMED REPRODUCER for #243, not a gate. CI run "
+        "33610211810 reported M12 SURVIVED while the identical mutation "
+        "died locally; this drives the difference on demand by choosing "
+        "WHEN the signal lands - tight (the runner's window, before the "
+        "non-daemon AnyIO stdin thread exists) or loose - against "
+        "either assertion set. Its verdict is deliberately inverted "
+        "from a gate's: exit 0 means the named assertions PASSED, i.e. "
+        "the mutant would survive. Wiring it would put a step in CI "
+        "whose green means the bug is present. The GATE for M12 is "
+        "check-u1-boot-controls.sh, which is wired and now kills it."
+    ),
     "check-review-coverage.py": (
         "no longer waiting on a zero: #151 made it a RATCHET against "
         "docs/reviews/review-coverage-backlog.txt, so it exits 0 at "
