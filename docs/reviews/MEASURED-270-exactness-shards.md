@@ -160,12 +160,55 @@ drift into a neighbouring step - silently, and in the direction that pairs one
 step's `--min-rows` with another's shard count. The lookup is done on the RAW
 text for that reason, and A27 holds it.
 
-## 7. Merge
+## 7. The w194 salvage: NO COLLISION, and it is already superseded
+
+After this branch was committed, 65 uncommitted lines from task #194 were
+rescued to `salvage/269-worktree-residue` (`0c73f0d`) and pointed at me, because
+they touch this same file. **They do not collide, and the question is settled by
+reading both, not by preferring mine.**
+
+The salvage introduces a `COMPUTED <ere>` table form. That is a DIFFERENT claim
+from #270's - it is about members whose row count is built at run time, not
+about sharded steps - and it is **already on `main` at `1636f56`, in a stronger
+form than the salvage's**:
+
+| | salvage `w194` | main `1636f56` |
+| --- | --- | --- |
+| the test | `:759` `ere.strip() == "COMPUTED" or ere.startswith("COMPUTED ")` | `:428` `is_computed()`: `ere.strip().split()[:1] == ["COMPUTED"]` |
+| the census | `:859` `e.strip() == "COMPUTED"` - **NOT widened** | `:986` `is_computed(e)` - the same rule |
+| arms | none | A17 admits `COMPUTED ^row "`, A18 refuses `^row "COMPUTED` |
+
+**The salvage carries the defect this project keeps measuring: the fix rebuilt
+one column over.** It widened the BRANCH at `:759` and left the CENSUS at `:859`
+on the old equality, so a `COMPUTED <ere>` member would have been admitted by
+the check and silently MISSING from the printed count. `is_computed()` closes
+that by being one named rule with one call site per consumer, and it handles
+leading whitespace, which `startswith` on an unstripped cell does not.
+
+The controls.sh half is landed too: `mode=computed` appears 18 times in
+`main`'s `check-row-floor-controls.sh`, including the
+`ABORT: mode=computed requires column 2 to read 'COMPUTED <ere>'` guard at
+`:365`.
+
+**And my change does not touch any of it.** Measured, not asserted:
+
+    git diff 1636f56 fix/270-exactness-shards -- <this checker> \
+      | grep -E "^[-+].*(is_computed|COMPUTED)"
+
+returns EMPTY. My diff is confined to claim 3 - `_shard_count`, `_step_block`,
+`_min_rows_verdict`, `_external_floors` - and adds no line touching the COMPUTED
+vocabulary. Two concerns, one file, disjoint hunks.
+
+*Suggested disposition:* the salvage needs no adoption and no merge. Its
+exactness.py half is superseded by #223's `is_computed()`; its controls.sh half
+is on `main`. It stays valuable only as the record of what #194 concluded.
+
+## 8. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \
         merge --ff-only fix/270-exactness-shards
 
-## 8. What I did NOT verify
+## 9. What I did NOT verify
 
 - **No sharded step has ever RUN.** Everything here is static analysis of a
   planted `ci.yml`. That a 2-lane `check-u3-audit-amputation.sh` actually
