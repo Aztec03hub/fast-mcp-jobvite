@@ -94,15 +94,45 @@ nothing in this repository can regress it, and wiring it would gate
 the trunk on the Actions API being reachable. Re-run it by hand when
 the step population, the lane count, or the fitted shard costs change.
 
-THE SHARD COSTS ARE STILL FITTED TO ONE RUN. U3 -> 2 x 163.3s and
-U9 -> 2 x 219.5s were fitted against dcb2725's 304s and 298s, and
-this file does NOT refit them per fit. So the SHARDED column under the
-MIN and MAX tables pairs a re-fitted unsharded input with a
-median-vintage shard cost, and its deltas there are not meaningful.
-Fixing the unsharded column and leaving this one is the same defect
-one column over; it is named here rather than hidden, and the printed
-verdict for the sharded column is withheld on any fit but the median.
-Task #278 separately contests the overhead term.
+THE SHARD COSTS ARE NOW REFIT PER RUN TOO, and that closes the last
+column. They used to be two constants - U3 -> 2 x 163.3s, U9 -> 2 x
+219.5s - fitted against dcb2725 alone, so the MIN and MAX tables
+differenced a re-fitted unsharded floor against a median-vintage shard
+cost. That is two different measurements subtracted, and the verdicts
+were withheld ('n/a') rather than printed.
+
+They are recoverable, and from the runs already accepted. Each run's
+log carries pytest's own session duration on EVERY invocation
+(`===== 13 failed, 119 passed in 10.85s =====`) and the harness prints
+a banner per row, so splitting the log at the first banner measures,
+per run and in CI:
+
+  B     the baseline invocation
+  R     the sum of the row invocations
+  ovh   (step wall - B - R) / invocations, a RESIDUAL
+
+Measured over the three accepted runs:
+
+  U3  B 22.3-28.5s   R 221.3-288.9s  ovh 1.26-1.42s  2-shard 141-181s
+  U9  B 107.3-181.3s R  71.7-106.4s  ovh 1.47-2.08s  2-shard 155-251s
+
+Two things fall out that the old constants hid. U9's 2-shard cost is
+236s at the median against the published 219.5s, so the constant
+flattered sharding by 17s at the step that binds. And U9's divisible
+share measures 0.42-0.47 against 7a.2's 0.527 - #278's contested
+figure of 0.431 sits INSIDE the measured range and 7a.2's does not.
+
+What this does NOT establish: nothing has ever run sharded. k=1
+reproduces the wall BY CONSTRUCTION and carries no information. The
+model still assumes each shard reruns the whole baseline (#268's
+design) and that the residual is per-invocation.
+
+WHAT IS NOT RECOVERABLE, checked and stated: per-ROW wall time. The
+harness's stdout reaches Actions in one buffered flush, so all 14 row
+banners and the HARNESS-RESULT carry timestamps within 0.005s of each
+other at the END of a 298s step. Log timestamps are receive times.
+pytest's self-reported duration is the only intra-step clock there is,
+which is why the decomposition is built on it.
 """
 
 import datetime
@@ -168,14 +198,43 @@ SETUP_RANGE = (8.0, 19.0)
 
 MIN_RUNS = 3
 EXPECT_NAMES = 35
+
+# One list, used for BOTH columns. Two lists would be how the columns
+# drift apart again.
+PICKERS = (("MIN", min), ("MEDIAN", statistics.median), ("MAX", max))
 # Sum-of-medians, which is NOT any run's total: it exceeds all three
 # (3316 / 3313 / 3493) because it takes each step's middle
 # independently. Recorded as a band so the ground moving is loud.
 EXPECT_MEDIAN_TOTAL = 3413.0
 MEDIAN_TOTAL_TOLERANCE = 60.0
 
-U3_SHARD = 163.3
-U9_SHARD = 219.5
+# The two steps #268 designed a shard for, each mapped to the harness
+# script whose log carries its per-row timings and to its DECLARED row
+# count. The row count is an expectation, not a discovery: a harness
+# that gains or loses a row must stop this probe, not quietly re-derive
+# a different shard cost.
+SHARDABLE = {
+    "U3 audit amputation harness ran every row": ("check-u3-audit-amputation", 10),
+    "U9 HTTP hardening amputation, every row applied": (
+        "check-u9-http-amputation",
+        14,
+    ),
+}
+SHARD_K = 2
+
+# pytest's own session line, e.g.
+#   ===== 889 passed, 6 deselected in 172.74s (0:02:52) =====
+# and  ===== 13 failed, 119 passed in 10.85s =====
+PYTEST_SUMMARY = re.compile(r"=+.*?\b\d+ (?:passed|failed|error)\b.*?\bin ([\d.]+)s")
+ROW_BANNER = re.compile(r"#{5,} A\d+\b")
+
+# Measured 2-shard costs move with the fit, so a band rather than a
+# literal: if the logs change shape these move and the reader should see
+# it. Recorded from the three accepted runs on 2026-09-02.
+EXPECT_SHARD_BAND = {
+    "U3 audit amputation harness ran every row": (130.0, 195.0),
+    "U9 HTTP hardening amputation, every row applied": (145.0, 265.0),
+}
 
 # CHOSEN BY MEASURING WHERE THE TABLE STOPS MOVING, not by picking a
 # bigger number. All twelve printed BEST cells were swept over
@@ -209,17 +268,98 @@ def is_wrapper(name: str) -> bool:
     return any(name.startswith(w) or w in name for w in WRAP)
 
 
+_LOG_CACHE: dict[str, bytes] = {}
+
+
+def read_logs(run: str) -> bytes:
+    """The run's log zip. Cached: two readers want the same download."""
+    if run not in _LOG_CACHE:
+        result = subprocess.run(
+            ["gh", "api", f"repos/:owner/:repo/actions/runs/{run}/logs"],
+            capture_output=True,
+            cwd=REPO,
+        )
+        if result.returncode != 0 or not result.stdout:
+            raise SystemExit(f"REFUSING: could not fetch logs for run {run}")
+        _LOG_CACHE[run] = result.stdout
+    return _LOG_CACHE[run]
+
+
+def shard_profile(run: str, walls: dict[str, float]) -> dict[str, float]:
+    """This run's OWN 2-shard cost for each shardable harness.
+
+    The shard cost used to be two constants fitted to ONE run, so the
+    MIN and MAX tables differenced a re-fitted unsharded column against
+    a median-vintage sharded one. It is measured per run instead, from
+    the run's own log, because pytest prints its session duration on
+    every invocation and the harness prints a banner per row:
+
+        B     the baseline invocation, before the first row banner
+        R     the sum of the row invocations, after it
+        ovh   (step wall - B - R) / invocations, a RESIDUAL: uv spawn,
+              pytest import, the cp/anchor/cmp file work, log flush
+
+    A shard reruns the baseline and 1/k of the rows, so
+
+        step(k) = B + R/k + ovh * (1 + rows/k)
+
+    and k=1 reproduces the measured wall BY CONSTRUCTION - that closure
+    carries no information and is not offered as validation. What is
+    measured is the DECOMPOSITION, per run, in CI, at n=3.
+
+    NOTHING HAS EVER RUN SHARDED. This is still a model; it is now a
+    model whose terms were measured on the machine that will run it,
+    rather than transferred from a local box at a fitted scale.
+    """
+    costs: dict[str, float] = {}
+    with zipfile.ZipFile(io.BytesIO(read_logs(run))) as archive:
+        for step_name, (script, expect_rows) in SHARDABLE.items():
+            found = False
+            for entry in archive.namelist():
+                if "/" in entry:
+                    continue
+                lines = archive.read(entry).decode("utf-8", "replace").splitlines()
+                hits = [i for i, line in enumerate(lines) if script in line]
+                if not hits:
+                    continue
+                segment = lines[hits[0] : hits[-1] + 1]
+                if not any(ROW_BANNER.search(line) for line in segment):
+                    continue
+                baseline, rows_seen, seen = [], [], False
+                for line in segment:
+                    if ROW_BANNER.search(line):
+                        seen = True
+                    matched = PYTEST_SUMMARY.search(line)
+                    if matched:
+                        target = rows_seen if seen else baseline
+                        target.append(float(matched.group(1)))
+                # A regex that stops matching returns a CLEAN ZERO here:
+                # B = R = 0, the whole wall becomes residual, and the
+                # shard cost silently collapses. Refuse instead.
+                if len(baseline) != 1 or len(rows_seen) != expect_rows:
+                    raise SystemExit(
+                        f"REFUSING: run {run} {script} parsed "
+                        f"{len(baseline)} baseline and {len(rows_seen)} row "
+                        f"pytest summaries, expected 1 and {expect_rows}. The "
+                        "shard cost is derived from them and would be void."
+                    )
+                b, r = baseline[0], sum(rows_seen)
+                ovh = (walls[step_name] - b - r) / (1 + expect_rows)
+                costs[step_name] = b + r / SHARD_K + ovh * (1 + expect_rows / SHARD_K)
+                found = True
+                break
+            if not found:
+                raise SystemExit(
+                    f"REFUSING: run {run} has no log segment for {script}. "
+                    "Its shard cost cannot be measured from this run."
+                )
+    return costs
+
+
 def work_signature(run: str) -> str:
     """Hash the run's own HARNESS-RESULT (name, rows) multiset."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/:owner/:repo/actions/runs/{run}/logs"],
-        capture_output=True,
-        cwd=REPO,
-    )
-    if result.returncode != 0 or not result.stdout:
-        raise SystemExit(f"REFUSING: could not fetch logs for run {run}")
     rows: list[bytes] = []
-    with zipfile.ZipFile(io.BytesIO(result.stdout)) as archive:
+    with zipfile.ZipFile(io.BytesIO(read_logs(run))) as archive:
         for entry in archive.namelist():
             rows += RESULT_LINE.findall(archive.read(entry))
     if not rows:
@@ -268,9 +408,14 @@ def is_ancestor(commit: str, sha: str) -> bool:
     )
 
 
-def accept_runs() -> dict[str, dict[str, float]]:
-    """Print every candidate with its verdict, then refuse or return."""
+def accept_runs() -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]:
+    """Print every candidate with its verdict, then refuse or return.
+
+    Returns the per-run step populations AND the per-run 2-shard costs,
+    so both columns of every table are fitted from the same three runs.
+    """
     accepted: dict[str, dict[str, float]] = {}
+    shards: dict[str, dict[str, float]] = {}
     print(f"comparability gates: ancestor {REQUIRE_ANCESTOR}, work {EXPECT_WORK_SIG}")
     for run in CANDIDATES:
         sha = api(f"repos/:owner/:repo/actions/runs/{run}")["head_sha"]
@@ -283,8 +428,10 @@ def accept_runs() -> dict[str, dict[str, float]]:
             print(f"  REJECT {run} {short}: work signature {signature}")
             continue
         accepted[run] = harness_steps(run)
-        print(f"  accept {run} {short}: {len(accepted[run])} steps")
-    return accepted
+        shards[run] = shard_profile(run, accepted[run])
+        costs = " ".join(f"{n.split()[0]} {c:.1f}s" for n, c in shards[run].items())
+        print(f"  accept {run} {short}: {len(accepted[run])} steps, shard {costs}")
+    return accepted, shards
 
 
 def lpt(items: list[float], lanes: int) -> float:
@@ -393,29 +540,58 @@ def fit(accepted: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
         )
     return {
         label: {n: pick([steps[n] for steps in accepted.values()]) for n in names}
-        for label, pick in (
-            ("MIN", min),
-            ("MEDIAN", statistics.median),
-            ("MAX", max),
-        )
+        for label, pick in PICKERS
     }
 
 
-def shard(items: dict[str, float]) -> list[float]:
+def fit_shards(shards: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    """The SAME three pickers over the SAME three runs' shard costs.
+
+    This is the asymmetry the previous round left open. Fitting the
+    unsharded column from MIN/MEDIAN/MAX and holding the sharded column
+    at one run's value made every delta but the median a difference
+    between two unlike measurements.
+    """
+    names = sorted(SHARDABLE)
+    fitted = {
+        label: {n: pick([s[n] for s in shards.values()]) for n in names}
+        for label, pick in PICKERS
+    }
+    for name in names:
+        low, high = EXPECT_SHARD_BAND[name]
+        for label, costs in fitted.items():
+            if not low <= costs[name] <= high:
+                raise SystemExit(
+                    f"REFUSING: {label} 2-shard cost for {name!r} is "
+                    f"{costs[name]:.1f}s, outside the recorded {low:.0f}-"
+                    f"{high:.0f}s band. Every sharded cell derives from it."
+                )
+    return fitted
+
+
+def shard(items: dict[str, float], costs: dict[str, float]) -> list[float]:
+    """Replace each shardable step by SHARD_K copies of THIS fit's cost.
+
+    `costs` is fitted by the same MIN/MEDIAN/MAX picker over the same
+    three runs as `items`, so both columns are the same envelope of the
+    same population. That is the whole point: differencing a MIN-fit
+    unsharded floor against a median-vintage shard cost was subtracting
+    two different measurements.
+    """
     out: list[float] = []
     for name, duration in items.items():
-        if "U3 audit amputation" in name:
-            out += [U3_SHARD, U3_SHARD]
-        elif "U9 HTTP hardening amputation" in name:
-            out += [U9_SHARD, U9_SHARD]
+        if name in costs:
+            out += [costs[name]] * SHARD_K
         else:
             out.append(duration)
     return out
 
 
-def table(label: str, items: dict[str, float], trust_sharded: bool) -> dict[int, float]:
+def table(
+    label: str, items: dict[str, float], costs: dict[str, float]
+) -> dict[int, float]:
     unsharded = list(items.values())
-    sharded = shard(items)
+    sharded = shard(items, costs)
     print(
         f"[{label}] unsharded {len(unsharded)} items {sum(unsharded):.0f}s "
         f"largest {max(unsharded):.0f}s | sharded {len(sharded)} items "
@@ -436,10 +612,7 @@ def table(label: str, items: dict[str, float], trust_sharded: bool) -> dict[int,
         u_mark = "=" if u_best <= u_lb + 1e-9 else "~"
         s_mark = "=" if s_best <= s_lb + 1e-9 else "~"
         delta = s_best - u_best
-        if trust_sharded:
-            verdict = "WINS" if delta < -0.5 else ("loses" if delta > 0.5 else "wash")
-        else:
-            verdict = "n/a  "
+        verdict = "WINS" if delta < -0.5 else ("loses" if delta > 0.5 else "wash")
         deltas[lanes] = delta
         print(
             f"{lanes:5} | {u_lb:7.1f} {u_lpt:6.1f} {u_best:6.1f}{u_mark} "
@@ -451,7 +624,7 @@ def table(label: str, items: dict[str, float], trust_sharded: bool) -> dict[int,
 
 
 def main() -> int:
-    accepted = accept_runs()
+    accepted, shards = accept_runs()
     if len(accepted) < MIN_RUNS:
         raise SystemExit(
             f"REFUSING: {len(accepted)} comparable runs, not {MIN_RUNS}. "
@@ -483,9 +656,18 @@ def main() -> int:
         )
     print()
 
+    shard_fits = fit_shards(shards)
+    print("2-shard costs, fitted by the SAME picker over the SAME three runs:")
+    for name in sorted(SHARDABLE):
+        per_run = " ".join(f"{s[name]:7.1f}" for s in shards.values())
+        line = " ".join(
+            f"{label} {shard_fits[label][name]:6.1f}" for label, _ in PICKERS
+        )
+        print(f"  {name[:46]:<48} runs {per_run}  ->  {line}")
+    print()
+
     deltas = {
-        label: table(label, fits[label], trust_sharded=label == "MEDIAN")
-        for label in ("MIN", "MEDIAN", "MAX")
+        label: table(label, fits[label], shard_fits[label]) for label, _ in PICKERS
     }
 
     print("'=' means BEST met the lower bound: that cell is PROVED for THAT fit.")
@@ -506,12 +688,21 @@ def main() -> int:
     print("is not a finding. The 12-lane margins this file was built to")
     print("adjudicate are 0-8s.")
     print()
-    print("THE SHARDED COLUMN IS NOT REFIT. U3 -> 2 x 163.3s and U9 -> 2 x")
-    print("219.5s were fitted against ONE run's 304s and 298s. Pairing them")
-    print("with MIN or MAX unsharded inputs compares a re-fitted column to a")
-    print("stale one, so those verdicts are withheld ('n/a') rather than")
-    print("printed. Only the MEDIAN row's verdicts are stated, and even those")
-    print("carry #278's contested overhead term.")
+    print("THE SHARDED COLUMN IS NOW REFIT PER FIT, so every verdict is")
+    print("stated. B, R and the per-invocation residual are read from each")
+    print("run's OWN log - pytest prints its session duration on every")
+    print("invocation - so both columns are the same envelope over the same")
+    print("three runs. The old 2 x 163.3s / 2 x 219.5s constants came from")
+    print("ONE run via a local-box profile scaled by a fitted 1.567x/1.703x;")
+    print("the measured CI decomposition puts U9's 2-shard cost at 236s")
+    print("median, 17s ABOVE the constant, so the old figure flattered")
+    print("sharding at the step that binds.")
+    print()
+    print("WHAT IS STILL NOT ESTABLISHED. Nothing has ever run sharded. The")
+    print("k=1 identity closes BY CONSTRUCTION and validates nothing; the")
+    print("model assumes each shard reruns the whole baseline (#268's design)")
+    print("and that the residual is per-invocation. Those are assumptions,")
+    print("now carried on measured terms rather than unsourced ones.")
     print()
     print("WHICH LANE COUNTS CHANGE SIGN ACROSS THE FITS. Read as a bound on")
     print("what the spread alone can do, NOT as three verdicts:")
@@ -523,8 +714,22 @@ def main() -> int:
             f"max {row[2]:+7.1f}   {flips}"
         )
     print()
-    print("The 11-lane loss this file used to call a proved loss was proved")
-    print("against ONE run. Re-run the argument per fit before quoting it.")
+    lo = {n: min(deltas[k][n] for k, _ in PICKERS) for n in deltas["MEDIAN"]}
+    hi = {n: max(deltas[k][n] for k, _ in PICKERS) for n in deltas["MEDIAN"]}
+    flips = [n for n in sorted(lo) if lo[n] < 0 < hi[n]]
+    firm = sorted(set(lo) - set(flips))
+    print(f"DETERMINATE at {firm} lanes: every fit agrees on the sign, so the")
+    print("verdict there does not depend on which run was sampled.")
+    print(f"NOT DETERMINATE at {flips}.")
+    print()
+    print("Refitting the sharded column did NOT settle 12 lanes; it narrowed")
+    print(f"it, from a 31.7s envelope (+19.0/-12.7) to {hi[12] - lo[12]:.1f}s.")
+    print("The 13-lane cell DID close - it read +1.5/-27.0/-37.0 and is now a")
+    print("win in all three fits. What 12 lanes still needs is not a better")
+    print("fit of these three runs: their spread alone is wider than the")
+    print("margin. It needs a sharded run to exist, so the model can be")
+    print("checked against something other than the k=1 identity it")
+    print("reproduces by construction.")
     return 0
 
 
