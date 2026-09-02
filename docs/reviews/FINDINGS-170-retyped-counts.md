@@ -142,10 +142,30 @@ the ADR was written about.
 
 ---
 
-**F9 (LOW) — the `Type:` vocabulary has two published values and two rows outside it.**
+**F9 (LOW as first written; ESCALATED to HIGH below; RULED and LANDED at `d29937f`) — the `Type:` vocabulary has published values that ADRs sit outside.**
 
-`docs/adr/README.md:5,9` defines exactly two: `Deviation` and
-`Design change`. Two ADRs carry something else:
+**THIS FINDING SAID "EXACTLY TWO" AND THAT WAS WRONG. It is THREE.**
+`docs/adr/README.md:12` publishes the field vocabulary in one sentence —
+*"Every ADR carries a `Type:` field - `Deviation`, `Design change`, or
+`Both`"* — and I read the two NUMBERED HEADINGS at `:5` and `:9`
+instead, which enumerate the two *jobs*, not the field's values.
+Corrected by Tier 0 and re-verified here.
+
+**THAT IS THE SAME DEFECT AS THE `harness-result.sh` ONE, A SECOND
+TIME, IN THE SAME REPORT.** There I inherited an exception across two
+different rules; here I read one half of a paired source — a numbered
+list — and took it for the whole. Both are *reading a neighbour instead
+of the source*, and both produced a confident, specific, wrong number in
+a document about confident, specific, wrong numbers.
+
+**It does not weaken F9; it sharpens the "do not gate this yet" note.**
+`Both` is published and used by **zero** of the 34 ADRs
+(`grep -lE '^\*\*Type:\*\* *Both *$'` returns nothing). A checker over a
+vocabulary with a dead member is a gate encoding a guess about whether
+the member is aspirational or abandoned. Tier 0 recorded `Both` as
+explicitly unruled.
+
+At the time of the finding, three ADRs carried something outside it:
 
 - `docs/adr/0023-harnesses-drop-e-from-strict-mode.md` — `Standards
   deviation`
@@ -210,6 +230,36 @@ then** is a checker over the field worth having, and at that point it is
 worth having precisely because DESIGN.md now selects on it.
 `docs/DESIGN.md` is frozen again, so if the ruling is that ADR-0022 and
 ADR-0034 are a third class, the design sentence needs an ADR too.
+
+#### RULED AND LANDED at `d29937f`, verified at `38d8742`
+
+Tier 0 normalised the three outliers onto the vocabulary already
+published rather than minting a class — **ADR-0023 → `Deviation`,
+ADR-0022 → `Design change`, ADR-0034 → `Design change`** — and the
+census is now:
+
+    19  Design change
+    15  Deviation
+    34  total, every value published
+
+Verified here: `docs/DESIGN.md` is **untouched** and
+`check-design-freeze.py` exits 0, so the selector the frozen sentence
+names now selects exactly the 15 it was written for.
+
+**Normalising the ADRs made the frozen sentence TRUE rather than moving
+the sentence.** That is the cheaper direction and it avoids a second
+freeze cycle — the fix went to the 34 cheap artifacts instead of the one
+expensive one. Worth recording as a pattern, not just an outcome.
+
+**And ADR-0034's own body was rewritten IN PLACE rather than annotated**,
+because its census table went stale the instant the normalisation landed
+and its Consequences argued it was "a correction and not a Design
+change" against its own new Type. An ADR that hides the cost of its own
+fix is the artifact class this project keeps finding.
+
+**Still deliberately NOT ruled, and not to be touched:** whether a
+checker should gate the vocabulary. `Both` having zero users is the
+reason — nobody has decided the vocabulary is final.
 
 **Suggested fix — and it needs an ADR, because `DESIGN.md` is FROZEN**
 (freeze `5d17cd7`; the working tree blob `639f4b7` was verified
@@ -539,9 +589,127 @@ run, I would have filed fourteen findings against nine harnesses that
 are all correct** — the mirror image of the wrap defect in §0, and in the
 more damaging direction.
 
+## §4c — THIRD SWEEP: `citations`, the last unswept noun
+
+Measured at `38d8742`. **58 live candidates.** The question Tier 0 set
+was narrow: are there other citation counts in live files, and does each
+have a derivation? **The answer is not "F4 was the only one" — there are
+two more, and the second is the most interesting count in this whole
+report.**
+
+---
+
+**F10 (MEDIUM) — `867 citations` at two live sites, against 1992.**
+
+    docs/reviews/repoint-design-citations.py:167
+        "repoint 867 citations against the wrong map"
+    docs/reviews/probe-repoint-fail-closed.py:11
+        "fail-open on error in the tool that rewrites 867 citations"
+
+Derived at `38d8742` by the repo's own checker: **1992 citations across
+218 files.** Stale by 1,125 — a factor of 2.3.
+
+**It is the BLAST RADIUS of a fail-open bug, in the probe whose whole
+reason to exist is that blast radius.** Understating how much a broken
+repointer would corrupt is the direction that makes a reader skip the
+guard, which is the same failure mode F4 had in `CONTRIBUTING.md` and
+the same direction.
+
+**Suggested fix — derive it, in both files:** the repointer already
+imports the inventory; print it rather than assert it. Failing that,
+delete the digit — "the tool that rewrites every `DESIGN.md` citation in
+the tree" is true at any size and needs no maintenance.
+
+---
+
+**F11 (MEDIUM) — "nine wrong-subject citations": a count with NO DERIVABLE CONTAINER, retyped at eleven sites, and two of them still say six.**
+
+This is the sharpest instance of the shape in the report, and it is
+different in kind from every other finding here.
+
+    7 sites say "nine wrong-subject citations"
+    2 sites say "six wrong-subject citations"   (ADR-0012:14, ADR-0014:8)
+
+Live, non-record sites carrying the tally: `.github/workflows/ci.yml`,
+`docs/OBLIGATIONS.md:58`, `docs/CODE-REVIEW-CHECKLIST.md:115`,
+`docs/adr/0019-design-603-cites-a-section-that-does-not-exist.md:51`,
+and `docs/reviews/check-clause-citations.py` twice.
+
+**THE DRIFT IS MEASURED, NOT HYPOTHESISED.** The set grew from six to
+nine at some point and **two live ADRs never moved with it.** That is
+this shape caught mid-divergence inside one corpus, without needing an
+external derivation to prove it — the corpus disagrees with itself.
+
+**AND THE CONTAINER CANNOT BE ENUMERATED AT ALL.** Every other finding
+in this report compares a claim against a set the repository can list —
+a glob, a table, an ADR directory, a `ROW_FLOOR`. "Wrong-subject
+citations found on this project" is **a historical event log kept only
+in prose.** There is no register. So the number cannot be derived by
+anyone, can only ever grow, and is replicated in six live places —
+which is the precise condition under which a retyped count is
+guaranteed to rot.
+
+It is also very likely already wrong upward: #52 recorded 10 wrong
+citations in one round, #114 found five more, #132 and #133 two others.
+Whether those are the same defect class as the "nine" is exactly what
+nobody can check. **Listed under §5 as unsettleable rather than
+asserted.**
+
+**Suggested fix, and the choice is the finding:**
+
+1. **Make the container real** — a `docs/reviews/WRONG-SUBJECT-REGISTER.md`
+   listing each instance with its sha, so the count is derived by
+   `wc -l` and the ADR-documenting-the-defect-class claim becomes
+   checkable too. This is the option that makes the sentence keep
+   working.
+2. **Or delete every digit** and say "wrong-subject citations have been
+   found repeatedly on this project, including inside the ADR
+   documenting the defect class" — true at six, at nine, and at
+   whatever it is now.
+
+**Do not simply update six to nine in the two ADRs.** That is the
+BASH-1 trap in its purest form: it would make the corpus agree with
+itself while leaving nine underivable and nine sites still needing hand
+maintenance.
+
+### Checked and found CORRECT in this sweep
+
+- **`CONTRIBUTING.md:219`, F4 as Tier 0 landed it.** It now reads "it
+  read **1987 citations across 215 files** the last time this paragraph
+  was touched" and adds *"READ THE NUMBER OFF THE TOOL rather than off
+  this sentence"*. The tool says **1992 across 218** today — and the
+  sentence is still **correct as written**, because it is explicitly a
+  dated reading with the live source named. **Class D done right, and a
+  naive re-run of this sweep would flag it wrongly.** Recorded so the
+  next sweep does not.
+- **`docs/reviews/check-clause-citations.py:77`** — "31 mappings
+  against 23 clause citations". `docs/OBLIGATIONS.md` has **31** rows
+  today, so the live half agrees; the 23 is a past-tense narrative of a
+  defect that was found ("It was found by comparing the two counts").
+  Correct.
+- **`.github/workflows/ci.yml:336, :1176`** and the checker docstrings
+  citing 47, 875 and 148 — all dated narratives of specific runs, class
+  D, correct as written.
+- **`docs/adr/0012:14` and `0014:8`** are inside `>` quotation blocks,
+  quoting an older statement verbatim. Their "six" is correct **as a
+  quotation** — which is why F11's remedy is a register or a deletion,
+  not an edit to those two lines.
+- **`CHANGELOG.md`** carries three citation counts. Keep a Changelog
+  entries are dated records by construction; they are correct as
+  written. **My tool does not classify `CHANGELOG.md` as a record and
+  should** — noted in §5 as an instrument gap, not a finding.
+
 ## §5 — WHAT I COULD NOT SETTLE (separate from what I did not attempt)
 
 **COULD NOT SETTLE:**
+
+- **Whether "nine wrong-subject citations" (F11) is still nine.** It
+  cannot be settled by anyone from this repository, because the set has
+  no register — that is the finding, not an excuse for it. #52 recorded
+  10 wrong citations in one round, #114 five more, #132 and #133 two
+  others; whether those fall in the same class as the "nine" is exactly
+  what no artifact records. **Settling it requires creating the
+  container first.**
 
 - **Whether `docs/briefs/` is a DATED RECORD class.** It has the
   properties of one (dated, superseded, a snapshot of what was known at
@@ -571,13 +739,21 @@ more damaging direction.
 
 **NOT ATTEMPTED, and stated so it is not mistaken for an absence:**
 
-- **`citations` (57 live) was NOT swept.** It was in Tier 0's list of
-  four and `--tallies` does not reach it: a citation count has no
-  `ROW_FLOOR` to compare against, and its real derivation is
-  `check-design-citations.py`'s inventory — which is exactly what F4
-  used. F4 is therefore the one citation-count finding, not the sweep of
-  that noun. **`arms` was reached only where the file declares a floor**;
+- **`citations` IS NOW SWEPT — see §4c.** It was the last of Tier 0's
+  four. **`arms` was reached only where the file declares a floor**;
   arm counts in review prose were not.
+- **INSTRUMENT GAP, found by the citations sweep and not fixed:**
+  `CHANGELOG.md` is a dated record by construction (Keep a Changelog)
+  and my `RECORD_PREFIXES`/`RECORD_DIRS` do not classify it as one, so
+  its entries appear as LIVE candidates. Same for
+  `docs/reviews/DESIGN-142-scoped-exemption.md` (my prefix is
+  `DESIGN-R`, so `DESIGN-1…` misses), `EVIDENCE-*` and `TASK-*`. **This
+  inflates the LIVE container and deflates the RECORD bucket** — it does
+  not hide findings, it manufactures noise, which is the safer
+  direction but is still wrong. Left unfixed deliberately: changing the
+  classifier changes every container figure in this report, and the
+  report is the record of what was measured. **A follow-up should widen
+  it and re-measure, and the figures will move.**
 - **2,333 of the 2,361 live candidates were not individually derived.**
   Only the 28 GLOB candidates have a mechanical derivation; the rest
   ("222 rows", "148 arms", "77 gates") name sets that need a human to
