@@ -68,10 +68,27 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # a reader would have to follow to a second file to learn the harness is covered
 # at all. The two controls overlapping on one harness is not a defect.
 #
-# check-row-floor-exactness.py now enumerates scripts/*.sh for a literal
-# ROW_FLOOR and FAILS unless that set EQUALS this table's, in both directions -
-# so the next harness cannot be added without being covered, which is the only
-# form of this fix that does not need someone to remember.
+# check-row-floor-exactness.py enumerates a CONTAINER for a literal floor and
+# FAILS unless that set EQUALS this table's, in both directions - so the next
+# harness cannot be added without being covered, which is the only form of this
+# fix that does not need someone to remember.
+#
+# THAT SENTENCE USED TO READ "enumerates scripts/*.sh for a literal ROW_FLOOR",
+# AND THE GUARANTEE HAD ALREADY STOPPED HOLDING WHEN IT DID (#187). Three
+# floors arrived outside that glob in one night - #131's and #149's probe
+# floors under docs/reviews/, and #185's `arm_floor` in a `.py` under scripts/ -
+# and every one of them is wired into CI. They were not missing from this
+# table; they were outside the container BY CONSTRUCTION, so the equality had
+# nothing to say about them and reported a clean pass over 25 of 29 members.
+# A container bounded by PATH+SUFFIX decays the moment its members move, which
+# is #115's ruling arriving from the other side.
+#
+# The container is now every tracked `.py`/`.sh` under `docs/reviews/` and
+# `scripts/` carrying an identifier whose NAME contains `floor` assigned an
+# integer literal - the same two directories `check-checkers-are-wired.py` was
+# widened to at #153. The spelling is derived, not listed: `ROW_FLOOR=12`,
+# `arm_floor = 9` and a bare `floor = 14` are all live today and a fourth
+# would be caught without an edit here.
 #
 # The exactness claim covers all 24 rows below, and SO DOES THE FIRING CLAIM
 # NOW. #91 watched the first nine; #102 watched the remaining fourteen at
@@ -138,6 +155,11 @@ check-u8-candidates-controls.sh|^mutate \"|0|1|cmd
 check-u9-http-controls.sh|^mutate \"|0|1|cmd
 check-u15-gate-amputation.sh|^report \"|0|1|cmd
 check-mirror-liveness-controls.sh|^(row|amputate|transport) \"|0|1|cmd
+docs/reviews/probe-gate-swallowed-exceptions.py|row\(\n\s*\"(?P<label>[A-Z])\.|0|1|static
+scripts/check-secrets-baseline.py|arm\(\n\s*\"(?P<label>C[0-9]+) |0|1|static
+docs/reviews/probe-131-gate-state.sh|COMPUTED|0|1|static
+docs/reviews/probe-wired-checker-amputation.py|COMPUTED|0|1|static
+docs/reviews/check-row-floor-exactness.py|arm\(\n\s*\"(?P<label>A[0-9]+) |0|1|static
 "
 
 list_harnesses() { printf '%s\n' "$TABLE" | sed '/^$/d' | cut -d'|' -f1; }
@@ -162,8 +184,39 @@ WANT_RC="${rest##*|}"; rest="${rest%|*}"
 EXTRA="${rest##*|}";   rest="${rest%|*}"
 ROW_RE="${rest#*|}"
 
-S="$REPO/scripts/$TARGET"
+# COLUMN 1 IS A PATH, and a bare name still means `scripts/<name>` (#187).
+# It had to become a path because the container this table must EQUAL is no
+# longer one directory: `check-row-floor-exactness.py` used to enumerate
+# `scripts/*.sh`, and three floors moved outside that glob in one night.
+case "$TARGET" in
+  */*) S="$REPO/$TARGET" ;;
+  *)   S="$REPO/scripts/$TARGET" ;;
+esac
 [ -f "$S" ] || { echo "ABORT: $S does not exist - prove the path resolves"; exit 2; }
+
+# MODE `static`: EXACTNESS ONLY, AND THE REFUSAL IS THE POINT.
+#
+# Everything below this line is bash surgery - it neutralises a row with the
+# `:` builtin, syntax-checks with `bash -n`, runs the file with `bash`, and
+# reads a `HARNESS-RESULT` line emitted by `scripts/lib/harness-result.sh`,
+# which is a bash library. None of that applies to a Python harness, and
+# running it anyway would produce a red that says nothing about a floor.
+#
+# So a `static` row is NOT an inoperative table entry. Columns 1-3 are fully
+# live: `check-row-floor-exactness.py` reads them and holds those harnesses to
+# the same equality as every other row - that is what put them in the table.
+# Columns 4-5 have no meaning here, and this refuses rather than pretending.
+#
+# WHAT IS STILL MISSING, NAMED SO IT CANNOT PASS FOR DONE: nobody has watched
+# these two floors FIRE. Task #194 is the Python arm of this control.
+if [ "$MODE" = static ]; then
+  echo "REFUSED: $TARGET is a mode=static row."
+  echo "  This control mutates bash and reads a bash library's canonical line."
+  echo "  $TARGET is not bash, so an arm here would measure the interpreter."
+  echo "  Its EXACTNESS is checked - check-row-floor-exactness.py names it."
+  echo "  Its FIRING is not watched by anything yet; that is task #194."
+  exit 4
+fi
 
 # A dirty subject file means someone else is mid-edit; measuring it would
 # measure them, not the floor.
