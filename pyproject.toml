@@ -340,9 +340,16 @@ strict = true
 # ruff already covered them (its exclusion is only `**/*.md`); the type gate
 # did not.
 #
-# MEASURED BOTH WAYS, because a nine-file addition reporting ZERO errors under
-# `strict = true` is a suspiciously clean number. The file count moves 96 -> 105
-# and there are exactly 9 `scripts/*.py`; an identical deliberate error appended
+# MEASURED BOTH WAYS AT THE TIME, because a nine-file addition reporting ZERO
+# errors under `strict = true` is a suspiciously clean number. WHEN THIS LINE
+# WAS ADDED the file count moved 96 -> 105 and there were exactly 9
+# `scripts/*.py`. Both figures have since moved - 14 tracked `scripts/*.py` and
+# a mypy population of 136 on 2026-09-02 - and they are LEFT IN THE PAST TENSE
+# rather than refreshed: 105 - 96 = 9 is the ARITHMETIC that justified the
+# change, so swapping today's numbers in would break the argument while looking
+# like an update. #170 named this class - a historical justification inside a
+# live file, where the remedy is tense and not arithmetic. An identical
+# deliberate error appended
 # to check-harness-anchors.py exits 0 before this line and 1 after it, and the
 # same in probe-scan-bounds.py, so two separate files in the new population are
 # demonstrably read. The zero is real: these were written annotated.
