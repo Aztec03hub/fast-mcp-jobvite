@@ -336,6 +336,16 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "layer down. Its ONE confirmed instance was confirmed by "
         "reading a diff, not by the probe."
     ),
+    "measure-221-interpreter.py": (
+        "RUNS the 25 bare-`python3` CI sites twice each - once under "
+        "`python3`, once under `uv run --frozen python` - and reports "
+        "SAME, DIFFERENT or FAILS-TO-RUN per site. It executes other "
+        "gates as subprocesses, so wiring it would run every static "
+        "gate a second and third time for no verdict of its own: it "
+        "compares two arms and cannot go red on the repo's behalf. It "
+        "settled #221 (25 SAME, 0 DIFFERENT) and stays runnable so the "
+        "question can be re-asked rather than re-argued from prose."
+    ),
     "measure-ci-step-durations.py": (
         "READS the Actions API and ASSERTS NOTHING. It ranks step "
         "durations and prints how many runs reached each step, so a "
