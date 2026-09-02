@@ -25,6 +25,27 @@ superseding ADR, not a hole - or a reference nobody can follow.
 0028 and whose HEADING says 0027 passes here, so the heading is checked
 too - that mismatch is exactly what a renumbering leaves behind when it
 is done by `git mv` alone.
+
+**THE INDEX TABLE IS CHECKED IN BOTH DIRECTIONS, and it is here because
+it had silently stopped at 0023 with twelve ADRs missing** - including
+`0034` and `0035`, which the as-at-acceptance ruling twenty lines above
+the table cites BY NUMBER. Nothing regenerated the table, so every ADR
+after 0023 landed without one and no gate looked.
+
+Both directions, because the two failures are different:
+
+- a FILE with no ROW is an ADR a reader of the index cannot find;
+- a ROW with no FILE is a link that 404s, which is what a rename or a
+  withdrawal leaves behind.
+
+A one-directional check passes on half of that, and this repository has
+now recorded three separate cases where the direction nobody checked is
+the one that broke. `check-row-floor-exactness.py` uses the same
+equal-in-both-directions shape for its container-versus-table check.
+
+The table is still hand-maintained; this refuses to let it drift rather
+than generating it. A generator would also have to invent the Decision
+column, which is prose a human writes.
 """
 
 from __future__ import annotations
@@ -36,8 +57,65 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 ADR_DIR = ROOT / "docs" / "adr"
+INDEX = ADR_DIR / "README.md"
 FILENAME = re.compile(r"^(\d{4})-[a-z0-9-]+\.md$")
 HEADING = re.compile(r"^#\s*ADR-(\d{4})\b")
+INDEX_ROW = re.compile(r"^\|\s*\[(\d{4})\]\(([^)]+)\)")
+
+
+def _index_rows() -> tuple[dict[int, str], str | None]:
+    """Every `| [NNNN](file.md) |` row of the index, by number.
+
+    Returns `({}, reason)` when the index cannot be read, so an absent
+    or unreadable README is a REFUSAL rather than a clean zero - a
+    selector over a path that does not exist exits empty and looks
+    identical to a table with no defects.
+    """
+    if not INDEX.is_file():
+        return {}, f"NO INDEX at {INDEX}"
+    rows: dict[int, str] = {}
+    duplicated: list[int] = []
+    for line in INDEX.read_text(encoding="utf-8").splitlines():
+        match = INDEX_ROW.match(line)
+        if match is None:
+            continue
+        number = int(match.group(1))
+        if number in rows:
+            duplicated.append(number)
+        rows[number] = match.group(2)
+    if not rows:
+        return {}, f"{INDEX.name} MATCHED ZERO INDEX ROWS. The selector is broken."
+    if duplicated:
+        listed = ", ".join(f"{n:04d}" for n in sorted(set(duplicated)))
+        return rows, f"{INDEX.name} lists these twice: {listed}"
+    return rows, None
+
+
+def _check_index(numbers: dict[int, list[str]]) -> list[str]:
+    """The index and the files must agree, EQUAL IN BOTH DIRECTIONS."""
+    rows, reason = _index_rows()
+    if reason is not None:
+        return [reason]
+
+    problems: list[str] = []
+    for number in sorted(set(numbers) - set(rows)):
+        problems.append(
+            f"NO ROW    {number:04d} - {numbers[number][0]} exists and the index "
+            f"does not list it"
+        )
+    for number in sorted(set(rows) - set(numbers)):
+        problems.append(
+            f"NO FILE   {number:04d} - the index links `{rows[number]}` and no "
+            f"such ADR exists"
+        )
+    for number in sorted(set(rows) & set(numbers)):
+        actual = numbers[number][0]
+        if rows[number] != actual:
+            problems.append(
+                f"BAD LINK  {number:04d} - the index links `{rows[number]}`, the "
+                f"file is `{actual}`"
+            )
+    return problems
 
 
 def main() -> int:
@@ -71,6 +149,7 @@ def main() -> int:
     duplicates = {n: names for n, names in numbers.items() if len(names) > 1}
     lowest, highest = min(numbers), max(numbers)
     gaps = [n for n in range(lowest, highest + 1) if n not in numbers]
+    index_problems = _check_index({n: v for n, v in numbers.items()})
 
     print(
         f"ADRs: {sum(len(v) for v in numbers.values())}, numbered "
@@ -85,16 +164,24 @@ def main() -> int:
         print(f"  GAP       {number:04d} - no ADR carries this number")
     for problem in mismatched:
         print(f"  HEADING   {problem}")
+    for problem in index_problems:
+        print(f"  INDEX     {problem}")
 
-    if duplicates or gaps or mismatched:
+    if duplicates or gaps or mismatched or index_problems:
         print(
             f"\n{len(duplicates)} duplicate(s), {len(gaps)} gap(s), "
-            f"{len(mismatched)} heading mismatch(es)."
+            f"{len(mismatched)} heading mismatch(es), "
+            f"{len(index_problems)} index disagreement(s)."
         )
         print("An ADR number is cited from code. Two documents cannot share one.")
+        print(f"{INDEX.name}'s table must list every ADR and only ADRs that exist.")
         return 1
 
-    print("Every ADR number is unique, contiguous, and matches its own heading.")
+    print(
+        f"Every ADR number is unique, contiguous, and matches its own heading, "
+        f"and {INDEX.name}'s table lists all {sum(len(v) for v in numbers.values())} "
+        f"of them and nothing else."
+    )
     _report_branches(highest)
     return 0
 
