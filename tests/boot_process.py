@@ -49,7 +49,31 @@ import time
 #: measured at ~7.5 ms after `opened` here, and lost outright on a
 #: GitHub runner, where the mutation with the forced exit removed
 #: SURVIVED all three cycles in 3.18s.
-MARKER_ENTRY = """
+#: THE RECORDER, HELD SEPARATELY SO ONE SOURCE SERVES TWO CALLERS.
+#: R23 measured the reason: asserting that `@atexit.register` and
+#: `fh.write("atexit` merely APPEAR is blind to the shortest disarm
+#: there is - point the write at another file. Every token survives,
+#: the guard passes, and `assert "atexit" not in marker` becomes
+#: vacuously
+#: true because nothing will ever write that line to THAT marker again.
+#: Confirmed by running it: with only this block's target changed, both
+#: the
+#: guard and the stdio arm still passed on an intact tree.
+#: `test_the_recorder_actually_reaches_the_marker` runs THIS TEXT in a
+#: child
+#: that exits normally and asserts the line ARRIVES, so a redirect fails
+#: a
+#: test instead of silently disarming one.
+MARKER_RECORDER = """
+@atexit.register
+def _record_normal_interpreter_shutdown():
+    with MARKER.open("a") as fh:
+        fh.write("atexit\\n")
+        fh.flush()
+"""
+
+MARKER_ENTRY = (
+    """
 import atexit
 import os
 import pathlib
@@ -61,13 +85,9 @@ from fast_mcp_jobvite.__main__ import main
 
 MARKER = pathlib.Path(sys.argv[1])
 
-
-@atexit.register
-def _record_normal_interpreter_shutdown():
-    with MARKER.open("a") as fh:
-        fh.write("atexit\\n")
-        fh.flush()
-
+"""
+    + MARKER_RECORDER
+    + """
 
 @lifespan
 async def marker_lifespan(server):
@@ -84,6 +104,7 @@ async def marker_lifespan(server):
 
 sys.exit(main(extra_lifespan=marker_lifespan))
 """
+)
 
 GRACE_SECONDS = 20.0
 

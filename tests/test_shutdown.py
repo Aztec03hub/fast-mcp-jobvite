@@ -190,9 +190,16 @@ def test_the_shipped_entry_point_is_what_the_case_exercises() -> None:
     assert "main(extra_lifespan=marker_lifespan)" in MARKER_ENTRY
     # WITHOUT THE RECORDER, `assert "atexit" not in marker` above is
     # vacuous - it would hold against a deleted forced exit for the
-    # reason that nothing writes the line any more (#243). This asserts
-    # the instrument still exists, so deleting it fails here rather
-    # than silently disarming the arm one file over.
+    # reason that nothing writes the line any more (#243). These
+    # assert the instrument still EXISTS, so DELETING it fails here
+    # rather than silently disarming the arm one file over.
+    #
+    # THEY ARE NOT ENOUGH ALONE, and R23 measured why: they are blind
+    # to the shortest disarm, which is not deleting the recorder but
+    # REDIRECTING it. Point the write at another path and every token
+    # below still appears, this test passes, and the stdio arm passes
+    # too - confirmed by running it on an intact tree. The arm that
+    # catches that is the one below, which watches the line ARRIVE.
     assert "@atexit.register" in MARKER_ENTRY
     assert 'fh.write("atexit' in MARKER_ENTRY
 
@@ -409,3 +416,58 @@ def test_a_clean_stop_still_reports_zero(tmp_path: pathlib.Path) -> None:
         proc.kill()
         proc.wait()
     assert returncode == 0, f"a clean stop reported {returncode}: {output.read_text()}"
+
+
+def test_the_recorder_actually_reaches_the_marker(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The atexit line ARRIVES in the marker on a normal exit.
+
+    THE POSITIVE HALF OF #243, and the only assertion here that can
+    fail when the recorder is REDIRECTED rather than deleted.
+
+    Every other assertion about `atexit` in this file is NEGATIVE -
+    the line must be ABSENT, because `os._exit` skipped the handler.
+    A negative-only set is satisfied just as well by a recorder that
+    writes somewhere else as by a forced exit that worked. R23
+    measured exactly that: redirecting the write left the token guard
+    green AND the stdio arm green on an intact tree.
+
+    So this runs the SHIPPED recorder source - `MARKER_RECORDER`, the
+    same text spliced into `MARKER_ENTRY` - in a child that reaches a
+    NORMAL interpreter shutdown, and requires the line to appear. A
+    redirect fails here. A deletion fails here.
+    """
+    from tests.boot_process import MARKER_RECORDER
+
+    marker = tmp_path / "marker.txt"
+    script = tmp_path / "recorder_only.py"
+    # No server, no main, no forced exit - just the recorder and a
+    # normal exit, so the ONLY thing under test is whether the
+    # handler's write lands in the marker it was given.
+    script.write_text(
+        "import atexit\nimport pathlib\nimport sys\n\n"
+        "MARKER = pathlib.Path(sys.argv[1])\n" + MARKER_RECORDER
+    )
+
+    proc = subprocess.run(  # noqa: S603
+        [sys.executable, str(script), str(marker)],
+        capture_output=True,
+        timeout=GRACE_SECONDS,
+        check=False,
+    )
+
+    assert proc.returncode == 0, (
+        f"recorder-only child did not exit cleanly: {proc.returncode} "
+        f"{proc.stderr.decode('utf-8', 'replace')}"
+    )
+    assert marker.exists(), (
+        "the recorder wrote NO marker file at all, so every "
+        "`atexit not in marker` assertion here is vacuous."
+    )
+    assert "atexit" in marker.read_text(), (
+        "the recorder ran but its line did not reach THIS marker - "
+        "the write is redirected. Every `atexit not in marker` "
+        "assertion here is now vacuously true and M12 would survive. "
+        f"Marker held: {marker.read_text()!r}"
+    )
