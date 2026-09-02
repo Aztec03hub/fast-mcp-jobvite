@@ -111,3 +111,12 @@ ffd36c7 NONE #155 re-measured exactly, and the handoff was wrong a FO
 # AND ONE EARLIER CLEARANCE WAS SIMPLY WRONG. 6d8d02a was deleted just
 # above as "covered by R17"; `git merge-base --is-ancestor 6d8d02a
 # 2eb2d2a` says NO, so R17's range never contained it. It is back.
+#
+# 2026-09-01, +5: my own commits since #168 landed - the
+# R16-M2 inversion, the deleted counts, the audit multiplicity, the
+# N2/L3 fixes, and the #167 and #168 merges. Nobody has read them.
+0e6d5ec NONE R16-N2 + R17-L3: a claim true of the SCHEME and false of
+4bff5e7 NONE R16-M3 + R17-L1: delete three counts standing beside gro
+c3295f9 NONE R17-M2: the audit container asserts MULTIPLICITY, not ju
+d7cfe99 NONE #168 (R17-H1): a round must claim a file the commit touc
+fcde13f NONE R16-M2: report a landing failure unless it is POSITIVELY

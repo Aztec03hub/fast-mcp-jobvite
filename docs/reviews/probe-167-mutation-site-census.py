@@ -70,9 +70,9 @@ def _top_level_add_chains(tree: ast.AST) -> list[ast.BinOp]:
     ]
 
 
-def classify(body: str) -> Counter:
+def classify(body: str) -> Counter[str]:
     """Count the mutation-producing expressions in one heredoc body."""
-    kinds: Counter = Counter()
+    kinds: Counter[str] = Counter()
     tree = ast.parse(body)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -107,10 +107,10 @@ def main() -> int:
         print(f"ERROR: no harnesses under {SCRIPTS}")
         return 2
 
-    total: Counter = Counter()
-    inside_gate: Counter = Counter()
-    gate_skipped: list[tuple[str, int, dict]] = []
-    per_harness: list[tuple[str, int, bool, dict]] = []
+    total: Counter[str] = Counter()
+    inside_gate: Counter[str] = Counter()
+    gate_skipped: list[tuple[str, int, dict[str, int]]] = []
+    per_harness: list[tuple[str, int, bool, dict[str, int]]] = []
 
     for h in harnesses:
         src = h.read_text()
@@ -145,14 +145,14 @@ def main() -> int:
         )
     print()
     print("heredocs the checker's body gate skips WHOLE, though they mutate:")
-    for name, line, kinds in gate_skipped:
-        print(f"  {name}:{line}  {kinds}")
+    for name, line, skipped_kinds in gate_skipped:
+        print(f"  {name}:{line}  {skipped_kinds}")
     if not gate_skipped:
         print("  (none)")
     print()
     print("per heredoc:")
-    for name, line, opened, kinds in per_harness:
-        print(f"  {name}:{line:4d}  checker_opens={str(opened):5s}  {kinds}")
+    for name, line, opened, seen_kinds in per_harness:
+        print(f"  {name}:{line:4d}  checker_opens={str(opened):5s}  {seen_kinds}")
     return 0
 
 
