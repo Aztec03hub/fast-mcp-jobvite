@@ -74,6 +74,25 @@ Over the 73 briefs at my branch point:
 - **0** subdirectories exist under `docs/briefs/`; `glob` and `rglob`
   both find 73 files.
 
+**Does honouring the path NARROW the container?** Team-lead asked this
+directly — a brief that names a basename in a sentence rather than a path
+might silently stop being checked. **Measured, and the answer is no.**
+Old checker and new checker, run over the SAME tree (`main`, 74 briefs):
+
+    old  Report names cited:        21
+    new  Report names cited:        21
+
+The path check is purely ADDITIVE. A bare citation still resolves by
+basename exactly as before, and a bare citation to a report that does not
+exist still fails:
+
+    ::error::A BRIEF CITES A REPORT THAT EXISTS NOWHERE IN THE REPO.
+      REVIEW-NO-SUCH-FILE.md   cited by B.md
+    rc=1
+
+That is arm A1's job and it still passes. Nothing was dropped; a second
+failure branch was added alongside the first.
+
 Also measured, and it matters for the record's vocabulary: **6 names are
 cited BOTH ways**, bare in one brief and prefixed in another. That is why
 I kept the record keyed on the BASENAME and added the path check as a
@@ -98,10 +117,29 @@ that has never existed. **Writing the retracted name out in full was
 itself a citation**, so the brief about the gate put the gate into
 failure the moment it was committed.
 
-**Fixed by rewriting the brief's prose in place** to name the retraction
-rather than reproduce the token. Recording the line was the wrong remedy:
-it would have been a waiver for a file that never existed, in a file
-whose header says recording is not a waiver.
+**I FIXED THIS, THEN THREW MY FIX AWAY, BECAUSE TEAM-LEAD HAD ALREADY
+FIXED IT BETTER.** I rewrote the brief's prose in place to name the
+retraction rather than reproduce the token. `fa94f77` on `main` — six
+commits that landed under me while I worked — had already rewritten the
+same paragraph. Two agents edited one file after all; it was the brief,
+not the harness the hand-off was guarding.
+
+**Main's wording is strictly better and I took it wholesale.** Mine
+removed only the phantom and left `WORKLOG-187-floor-container.md` and
+`REVIEW-R20.md` as live citations. They resolve today, so my version was
+green — but green for a reason that depends on those two files continuing
+to exist. Main's removes all three names and points at the record file's
+git history instead, so the sentence cannot become a citation again. My
+hunk is reverted; the merge conflict is gone.
+
+That is the second half of a lesson this project already has: a merge
+resolution can put damage back, and the way to avoid it here was to
+compare the two fixes on their merits rather than defend my own. Nothing
+of mine is lost — the finding lives in this worklog.
+
+Recording the line was the wrong remedy either way: it would have been a
+waiver for a file that never existed, in a file whose header says
+recording is not a waiver.
 
 **The class is not fixed and is not mine to rule on.** The gate's
 population is "every report-shaped name written in a brief", and it
