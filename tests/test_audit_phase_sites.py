@@ -43,6 +43,7 @@ from __future__ import annotations
 import ast
 import json
 import pathlib
+from collections import Counter
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -470,7 +471,29 @@ async def test_each_audit_emission_passes_the_phase_the_design_assigns_it(
 # ======================================================================
 
 
-def _phases_in(node: ast.AST, owner: str | None) -> set[tuple[str, str]]:
+#: HOW MANY CALL SITES EACH `(function, phase)` PAIR HAS (R17-M2).
+#:
+#: The set equality below proves every pair a case drives is present and
+#: every present pair is driven. It CANNOT see a 14th call site added
+#: inside an already-covered function under an already-covered phase, on
+#: a branch no case exercises - deduplication collapses 13 sites into
+#: these 6 pairs, and R17 measured that gap.
+#:
+#: So the multiplicity is recorded here and asserted. A new site changes
+#: this mapping and fails the test, which makes covering it a deliberate
+#: act. **Update this in the SAME change that adds the site**, and say
+#: in the message why the new site is or is not driven by a case.
+SITES_PER_PAIR: dict[tuple[str, str], int] = {
+    ("create_candidate", "AFTER_WRITE"): 2,
+    ("create_candidate", "BEFORE_SIDE_EFFECT"): 3,
+    ("get_candidate", "READ"): 2,
+    ("get_job_feed", "READ"): 2,
+    ("search_candidates", "READ"): 2,
+    ("search_jobs", "READ"): 2,
+}
+
+
+def _phases_in(node: ast.AST, owner: str | None) -> list[tuple[str, str]]:
     """Every `AuditPhase.X` under `node`, tagged with the function.
 
     **The INNERMOST enclosing function**, which is why this recurses
@@ -485,10 +508,10 @@ def _phases_in(node: ast.AST, owner: str | None) -> set[tuple[str, str]]:
     Returns:
         One (function, member) pair per call site.
     """
-    found: set[tuple[str, str]] = set()
+    found: list[tuple[str, str]] = []
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.AsyncFunctionDef | ast.FunctionDef):
-            found |= _phases_in(child, child.name)
+            found += _phases_in(child, child.name)
             continue
         if (
             isinstance(child, ast.Attribute)
@@ -496,25 +519,32 @@ def _phases_in(node: ast.AST, owner: str | None) -> set[tuple[str, str]]:
             and child.value.id == "AuditPhase"
             and owner is not None
         ):
-            found.add((owner, child.attr))
-        found |= _phases_in(child, owner)
+            found.append((owner, child.attr))
+        found += _phases_in(child, owner)
     return found
 
 
-def _static_phase_sites() -> set[tuple[str, str]]:
+def _static_phase_sites() -> Counter[tuple[str, str]]:
     """(function, phase) for every `AuditPhase.X` in `tools/`, by `ast`.
 
     Derived, never grepped: a text match also finds the two COMMENTS
     naming a member, which is how the sweep's raw counts came out two
     higher than its populations.
 
+    A COUNTER, NOT A SET (R17-M2). Deduplicating collapsed 13 call sites
+    into 6 distinct `(function, phase)` pairs, so a site ADDED inside an
+    already-covered function under an already-covered phase - on a
+    branch no case drives - was invisible while the equality below
+    printed clean. The pairs still have to match; the MULTIPLICITY now
+    has to match too.
+
     Returns:
-        One pair per call site, deduplicated.
+        How many call sites each `(function, phase)` pair has.
     """
     package = pathlib.Path(candidates_module.__file__).parent
-    found: set[tuple[str, str]] = set()
+    found: Counter[tuple[str, str]] = Counter()
     for path in sorted(package.rglob("*.py")):
-        found |= _phases_in(ast.parse(path.read_text()), None)
+        found.update(_phases_in(ast.parse(path.read_text()), None))
     return found
 
 
@@ -530,13 +560,23 @@ def test_every_audit_phase_call_site_is_covered_by_a_case() -> None:
         for case_id, _, expected in CASES
         for phase in expected
     }
-    static = _static_phase_sites()
+    sites = _static_phase_sites()
+    static = set(sites)
 
     assert static, "no AuditPhase call site was found; this check is vacuous"
     assert covered == static, (
         f"only these cases exercise the container: "
         f"covered-but-absent={sorted(covered - static)}, "
         f"present-but-uncovered={sorted(static - covered)}"
+    )
+    # AND THE MULTIPLICITY, which the set equality above cannot see
+    # (R17-M2). Adding a 14th call site under an existing pair changes
+    # this mapping and fails here, so covering it is a deliberate act
+    # rather than something that happens silently. Update the recorded
+    # counts in the SAME change that adds the site, and say why.
+    assert dict(sites) == SITES_PER_PAIR, (
+        f"the number of call sites per (function, phase) moved: "
+        f"recorded={SITES_PER_PAIR}, measured={dict(sites)}"
     )
 
 
