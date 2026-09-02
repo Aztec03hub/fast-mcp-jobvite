@@ -240,6 +240,20 @@ RECORD_PATHS: dict[str, str] = {
         "is in src/, tests/ or scripts/ and is covered there; the report "
         "is the record that it happened."
     ),
+    "docs/reviews/review-coverage-backlog.txt": (
+        "THIS GATE'S OWN LEDGER, and leaving it out made the ratchet FEED "
+        "ITSELF (R18-M5). A top-up commit touches this file and nothing "
+        "else, so it became an uncovered trunk commit that the NEXT "
+        "top-up had to record - e6333ef recorded 3987403, 39bfab8 "
+        "recorded e6333ef, a36883f recorded 39bfab8, e845839 recorded "
+        "a36883f, and e845839 was outstanding when R18 arrived. Four "
+        "commits of pure self-reference. Its content is DERIVED from "
+        "what this checker measures and its shape is gated here by the "
+        "SUBJECT comparison, so reading it as a review is re-reading a "
+        "list the tool prints. A commit that touches this file AND a "
+        "real one is still scored on the real one: `substantive` drops "
+        "record paths and only an EMPTY remainder skips."
+    ),
     "docs/plans": (
         "ruled a RECORD at 0ec4c85 (task #111) - not repointed, not "
         "rewritten, and the SHA that makes that safe is guarded. A record "

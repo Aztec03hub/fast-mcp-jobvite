@@ -43,7 +43,6 @@
 20d5763 NONE Brief #144+#145, and mark the NINTH instance - which is
 2b3fa4d NONE Record the ref shape the docstring did not have: it can
 2eb2d2a NONE Brief R17: the complementary round R15 asked for, with R
-2fe3052 NONE Clear the 8 R17's declaration now covers, and mark why t
 306dfe7 PARTIAL #125: wire the two unwired checkers that were green, 18
 328ffec PARTIAL #121: gate the no-errexit invariant, which had been hand
 3a5dbe9 NONE Handoff: the trunk is 2d886a4 and the red is closed, unc
@@ -69,7 +68,6 @@ b3d9ff8 NONE #107 brief: one canonical HARNESS-RESULT line, and the d
 b84b77d NONE Guard all 13 mutation heredocs in the U1 amputation harn
 bfade9e NONE #153/#155/#149: enumerate the CONTAINER, not a prefix in
 c395b8c NONE #153 findings: the widening, and the two defects it foun
-c545ead NONE Record the 15 commits I pushed while R16 was reading, wi
 cca19be NONE PROTOCOL: the task tools are DEFERRED, not absent - my c
 dc913b3 NONE Write down the three-tier orchestration protocol before
 e119e75 NONE The handoff's own 15 was a DISPLAY CAP, and I read it as
@@ -128,10 +126,6 @@ fcde13f NONE R16-M2: report a landing failure unless it is POSITIVELY
 ac4b36c NONE R17-M1: the zero was over 42 files of 116, and briefs ha
 c60941d NONE #167: measure the anchor container first, then widen it,
 d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
-5e087eb NONE R17-H2 RULED: no change. Its path list was measured agai
 3987403 NONE #163 RULED: warn on untracked findings; `git add -N` and a pra
-e6333ef NONE Backlog +2: 5e087eb and 3987403, recorded in the commit 
 6f858ea NONE #164: the mirror's fourth state - not running at all - n
-39bfab8 NONE Backlog +1: e6333ef, and a note on why 6f858ea is not in
-a36883f NONE Backlog +2: 6f858ea and 39bfab8, recorded AFTER the push
 fd300ec NONE #149 M-4: the wiring probe now RUNS, in a job of its own
