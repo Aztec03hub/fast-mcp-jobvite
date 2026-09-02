@@ -59,6 +59,24 @@ name: Mirror to personal fork
 # is the one moment the off-site copy is worth a minute, and zero tags were
 # pushed in the window, so keeping that trigger measured 0 min.
 #
+# AND THIS IS NOT A DESIGN FOR TODAY'S NO-OP ONLY. When MIRROR_TOKEN exists the
+# bill gets WORSE, not better: a job is billed a whole minute whatever it does,
+# and a run becomes a depth-0 checkout plus a full ref push instead of 3s of
+# echo. Nothing reads the mirror as a live endpoint either - every reference to
+# `Aztec03hub` in this tree is descriptive - so it is a COPY, whose requirement
+# is that it is complete, not that it is seconds old. There is even an argument
+# for the delay: `docs/research/FASTMCP.md:845` records that this mirror
+# "doubles the blast radius of a committed secret and mirrors history", and a
+# per-push force-push of every ref races the TruffleHog step at `ci.yml:745`
+# with no ordering between them. A daily cadence puts the scan first.
+#
+# THE RESIDUAL, so nobody inherits it unstated: a push that does NOT come from
+# the maintainer's machine is now mirrored up to 24h later rather than within a
+# minute. In the measured window that population was ZERO. How stale the copy
+# may be is a maintainer's call; if the answer is "minutes", the shape is
+# per-push with `cancel-in-progress: true` and the bill returns to ~1300 min a
+# month. Either way it is one commit.
+#
 # HOW THE NEXT PERSON NOTICES IT HAS STOPPED. This is the #18 question and a
 # schedule makes it sharper, because nobody looks at a cron the way they look at
 # a red tick beside their own commit. So the first step no longer only reports

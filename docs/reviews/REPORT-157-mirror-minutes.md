@@ -197,6 +197,68 @@ hidden:**
 
 ---
 
+## 4b. Does the schedule still serve the purpose once MIRROR_TOKEN exists?
+
+Tier 0 asked this after reading §1–§4, and it is the right question:
+everything above prices today's no-op, and a design that only fits
+today's no-op is a bad design. Answered explicitly, in three parts.
+
+**(i) The bill does not improve when the token arrives — it gets
+worse.** Every run is billed a minimum of one whole minute whatever it
+does. Today a run is 3s of `echo`; with a token it becomes a
+`fetch-depth: 0` checkout plus a full ref push, which is slower. So
+per-push mirroring costs **at least** the same ~1300 min a month after
+the token exists, and the 95%-rounding framing simply stops being the
+reason while the absolute cost stays. The schedule is *more* justified
+after the token, not less.
+
+**(ii) Nothing consumes the mirror as a live endpoint.** I enumerated
+every reference to `Aztec03hub` in the tree (`grep -rn` over `*.py`,
+`*.md`, `*.yml`, `*.toml`, `*.json`): `DESIGN.md:1482`,
+`CONTRIBUTING.md:7`, `README.md:300`, `CHANGELOG.md:229`, three in
+`docs/research/`, two in `docs/reviews/`, and the workflow itself.
+Every one is descriptive — *"mirrored to"*, *"maintained by"*. No
+code, no config, no documented workflow reads from the mirror. It is a
+**copy**, and a copy's requirement is that it exists and is complete,
+not that it is seconds old.
+
+**(iii) And there is an argument for the delay that the per-push
+design never had in front of it.** `docs/research/FASTMCP.md:845`, in
+the publishable-repo checklist, says in full:
+
+> The mirror to `Aztec03hub/fast-mcp-jobvite` doubles the blast radius
+> of a committed secret and mirrors history. Whatever lands, lands
+> twice.
+
+A per-push mirror races the secret scan. `ci.yml:745` runs TruffleHog
+as a job step on the same push; the mirror is a separate workflow with
+no ordering relationship to it, and its job is a `--force` push of
+every ref into a second repository whose history then also has to be
+purged. **A daily cadence puts the scan unambiguously first** and
+leaves a window in which a mistake can be removed from one repository
+instead of two. That is a security property, not a cost saving, and it
+survives the token existing.
+
+**What I am NOT claiming.** I have not measured the race, and I am not
+presenting the schedule as a secret-containment control — TruffleHog's
+result gates nothing about the mirror either way. It is a reason the
+slower cadence is not purely a concession.
+
+**The residual, stated plainly so Tier 0 can rule on it rather than
+inherit it.** Once the token exists, a push that does *not* come from
+the maintainer's machine — a web edit, another maintainer, a merged PR
+— is mirrored up to **24 hours** later instead of within a minute. In
+this window that population was 0: all 298 push events reached both
+remotes already, and the two ref lists are identical. **How stale the
+off-site copy may be is a product decision, not mine.** If the answer
+is "minutes, not a day", the shape is per-push with
+`cancel-in-progress: true` (§7 says why I did not model it) and the
+bill goes back to ~1300 min a month; if the answer is "a day is fine
+for a backup nothing reads", this is already it. Either way it is one
+commit.
+
+---
+
 ## 5. Corrections to my brief
 
 **1. §D's third option is not available today, and it is the one the
