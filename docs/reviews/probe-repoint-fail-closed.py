@@ -61,9 +61,11 @@ def moved(rel: str, lineno: int) -> str:
 
 
 # A. The cited file does not exist at all -> OSError inside the read.
-missing = "docs/reviews/__no_such_file_probe__.py"
+# LIVE prefix on purpose: #219 made unlisted directories UNRULED, and an
+# UNRULED citation never reaches the exempt read this row probes.
+missing = "scripts/__no_such_file_probe__.py"
 assert not (REPO_ROOT / missing).exists(), "the probe's 'missing' path exists"
-moves, unreadable = repoint.parse(moved(missing, 1))
+moves, unreadable, _unruled = repoint.parse(moved(missing, 1))
 row(
     "A. missing file -> OSError is REFUSED, not repointed",
     moves == {} and len(unreadable) == 1 and "UNREADABLE" in unreadable[0],
@@ -71,9 +73,10 @@ row(
 )
 
 # B. The report names a line the file does not have -> IndexError.
-real = "docs/reviews/repoint-design-citations.py"
+# A LIVE-prefix file for the same #219 reason as row A.
+real = "scripts/ci-harness-gate.sh"
 nlines = len((REPO_ROOT / real).read_text().splitlines())
-moves, unreadable = repoint.parse(moved(real, nlines + 5000))
+moves, unreadable, _unruled = repoint.parse(moved(real, nlines + 5000))
 row(
     "B. line past EOF -> IndexError is REFUSED, not repointed",
     moves == {} and len(unreadable) == 1,
@@ -83,11 +86,14 @@ row(
 # C. NEGATIVE CONTROL. A readable line with no marker must still be
 #    collected for repointing. If this row fails the refusal is blanket
 #    and the tool has been broken rather than fixed.
-with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
+# dir=scripts/: the temp files' relative paths must start with a LIVE
+# prefix (#219), or classify() routes them to unruled and rows C and D2
+# probe nothing. The directory is untracked and removed on exit.
+with tempfile.TemporaryDirectory(dir=REPO_ROOT / "scripts") as td:
     plain = pathlib.Path(td) / "plain.txt"
     plain.write_text("a citation lives here: DESIGN.md:100\n")  # REPOINT-EXEMPT
     rel_plain = str(plain.relative_to(REPO_ROOT))
-    moves, unreadable = repoint.parse(moved(rel_plain, 1))
+    moves, unreadable, _unruled = repoint.parse(moved(rel_plain, 1))
     row(
         "C. readable, unmarked line IS repointed (negative control)",
         moves == {(rel_plain, 1): {(100, 100): (200, 200)}} and unreadable == [],
@@ -107,7 +113,7 @@ with tempfile.TemporaryDirectory(dir=REPO_ROOT) as td:
     marked = pathlib.Path(td) / "marked.txt"
     marked.write_text("DESIGN.md:100  # REPOINT" + "-EXEMPT\n")  # REPOINT-EXEMPT
     rel_marked = str(marked.relative_to(REPO_ROOT))
-    moves, unreadable = repoint.parse(moved(rel_marked, 1))
+    moves, unreadable, _unruled = repoint.parse(moved(rel_marked, 1))
     row(
         "D2. marker WITHOUT a register row does NOT exempt (#142)",
         moves == {(rel_marked, 1): {(100, 100): (200, 200)}} and unreadable == [],
@@ -148,7 +154,21 @@ assert _marked_linenos, (
     f"{_SELF} has no line carrying BOTH {_MARKER} and {_CITED}; "
     "row D would be testing prose rather than a registered citation"
 )
-moves, unreadable = repoint.parse(moved(_SELF, _marked_linenos[0]))
+# #219 made docs/reviews UNRULED, which would short-circuit this row
+# before the exemption lookup runs (moves={} and unreadable=[] for the
+# WRONG reason - the vacuous pass measured on 2026-09-02). The register
+# key this row depends on names THIS file, so the classification is
+# widened for exactly this one call and restored, and the restore is
+# asserted.
+_saved_prefixes = repoint.LIVE_PREFIXES
+repoint.LIVE_PREFIXES = _saved_prefixes + ("docs/reviews/",)
+try:
+    moves, unreadable, _unruled = repoint.parse(
+        moved(_SELF, _marked_linenos[0])
+    )
+finally:
+    repoint.LIVE_PREFIXES = _saved_prefixes
+assert repoint.classify(_SELF) == "UNRULED", "LIVE_PREFIXES not restored"
 row(
     "D. marker AND a register row IS skipped, and is not called unreadable",
     moves == {} and unreadable == [],
@@ -195,7 +215,12 @@ else:
     row(
         "E0. readable baseline does NOT refuse (control on the control)",
         "UNREADABLE" not in baseline.stdout
-        and re.search(r"\d+ citation\(s\) repointed", baseline.stdout) is not None,
+        and "CHECKER FAILED" not in baseline.stdout
+        and (
+            re.search(r"\d+ citation\(s\) repointed", baseline.stdout)
+            is not None
+            or "UNRULED" in baseline.stdout
+        ),
         f"rc={baseline.returncode} tail={baseline.stdout.strip().splitlines()[-1:]!r}",
     )
 
