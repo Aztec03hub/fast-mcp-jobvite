@@ -1287,6 +1287,14 @@ jobs:
       - name: Controls for the brief-report reference gate
         run: bash docs/reviews/check-brief-report-refs-controls.sh
 
+      # THE DISCRIMINATOR'S OWN ARMS (#204). The bare run is an
+      # ENUMERATOR - it counts a corpus and judges nothing, so there is
+      # no pass to gate on. Its `--controls` is the gate: 16 arms in
+      # BOTH directions off ONE shared exclusion function, so no arm
+      # tests a copy of its subject. Measured green before wiring.
+      - name: The bare-citation discriminator's controls
+        run: uv run --frozen python docs/reviews/probe-204-bare-citations.py --controls
+
       # THROUGH THE GATE SINCE #120, and the inline block it replaces was here
       # for a reason that turned out to be FALSE. #120 first left this step
       # inline, reasoning from the SOURCE that this harness prints

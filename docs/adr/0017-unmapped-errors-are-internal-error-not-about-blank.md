@@ -13,7 +13,7 @@
 Found by **building U2**, not by reading. The design's error registry has an internal contradiction
 and, underneath it, an answer the standard already supplies.
 
-**The contradiction (D1).** `DESIGN.md:495-496` states that every failure returns a complete RFC
+**The contradiction (D1).** `DESIGN.md:489-490` states that every failure returns a complete RFC
 9457 problem object carrying *"`type`, `title`, `status`, `detail`, `instance`, `request_id`,
 `timestamp`"* — `status` is a required member. `DESIGN.md:515`'s row reads:
 

@@ -42,6 +42,26 @@ its own citation**, and the re-freeze made the stale reading official. That is d
 one commit, from the decision itself, and no reader looking only at today's freeze can tell it
 apart from carelessness.
 
+**THE WORKED CASE, AND IT IS THE EMPIRICAL ARGUMENT FOR THIS RULE.** `ADR-0017` cites ONE range
+twice - qualified at `:16`, bare at `:67`. `b0e86b8` ("Repoint 713 DESIGN.md citations") moved the
+qualified half `489-490 -> 495-496` and could not see the bare half, because its selector requires
+the filename. Measured across three trees:
+
+    at acceptance 02245b1   :489-490  IS the seven-member problem object   BOTH halves correct
+    at b0e86b8              :495-496  IS that sentence                     the repoint was right
+    at the freeze d1f1a52   the sentence is at :546-547                    the repoint is now wrong
+
+**THE HALF THAT WAS NEVER TOUCHED IS THE ONE THAT STILL MEANS WHAT ITS AUTHOR WROTE.** The
+repointed half was correct for exactly as long as it took `DESIGN.md` to move again, and it left
+the document contradicting itself in the meantime. `:16` is restored to `489-490`: the ADR agrees
+with itself again and is back to the record it was.
+
+**SO THE REPOINT TOOL MUST NOT LEARN THE BARE FORM.** That was proposed as "the only fix that stops
+the class recurring", and it is the wrong direction - it would let a sweep move BOTH halves and
+produce a consistent document that is still wrong at the next re-freeze, twice as thoroughly. **The
+fix is for the repoint tool to stop touching `docs/adr/` at all**, which this rule already implies
+and which no selector needs to learn.
+
 **HOW TO READ A CITATION THAT DOES NOT MATCH.** Date the citation, then read the design as it was:
 
     git log -S'DESIGN.md:2063' --reverse -- docs/adr/0034-*.md   # when the citation was written

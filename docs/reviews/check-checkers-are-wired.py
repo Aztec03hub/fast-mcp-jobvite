@@ -324,6 +324,18 @@ UNWIRED_BY_DECISION: dict[str, str] = {
         "the real repoint tool against it. A job whose checkout has a "
         "chmod-ed file in it is a job with a bomb in it."
     ),
+    "probe-204-orphaned-by-repoint.py": (
+        "PRODUCES CANDIDATES, NOT FINDINGS, and says so in its own "
+        "header: 'Exit 0 always: this REPORTS a candidate set for a "
+        "human to read.' It pairs a qualified and a bare citation at "
+        "FILE level, not line level, so six of its 55 rows are known "
+        "false positives - `git log -S` on those exact lines returns "
+        "one commit each, their own introduction. Wiring a tool that "
+        "cannot go red would add a step whose green means nothing, "
+        "which is the defect `check-no-errexit` exists to catch one "
+        "layer down. Its ONE confirmed instance was confirmed by "
+        "reading a diff, not by the probe."
+    ),
     "measure-ci-step-durations.py": (
         "READS the Actions API and ASSERTS NOTHING. It ranks step "
         "durations and prints how many runs reached each step, so a "
