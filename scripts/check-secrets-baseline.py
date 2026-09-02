@@ -2,7 +2,7 @@
 """The secret gate compares FINDINGS, not file mtimes.
 
     python3 scripts/check-secrets-baseline.py            # the gate
-    python3 scripts/check-secrets-baseline.py --controls  # prove it can go red
+    python3 scripts/check-secrets-baseline.py --controls  # can go red
 
 **WHY THIS EXISTS, AND IT IS NOT A STYLE PREFERENCE.** The hook this
 replaces was `Yelp/detect-secrets`'s own `detect-secrets` pre-commit
@@ -22,7 +22,7 @@ modifies a file. Measured at `ccbdaae`, with CI's exact invocation:
 The entry is `.github/workflows/ci.yml`, `is_secret: false`, the literal
 `inspect-only-not-a-credential`. **Not a secret, and never was.** The
 recorded line drifted because `ci.yml` grew. In a developer's shell you
-`git add .secrets.baseline` and move on - the hook's own message says so.
+`git add .secrets.baseline` and move on - the hook's message says so.
 **In CI nothing can be staged**, so the step went red on the first line
 drift after each regeneration and could not recover. Run it twice and it
 fails differently, *"Your baseline file (.secrets.baseline) is
@@ -62,11 +62,12 @@ baseline's own path, so it can drop nothing else, and control `C5`
 proves a finding in any other file survives it.
 
 **THE STALE DIRECTION, WHICH NOTHING CHECKED BEFORE.** An entry in the
-baseline whose finding is no longer in the tree is a **stale allowance**.
-It is reported on every run, by name, and it **warns rather than fails**.
-The reason: a stale allowance grants nothing - the string it excused is
-gone - so its risk today is zero, while failing on it would make the gate
-go red for a DELETION and leave exactly one way to clear it, hand-editing
+baseline whose finding is no longer in the tree is a **stale
+allowance**. It is reported on every run, by name, and it **warns
+rather than fails**. The reason: a stale allowance grants nothing -
+the string it excused is gone - so its risk today is zero, while
+failing on it would make the gate go red for a DELETION and leave
+exactly one way to clear it, hand-editing
 `.secrets.baseline`. That is the trap this file exists to remove, one
 column over, and a gate red for improving the tree is `U0-REPORT`'s D3
 failure shape that this repository has already accepted twice
@@ -75,7 +76,7 @@ printed with its count so it cannot rot unseen; if it ever wants to
 ratchet, that is a decision with a number behind it.
 
 **WHAT THIS CANNOT DO.** It compares HASHES, so it never prints a secret
-- but it also cannot tell you that an `is_secret: false` audit was WRONG.
+- but it cannot tell you that an `is_secret: false` audit was WRONG.
 An entry mis-audited when it was added stays excused forever, exactly as
 before. That is a review property, not a gate property, and
 `docs/CREDENTIAL-CHECKLIST.md` is where it lives. It also inherits every
@@ -107,7 +108,7 @@ Results = Mapping[str, Sequence[Mapping[str, object]]]
 
 
 def pairs(results: Results) -> set[Finding]:
-    """The set a baseline actually asserts, with the drifting fields gone."""
+    """What a baseline asserts, with the drifting fields gone."""
     return {
         (filename, str(entry["type"]), str(entry["hashed_secret"]))
         for filename, entries in results.items()
@@ -118,7 +119,7 @@ def pairs(results: Results) -> set[Finding]:
 def _drop_baseline_self_findings(
     results: Results, baseline_name: str
 ) -> tuple[Results, int]:
-    """Reproduce `is_baseline_file`, which scanning against a copy disables.
+    """Reproduce `is_baseline_file`, which a copy scan disables.
 
     Returns the results without the baseline's own entries, and how many
     were dropped. Keyed on the baseline's repo-relative path, so it is
@@ -130,7 +131,7 @@ def _drop_baseline_self_findings(
 
 
 def scan_against_copy(baseline: pathlib.Path) -> Results:
-    """Scan the tree with a COPY of the baseline. The tree is not touched.
+    """Scan the tree with a COPY of the baseline. Nothing is written.
 
     `detect-secrets scan --baseline X` reuses X's plugin and filter
     configuration and writes the merged result back into X - so X is a
@@ -140,7 +141,9 @@ def scan_against_copy(baseline: pathlib.Path) -> Results:
     with tempfile.TemporaryDirectory(prefix="secrets-baseline-") as tmp:
         copy = pathlib.Path(tmp) / "baseline-copy.json"
         shutil.copyfile(baseline, copy)
-        proc = subprocess.run(
+        # S603/S607 do not apply: a fixed argv, no shell, and the
+        # interpreter is this process's own.
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, "-m", "detect_secrets", "scan", "--baseline", str(copy)],
             cwd=ROOT,
             capture_output=True,
@@ -217,17 +220,17 @@ def gate() -> int:
     return 0
 
 
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------
 # Controls. They exercise the COMPARISON, which is the half this change
 # introduces and the half that decides red or green. They need no
 # `detect-secrets` and touch nothing, so they can run anywhere.
 #
 # The end-to-end arms - plant a synthetic secret in a real file and
 # require RED, move a recorded line number and require GREEN - are
-# `docs/reviews/probe-secrets-baseline.py`, because a control that shares
-# a file with its subject shares its author's blind spot: three of four
+# `docs/reviews/probe-secrets-baseline.py`, because a control sharing a
+# file with its subject shares its author's blind spot: three of four
 # mutants have survived a `--self-test` in this repository before.
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------
 
 #: THE DIGEST FIELD NAME IS BUILT, NOT WRITTEN, AND THAT IS NOT STYLE.
 #: `KeywordDetector` fires on that field name followed by a quoted
@@ -246,7 +249,7 @@ _B = {"type": "Secret Keyword", _DIGEST: "bbb", "line_number": 2}
 
 
 def controls() -> int:
-    """Each arm names what would be true if the comparison stopped working."""
+    """Each arm names what would be true if the comparison broke."""
     arms: list[tuple[str, bool, str]] = []
 
     def arm(name: str, ok: bool, meaning: str) -> None:
@@ -270,9 +273,9 @@ def controls() -> int:
         "a secret added to an already-audited file would pass",
     )
 
-    # C3  A KNOWN HASH IN A NEW FILE IS A FINDING. Keyed on the pair, not
-    #     on the digest alone - copying an audited placeholder into a new
-    #     file is a new finding.
+    # C3  A KNOWN HASH IN A NEW FILE IS A FINDING. Keyed on the pair,
+    #     not on the digest alone - copying an audited placeholder into
+    #     a new file is a new finding.
     copied = {"f.py": [dict(_A)], "g.py": [dict(_A)]}
     arm(
         "C3 a known hash in a new file is caught",
@@ -284,13 +287,12 @@ def controls() -> int:
     retyped = {"f.py": [dict(_A), dict(_A, type="Base64 High Entropy String")]}
     arm(
         "C4 a second detector is caught",
-        pairs(retyped) - pairs(base)
-        == {("f.py", "Base64 High Entropy String", "aaa")},
+        pairs(retyped) - pairs(base) == {("f.py", "Base64 High Entropy String", "aaa")},
         "type would be outside the key and a re-classified finding would pass",
     )
 
-    # C5  THE BASELINE-SELF DROP CANNOT HIDE ANYTHING ELSE. It is the one
-    #     place this checker deliberately discards findings.
+    # C5  THE BASELINE-SELF DROP CANNOT HIDE ANYTHING ELSE. It is the
+    #     one place this checker deliberately discards findings.
     mixed = {".secrets.baseline": [dict(_A)], "real.py": [dict(_B)]}
     kept, dropped = _drop_baseline_self_findings(mixed, ".secrets.baseline")
     arm(

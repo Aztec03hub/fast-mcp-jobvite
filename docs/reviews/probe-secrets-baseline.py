@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end arms for `scripts/check-secrets-baseline.py`, in a scratch tree.
+"""End-to-end arms for `scripts/check-secrets-baseline.py`.
 
     uv run --no-project --with detect-secrets==1.5.0 python \
         docs/reviews/probe-secrets-baseline.py
@@ -34,10 +34,10 @@ green on the commit that adds this file.
 
 **THE ARMS**
 
-    A1  a recorded line number MOVES        -> exit 0   (the whole point)
-    A2  a genuinely new secret appears      -> exit 1   (the gate still bites)
-    A3  a recorded finding is DELETED       -> exit 0, and says STALE
-    A4  the digest is AMPUTATED from the key -> A2 goes GREEN
+    A1  a recorded line number MOVES   -> exit 0  (the whole point)
+    A2  a genuinely new secret appears -> exit 1  (the gate still bites)
+    A3  a recorded finding is DELETED  -> exit 0, and says STALE
+    A4  the digest is AMPUTATED        -> A2 goes GREEN
 
 A4 is what makes A2 evidence. Without it, A2 passing is consistent with
 a checker that fails on absolutely anything.
@@ -80,21 +80,21 @@ def _run(cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
 
 
 def _scratch(tmp: pathlib.Path, checker_source: str) -> pathlib.Path:
-    """A tree with one planted secret, its own baseline, and the checker.
+    """A tree with one planted secret, a baseline, and the checker.
 
     It is a real git repository because `detect-secrets scan` picks its
-    population with `git ls-files`: in a plain directory it finds NOTHING
-    and reports an empty result at exit 0, which is a clean zero that
-    explains itself. `A0` and the entry-count guard below exist so that
-    zero can never be mistaken for a passing arm.
+    population with `git ls-files`: in a plain directory it finds
+    NOTHING and reports an empty result at exit 0, which is a clean
+    zero that explains itself. `A0` and the entry-count guard below
+    exist so that zero can never be mistaken for a passing arm.
     """
     tree = tmp / "tree"
     (tree / "scripts").mkdir(parents=True)
     (tree / "scripts" / "check-secrets-baseline.py").write_text(checker_source)
     (tree / "sample.py").write_text("# a sample module\n" + _plant(_VALUE_ONE))
     subprocess.run(["git", "init", "-q", "."], cwd=tree, check=True)
-    # ONLY `sample.py` IS TRACKED, so only `sample.py` is scanned. Adding
-    # the checker copy here made the fixture hold 3 entries and then 2:
+    # ONLY `sample.py` IS TRACKED, so only `sample.py` is scanned.
+    # Adding the checker copy here made the fixture hold 3, then 2:
     # a file explaining a secret-keyword defect attracts that detector,
     # in its code and in its prose. The fixture must depend on what this
     # probe plants, not on how the checker's docstring is worded.
@@ -150,14 +150,14 @@ def main() -> int:
         )
         recorded = _recorded_line(tree)
 
-        # A1  MOVE THE LINE. Twenty comment lines above it, nothing else.
+        # A1  MOVE THE LINE. Twenty comment lines above it, no more.
         sample = tree / "sample.py"
         sample.write_text("# pad\n" * 20 + sample.read_text())
         moved = _run(tree)
         now = recorded + 20
-        drifted = _plant(_VALUE_ONE) in sample.read_text().splitlines(keepends=True)[
-            now - 1
-        ]
+        drifted = (
+            _plant(_VALUE_ONE) in sample.read_text().splitlines(keepends=True)[now - 1]
+        )
         arms.append(
             (
                 "A1 a line number moving stays GREEN",
@@ -168,8 +168,8 @@ def main() -> int:
             )
         )
 
-        # A2  A GENUINELY NEW SECRET. A different synthetic, so a different
-        #     digest - not the audited one moved somewhere else.
+        # A2  A GENUINELY NEW SECRET. A different synthetic, so a
+        #     different digest - not the audited one, moved.
         sample.write_text(sample.read_text() + _plant(_VALUE_TWO))
         planted = _run(tree)
         arms.append(
@@ -181,7 +181,7 @@ def main() -> int:
             )
         )
 
-        # A3  DELETE THE AUDITED FINDING. Stale, and by decision a warning.
+        # A3  DELETE THE AUDITED FINDING. Stale, and by decision a warn.
         sample.write_text("# a sample module\n")
         emptied = _run(tree)
         arms.append(
@@ -193,11 +193,12 @@ def main() -> int:
             )
         )
 
-        # A4  AMPUTATION. Take the digest out of the key entirely, so the
-        #     comparison can only see filenames. A2's planted secret lives
-        #     in a file the baseline already records, so a checker keyed on
-        #     the filename alone MUST let it through. If A2 still goes red
-        #     here, A2 was never measuring the comparison.
+        # A4  AMPUTATION. Take the digest out of the key entirely, so
+        #     the comparison sees only filenames. A2's planted secret
+        #     lives in a file the baseline already records, so a
+        #     checker keyed on the filename alone MUST let it through.
+        #     If A2 still goes red here, A2 was never measuring the
+        #     comparison.
         anchor = '        (filename, str(entry["type"]), str(entry["hashed_secret"]))'
         if checker_source.count(anchor) != 1:
             raise SystemExit(
