@@ -158,8 +158,13 @@ the map exists to make visible.
 
 ## A clause of `bash.md` that is GUIDANCE, recorded rather than dropped
 
-**`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or Go". 13 of the 15
-`scripts/*.sh` exceed 100 lines; the largest is 469.**
+**`devops/bash.md:799` - ">100 lines of logic - rewrite in Python or Go". NEARLY EVERY
+TRACKED `scripts/*.sh` EXCEEDS 100 LINES, and the count is not carried here: derive it
+with `git ls-files -- 'scripts/*.sh'` and `grep -c ''` per file. It read "13 of the 15
+... the largest is 469" until 2026-09-02, when all three figures were stale at once -
+the population was 39, the breach count 38, and the largest 598 lines. THE "13 of 15"
+FRAMING ALSO IMPLIED TWO MEMBERS SIT UNDER THE GUIDELINE; there is ONE, and it is
+`scripts/check-suite-floor.sh` at 66 lines.**
 
 It gets no row above, and the class check is what settled that: the table's vocabulary is MET /
 ABSENT / CONTRADICTED / SUPERSEDED, and every one of those asserts something about an *obligation*.

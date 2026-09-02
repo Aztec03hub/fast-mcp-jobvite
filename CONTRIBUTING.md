@@ -216,8 +216,12 @@ python3 docs/reviews/check-design-citations.py --since <sha>   # what your edit 
 python3 docs/reviews/repoint-design-citations.py <sha> --write # apply the MOVED lines
 ```
 
-There are 847 `DESIGN.md:N` citations across 82 files and a five-line insertion moves most of them,
-so an edit that skips this ships hundreds of wrong citations. It is not in CI because **the check
+`check-design-citations.py` prints the population on every run - it read **1987 citations across
+215 files** the last time this paragraph was touched, and a five-line insertion moves most of
+them, so an edit that skips this ships hundreds of wrong citations. READ THE NUMBER OFF THE
+TOOL rather than off this sentence: it said "847 across 82 files" until 2026-09-02, understating
+the work by more than a thousand citations, which is the direction that makes a contributor skip
+the step. It is not in CI because **the check
 it can perform is not the one that matters**: it verifies that a cited line EXISTS, never that the
 line still carries its subject, and a contracted range still resolves and still reads plausibly.
 Three such defects were found by hand and none by any instrument. Wiring it would publish a green
