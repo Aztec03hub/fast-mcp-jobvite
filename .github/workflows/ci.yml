@@ -96,15 +96,68 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # The design gates. These run first and they do not need the Python project to
-  # install: they check DESIGN.md against itself. They are also the ones that
-  # have been hand-run all day, which is the reason this workflow exists.
+  # THE STATIC GATES, THE SUPPLY CHAIN AND THE LINK CHECK, IN ONE JOB.
+  #
+  # These were three jobs until task #143. GitHub bills each JOB rounded UP to a
+  # whole minute, so three jobs whose work totals well under a minute billed
+  # THREE minutes on every run. MEASURED over 2026-08-28..2026-09-02 with
+  # `filter=all` (578 runs, 1326 jobs; `filter=latest` hides re-run attempts
+  # GitHub bills anyway, and it is the API default):
+  #
+  #     job                     n    billed   median   p90     max
+  #     Design coupling gates  220   220 min    11s     28s      34s
+  #     Supply chain           220   220 min    26s     31s      39s
+  #     Link check             210   214 min     6s      8s     126s
+  #     -----------------------------------------------------------
+  #     BEFORE, 210 run-attempts carrying all three:      634 min
+  #     AFTER,  one job (modelled from per-STEP timings): 214 min
+  #     SAVING:                                           420 min (66%)
+  #
+  # The merged job's duration is not a guess: it is the sum of the three jobs'
+  # WORK steps plus ONE prologue, taken from the per-step timestamps the jobs
+  # API returns. Median 28s, p90 42s, max 148s; 2 of 210 run-attempts would
+  # cross 60s and bill 2 minutes. That case is priced into the 214 above.
+  #
+  # WHY THESE THREE AND NOT THE OTHER TWO:
+  #   `test` is the long pole (median 87s, max 7522s) - merging anything into
+  #     it buys nothing and couples a 5-second gate to a 2-hour matrix.
+  #   `codeql` stays out, and this is a REFUSAL with a measured price on it,
+  #     not a dismissal. It bills 354 min, the SECOND largest line, but its
+  #     median is 64s - it crosses the minute boundary on its own merits,
+  #     not by rounding a trivial job. Folding it in as a FOURTH member
+  #     measures a further 134 min saved over the same 210 run-attempts
+  #     (557 -> 423). That is real, and it is refused anyway: CodeQL's
+  #     analyze step scans the workspace, and this job populates `.venv`
+  #     via `uv sync --frozen` before it would run. Changing what a
+  #     SECURITY gate scans to save 0.64 min/run is the wrong trade, and
+  #     it needs its own measurement of CodeQL's findings before and
+  #     after - not a note in a cost commit. Tier 0 can overrule this with
+  #     the number in front of it.
+  #
+  # THE PROLOGUE IS SHARED, and that is the second saving. `design-gates` and
+  # `supply-chain` ran BYTE-IDENTICAL prologues - checkout at fetch-depth 0,
+  # setup-uv with the cache, setup-python, `uv sync --frozen`. One job runs it
+  # once. fetch-depth 0 is required by BOTH (the freeze gate resolves a SHA a
+  # shallow clone does not contain; TruffleHog needs full history to see a
+  # secret removed in a later commit), and the link check does not care, so the
+  # merged checkout is the strictest of the three rather than a compromise.
+  #
+  # PERMISSIONS ARE THE UNION, which is a WIDENING and is stated rather than
+  # buried: `security-events: write` came from `supply-chain` and now covers
+  # the design gates too. Whether TruffleHog and the SBOM steps actually need
+  # it here has NOT been measured - they upload no SARIF - so it is preserved
+  # unchanged rather than narrowed on a guess. Narrowing it is its own task.
   # ---------------------------------------------------------------------------
-  design-gates:
-    name: Design coupling gates
+  static-gates:
+    name: Static gates, supply chain and links
     runs-on: ubuntu-latest
-    # UNCAPPED WOULD MEAN SIX HOURS - observed max 34s. 26x headroom; these are static checkers.
+    # UNCAPPED WOULD MEAN SIX HOURS - observed max 148s for the merged work
+    # (modelled from per-step timings; the three jobs' own maxima were 34s, 39s
+    # and 126s). 6x headroom.
     timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
     steps:
       # fetch-depth 0: the freeze gate resolves the SHA in docs/DESIGN-FREEZE.txt,
       # which a SHALLOW clone does not contain - it failed in CI with 'invalid
@@ -629,6 +682,123 @@ jobs:
           grep -q 'ABORT' <<< "$out" && {
             echo "::error::the sweep aborted; it swept nothing"; exit 1; }
           exit 0
+
+      # ---------------------------------------------------------------------
+      # SUPPLY CHAIN - was its own job until #143. NONE of the actions below
+      # have ever been executed; the pip-licenses step HAS been run locally.
+      # ---------------------------------------------------------------------
+
+      # LICENCE GATE - a DENY-list on the standard's flag-list, not an allow-list,
+      # and the reason is measured rather than assumed. quality-gates.md:288-292
+      # allow-lists five SPDX ids; pip-licenses reports FIFTEEN distinct spellings
+      # over this tree for six actual licences ("MIT" and "MIT License" both
+      # appear), so `--allow-only` on the standard's five ids is red on its first
+      # run against a tree containing nothing objectionable.
+      #
+      # OPEN, and it needs a ruling rather than a default: four packages carry
+      # licences on NEITHER the allow-list nor the flag-list, which
+      # quality-gates.md:307 makes "Custom / unknown - always flag for review":
+      #   cffi 2.1.1              MIT-0        RUNTIME
+      #   email-validator 2.3.0   Unlicense    RUNTIME
+      #   typing_extensions       PSF-2.0      RUNTIME
+      #   pathspec 1.1.1          MPL-2.0      dev/build only, NOT shipped
+      # All four are permissive or weak-copyleft-not-shipped, and no strong
+      # copyleft is present in either tree. Extending the allow-list is an ADR,
+      # not a CI edit. See docs/worklogs/U0-REPORT.md.
+      # The ONE run: block with no strict-mode line, and that is deliberate:
+      # it is a single command whose exit code IS the step's result, so there
+      # is nothing after a failure to guard, no pipeline and no unset
+      # variable. Recorded because an unexplained absence invites a 'fix',
+      # and because the other 17 blocks do carry one - ADR-0023 SS scope.
+      - name: Licence gate
+        run: |
+          uv run --frozen --with pip-licenses pip-licenses \
+            --format=markdown \
+            --fail-on="GPL;GPL v2;GPL v3;GNU General Public License;GNU General Public License v2 (GPLv2);GNU General Public License v3 (GPLv3);AGPL;GNU Affero General Public License v3;LGPL;GNU Lesser General Public License;SSPL;BUSL;Business Source License"
+
+      # NEVER EXECUTED. Tool and pin are fixed by quality-gates.md:269-271:
+      # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
+      # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
+      # produced from an unfrozen resolve documents a build nobody shipped
+      # (DESIGN.md §10's "The lockfile is the actual cure").
+      - name: SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .venv
+          format: cyclonedx-json
+          artifact-name: sbom.cdx.json
+
+      - name: SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .venv
+          format: spdx-json
+          artifact-name: sbom.spdx.json
+
+      # NEVER EXECUTED. Full history is the point; --only-verified keeps it from
+      # drowning the gate in unverifiable candidates.
+      # Pinned to a release tag, NOT @main. The standards corpus fixed this exact
+      # defect in itself - devops/log.md:31, "fix(F-078): pin Trivy and TruffleHog
+      # actions to release tags" - and ci-cd.md:552 carries the sanctioned pin. An
+      # action on a branch tip is arbitrary third-party code re-fetched every run,
+      # in the step whose whole job is finding secrets.
+      - name: Secret scan
+        uses: trufflesecurity/trufflehog@v3.88.0
+        with:
+          extra_args: --only-verified
+
+      # ---------------------------------------------------------------------
+      # LINK CHECK - was its own job until #143. It needs no uv and no deep
+      # history; it rides the checkout this job already has.
+      # ---------------------------------------------------------------------
+      # ---------------------------------------------------------------------------
+      # NEVER EXECUTED as an action - lychee is not installed on this machine. The
+      # PROPERTY it asserts was verified locally against the current tree with an
+      # equivalent offline walk: 27 relative markdown links across 63 files, 0
+      # dangling, and that checker was positive-controlled against a deliberately
+      # broken link before its zero was believed. The tree was also checked for the
+      # link forms that walk does NOT parse - reference-style `[x]: target`,
+      # autolinks, raw <a href> - and contains none, so inline `[x](y)` is the whole
+      # relative-link surface lychee will see here.
+      #
+      # readme-standard.md:69 (B82) - "a link checker MUST run in CI; a broken link blocks
+      # merge." COMPLIANCE-SPEC.md:84 makes it job 12 and picks no tool (:659-661
+      # lists the choice as something that document deliberately left open).
+      #
+      # --offline IS THE WHOLE DESIGN DECISION, and it is a narrowing, so it is
+      # stated rather than buried:
+      #   - What it checks: every relative link resolves on disk. That is the class
+      #     that rots here, because ADRs, reviews and research documents are renamed
+      #     and moved while inbound links are not repointed.
+      #   - What it does NOT check: external URLs. Checking them makes a REQUIRED
+      #     check depend on third-party uptime, and a gate that goes red for reasons
+      #     nobody caused is the failure shape ci.yml:286-295 already reasons about
+      #     for pip-audit ("never a blanket ignore or a raised threshold: both
+      #     convert a signal into silence") - it trains everyone to ignore the thing
+      #     it exists to make authoritative.
+      #
+      # STATED CEILING, so this gate is not over-trusted. This project cites almost
+      # entirely as BARE TEXT - `DESIGN.md:1534`, `quality-gates.md:76-81` - not as
+      #     (those two are ILLUSTRATIONS OF THE FORM, not pointers to content.
+      #     They are the only citations in this file that keep a line number,
+      #     and they must: converting them to subject phrases would delete the
+      #     very thing the sentence is showing. Do not repoint them either.)
+      # markdown links. Only 27 links in the whole tree are even in scope. So this
+      # satisfies readme-standard.md:69 and it is NOT the control for this project's
+      # citation decay: the coupling gates in docs/reviews/ and the citation audits
+      # are. Do not read a green here as "the citations are sound".
+
+      - name: Relative links resolve
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # No --include-fragments. It would additionally require every `#anchor`
+          # to resolve against the target's headings, which is a STRICTLY
+          # STRONGER property than the one verified locally before this landed.
+          # Shipping an assertion nobody has run is how a gate goes red on its
+          # first run against a clean tree. Add it deliberately, with a run
+          # behind it, not as a default.
+          args: --offline --no-progress '**/*.md'
+          fail: true
 
   # ---------------------------------------------------------------------------
   # The Python project.
@@ -1466,97 +1636,6 @@ jobs:
         run: python3 docs/reviews/check-coverage-floors.py
 
   # ---------------------------------------------------------------------------
-  # Supply chain. NONE of the actions in this job have ever been executed - see
-  # the header. The pip-licenses step HAS been run locally.
-  # ---------------------------------------------------------------------------
-  supply-chain:
-    name: Supply chain
-    runs-on: ubuntu-latest
-    # UNCAPPED WOULD MEAN SIX HOURS - observed max 35s.
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      # TruffleHog needs FULL history: a secret removed in a later commit is still
-      # compromised, and a shallow clone cannot see it (DESIGN.md §10's CI-must-also-run list).
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install from the frozen lock
-        run: uv sync --frozen
-
-      # LICENCE GATE - a DENY-list on the standard's flag-list, not an allow-list,
-      # and the reason is measured rather than assumed. quality-gates.md:288-292
-      # allow-lists five SPDX ids; pip-licenses reports FIFTEEN distinct spellings
-      # over this tree for six actual licences ("MIT" and "MIT License" both
-      # appear), so `--allow-only` on the standard's five ids is red on its first
-      # run against a tree containing nothing objectionable.
-      #
-      # OPEN, and it needs a ruling rather than a default: four packages carry
-      # licences on NEITHER the allow-list nor the flag-list, which
-      # quality-gates.md:307 makes "Custom / unknown - always flag for review":
-      #   cffi 2.1.1              MIT-0        RUNTIME
-      #   email-validator 2.3.0   Unlicense    RUNTIME
-      #   typing_extensions       PSF-2.0      RUNTIME
-      #   pathspec 1.1.1          MPL-2.0      dev/build only, NOT shipped
-      # All four are permissive or weak-copyleft-not-shipped, and no strong
-      # copyleft is present in either tree. Extending the allow-list is an ADR,
-      # not a CI edit. See docs/worklogs/U0-REPORT.md.
-      # The ONE run: block with no strict-mode line, and that is deliberate:
-      # it is a single command whose exit code IS the step's result, so there
-      # is nothing after a failure to guard, no pipeline and no unset
-      # variable. Recorded because an unexplained absence invites a 'fix',
-      # and because the other 17 blocks do carry one - ADR-0023 SS scope.
-      - name: Licence gate
-        run: |
-          uv run --frozen --with pip-licenses pip-licenses \
-            --format=markdown \
-            --fail-on="GPL;GPL v2;GPL v3;GNU General Public License;GNU General Public License v2 (GPLv2);GNU General Public License v3 (GPLv3);AGPL;GNU Affero General Public License v3;LGPL;GNU Lesser General Public License;SSPL;BUSL;Business Source License"
-
-      # NEVER EXECUTED. Tool and pin are fixed by quality-gates.md:269-271:
-      # anchore/sbom-action@v0, CycloneDX JSON *and* SPDX JSON, both uploaded.
-      # Pointed at .venv so the SBOM comes from the FROZEN resolve - an SBOM
-      # produced from an unfrozen resolve documents a build nobody shipped
-      # (DESIGN.md §10's "The lockfile is the actual cure").
-      - name: SBOM (CycloneDX)
-        uses: anchore/sbom-action@v0
-        with:
-          path: .venv
-          format: cyclonedx-json
-          artifact-name: sbom.cdx.json
-
-      - name: SBOM (SPDX)
-        uses: anchore/sbom-action@v0
-        with:
-          path: .venv
-          format: spdx-json
-          artifact-name: sbom.spdx.json
-
-      # NEVER EXECUTED. Full history is the point; --only-verified keeps it from
-      # drowning the gate in unverifiable candidates.
-      # Pinned to a release tag, NOT @main. The standards corpus fixed this exact
-      # defect in itself - devops/log.md:31, "fix(F-078): pin Trivy and TruffleHog
-      # actions to release tags" - and ci-cd.md:552 carries the sanctioned pin. An
-      # action on a branch tip is arbitrary third-party code re-fetched every run,
-      # in the step whose whole job is finding secrets.
-      - name: Secret scan
-        uses: trufflesecurity/trufflehog@v3.88.0
-        with:
-          extra_args: --only-verified
-
-  # ---------------------------------------------------------------------------
   # NEVER EXECUTED. github/codeql-action/*@v3 per the standards' pinned set.
   # ---------------------------------------------------------------------------
   codeql:
@@ -1579,58 +1658,3 @@ jobs:
         with:
           category: /language:python
 
-  # ---------------------------------------------------------------------------
-  # NEVER EXECUTED as an action - lychee is not installed on this machine. The
-  # PROPERTY it asserts was verified locally against the current tree with an
-  # equivalent offline walk: 27 relative markdown links across 63 files, 0
-  # dangling, and that checker was positive-controlled against a deliberately
-  # broken link before its zero was believed. The tree was also checked for the
-  # link forms that walk does NOT parse - reference-style `[x]: target`,
-  # autolinks, raw <a href> - and contains none, so inline `[x](y)` is the whole
-  # relative-link surface lychee will see here.
-  #
-  # readme-standard.md:69 (B82) - "a link checker MUST run in CI; a broken link blocks
-  # merge." COMPLIANCE-SPEC.md:84 makes it job 12 and picks no tool (:659-661
-  # lists the choice as something that document deliberately left open).
-  #
-  # --offline IS THE WHOLE DESIGN DECISION, and it is a narrowing, so it is
-  # stated rather than buried:
-  #   - What it checks: every relative link resolves on disk. That is the class
-  #     that rots here, because ADRs, reviews and research documents are renamed
-  #     and moved while inbound links are not repointed.
-  #   - What it does NOT check: external URLs. Checking them makes a REQUIRED
-  #     check depend on third-party uptime, and a gate that goes red for reasons
-  #     nobody caused is the failure shape ci.yml:286-295 already reasons about
-  #     for pip-audit ("never a blanket ignore or a raised threshold: both
-  #     convert a signal into silence") - it trains everyone to ignore the thing
-  #     it exists to make authoritative.
-  #
-  # STATED CEILING, so this gate is not over-trusted. This project cites almost
-  # entirely as BARE TEXT - `DESIGN.md:1534`, `quality-gates.md:76-81` - not as
-  #     (those two are ILLUSTRATIONS OF THE FORM, not pointers to content.
-  #     They are the only citations in this file that keep a line number,
-  #     and they must: converting them to subject phrases would delete the
-  #     very thing the sentence is showing. Do not repoint them either.)
-  # markdown links. Only 27 links in the whole tree are even in scope. So this
-  # satisfies readme-standard.md:69 and it is NOT the control for this project's
-  # citation decay: the coupling gates in docs/reviews/ and the citation audits
-  # are. Do not read a green here as "the citations are sound".
-  links:
-    name: Link check
-    runs-on: ubuntu-latest
-    # UNCAPPED WOULD MEAN SIX HOURS - observed max 9s.
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Relative links resolve
-        uses: lycheeverse/lychee-action@v2
-        with:
-          # No --include-fragments. It would additionally require every `#anchor`
-          # to resolve against the target's headings, which is a STRICTLY
-          # STRONGER property than the one verified locally before this landed.
-          # Shipping an assertion nobody has run is how a gate goes red on its
-          # first run against a clean tree. Add it deliberately, with a run
-          # behind it, not as a default.
-          args: --offline --no-progress '**/*.md'
-          fail: true
