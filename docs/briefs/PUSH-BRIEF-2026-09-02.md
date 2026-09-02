@@ -12,7 +12,10 @@ one. This file has already been wrong once, in the way described under
 
 That is what bounds this push. The 86-minute test job cannot behave differently
 for any reason internal to what it tests, because what it tests did not move.
-The suite is 887 passed / 0 skipped locally, against `ci.yml`'s floor of 887.
+The suite passes locally with zero skips, against the floor `ci.yml`
+carries - derive it, do not read it here. `PREAMBLE.md` records that the
+floor lives in one place and that three ratchets have already left a
+retyped copy behind.
 
     total files changed   git diff --name-only origin/main...HEAD | wc -l
     held commits          git rev-list --count origin/main..HEAD
@@ -56,7 +59,12 @@ Documentation, checkers, controls, and CI wiring. Concretely:
 
 `ci.yml` and `mirror.yml`.
 
-**`ci.yml` NOW CARRIES HUNKS FROM THREE DIFFERENT AGENTS** - #194 added a
+**`ci.yml` IS TOUCHED BY NINE NON-MERGE COMMITS IN THE HELD SET, ADDING SEVEN STEPS.**
+I first wrote "three agents" here, having counted the three I had merged by
+hand; R22 counted the commits. All seven added steps are present at HEAD and
+the file parses (4 jobs, 109 steps), so the conclusion held and the
+characterisation was a third of the truth - in the paragraph I introduce as
+where the real uncertainty is. The three I verified by name were - #194 added a
 wiring-probe self-test step, #214 rewrote a comment that had frozen a live
 census, #210 folded an ADR-index check into an already-wired step. All three
 survived the merges; I verified each by name rather than trusting a clean
