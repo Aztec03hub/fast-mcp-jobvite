@@ -185,7 +185,15 @@ Verbatim from the run (`--limit 15`, path order):
   scripts/check-u12-jobfeed-controls.sh:311  DESIGN.md:315-316  end:mid-sentence
       first  315| `GET /v1/jobFeed` is the exception: it structurally requires `api`, `sc` and
       last   316| parameters. Its URL is classified sensitive - never logged whole, never in a
-  scripts/check-u3-audit-amputation.sh:226  DESIGN.md:790-791  start:mid-sentence, end:mid-sentence
+  scripts/check-u3-audit-amputation.sh:290  DESIGN.md:790-791  start:mid-sentence, end:mid-sentence
+      ANCHOR: the `A10 nothing is written to stderr` row, not the line number.
+      This citation was ALREADY wrong before #254's fix: at HEAD~1 line 226
+      was `amputate "A6  attach_audit_warnings returns the payload untouched"`,
+      not A10. #254 then moved A10 twice more (267 -> 307 -> 290 as the
+      inline guard was replaced by a call to scripts/lib/verdict-guard.sh).
+      check-design-citations.py cannot see this - it says so itself: "Every
+      citation resolves to a line that exists. NOTE: that is NOT the same as
+      pointing at the right line."
       first  790|   emailed.** The audit hole is the lesser harm. **The warning goes to stderr
       last   791|   just failed** - routing it down the channel whose failure it reports is ho
   scripts/check-u3-audit-controls.sh:188  DESIGN.md:657-666  start:mid-sentence

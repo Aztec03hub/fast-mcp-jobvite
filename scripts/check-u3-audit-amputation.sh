@@ -39,6 +39,17 @@ ROW_TIMEOUT=900
 # and nowhere else - the shape lists it replaces are why.
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+# ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
+# the reasoning and the measurement that established it live in the file.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. Without it every"
+  echo "         row below scores a broken pytest run as a perfect kill (#254). A"
+  echo "         missing source is SILENT: 'command not found' is not fatal without"
+  echo "         'set -e' (ADR-0023), shellcheck at --severity=warning does not"
+  echo "         follow a source, and the harness would exit 0 with status=ok."
+  exit 3
+}
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -150,16 +161,35 @@ PY
 
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
-  if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
-    echo "  not a survivor: no verdict below is a measurement of this row."
-  fi
 
+  # RESTORE FIRST, ALWAYS. Every refusal below happens AFTER the tree is
+  # clean, because exiting with an amputation still applied leaves the next
+  # reader a mutated checkout and no note saying why.
   git checkout -- "$file"
   if ! git diff --quiet -- "$file"; then
     echo "  RESTORE FAILED - $file still differs from the commit. STOPPING."
     exit 3
   fi
+
+  # ONLY 0 AND 1 ARE MEASUREMENTS (#254). The reasoning, and the measurement
+  # that established it, live in the sourced function - see
+  # scripts/lib/verdict-guard.sh. It is ONE copy because the same hole was
+  # found in every amputation harness here, and thirteen copies of a guard
+  # are thirteen things that drift.
+  #
+  # rc=2 and rc=4 were called unreachable in THIS harness because it passes a
+  # bare `$SUITE` rather than a per-row selector, so there is no node id to
+  # mistype and no coverage map to be missing. That was an accident of the
+  # current arguments, not a property of the code: the sibling controls
+  # harness DID acquire a selector and DID produce exactly this false verdict
+  # (#263, fixed at c03a3a3), and check-u4-client-amputation.sh has had a
+  # selector all along - measured mis-scoring a SyntaxError as
+  # "survivors: NONE", exit 0, before this change.
+  #
+  # The timeout branch already knew: it printed "no verdict below is a
+  # measurement of this row" and then let the verdict be printed and counted
+  # anyway. It is folded in rather than left as a second, weaker guard.
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
 
   tail -1 "$OUT" | sed 's/^/  /'
   local survivors

@@ -1105,7 +1105,11 @@ jobs:
       #   0 = the harness ran and every declared assertion behaved
       #   1 = a FINDING - an unexpected survivor, or a row that measured nothing
       #   3 = could not run: the baseline is red, or a declared test id is gone
-      # Those three are kept apart on purpose. A message that misdescribes what
+      #   5 = REFUSED - a row's pytest run was not a measurement: a collection
+      #       error, internal error, usage error or timeout produces no PASSED
+      #       lines, which every amputation harness here reads as a perfect
+      #       kill. scripts/lib/verdict-guard.sh refuses instead (#254).
+      # Those FOUR are kept apart on purpose. A message that misdescribes what
       # happened sends the next reader to the wrong place.
       #
       # An amputation harness exits 0 BY DESIGN, because survivors are its

@@ -250,7 +250,10 @@ says the floor is 0) and that "a shard running zero rows would exit 0 today".
 **The first half is true. The second half is false at the wired step, and I
 measured it rather than reading it.** A stand-in harness emitting exactly what a
 mis-partitioned shard would emit - `rows=0 floor=0 applied=0/0 status=ok`,
-exit 0 - was run through the real gate with the real flags from `ci.yml:1667`:
+exit 0 - was run through the real gate with the real flags from the `ci.yml`
+step named **`U3 audit amputation harness ran every row`** (`:1671` at
+`fb9cad2`, `:1673` after this branch lands - which is why the step NAME is the
+citation and the offset is only a convenience):
 
 ```
 $ bash scripts/ci-harness-gate.sh check-probe268-zero-rows.sh \

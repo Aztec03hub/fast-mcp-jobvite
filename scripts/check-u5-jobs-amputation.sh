@@ -50,6 +50,17 @@ ROW_TIMEOUT=900
 # and nowhere else - the shape lists it replaces are why.
 # shellcheck source=lib/harness-result.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/harness-result.sh"
+# ONLY 0 AND 1 ARE MEASUREMENTS (#254). One sourced copy, never retyped -
+# the reasoning and the measurement that established it live in the file.
+# shellcheck source=lib/verdict-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/verdict-guard.sh" || {
+  echo "::error::scripts/lib/verdict-guard.sh could not be sourced. Without it every"
+  echo "         row below scores a broken pytest run as a perfect kill (#254). A"
+  echo "         missing source is SILENT: 'command not found' is not fatal without"
+  echo "         'set -e' (ADR-0023), shellcheck at --severity=warning does not"
+  echo "         follow a source, and the harness would exit 0 with status=ok."
+  exit 3
+}
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -143,10 +154,6 @@ PY
 
   timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
-  if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
-    echo "  not a survivor: no verdict below is a measurement of this row."
-  fi
 
   cp "$backup" "$file"
   local pristine
@@ -156,6 +163,8 @@ PY
     echo "  before row 1. STOPPING."
     exit 3
   fi
+
+  verdict_guard "$rc" "$OUT" "$ROW_TIMEOUT"
 
   tail -1 "$OUT" | sed 's/^/  /'
 

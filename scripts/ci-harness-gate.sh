@@ -45,7 +45,9 @@
 #     --min-rows N --row-re RE  require at least N lines matching RE
 #     --require RE            require at least one line matching RE
 #     --amputation            survivors are output, so exit 0 is not the only pass;
-#                             exit 1 is a FINDING and exit 3 is "could not run"
+#                             exit 1 is a FINDING, exit 3 is "could not run", and
+#                             exit 5 is REFUSED - a row whose pytest run was not a
+#                             measurement (#254)
 set -uo pipefail
 
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
@@ -272,6 +274,19 @@ if [ "$amputation" -eq 1 ]; then
   if [ "$rc" -eq 3 ]; then
     echo "::error::$harness could not run: the intact baseline is red, or a declared"
     echo "         test id no longer exists (a rename silently voids its row)."
+    exit 1
+  fi
+  # 5 = REFUSED (#254). Kept apart from 1 and 3 for the same reason those two
+  # are kept apart: without this arm it fell through to the generic
+  # "$harness exited 5" below, which is precisely the message-that-misdescribes
+  # shape the comment above forbids. A refusal is neither a finding nor a
+  # could-not-run: the harness ran, the row's mutation landed, and the row's
+  # result is not interpretable.
+  if [ "$rc" -eq 5 ]; then
+    echo "::error::$harness REFUSED a row: pytest exited with a code that is not a"
+    echo "         measurement (collection error, internal error, usage error, or a"
+    echo "         timeout). This is NOT 'every assertion died' - the row measured"
+    echo "         nothing. Search the log above for REFUSING."
     exit 1
   fi
 fi
