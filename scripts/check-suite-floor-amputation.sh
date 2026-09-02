@@ -17,6 +17,13 @@
 # in fact landed. A clean zero that explains itself is the dangerous kind.
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=300
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -63,10 +70,10 @@ PY
   fi
 
   local out
-  out=$(cd "$REPO" && timeout 300 uv run --frozen pytest "$TESTS" -q 2>&1 | tail -1)
+  out=$(cd "$REPO" && timeout "$ROW_TIMEOUT" uv run --frozen pytest "$TESTS" -q 2>&1 | tail -1)
   local row_rc=$?
   if [ "$row_rc" -eq 124 ]; then
-    echo "  TIMED OUT after 300s - this row NEVER FINISHED. Not a kill and"
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill and"
     echo "  not a survivor: no verdict is emitted for it."
     # RETURN, do not fall through. This branch used to print the warning
     # and then continue into the verdict, where `$out` contains no
@@ -110,10 +117,10 @@ echo "$fired/$total amputations killed a test."
 
 # Post-run re-check of the real script, the same requirement the coupling
 # harness carries: a harness that leaves the tree mutated is worse than none.
-(cd "$REPO" && timeout 900 uv run --frozen pytest "$TESTS" -q >/dev/null 2>&1)
+(cd "$REPO" && timeout "$BASELINE_TIMEOUT" uv run --frozen pytest "$TESTS" -q >/dev/null 2>&1)
 recheck_rc=$?
 if [ "$recheck_rc" -eq 124 ]; then
-  echo "::error::post-run re-check HUNG - 900s with no result. This is NOT a"
+  echo "::error::post-run re-check HUNG - ${BASELINE_TIMEOUT}s with no result. This is NOT a"
   echo "::error::pass and NOT a fail: whether the tree was restored is UNKNOWN."
   exit 4
 fi

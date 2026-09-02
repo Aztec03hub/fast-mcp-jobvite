@@ -36,6 +36,13 @@
 
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=900
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -72,10 +79,10 @@ for f in "$TOOLS" "$MODELS" "$FENCING" "$CONSTRAINTS"; do
 done
 
 echo "########## BASELINE - the intact tree"
-timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
   echo "       This is NOT a red suite: it never finished. Nothing below ran."
   echo "       Rationale for the bound: scripts/check-u9-http-amputation.sh."
   exit 4
@@ -134,10 +141,10 @@ PY
   fi
   APPLIED=$((APPLIED + 1))
 
-  timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA >"$OUT" 2>&1
   local rc=$?
   if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after 900s - this row NEVER FINISHED. Not a kill,"
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. Not a kill,"
     echo "  not a survivor: no verdict below is a measurement of this row."
   fi
 

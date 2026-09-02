@@ -38,6 +38,13 @@
 # is EXPECTED to fail. See docs/adr/0023-harnesses-drop-e-from-strict-mode.md
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=300
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -71,10 +78,10 @@ echo "########## BASELINE - the intact tree"
 # messages and DIFFERENT exit codes: "never finished" and "finished red" need
 # different diagnoses, and this project has been bitten before by two states
 # that render identically.
-timeout 900 uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
+timeout "$BASELINE_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider >"$OUT" 2>&1
 baseline_rc=$?
 if [ "$baseline_rc" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
   echo "       This is not a red suite. Nothing below ran, and the harness is"
   echo "       not at fault until this is explained. Last 20 lines:"
   tail -20 "$OUT"
@@ -136,7 +143,7 @@ PY
   # `timeout` is a guard, not a policy. Every row here is believed
   # bounded - the transport is `MockTransport` and answers instantly -
   # and a row that hangs anyway must report rather than stall the gate.
-  timeout 300 uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA \
+  timeout "$ROW_TIMEOUT" uv run --frozen pytest $SUITE -q -p no:cacheprovider -rA \
     >"$OUT" 2>&1
   local rc=$?
 
@@ -148,7 +155,7 @@ PY
   fi
 
   if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after 300s - this row is unbounded. Move it to the"
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row is unbounded. Move it to the"
     echo "  mutation harness, where the change is bounded."
   fi
 

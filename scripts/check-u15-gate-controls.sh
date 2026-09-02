@@ -20,6 +20,12 @@
 
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+ROW_TIMEOUT=900
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -72,11 +78,11 @@ cp "$REPO_ROOT/$GATE_REL" "$PRISTINE"
 # announces itself. `TIMED OUT` is the phrase ci-harness-gate.sh greps for.
 run_suite() {  # -> writes report to $WORK/out.txt, returns pytest's exit code
   local rc
-  ( cd "$TREE" && timeout -k 30 900 "${PY[@]}" -m pytest "$SUITE_REL" \
+  ( cd "$TREE" && timeout -k 30 "$ROW_TIMEOUT" "${PY[@]}" -m pytest "$SUITE_REL" \
       -p no:cacheprovider -q -o addopts="" >"$WORK/out.txt" 2>&1 )
   rc=$?
   if [ "$rc" -eq 124 ]; then
-    echo "  TIMED OUT after 900s - the suite NEVER FINISHED, so this run"
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - the suite NEVER FINISHED, so this run"
     echo "  measured nothing. Not a fire and not a hold."
   fi
   return "$rc"

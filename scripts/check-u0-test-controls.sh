@@ -25,6 +25,13 @@
 
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=900
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -119,14 +126,14 @@ run_control () {
   fi
 
   local out rc
-  out=$(cd "$work" && timeout -k 30 900 "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
+  out=$(cd "$work" && timeout -k 30 "$ROW_TIMEOUT" "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1); rc=$?
   # A HANG IS NOT A RESULT. Without this branch a 124 falls through to the
   # `$expect` test below, where `$out` is empty, and the row reports "WRONG
   # TEST FIRED" - a real failure with a misleading cause. `TIMED OUT` is the
   # phrase ci-harness-gate.sh greps for, so naming it here is what makes CI
   # fail for the right reason.
   if [ "$rc" -eq 124 ]; then
-    echo "    TIMED OUT after 900s - this control NEVER FINISHED, so it"
+    echo "    TIMED OUT after ${ROW_TIMEOUT}s - this control NEVER FINISHED, so it"
     echo "    measured nothing. Not a fire and not a miss."
     BAD=$((BAD + 1)); rm -rf "$work"; return
   fi
@@ -155,12 +162,12 @@ run_control () {
 # control below "fires" for a reason that has nothing to do with its mutation.
 echo "BASELINE: the unmutated copy"
 BASE=$(mktemp -d); stage "$BASE"
-base_out=$(cd "$BASE" && timeout -k 30 900 "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1)
+base_out=$(cd "$BASE" && timeout -k 30 "$BASELINE_TIMEOUT" "${PY[@]}" -m pytest -q -p no:cacheprovider 2>&1)
 base_rc=$?
 printf '%s\n' "$base_out" | tail -2
 rm -rf "$BASE"
 if [ "$base_rc" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT copy."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT copy."
   echo "TIMED OUT. Nothing below would have measured anything."
   exit 4
 fi

@@ -53,6 +53,18 @@
 
 set -uo pipefail
 
+# The lifespan-open bound, declared ONCE and interpolated into the message that
+# reports it, so a changed bound cannot leave prose behind still quoting the old
+# one (#116). This is the same defect as the `timeout` arms elsewhere in
+# scripts/, reached by a different mechanism: the bound here is not a `timeout`
+# argument but a poll interval multiplied by a try count, and the product was
+# retyped into the message as "20s". The TRY COUNT is now derived from the two
+# named decisions rather than standing beside them as a third copy.
+LIFESPAN_WAIT_SECONDS=20
+LIFESPAN_POLL_SECONDS=0.2
+LIFESPAN_POLL_TRIES=$(awk -v w="$LIFESPAN_WAIT_SECONDS" -v p="$LIFESPAN_POLL_SECONDS" \
+  'BEGIN { printf "%d", w / p }')
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -121,10 +133,10 @@ run_arm () {
   # Wait for the lifespan to open rather than sleeping a guessed interval.
   local waited=0
   while ! grep -q opened "$marker" 2>/dev/null; do
-    sleep 0.2
+    sleep "$LIFESPAN_POLL_SECONDS"
     waited=$((waited + 1))
-    if [ "$waited" -gt 100 ]; then
-      echo "  $transport: FAILED - the lifespan never opened within 20s"
+    if [ "$waited" -gt "$LIFESPAN_POLL_TRIES" ]; then
+      echo "  $transport: FAILED - the lifespan never opened within ${LIFESPAN_WAIT_SECONDS}s"
       docker logs "$name" 2>&1 | tail -5 | sed 's/^/      /'
       docker rm -f "$name" >/dev/null 2>&1; FAILED=1; return
     fi

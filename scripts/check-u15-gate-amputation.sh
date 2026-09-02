@@ -16,6 +16,13 @@
 
 set -uo pipefail
 
+# Timeout bounds - each declared ONCE and interpolated into the abort
+# message that explains it, so a changed bound cannot leave prose behind
+# still quoting the old one. Three names because the arms are three
+# separate decisions, even where two of them share a value today.
+BASELINE_TIMEOUT=900
+ROW_TIMEOUT=900
+
 # THE ONE CANONICAL RESULT LINE (task #107). This arms an EXIT trap that prints
 # `HARNESS-RESULT name=... rows=... floor=... status=refused` on ANY exit, so an
 # abort cannot render identically to a pass. `harness_result_ran` below upgrades
@@ -59,7 +66,7 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   local label="$1" tree="$2" pathenv="${3:-$PATH}"
   ROWS=$((ROWS + 1))
   echo "########## $label"
-  ( cd "$tree" && env PATH="$pathenv" timeout -k 30 900 "${PY[@]}" -m pytest \
+  ( cd "$tree" && env PATH="$pathenv" timeout -k 30 "$ROW_TIMEOUT" "${PY[@]}" -m pytest \
       "$SUITE_REL" -p no:cacheprovider -q -o addopts="" -rA \
       >"$WORK/out.txt" 2>&1 )
   local row_rc=$?
@@ -69,7 +76,7 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
   # "survivors: NONE", which is this harness's BEST possible result. That is
   # the silent direction, so it gets named rather than inferred.
   if [ "$row_rc" -eq 124 ]; then
-    echo "  TIMED OUT after 900s - this row NEVER FINISHED. It produced no"
+    echo "  TIMED OUT after ${ROW_TIMEOUT}s - this row NEVER FINISHED. It produced no"
     echo "  PASSED lines, so 'survivors: NONE' below would be an artifact of"
     echo "  the hang and not a measurement. No verdict is emitted for it."
     return 1
@@ -88,12 +95,12 @@ report() {  # $1 = label, $2 = tree, $3 = optional PATH override
 # --- baseline: the intact tree, so a red here invalidates every row below ----
 build_tree "$WORK/intact"
 echo "########## BASELINE - the intact tree"
-( cd "$WORK/intact" && timeout -k 30 900 "${PY[@]}" -m pytest "$SUITE_REL" \
+( cd "$WORK/intact" && timeout -k 30 "$BASELINE_TIMEOUT" "${PY[@]}" -m pytest "$SUITE_REL" \
     -p no:cacheprovider -q -o addopts="" >"$WORK/out.txt" 2>&1 )
 BASE_RC=$?
 tail -1 "$WORK/out.txt"
 if [ "$BASE_RC" -eq 124 ]; then
-  echo "ABORT: THE BASELINE HUNG - 900s with no result, on the INTACT tree."
+  echo "ABORT: THE BASELINE HUNG - ${BASELINE_TIMEOUT}s with no result, on the INTACT tree."
   echo "TIMED OUT. Every row below would have measured the hang, not the code."
   exit 4
 fi
