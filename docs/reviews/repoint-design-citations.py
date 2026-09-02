@@ -164,7 +164,8 @@ def apply(moves: MoveMap, write: bool) -> int:
             # It is fragile rather than wrong: collecting these
             # callables into a list to run later would silently make
             # every one of them use the LAST iteration's `pairs`, and
-            # repoint 867 citations against the wrong map. If this loop
+            # repoint every citation in the tree against the wrong map.
+            # If this loop
             # ever stops invoking `sub` on the very next line, bind the
             # two values as default arguments instead of restructuring
             # around it.

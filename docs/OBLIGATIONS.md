@@ -55,8 +55,9 @@ be a CI gate, because CI does not have that repo. It is listed in `CONTRIBUTING.
 measurements a human runs, beside the PID-1 harness, which has exactly the same shape.
 
 **It proves each citation RESOLVES. It does not prove the line says what the row claims**, and those
-are different things - nine wrong-subject citations have been found here, four of them inside the ADR
-documenting that defect class.
+are different things - the wrong-subject citations found so far are enumerated in
+`docs/reviews/WRONG-SUBJECT-REGISTER.md`, which derives the count from its own rows. **This
+sentence carried the number for months and nothing could check it.**
 
 **A hand check of all 22 found two weak anchors.** Neither is wrong about its obligation; both point
 at text that is not normative:

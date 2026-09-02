@@ -8,7 +8,8 @@ have, the bytes may not decode. The original code caught OSError,
 IndexError and UnicodeDecodeError and did nothing, so control fell
 through to the repoint: "I could not tell whether this line is
 exempt" resolved to "it is not exempt, rewrite it". That is a
-fail-open on error in the tool that rewrites 867 citations.
+fail-open on error in the tool that rewrites every `DESIGN.md` citation
+in the tree.
 
 Every row is falsifiable. Rows A-D drive `parse()` directly with a
 synthetic report so each failure mode is reached deliberately. Row E

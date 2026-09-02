@@ -48,8 +48,9 @@ as well as for large ones**. An unrecorded "obviously fine" edit to a frozen doc
 stops meaning anything, and the next such edit is not obviously fine.
 
 There is also a specific reason not to trust the "obviously fine" instinct here. **This project has
-already produced nine wrong-subject citations, four of them inside the ADR documenting that defect
-class.** A citation being wrong is exactly the kind of error that gets propagated by someone
+already produced wrong-subject citations repeatedly - they are enumerated in
+`docs/reviews/WRONG-SUBJECT-REGISTER.md`, and the count is derived there rather than asserted
+here.** A citation being wrong is exactly the kind of error that gets propagated by someone
 correcting it quickly.
 
 ## What was checked, so the fix is not itself a guess

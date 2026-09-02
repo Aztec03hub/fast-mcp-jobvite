@@ -27,8 +27,9 @@ and a citation past the end - the failures that make a clause
 unreachable.
 
 **NOT checked: that the line SAYS what the row claims.** This project
-has found nine wrong-subject citations, four of them inside the ADR
-documenting that very defect class, so "resolves" must never be reported
+has found wrong-subject citations repeatedly, and
+`WRONG-SUBJECT-REGISTER.md` enumerates them - so "resolves" must never
+be reported
 as "correct". The script prints the cited text so a human can read it,
 and says so in its own summary rather than letting a green imply more
 than it measured.
@@ -190,8 +191,8 @@ def main() -> int:
 
     print(
         "\nThis proves each citation RESOLVES. It does NOT prove the line says "
-        "what the row claims -\nnine wrong-subject citations have been found on "
-        "this project, four of them inside the ADR\nthat documents the defect. "
+        "what the row claims -\nthe instances found so far are enumerated in "
+        "docs/reviews/WRONG-SUBJECT-REGISTER.md.\n"
         "Read the text above; do not take the exit code for agreement."
     )
     return 1 if problems else 0
