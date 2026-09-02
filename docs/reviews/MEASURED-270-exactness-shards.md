@@ -409,6 +409,30 @@ That is the same class as round 1's two vacuous arms and round 2's L3. The
 lesson holds at the level of the RULE, not the instance: **an arm is not
 evidence until its guard has been cut and the arm has been seen red.**
 
+### The sibling sweep completed - two MORE of the same shape, in my own round-2 fix
+
+The round-2 note asked me to take the twin search seriously as a RULE rather
+than as nine separate fixes. Applying it to my own round-2 work found two more
+instances I had left: A28 and A34 still carried a bare `except SystemExit:`
+while their five siblings had been converted.
+
+They are exposed to exactly the defect the conversion exists for. Amputating
+the literal test raises `ValueError` inside BOTH their call paths, which a bare
+`except SystemExit` does not catch - so the harness would print no
+`HARNESS-RESULT` line and the arm floor would never run. Measured after the
+sweep:
+
+    literal test amputated -> rc=1  fired=37/38  killed A25
+
+`grep -c "except SystemExit:"` over the file is now **0**. Seven arms, one
+rule, no survivors of the shape.
+
+**This is the third round in which the twin search found something reading did
+not.** Round 1: A29 vacuous, four siblings left. Round 2: those four fixed, A28
+and A34 left. The rule that actually holds is narrower than "check the twin" -
+it is *the sweep is not finished until the selector returns zero*, and a count
+is the only way to know that.
+
 ## 10. Merge
 
     git -C /home/plafayette/claude_projects/evolv/repos/fast-mcp-jobvite \

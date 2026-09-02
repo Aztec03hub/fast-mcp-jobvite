@@ -1309,7 +1309,7 @@ def self_test() -> int:
     # one that fails loudly in its own row.
     try:
         joined_floors = _external_floors(two_step_yaml)
-    except SystemExit:
+    except BaseException:  # noqa: BLE001 - a crash must not silence the tally
         joined_floors = {}
     arm(
         "A28 a COMMENT mention does not hand its step's shards to another",
@@ -1415,7 +1415,7 @@ def self_test() -> int:
             "h.sh",
             f"      - x\n        env:\n          {SHARD_ENV}: 2  # two lanes\n",
         )
-    except SystemExit:
+    except BaseException:  # noqa: BLE001 - a crash must not silence the tally
         commented = None
     arm(
         "A34 a trailing YAML comment on the value is NOT a non-literal",
