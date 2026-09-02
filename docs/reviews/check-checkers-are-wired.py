@@ -85,9 +85,29 @@ names each one in a `run:` body.
 
 **WHAT IT CANNOT DO.** It proves a checker is INVOKED, not that its exit
 code gates the job. A step that runs a checker and swallows its status
-reads as WIRED here. That is a real gap, and the four non-gating
-shell forms this repo has shipped are the reason to say so out loud
-rather than let "wired" imply "gating".
+reads as WIRED here, and "wired" must not be read as "gating".
+
+**THAT POPULATION WAS MEASURED ON 2026-09-02 AND IT IS ZERO.** GitHub
+runs every `run:` as `bash -e {0}`, so a failure anywhere fails the step
+unless the block turns errexit off - which makes the container small and
+enumerable rather than the whole file. Of 94 steps in `ci.yml`, **21
+disable or bypass errexit (`set +e` or `set -uo pipefail`) and all 21
+test a status.** So the gap is real as a statement and empty as a
+population, and NO GATE WAS BUILT FOR IT: a step whose green is
+guaranteed by having no members is a step whose green means nothing.
+
+**THE ZERO IS ATTRIBUTABLE, not assumed.** A planted swallowing step -
+`out=$(checker); rc=$?` with `rc` never tested - is returned by the same
+selector, so the empty result is a fact about the file rather than about
+the search. RE-DERIVE IT rather than trusting this paragraph: find steps
+matching `set +e` or `set -uo pipefail` whose body contains no
+`|| exit`, `|| {`, `-ne 0` or `exit $rc`.
+
+**AND MY FIRST SELECTOR REPORTED THREE FINDINGS, ALL FALSE.** It looked
+for `|| exit` and could not see `|| { echo ...; exit 1; }`, which is the
+form this file actually uses. A crude selector in the ALARMING direction
+costs a reader the whole diagnosis, and it was the third such instance
+in one night.
 """
 
 from __future__ import annotations
@@ -1339,7 +1359,11 @@ def main() -> int:
     print("\nEvery checker is wired, or unwired for a recorded reason.")
     print("NOTE: this proves each is INVOKED, not that its exit code gates")
     print("the job. A step that runs a checker and swallows its status")
-    print("reads as WIRED here.")
+    print("reads as WIRED here - AND THAT POPULATION WAS MEASURED AT ZERO")
+    print("on 2026-09-02: of 94 steps in ci.yml, 21 disable or bypass")
+    print("errexit and ALL 21 test a status. Re-derive rather than trust")
+    print("it: find steps matching `set +e` or `set -uo pipefail` whose")
+    print("body has no `|| exit`, `|| {`, `-ne 0` or `exit $rc`.")
     return 0
 
 
