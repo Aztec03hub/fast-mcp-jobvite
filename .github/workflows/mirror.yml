@@ -10,10 +10,9 @@ name: Mirror to personal fork
 # THIS FILE HAD NEVER RUN ONCE. Found by review R3 (R3-H1), measured from the
 # Actions API: 119 runs, 119 failures, zero successes, every one of them with
 # `"total_count": 0` jobs and a 0s duration. The cause was a job-level
-# `if: ${{ secrets.MIRROR_TOKEN != '' }}`. The `secrets` context is NOT available
-# in a job-level `if:` - GitHub allows `github`, `needs`, `vars` and `inputs`
-# there - so the expression failed to evaluate and the run died before any runner
-# was scheduled.
+# `if` reading the `secrets` context, which GitHub does not provide in that
+# position - it allows `github`, `needs`, `vars` and `inputs` there - so the
+# expression failed to evaluate and the run died before any runner was scheduled.
 #
 # TWO LESSONS ARE BUILT INTO THE SHAPE BELOW.
 #
@@ -21,16 +20,76 @@ name: Mirror to personal fork
 # MIRROR_TOKEN secret". It was inert UNCONDITIONALLY, and from the outside those
 # two states looked identical - which is precisely why 119 red runs went unread.
 # A configured-off state and a broken state must not look the same, so the first
-# step now SAYS which one it is on every run.
+# step SAYS which one it is on every run.
 #
 # Second, the secret does not exist yet (`actions/secrets` reports
-# `total_count: 0`), so this workflow still mirrors nothing today. It now says so
-# in a green run instead of failing. Creating the PAT is a maintainer action and
-# is recorded in NEEDS-PHIL.md.
+# `total_count: 0` at the repository AND at the organisation, re-checked
+# 2026-09-02), so this workflow still mirrors nothing today. It says so in a
+# green run instead of failing. Creating the PAT is a maintainer action and is
+# recorded in NEEDS-PHIL.md.
+#
+# ------------------------------------------------------------------------------
+# WHY THIS RUNS DAILY AND NOT ON EVERY PUSH (#157), WITH THE NUMBERS
+# ------------------------------------------------------------------------------
+#
+# GitHub bills every job rounded UP to a whole minute. Measured over
+# 2026-08-28T00:00Z..2026-09-02T00:00Z on evolvconsulting/fast-mcp-jobvite,
+# from the Actions API with `filter=all`:
+#
+#   298 mirror runs in the window, ALL of them `push` events, 0 re-run attempts
+#   213 of them scheduled a runner and billed; the other 85 are the pre-647442f
+#       failures that died before any job existed and billed nothing
+#   213 billed minutes for 11 minutes of runner time - 95% of the bill is
+#       rounding, proportionally the worst job in the repository
+#   277 of the 298 pushes were to `main`
+#
+# AND THE 213 MINUTES BOUGHT NOTHING, which is the fact that settles it. With no
+# MIRROR_TOKEN, every one of those runs printed a notice and pushed no refs.
+# Meanwhile the mirror IS current: `git ls-remote` against both remotes on
+# 2026-09-02 returned 20 refs each, identical SHAs on every one, delivered
+# entirely by the two-push-URL `origin` this file's opening paragraph describes.
+# The per-push trigger was paying a per-push price for a per-push guarantee the
+# job does not provide and, once MIRROR_TOKEN exists, would only duplicate.
+#
+# A daily copy costs ~31 min a month against ~1300 at the observed push rate.
+# Neither `docs/DESIGN.md` §10 nor `docs/DECISIONS.md` D8 states a freshness
+# requirement for the mirror - both say only that the repository IS mirrored - so
+# per-push was an unrecorded choice, not a requirement, and this is a change of
+# cadence rather than of contract. Tag pushes still mirror immediately: a release
+# is the one moment the off-site copy is worth a minute, and zero tags were
+# pushed in the window, so keeping that trigger measured 0 min.
+#
+# HOW THE NEXT PERSON NOTICES IT HAS STOPPED. This is the #18 question and a
+# schedule makes it sharper, because nobody looks at a cron the way they look at
+# a red tick beside their own commit. So the first step no longer only reports
+# its own configuration - it reports whether the MIRROR IS ACTUALLY CURRENT, by
+# comparing the two remotes' refs. That check needs no token and no working
+# mirror, so it is meaningful today and stays meaningful whichever mechanism
+# does the copying.
+#
+# It would NOT have caught R3-H1, and the first draft of this paragraph claimed
+# it would. Those 119 runs died before any job was scheduled, so no step of any
+# kind ran; nothing written inside a step could have spoken. What this check
+# adds is the THIRD state: R3-H1's fix separated "switched off" from "broken",
+# and this separates both from "running but copying nothing" - which is the
+# state this repository has been in for 213 billed runs with nobody saying so.
+#
+# Two failure modes remain and are named rather than hidden:
+#
+#   * GitHub disables a scheduled workflow after 60 days of repository
+#     inactivity, and emails the owner. That is a real way this stops silently
+#     if the project goes quiet.
+#   * If the workflow stops being RUN at all, no run reports anything. Only a
+#     check outside this file can see that; it is not wired here on purpose,
+#     because #161 is closing the trunk's last red step and this change must not
+#     add one.
 
 on:
+  schedule:
+    # 04:17 UTC. Off the hour on purpose - GitHub's cron is best-effort and the
+    # top of the hour is its most contended slot.
+    - cron: "17 4 * * *"
   push:
-    branches: ["**"]
     tags: ["**"]
   workflow_dispatch:
 
@@ -47,20 +106,53 @@ jobs:
     # UNCAPPED WOULD MEAN SIX HOURS - a push to one remote; unmeasured here, sized small on purpose.
     timeout-minutes: 10
     # Job-level `env` MAY read secrets, and the `env` context IS available in a
-    # step-level `if:`. That is the whole fix: the guard moves from a context
+    # step-level condition. That is the whole fix: the guard moves from a context
     # that cannot see secrets to one that can.
     env:
       MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      CANONICAL_URL: https://github.com/evolvconsulting/fast-mcp-jobvite.git
+      MIRROR_URL: https://github.com/Aztec03hub/fast-mcp-jobvite.git
     steps:
       # Runs unconditionally and on purpose. This is the step that makes
-      # "switched off" distinguishable from "broken" without reading logs.
-      - name: Report whether the mirror is configured
+      # "switched off" distinguishable from "broken" without reading logs, and
+      # now also makes "running but not copying" distinguishable from both.
+      - name: Report whether the mirror is configured, and whether it is current
         run: |
+          set -euo pipefail
+
           if [ -z "${MIRROR_TOKEN}" ]; then
-            echo "::notice::MIRROR_TOKEN is not set, so nothing is mirrored. This run is a"
+            echo "::notice::MIRROR_TOKEN is not set, so THIS JOB mirrors nothing. This run is a"
             echo "::notice::correct no-op, not a success at mirroring. See NEEDS-PHIL.md."
           else
             echo "MIRROR_TOKEN is set; mirroring every branch and tag."
+          fi
+
+          # Whether the copy is current is a separate question from whether this
+          # job is the thing keeping it current, and both remotes are public, so
+          # this needs no credential and holds either way.
+          canonical_rc=0
+          git ls-remote "${CANONICAL_URL}" > /tmp/mirror-canonical.txt || canonical_rc=$?
+          mirror_rc=0
+          git ls-remote "${MIRROR_URL}" > /tmp/mirror-copy.txt || mirror_rc=$?
+
+          if [ "${canonical_rc}" -ne 0 ] || [ "${mirror_rc}" -ne 0 ]; then
+            # A warning, not a failure. This step's job is legibility; going red
+            # on a transient network read would train the next reader to ignore
+            # it, which is the habit that hid 119 failures.
+            echo "::warning::could not read both remotes (canonical rc=${canonical_rc},"
+            echo "::warning::mirror rc=${mirror_rc}), so mirror currency is UNKNOWN this run."
+          else
+            sort -o /tmp/mirror-canonical.txt /tmp/mirror-canonical.txt
+            sort -o /tmp/mirror-copy.txt /tmp/mirror-copy.txt
+            canonical_refs=$(wc -l < /tmp/mirror-canonical.txt)
+            mirror_refs=$(wc -l < /tmp/mirror-copy.txt)
+            if diff -q /tmp/mirror-canonical.txt /tmp/mirror-copy.txt > /dev/null; then
+              echo "mirror is CURRENT: ${canonical_refs} refs, identical SHAs on every one."
+            else
+              echo "::warning::mirror is STALE or DIVERGED - canonical has ${canonical_refs} refs,"
+              echo "::warning::the mirror has ${mirror_refs}, and they do not match. Diff below."
+              diff /tmp/mirror-canonical.txt /tmp/mirror-copy.txt || true
+            fi
           fi
 
       - uses: actions/checkout@v6
