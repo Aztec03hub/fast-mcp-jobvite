@@ -418,6 +418,21 @@ UNWIRED_BY_DECISION: dict[str, str] = {
     # A gate refuses; these report. Wiring one would turn a number
     # somebody has to read into a build failure, which is how a real
     # measurement gets deleted rather than acted on.
+    "probe-218-frame-census.py": (
+        "a CENSUS of #218's two reference frames, and a census cannot "
+        "refuse. It resolves all 166 DESIGN.md citations in "
+        "IMPLEMENTATION-PLAN.md at 135c3ac and at c15b138 and reports "
+        "which blob each one belongs to. There is nothing to fail on: "
+        "the plan is a RECORD under #111, its citations are NOT "
+        "repointed, and a red here would demand a repoint the ruling "
+        "forbids. Its VERDICT is prose in the plan's own declaration, "
+        "which is where a reader meets it. Kept runnable because it is "
+        "the evidence for that declaration and prose about a "
+        "measurement decays into a claim about one; --controls fires "
+        "6/6. It carries 31 hand-adjudicated rows because its token-"
+        "overlap proxy cannot settle every citation, and a proxy that "
+        "needs a human for 31 of 166 is not a gate."
+    ),
     "check-merge-invented.py": (
         "its own docstring: it reports a population to READ, and a "
         "reflow that re-wraps a paragraph surfaces there as many "

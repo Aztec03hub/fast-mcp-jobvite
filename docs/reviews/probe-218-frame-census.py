@@ -79,12 +79,13 @@ import pathlib
 import re
 import subprocess
 import sys
+from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLAN = "docs/plans/IMPLEMENTATION-PLAN.md"
 DESIGN = "docs/DESIGN.md"
-BLOB_A = "135c3ac"   # the original freeze
-BLOB_B = "c15b138"   # the re-freeze the document names in its header
+BLOB_A = "135c3ac"  # the original freeze
+BLOB_B = "c15b138"  # the re-freeze the document names in its header
 
 # ---- selectors, COPIED VERBATIM from probe-204-bare-citations.py ----
 _FILENAME_CHAR = r"[A-Za-z0-9_./\\-]"
@@ -100,10 +101,33 @@ _EXCLUDE_PREV = {"[", '"', ":"}
 _NAME = re.compile(r"[A-Za-z0-9_.\-/]+\.(?:md|py|yml|yaml|sh|toml|txt|cfg|ini|json)")
 
 _STOP = {
-    "design", "citation", "citations", "document", "against", "because", "between",
-    "written", "resolve", "resolves", "measured", "measure", "blockquote", "revision",
-    "population", "populations", "reference", "frames", "number", "numbers", "should",
-    "another", "itself", "example", "member", "members", "sentence",
+    "design",
+    "citation",
+    "citations",
+    "document",
+    "against",
+    "because",
+    "between",
+    "written",
+    "resolve",
+    "resolves",
+    "measured",
+    "measure",
+    "blockquote",
+    "revision",
+    "population",
+    "populations",
+    "reference",
+    "frames",
+    "number",
+    "numbers",
+    "should",
+    "another",
+    "itself",
+    "example",
+    "member",
+    "members",
+    "sentence",
 }
 
 _WORD = re.compile(r"[a-z0-9]{6,}")
@@ -112,7 +136,10 @@ _WORD = re.compile(r"[a-z0-9]{6,}")
 def _blob(rev: str) -> list[str]:
     out = subprocess.run(
         ["git", "show", f"{rev}:{DESIGN}"],
-        capture_output=True, text=True, cwd=REPO_ROOT, check=True,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
     )
     return out.stdout.split("\n")
 
@@ -130,7 +157,16 @@ class Cite:
 
     __slots__ = ("kind", "line", "col", "start", "end", "raw", "antecedent")
 
-    def __init__(self, kind, line, col, start, end, raw, antecedent):
+    def __init__(
+        self,
+        kind: str,
+        line: int,
+        col: int,
+        start: int,
+        end: int,
+        raw: str,
+        antecedent: str,
+    ) -> None:
         """Record one occurrence; `start`/`end` are DESIGN.md lines."""
         self.kind, self.line, self.col = kind, line, col
         self.start, self.end, self.raw, self.antecedent = start, end, raw, antecedent
@@ -143,12 +179,12 @@ def _nearest_antecedent(lines: list[str], idx: int, col: int) -> str:
     """
     names = _NAME.findall(lines[idx][:col])
     if names:
-        return names[-1]
+        return str(names[-1])
     j = idx - 1
     while j >= 0 and lines[j].strip():
         names = _NAME.findall(lines[j])
         if names:
-            return names[-1]
+            return str(names[-1])
         j -= 1
     return ""
 
@@ -162,8 +198,9 @@ def collect() -> list[Cite]:
             taken.update(range(m.start(), m.end()))
             a = int(m.group(2))
             b = int(m.group(3)) if m.group(3) else a
-            out.append(Cite("QUALIFIED", i + 1, m.start(), a, b,
-                             m.group(0), m.group("name")))
+            out.append(
+                Cite("QUALIFIED", i + 1, m.start(), a, b, m.group(0), m.group("name"))
+            )
         for m in _BARE.finditer(line):
             if m.start() in taken:
                 continue
@@ -173,8 +210,15 @@ def collect() -> list[Cite]:
             a = int(m.group(1))
             b = int(m.group(2)) if m.group(2) else a
             out.append(
-                Cite("BARE", i + 1, m.start(), a, b, m.group(0),
-                     _nearest_antecedent(lines, i, m.start()))
+                Cite(
+                    "BARE",
+                    i + 1,
+                    m.start(),
+                    a,
+                    b,
+                    m.group(0),
+                    _nearest_antecedent(lines, i, m.start()),
+                )
             )
     return out
 
@@ -182,7 +226,7 @@ def collect() -> list[Cite]:
 def _cited_text(blob: list[str], a: int, b: int) -> str | None:
     if a < 1 or b > len(blob):
         return None
-    return "\n".join(blob[a - 1:b])
+    return "\n".join(blob[a - 1 : b])
 
 
 def _context(lines: list[str], ln: int) -> str:
@@ -193,7 +237,12 @@ def _context(lines: list[str], ln: int) -> str:
     return chunk
 
 
-def classify(cites, blob_a, blob_b, threshold):
+def classify(
+    cites: list[Cite],
+    blob_a: list[str],
+    blob_b: list[str],
+    threshold: int,
+) -> list[dict[str, Any]]:
     lines = _plan_lines()
     rows = []
     for c in cites:
@@ -204,15 +253,30 @@ def classify(cites, blob_a, blob_b, threshold):
         ob = len(distinctive(tb or "") & ctx)
         ra = ta is not None and ta.strip() != "" and oa >= threshold
         rb = tb is not None and tb.strip() != "" and ob >= threshold
-        cls = {(True, True): "BOTH", (True, False): "ONLY-135c3ac",
-               (False, True): "ONLY-c15b138", (False, False): "NEITHER"}[(ra, rb)]
-        rows.append({"c": c, "ta": ta, "tb": tb, "oa": oa, "ob": ob, "cls": cls,
-                     "identical": ta is not None and ta == tb,
-                     "oor": ta is None or tb is None})
+        cls = {
+            (True, True): "BOTH",
+            (True, False): "ONLY-135c3ac",
+            (False, True): "ONLY-c15b138",
+            (False, False): "NEITHER",
+        }[(ra, rb)]
+        rows.append(
+            {
+                "c": c,
+                "ta": ta,
+                "tb": tb,
+                "oa": oa,
+                "ob": ob,
+                "cls": cls,
+                "identical": ta is not None and ta == tb,
+                "oor": ta is None or tb is None,
+            }
+        )
     return rows
 
 
-def _table(rows, kind):
+def _table(
+    rows: list[dict[str, Any]], kind: str
+) -> tuple[list[dict[str, Any]], collections.Counter[str]]:
     """Split rows by kind, scoping QUALIFIED to DESIGN.md.
 
     DESIGN.md is `#111`'s population and the only one either blob can
@@ -222,22 +286,27 @@ def _table(rows, kind):
     printed for the reader to judge.
     """
     if kind == "QUALIFIED":
-        sub = [r for r in rows
-               if r["c"].kind == kind and r["c"].antecedent.endswith("DESIGN.md")]
+        sub = [
+            r
+            for r in rows
+            if r["c"].kind == kind and r["c"].antecedent.endswith("DESIGN.md")
+        ]
     else:
         sub = [r for r in rows if r["c"].kind == kind]
     counts = collections.Counter(r["cls"] for r in sub)
     return sub, counts
 
 
-def _print_census(rows, threshold, members):
+def _print_census(rows: list[dict[str, Any]], threshold: int, members: bool) -> None:
     print(f"\n===== THRESHOLD {threshold} =====")
     for kind in ("QUALIFIED", "BARE"):
         sub, counts = _table(rows, kind)
         ident = sum(1 for r in sub if r["identical"])
         oor = sum(1 for r in sub if r["oor"])
-        print(f"\n{kind}: {len(sub)} occurrences "
-              f"({ident} byte-identical at both blobs, {oor} out of range at a blob)")
+        print(
+            f"\n{kind}: {len(sub)} occurrences "
+            f"({ident} byte-identical at both blobs, {oor} out of range at a blob)"
+        )
         for cls in ("BOTH", "ONLY-135c3ac", "ONLY-c15b138", "NEITHER"):
             print(f"    {cls:14s} {counts.get(cls, 0)}")
         for cls in ("BOTH", "ONLY-135c3ac", "ONLY-c15b138", "NEITHER"):
@@ -246,14 +315,16 @@ def _print_census(rows, threshold, members):
                 print(f"  -- members of {kind}/{cls} ({len(mem)}) --")
                 for r in mem:
                     c = r["c"]
-                    print(f"     plan:{c.line} {c.raw!r} antecedent={c.antecedent!r} "
-                          f"overlap 135c3ac={r['oa']} c15b138={r['ob']}"
-                          f"{' IDENTICAL' if r['identical'] else ''}")
+                    print(
+                        f"     plan:{c.line} {c.raw!r} antecedent={c.antecedent!r} "
+                        f"overlap 135c3ac={r['oa']} c15b138={r['ob']}"
+                        f"{' IDENTICAL' if r['identical'] else ''}"
+                    )
                     print(f"       135c3ac: {r['ta']!r}")
                     print(f"       c15b138: {r['tb']!r}")
 
 
-def _print_antecedents(cites):
+def _print_antecedents(cites: list[Cite]) -> None:
     print("\n===== BARE citations by nearest antecedent =====")
     for name, n in collections.Counter(
         c.antecedent for c in cites if c.kind == "BARE"
@@ -302,7 +373,10 @@ ADJUDICATED: dict[tuple[int, str], tuple[str, str]] = {
     (746, "DESIGN.md:1549-1564"): ("c15b138", "`.env.example` settings"),
     (934, "DESIGN.md:1244-1249"): ("c15b138", "test markers, not limits"),
     (952, "DESIGN.md:455"): ("c15b138", "`Every scan starts at start=0.`"),
-    (1017, "DESIGN.md:353"): ("c15b138", "`one call, four rows created`"),
+    (1017, "DESIGN.md:353"): (  # REPOINT-EXEMPT: a dict KEY, not a claim
+        "c15b138",
+        "`one call, four rows created`",
+    ),
     (1102, "DESIGN.md:1370-1371"): ("c15b138", "`]` at 135c3ac"),
     (1588, "DESIGN.md:1416-1421"): ("c15b138", "the three pinned deps"),
     (204, "DESIGN.md:413"): ("UNDECIDABLE", "no subject phrase cited"),
@@ -314,7 +388,9 @@ ADJUDICATED: dict[tuple[int, str], tuple[str, str]] = {
 }
 
 
-def adjudicate(rows):
+def adjudicate(
+    rows: list[dict[str, Any]],
+) -> list[tuple[dict[str, Any], str, str]]:
     """Proxy verdict at threshold 1, OVERRIDDEN by any hand-read row."""
     out = []
     for r in rows:
@@ -334,7 +410,7 @@ def adjudicate(rows):
     return out
 
 
-def print_adjudicated():
+def print_adjudicated() -> None:
     a, b = _blob(BLOB_A), _blob(BLOB_B)
     rows = classify(collect(), a, b, 1)
     for kind in ("QUALIFIED", "BARE"):
@@ -387,8 +463,10 @@ def controls() -> int:
     n_both_0 = sum(1 for r in allboth if r["cls"] == "BOTH")
     n_both_2 = sum(1 for r in rows if r["cls"] == "BOTH")
     if n_both_0 <= n_both_2:
-        fails.append("C4 threshold does no work: BOTH at t=0 is "
-                     f"{n_both_0}, at t=2 is {n_both_2}")
+        fails.append(
+            "C4 threshold does no work: BOTH at t=0 is "
+            f"{n_both_0}, at t=2 is {n_both_2}"
+        )
 
     # C5: the antecedent scan must find the non-DESIGN.md antecedents
     # R1-L1 named.
@@ -409,7 +487,7 @@ def controls() -> int:
     return 1 if fails else 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--threshold", type=int, default=None)
     ap.add_argument("--members", action="store_true")
@@ -425,11 +503,13 @@ def main(argv):
 
     a, b = _blob(BLOB_A), _blob(BLOB_B)
     cites = collect()
-    print(f"{PLAN} at HEAD; {DESIGN} at "
-          f"{BLOB_A} ({len(a)} lines) and {BLOB_B} ({len(b)} lines)")
+    print(
+        f"{PLAN} at HEAD; {DESIGN} at "
+        f"{BLOB_A} ({len(a)} lines) and {BLOB_B} ({len(b)} lines)"
+    )
     print(f"total citation occurrences: {len(cites)}")
     _print_antecedents(cites)
-    for t in ([args.threshold] if args.threshold else [1, 2, 3]):
+    for t in [args.threshold] if args.threshold else [1, 2, 3]:
         _print_census(classify(cites, a, b, t), t, args.members)
     return 0
 

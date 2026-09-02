@@ -36,9 +36,11 @@ Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE
 > | `:1220`, §1 table row 1 | **`135c3ac`** | `- the 200-with-401-body trap;` | a blank line at `c15b138` |
 > | `DESIGN.md:1370-1371`, under that same table | **`c15b138`** | *"Every refusal-path test is paired with a positive control..."* | `]` at `135c3ac` |
 >
-> And they are not always paragraphs apart. **`:271-273` carries `DESIGN.md:1466-1472` and a bare
-> `:1426` in ONE SENTENCE, in different frames**: `135c3ac:1426` is *"CI must run ..."*, and
-> `c15b138:1426` is blank.
+> And they are not always sections apart. **The paragraph in §0 opening *"There was no CI, and the
+> design says so once, plainly"* carries `DESIGN.md:1466-1472` and a bare `:1426` two sentences
+> apart, in DIFFERENT frames**: `c15b138:1466` is *"No CI pipeline exists yet..."* while
+> `135c3ac:1466` is a `--ignore-vuln` fragment, and `135c3ac:1426` is *"CI must run..."* while
+> `c15b138:1426` is blank. Both halves are correct; neither blob serves both.
 >
 > ## The census
 >
@@ -61,7 +63,7 @@ Written against `docs/DESIGN.md` at **revision 6**, frozen at `135c3ac` and **RE
 >
 > **THE ONE EXCEPTION IS A SINGLE CITATION, AND IT IS WHY THE RULE IS NOT A RULE.** The three bare
 > `c15b138` hits are all `:300` - once at its site, twice where this blockquote quotes it. It lives
-> in **the ADR-0012 discharge paragraph in §9's Wave C**, and its own sentence names its blob:
+> in **the ADR-0012 discharge paragraph under §4's Wave C**, and its own sentence names its blob:
 > *"`DESIGN.md:295` and `:300` at the frozen `c15b138`"*. Read a bare citation at `135c3ac` first;
 > expect to be wrong about one of them.
 >
