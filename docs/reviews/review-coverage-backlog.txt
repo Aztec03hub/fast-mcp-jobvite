@@ -129,3 +129,14 @@ d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
 3987403 NONE #163 RULED: warn on untracked findings; `git add -N` and a pra
 6f858ea NONE #164: the mirror's fourth state - not running at all - n
 fd300ec NONE #149 M-4: the wiring probe now RUNS, in a job of its own
+1abb362 NONE R18-M5: the coverage ratchet was feeding itself, four co
+1cddd76 NONE BRIEF for #170: the retyped-count sweep, dispatched to s
+30be0ce NONE #170 F2 and F4: two more retyped counts, one of them fif
+451faeb NONE R18-H1 + R18-M4: the secret gate printed an all-clear pr
+4c29b98 NONE R18-M3: ARM 4 passed on the mutant it existed to catch, 
+6de1b4a NONE #154: a tool that will not print a duration without its 
+8986e64 NONE Both briefs were missing §0, the block that makes their 
+9c08427 NONE #131: the shared gate now records who is mutating, closi
+9ce969f NONE The restorer never read the `repo=` field it has always 
+d0bdf2a NONE BASH-1: the count was 20 against a population of 39, and
+fd500c7 NONE R18-H2: fourteen green rows and the transport was never 
