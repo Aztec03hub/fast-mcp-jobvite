@@ -120,3 +120,11 @@ ffd36c7 NONE #155 re-measured exactly, and the handoff was wrong a FO
 c3295f9 NONE R17-M2: the audit container asserts MULTIPLICITY, not ju
 d7cfe99 NONE #168 (R17-H1): a round must claim a file the commit touc
 fcde13f NONE R16-M2: report a landing failure unless it is POSITIVELY
+#
+# 2026-09-01, +5: my own commits closing R17-M1 and L2, plus
+# the #167/#168 merges. Unread by anyone.
+0087e27 NONE Type-annotate #167's census probe, and record what my ow
+2a64ca1 NONE Merge fix/167-anchor-shapes: the gap is exactly THREE, a
+ac4b36c NONE R17-M1: the zero was over 42 files of 116, and briefs ha
+c60941d NONE #167: measure the anchor container first, then widen it,
+d5ce29f NONE R17-L2: the audit container walked tools/ BY PATH, and m
