@@ -541,9 +541,30 @@ def _static_phase_sites() -> Counter[tuple[str, str]]:
     Returns:
         How many call sites each `(function, phase)` pair has.
     """
-    package = pathlib.Path(candidates_module.__file__).parent
+    # THE WHOLE PACKAGE, NOT `tools/` BY PATH (R17-L2). The walk started
+    # at `candidates_module.__file__.parent`, so an emission added in
+    # `approval.py`, `services/` or anywhere else outside `tools/` was
+    # invisible.
+    #
+    # AND `SITES_PER_PAIR` DOES NOT COVER THAT, which I assumed it might
+    # until I worked it through: a site outside the walk contributes to
+    # NEITHER side. Its `(function, phase)` pair never enters `static`,
+    # so the set equality still holds; and the multiplicity never
+    # changes, because the walk never reached it. Both assertions stay
+    # clean while the site goes unexercised. Selecting by KIND rather
+    # than by PATH is the #115 doctrine, and this file was violating it.
+    #
+    # `audit.py` is EXCLUDED BY NAME with its reason: it DEFINES the
+    # policy - `if phase is AuditPhase.BEFORE_SIDE_EFFECT` at :381 and
+    # `AFTER_WRITE` at :403 are the dispatcher's own branches, not tool
+    # emissions - and the cases drive it through the tools rather than
+    # calling it directly. Measured: 15 `AuditPhase.` sites in src/, 13
+    # in tools/ and exactly these 2.
+    package = pathlib.Path(candidates_module.__file__).parent.parent
     found: Counter[tuple[str, str]] = Counter()
     for path in sorted(package.rglob("*.py")):
+        if path.name == "audit.py":
+            continue
         found.update(_phases_in(ast.parse(path.read_text()), None))
     return found
 
