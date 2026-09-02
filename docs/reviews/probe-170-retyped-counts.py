@@ -169,10 +169,79 @@ ENUMERABLE_NOUNS = {
     "runs",
 }
 
-#: Directories whose contents are DATED RECORDS. A number inside one is
-#: correct as written and is not a finding. Matched as a path prefix
-#: because that is what these are - a directory is the record boundary.
-RECORD_DIRS = ("docs/worklogs/", "docs/plans/", "docs/research/")
+#: **WHAT MAKES A FILE A DATED RECORD HERE** (#183, and the classifier
+#: was widened only after answering this).
+#:
+#: A record is a document that states what was true at ONE MOMENT and is
+#: superseded by WRITING A NEW ONE rather than by being edited. The
+#: operative distinction is **maintained vs superseded** - not whether a
+#: date appears in it.
+#:
+#: **THE TEMPTING SIGNAL IS THE WRONG ONE, AND IT FAILS TOWARD
+#: SILENCE.** Matching a date or sha in the CONTENT - "measured at
+#: <sha>", "Seeded: <date>" - was tried and measured first: it selects
+#: 19 and 2 files respectively, and among them are `CONTRIBUTING.md`,
+#: `docs/OBLIGATIONS.md`, ADR-0023, ADR-0025 and a live brief. Those are
+#: maintained canon, and two of #170's three HIGH findings lived in
+#: exactly those two files. A content-date heuristic would have
+#: reclassified them as records and hidden both. **Refused, with the
+#: numbers, rather than tuned.**
+#:
+#: So the three signals below are structural, and each is a way of
+#: being bound to a moment that a maintained document cannot be.
+
+#: 1. A directory that IS the record boundary.
+RECORD_DIRS = (
+    "docs/worklogs/",
+    "docs/plans/",
+    "docs/research/",
+    "docs/reviews/ledgers/",
+)
+
+#: 2. A name whose STEM ends in a word naming a finished act of
+#: recording. This is the KIND rule the prefix list below could not
+#: express: `DESIGN-DELTA-REVIEW`, `SPIKE-CLAIM-AUDIT`,
+#: `COMPLIANCE-SPEC-PASS`, `F10-RULING`, `R2-LEFTOVER-VERDICTS` and
+#: `FREEZE-DISMISSAL-RETEST` share no prefix and are all records.
+RECORD_STEM_SUFFIXES = (
+    "-RULING",
+    "-VERDICTS",
+    "-AUDIT",
+    "-REPORT",
+    "-PASS",
+    "-RETEST",
+    "-REVIEW",
+    "-SWEEP",
+)
+
+#: **AND IT APPLIES TO DOCUMENTS ONLY.** The first version of this rule
+#: silenced FIVE LIVE CHECKERS - `check-coupling-sweep.py` and
+#: `check-resweep-verdicts.py` are CI gates named in `CONTRIBUTING.md`,
+#: and `check-review-coverage.py`, `probe-142-exempt-inventory.py` and
+#: `probe-coverage-ratchet.py` are live instruments. They end in
+#: `-SWEEP`
+#: and `-VERDICTS` because that is what they CHECK, not what they are.
+#: **An executable is never a record, whatever it is called.**
+#: `-INVENTORY` was dropped outright: it caught
+#: `docs/data-inventory.md`,
+#: the Article 30 record of processing, which is maintained compliance
+#: prose.
+RECORD_STEM_EXTENSIONS = (".md", ".txt")
+
+#: 3. A `REVIEW-COVERS:` declaration - the repository's OWN marker
+#: that a
+#: document covers one commit range. **Measured: 13 files carry it and
+#: the name rules already catch all 13**, so it changes nothing today.
+#: It is here because it is the only signal that does not depend on
+#: somebody following a naming convention, and a review document that
+#: skips the convention still declares its range.
+REVIEW_COVERS = "REVIEW-COVERS:"
+
+#: 4. Keep a Changelog structure. `CHANGELOG.md` is a dated record by
+#: construction - `changelog-standard.md` forbids backdating and each
+#: entry is written once about a release - and the classifier did not
+#: know it, which is where #183 started.
+CHANGELOG_HEADING = re.compile(r"^##\s*\[(Unreleased|\d)", re.M)
 
 #: Filename prefixes that make a file a dated record wherever it lives.
 RECORD_PREFIXES = (
@@ -186,6 +255,13 @@ RECORD_PREFIXES = (
     "CITATION-",
     "CONFORMANCE-",
     "CONF-",
+    # Added by #183, each an act of recording bound to a task or run:
+    "EVIDENCE-",  # a captured inventory, e.g. EVIDENCE-142-*
+    "TASK-",  # a task's own write-up, e.g. TASK-139-*
+    "LEDGER-",  # before/after snapshots
+    "DESIGN-1",  # DESIGN-142-*; `DESIGN-R` above missed the numbered form
+    "FIX-",  # FIX-3-REPORT and siblings
+    "probe-156-arm-",  # captured probe output, committed as evidence
 )
 
 _NUM = r"(?:\d{1,6}(?:,\d{3})*|" + "|".join(NUMBER_WORDS + QUANTIFIERS) + r")"
@@ -314,12 +390,36 @@ def candidates_in(line: str) -> Iterator[tuple[str, str, bool]]:
             yield m.group(1), found[0], found[1]
 
 
-def is_record(relpath: str) -> bool:
-    """A dated record: correct as written, never a finding."""
+def is_record(relpath: str, text: str = "") -> bool:
+    """A dated record: correct as written, never a finding.
+
+    `text` is optional so the classifier stays callable from a path
+    alone; the two CONTENT signals simply do not fire without it, and
+    the caller in `scan()` always supplies it.
+    """
     if relpath.startswith(RECORD_DIRS):
         return True
+    # **`docs/briefs/` IS RULED NOT A RECORD CLASS** - Tier 0, on the
+    # precedent that `check-review-coverage.py` refuses `docs/briefs` as
+    # a RECORD path by name, because a brief INSTRUCTS and has carried
+    # substantive rulings. One ruling, one place: no name rule below may
+    # quietly readmit it. Measured: without it, `EVIDENCE-`, `FIX-`
+    # and `-SWEEP` pulled 47 candidates out of six live briefs.
+    if relpath.startswith("docs/briefs/"):
+        return False
     name = relpath.rsplit("/", 1)[-1]
-    return name.startswith(RECORD_PREFIXES)
+    if name.startswith(RECORD_PREFIXES):
+        return True
+    if name.endswith(RECORD_STEM_EXTENSIONS):
+        stem = name.rsplit(".", 1)[0].upper()
+        if stem.endswith(RECORD_STEM_SUFFIXES):
+            return True
+    if text:
+        if REVIEW_COVERS in text[:4000]:
+            return True
+        if name == "CHANGELOG.md" and CHANGELOG_HEADING.search(text):
+            return True
+    return False
 
 
 def tracked_text_files() -> list[str]:
@@ -355,6 +455,7 @@ class Hit:
         glob: bool,
         text: str,
         quoted: bool = False,
+        record: bool | None = None,
     ) -> None:
         """Record one adjacency and classify its file."""
         self.path = path
@@ -363,7 +464,11 @@ class Hit:
         self.noun = noun
         self.glob = glob
         self.text = text.strip()
-        self.record = is_record(path)
+        #: Computed once per FILE by `scan()` and passed in, because the
+        #: CHANGELOG and REVIEW-COVERS signals read content, and
+        #: re-reading per hit would be quadratic. `None` derives
+        #: from the path alone, as the self-test's synthetic Hits do.
+        self.record = is_record(path) if record is None else record
         #: The span sits inside a `"`-delimited run, so it is a
         #: QUOTATION of a count rather than a claim of one. **Marked,
         #: never excluded** - a real instance can be quoted too, and a
@@ -392,6 +497,10 @@ def scan(files: list[str]) -> tuple[list[Hit], list[str]]:
         except (OSError, UnicodeDecodeError):
             unreadable.append(rel)
             continue
+        # ONE classification per file: the CHANGELOG and REVIEW-COVERS
+        # signals read content, and re-deriving per hit would be
+        # quadratic over a 22,000-candidate corpus.
+        rec = is_record(rel, text)
         lines = text.splitlines()
         for idx, line in enumerate(lines):
             # **THE NEXT LINE IS APPENDED, and this is not a nicety.**
@@ -423,6 +532,7 @@ def scan(files: list[str]) -> tuple[list[Hit], list[str]]:
                         glob,
                         joined,
                         _is_quoted(joined, m.start(), end),
+                        record=rec,
                     )
                 )
     return hits, unreadable
@@ -589,6 +699,37 @@ def _self_test() -> int:
     )
     checks.append(
         ("docs/worklogs/anything is a record", is_record("docs/worklogs/WHATEVER.md"))
+    )
+
+    # #183's classifier. THE NEGATIVES ARE THE ARMS THAT MATTER: the
+    # first version of this widening silenced five live checkers and a
+    # compliance document, which is the direction the content-date
+    # heuristic was refused for.
+    def rec(label: str, path: str, want: bool, text: str = "") -> None:
+        got = is_record(path, text)
+        checks.append((f"RECORD? {label}: {path} -> {got}", got == want))
+
+    rec("CHANGELOG by structure", "CHANGELOG.md", True, "## [Unreleased]\n")
+    rec("a numbered DESIGN- write-up", "docs/reviews/DESIGN-142-scoped.md", True)
+    rec("a stem naming an act of recording", "docs/reviews/SPIKE-AUDIT.md", True)
+    rec("a ledger snapshot", "docs/reviews/ledgers/LEDGER-120-after.txt", True)
+    rec("a live CI gate named -sweep", "docs/reviews/check-coupling-sweep.py", False)
+    rec("a live gate named -verdicts", "docs/reviews/check-resweep-verdicts.py", False)
+    rec("a live probe named -inventory", "docs/reviews/probe-142-inventory.py", False)
+    rec("the Article 30 record, which is MAINTAINED", "docs/data-inventory.md", False)
+    rec("a brief - RULED not a record class", "docs/briefs/B49B-SWEEP.md", False)
+    rec("a brief the OLD prefix rule recorded", "docs/briefs/CODE-REVIEW-R2.md", False)
+    rec(
+        "CONTRIBUTING.md, which says 'measured'",
+        "CONTRIBUTING.md",
+        False,
+        "it read 1987 citations - measured at abc1234",
+    )
+    rec(
+        "OBLIGATIONS.md, which says 'Seeded:'",
+        "docs/OBLIGATIONS.md",
+        False,
+        "**Owner:** CONF-6 - **Seeded:** 2026-08-28",
     )
 
     # POSITIVE CONTROL FOR `--tallies`. Every one of the 17 real tallies

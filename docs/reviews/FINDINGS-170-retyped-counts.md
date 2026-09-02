@@ -699,6 +699,70 @@ maintenance.
   written. **My tool does not classify `CHANGELOG.md` as a record and
   should** — noted in §5 as an instrument gap, not a finding.
 
+## §4d — RE-MEASUREMENT after #183 widened the record classifier
+
+**This is a NEW measurement with its own date, not a correction to §0.**
+§0 is the record of what the instrument saw on 2026-09-02 before the
+classifier knew four record shapes; it stays as written. What follows is
+what the same corpus looks like once it does.
+
+**Both classifiers were run over ONE tree**, because the trunk moved
+five times during this work and a delta across two trees would have
+conflated the classifier change with the repository change — the
+join-key error this report flags elsewhere.
+
+| | OLD rule | NEW rule |
+|---|---|---|
+| ENUMERABLE candidates | 7,319 | 7,319 |
+| **LIVE** | **2,544** in 303 files | **2,204** in 297 files |
+
+**DELTA: −340, or 13.4% of the old LIVE figure.** So §0's headline was an
+upper bound overstating LIVE by roughly an eighth. **The direction is the
+one predicted** — noise, not hidden findings — and none of the seven
+findings moves class.
+
+### The kind, stated before the patterns
+
+A record **states what was true at one moment and is superseded by
+writing a new one rather than by being edited.** Maintained vs
+superseded, not "has a date in it".
+
+### THE TEMPTING SIGNAL IS THE WRONG ONE AND IT FAILS TOWARD SILENCE
+
+Matching a date or sha in the CONTENT was tried and measured **first**:
+`measured at <sha>` selects **19** files and `Seeded: <date>` selects
+**2** — and among them are `CONTRIBUTING.md`, `docs/OBLIGATIONS.md`,
+ADR-0023, ADR-0025 and a live brief.
+
+**Two of this report's three HIGH findings live in exactly those two
+files.** A content-date heuristic would have reclassified them as
+records and hidden both. **Refused with the numbers rather than tuned**,
+and both are now self-test arms.
+
+### AND MY FIRST WIDENING MADE THAT EXACT MISTAKE
+
+The stem-suffix rule (`-SWEEP`, `-VERDICTS`, `-AUDIT`, …) is a NAME rule
+wearing a KIND rule's clothes, and its first version silenced:
+
+- `docs/reviews/check-coupling-sweep.py` — **a CI gate named in `CONTRIBUTING.md`**
+- `docs/reviews/check-resweep-verdicts.py` — **a CI gate**
+- `check-review-coverage.py`, `probe-142-exempt-inventory.py`, `probe-coverage-ratchet.py`
+- `docs/data-inventory.md` — the Article 30 record of processing, maintained compliance prose
+- 47 candidates across six `docs/briefs/`, which Tier 0 **ruled** are not records
+
+**They end in `-SWEEP` and `-VERDICTS` because that is what they CHECK,
+not what they are.** Two corrections: the stem rule applies to `.md`/`.txt`
+only — **an executable is never a record, whatever it is called** — and
+`docs/briefs/` short-circuits to LIVE before any name rule runs.
+
+**That also fixed a defect older than #183:** the ORIGINAL prefix list
+was already recording nine briefs named `CODE-REVIEW-R*` and
+`CITATION-READ*`, against the briefs ruling. The −340 is therefore a net
+of two opposite movements, and both are right.
+
+**Arms 25 → 37.** The negatives are the load-bearing ones: every file in
+the list above is now an arm requiring `False`.
+
 ## §5 — WHAT I COULD NOT SETTLE (separate from what I did not attempt)
 
 **COULD NOT SETTLE:**
