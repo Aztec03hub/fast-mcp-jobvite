@@ -1496,7 +1496,7 @@ jobs:
         run: bash scripts/ci-harness-gate.sh check-u4-client-amputation.sh --amputation --anchors-applied --min-rows 17 --row-re '^########## A[0-9]+[a-z]* '
 
       - name: Secret scan hook runs clean
-        # THIS STEP COVERS detect-secrets, NOT THE FILE-TYPE GATE. Measured,
+        # THIS STEP COVERS THE SECRET SCAN, NOT THE FILE-TYPE GATE. Measured,
         # because the obvious reading is wrong and a wrong reading here is a
         # green that tested nothing:
         #
@@ -1516,8 +1516,34 @@ jobs:
         # What this step genuinely covers is the secret scan over every file,
         # and .secrets.baseline staying in step with the tree - a new finding
         # nobody audited turns this red.
+        #
+        # THIS STEP WAS THE ONE FAILING STEP IN THE ONLY RED JOB, and the
+        # reason it could never recover is worth keeping. `Yelp/detect-secrets`
+        # shipped the hook that ran here, and that hook REWRITES
+        # `.secrets.baseline` in place to refresh each finding's `line_number`;
+        # pre-commit fails whenever a hook modifies a file. Its own message
+        # says `git add .secrets.baseline`, which a developer can do and CI
+        # cannot, so every regeneration bought only the days until the next
+        # edit moved a line. Measured at ccbdaae: 1344 -> 1617 on an
+        # `is_secret: false` entry in this file that was never a secret.
+        #
+        # scripts/check-secrets-baseline.py replaced it in
+        # `.pre-commit-config.yaml`. It gates on the SET of
+        # (filename, type, hashed_secret): a new finding is red, a line number
+        # moving is not. DO NOT "fix" a future red here by adding
+        # `git add .secrets.baseline`, `|| true`, or by dropping the hook -
+        # the first is the gate rewriting its own baseline, and this
+        # repository has measured that failure three times in one hour.
+        #
+        # `--controls` runs FIRST and on its own line, because the comparison
+        # is the half that decides red or green and a comparison that has
+        # stopped comparing looks exactly like a clean tree. It needs no
+        # network and no scanner. `|| exit 1` is not decoration: this body has
+        # no `-e`, so a bare failing command here would be ignored and the
+        # step would pass.
         run: |
           set -uo pipefail
+          python3 scripts/check-secrets-baseline.py --controls || exit 1
           uv tool run pre-commit@4.6.2 run --all-files --show-diff-on-failure || {
             echo "::error::a commit-time gate failed on the tree"; exit 1; }
 

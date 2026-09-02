@@ -44,8 +44,8 @@ repos:
   #   - TruffleHog's pre-commit path needs a system binary that is NOT present
   #     on this machine and is not installed by `pre-commit install`. A hook
   #     that cannot run is not a control, and the version pinned in CI
-  #     (ci.yml:326, trufflesecurity/trufflehog@v3.88.0) is a GitHub Action,
-  #     not a hook.
+  #     (trufflesecurity/trufflehog@v3.88.0, the `Secret scan` step) is a
+  #     GitHub Action, not a hook.
   #   - detect-secrets is `language: python`, so pre-commit builds it into its
   #     own isolated venv with no system dependency. It runs on a clean
   #     checkout, which is the only kind of hook that actually gets adopted.
@@ -53,38 +53,72 @@ repos:
   #     TruffleHog over full history in CI - which is better than one engine
   #     run twice. They have different detector sets and different false
   #     negatives.
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
+  #
+  # THE BASELINE IS NOT A CONVENIENCE, and it is here against my first
+  # instinct. Run without one, this scan is RED on its first run against the
+  # current clean tree: docs/research/FASTMCP.md:354 and :584 are vendor-
+  # documentation placeholders (`"your-client-secret"` and `"secret-key"`).
+  # That is D3's failure shape from U0-REPORT - a gate red on a clean tree
+  # trains everyone to ignore it - reappearing on the secret gate.
+  #
+  # Of the three ways out, this is the only reviewable one:
+  #   - excluding docs/research/ is a blanket hole over exactly the
+  #     directory vendor material lands in;
+  #   - inline `pragma: allowlist secret` edits research prose that is
+  #     not this unit's file to satisfy a tool;
+  #   - the baseline records file, line and a HASH of each accepted
+  #     string, so it shows up in the diff, and a NEW finding re-fires.
+  # That is the same shape DESIGN.md:1720-1721 requires of the file-type
+  # gate's override: an exception a reviewer can see.
+  #
+  # WHY THIS IS A LOCAL HOOK AND NOT `Yelp/detect-secrets`'s OWN. Its hook
+  # REWRITES `.secrets.baseline` in place to refresh every finding's
+  # `line_number`, and pre-commit fails whenever a hook modifies a file. A
+  # developer types `git add .secrets.baseline`; **CI can stage nothing**, so
+  # `ci.yml`'s `pre-commit run --all-files` step went red on the first line
+  # drift after each regeneration and could not recover. Measured at ccbdaae:
+  # `.github/workflows/ci.yml` had drifted 1344 -> 1617 on an `is_secret:
+  # false` entry that was never a secret. 22 audited findings live in 13
+  # frequently-edited files, so a bare regeneration buys days.
+  #
+  # scripts/check-secrets-baseline.py runs the same scanner, pinned to the same
+  # version, against a COPY of the baseline in a temp directory - so the tree is
+  # never written - and compares the SET of (filename, type, hashed_secret).
+  # A NEW FINDING IS RED; A LINE NUMBER MOVING IS NOT. Its docstring carries the
+  # full reasoning and its `--controls` mode proves the comparison can go red.
+  #
+  # Both baseline entries were audited and carry is_secret=false. Regenerate
+  # with
+  #   detect-secrets scan --baseline .secrets.baseline
+  # and audit every ADDED entry before staging it.
+  #
+  # .env is gitignored and must never reach the index; .env.example
+  # carries no credential (DESIGN.md:1353) and is scanned like anything
+  # else rather than excluded, so a real value pasted into it is caught.
+  - repo: local
     hooks:
-      - id: detect-secrets
-        name: secret scan (detect-secrets, staged content)
-        # THE BASELINE IS NOT A CONVENIENCE, and it is here against my first
-        # instinct. Run without one, this hook is RED on its first run against
-        # the current clean tree: docs/research/FASTMCP.md:354 and :584 are
-        # vendor-documentation placeholders (`"your-client-secret"` and
-        # `"secret-key"`). That is D3's failure shape from U0-REPORT - a gate
-        # red on a clean tree trains everyone to ignore it - reappearing on the
-        # secret gate.
-        #
-        # Of the three ways out, this is the only reviewable one:
-        #   - excluding docs/research/ is a blanket hole over exactly the
-        #     directory vendor material lands in;
-        #   - inline `pragma: allowlist secret` edits research prose that is
-        #     not this unit's file to satisfy a tool;
-        #   - the baseline records file, line and a HASH of each accepted
-        #     string, so it shows up in the diff, and a changed line re-fires.
-        # That is the same shape DESIGN.md:1720-1721 requires of the file-type
-        # gate's override: an exception a reviewer can see.
-        #
-        # Both entries were audited and carry is_secret=false. Regenerate with
-        #   detect-secrets scan --baseline .secrets.baseline
-        # and audit every ADDED entry before staging it.
-        #
-        # .env is gitignored and must never reach the index; .env.example
-        # carries no credential (DESIGN.md:1353) and is scanned like anything
-        # else rather than excluded, so a real value pasted into it is caught.
-        args: ['--baseline', '.secrets.baseline']
-        exclude: ^(uv\.lock|docs/research/fixtures/)
+      - id: secrets-baseline
+        name: secret scan (detect-secrets, set-compared against the baseline)
+        entry: python3 scripts/check-secrets-baseline.py
+        language: python
+        # The scanner, pinned. `language: python` gives this hook its own
+        # isolated venv, so there is still no system dependency - the property
+        # that made detect-secrets the right choice over TruffleHog above.
+        additional_dependencies: ['detect-secrets==1.5.0']
+        # pass_filenames MUST stay false, for the same reason the file-type
+        # gate above sets it: the checker chooses its own population. It scans
+        # the whole tree so that a finding in a file this commit did not touch
+        # cannot go unseen, and so the answer does not depend on which files
+        # pre-commit happened to pass.
+        pass_filenames: false
+        # always_run MUST stay true. Without it pre-commit skips the hook when
+        # no file matches its (empty) filter, and a gate that skips is a gate
+        # that fails open.
+        always_run: true
+        # NO `exclude:` KEY, and its absence is load-bearing. The exclusions
+        # (`uv.lock`, `docs/research/fixtures/`) live in `.secrets.baseline`'s
+        # own `should_exclude_file` filter, which the scan reuses; a second
+        # copy here could silently disagree with it.
 
   # ShellCheck. `devops/bash.md:734` is priority: required - "All scripts MUST
   # pass ShellCheck with zero warnings" - and until this block landed nothing

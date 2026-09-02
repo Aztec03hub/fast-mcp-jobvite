@@ -131,6 +131,12 @@ grep -hoE "scripts/ci-harness-gate\.sh [^\"]*" .github/workflows/ci.yml \
   | while read -r cmd; do bash $cmd || echo "FAILED: $cmd"; done
 
 python3 scripts/check-committed-file-types.py --all
+# The commit-time gates, exactly as the `Secret scan hook runs clean` step
+# runs them. The `--controls` line is part of that step: it proves the
+# baseline comparison can still go red, and a comparison that has stopped
+# comparing looks exactly like a clean tree.
+python3 scripts/check-secrets-baseline.py --controls
+uv tool run pre-commit@4.6.2 run --all-files --show-diff-on-failure
 uv run --frozen python scripts/check_advisories.py        # the expiry half
 uv run --frozen pip-audit $(uv run --frozen python scripts/check_advisories.py)
 
@@ -152,7 +158,21 @@ python3 docs/reviews/check-resweep-verdicts.py  # the resweep's tally checks its
 bash scripts/check-u1-pid1-shutdown.sh    # needs Docker; exits 2 if unavailable
 python3 docs/reviews/check-clause-citations.py  # needs the standards repo; exits 2 if absent
 SHELLCHECK_OPTS=--severity=warning actionlint   # needs actionlint + shellcheck on PATH
+uv run --no-project --with detect-secrets==1.5.0 python \
+  docs/reviews/probe-secrets-baseline.py        # needs detect-secrets; exits 2 if absent
 ```
+
+**`probe-secrets-baseline.py` is the end-to-end half of the secret gate.**
+`scripts/check-secrets-baseline.py --controls` runs in CI and exercises the
+comparison with synthetic dictionaries; this probe drives the real checker
+against the real scanner in a throwaway git repository, and asks the four
+questions the controls cannot: a line number moving stays green, a genuinely
+new secret goes red, a removed finding warns, and - the arm that makes the
+third one evidence - amputating the digest from the comparison key makes the
+new secret pass. It writes nothing inside this checkout. It is not in `ci.yml`
+because it resolves `detect-secrets` outside the frozen lock, which is the
+defect ADR-0015 records; the pre-commit hook is where that pin lives.
+
 
 **`check-clause-citations.py` resolves the CLAUSE column** - the half of every obligation row that says why the obligation is real. `check-obligations.py` verifies the artifact and says nothing about the clause. It cannot be a CI gate: it reads the `evolv-coder-standards` sibling checkout, which CI does not have. It proves each citation RESOLVES and explicitly does NOT prove the cited line says what the row claims - read the text it prints.
 
