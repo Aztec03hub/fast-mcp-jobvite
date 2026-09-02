@@ -186,7 +186,7 @@ def main() -> int:
     return 0
 
 
-def _branch_numbers() -> dict[int, set[str]]:
+def _branch_numbers() -> dict[int, set[str]] | None:
     """ADR numbers claimed on EVERY local branch, not just this one.
 
     **R8-L1: this checker read only the working tree, so it reported
@@ -199,17 +199,42 @@ def _branch_numbers() -> dict[int, set[str]]:
 
     That is the two-agents-both-correct-when-they-looked collision this
     project has already had once, with U10 and me both taking 0027.
+
+    **`check=True` made the considered answer unreachable.** Outside a
+    git repo `git for-each-ref` exits 128, `check=True` raised
+    `CalledProcessError`, and the traceback exited 1 - the SAME exit
+    code a real duplicate or gap produces, from a checker that had a
+    written answer for this exact case (*"No branches scanned"*) and
+    could never give it.
+
+    Fail-loud, not fail-closed: the branch scan is ADVISORY, answering
+    "which number may I take next", not the numbering check itself, so
+    it failing must not decide the gate. `check=False`, and the git
+    failure returns **None** where an empty-but-real repo returns an
+    empty dict - the None-for-a-failure / empty-for-empty split R19-M1
+    established in `check-harness-anchors.py`, because "the scan could
+    not run" and "the scan ran and found nothing" must not render
+    identically.
     """
     import subprocess
 
     claimed: dict[int, set[str]] = collections.defaultdict(set)
-    branches = subprocess.run(
+    listed = subprocess.run(
         ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
         cwd=ROOT,
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout.split()
+        check=False,
+    )
+    if listed.returncode != 0:
+        print(
+            f"\nBRANCH SCAN COULD NOT RUN: `git for-each-ref` exited "
+            f"{listed.returncode} in {ROOT}."
+        )
+        for line in listed.stderr.splitlines():
+            print(f"  git: {line}")
+        return None
+    branches = listed.stdout.split()
     for branch in branches:
         listing = subprocess.run(
             ["git", "ls-tree", "-r", "--name-only", branch, "--", "docs/adr/"],
@@ -228,6 +253,10 @@ def _branch_numbers() -> dict[int, set[str]]:
 def _report_branches(highest_here: int) -> None:
     """Say what the NEXT FREE number is across every branch."""
     claimed = _branch_numbers()
+    if claimed is None:
+        print("The ADR numbering and index checks above are unaffected; only")
+        print("the next-free-number advice is missing.")
+        return
     if not claimed:
         print("\nNo branches scanned; the cross-branch check did not run.")
         return
