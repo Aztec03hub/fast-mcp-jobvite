@@ -1,32 +1,34 @@
 #!/usr/bin/env python3
-"""Print the pytest node ids whose execution touched the lines an anchor spans.
+"""Print the pytest node ids that executed the lines an anchor spans.
 
     printf '%s' "$OLD_ANCHOR" \
       | COVERAGE_DB=/path/to/.coverage \
-        python3 scripts/lib/select-covering-tests.py src/fast_mcp_jobvite/x.py
+        python3 scripts/lib/select-covering-tests.py src/pkg/x.py
 
-WHY THIS IS NOT A WEAKENING (#238). An amputation row's verdict is "did any
-test go red". A test that never EXECUTES the mutated statements cannot go
-red because of them, so running only the tests that did execute them asks
-the identical question at a fraction of the cost. Every anchor these
-harnesses mutate sits inside a function body, so the statements' executions
-are attributed to real test contexts, not to import time.
+WHY THIS IS NOT A WEAKENING (#238). An amputation row's verdict is
+"did any test go red". A test that never EXECUTES the mutated
+statements cannot go red because of them, so running only the tests
+that did execute them asks the identical question at a fraction of
+the cost. Every anchor these harnesses mutate sits inside a function
+body, so the statements' executions are attributed to real test
+contexts, not to import time.
 
 The failure directions are chosen deliberately:
 
-  * The coverage database is missing, the anchor is absent, or the anchor
-    is not unique -> exit 2 and print NOTHING. The caller must abort; a
-    selection computed from a wrong precondition is a silent wrong zero.
-  * The anchor resolves but NO in-process test covered its lines -> exit 4
-    and print nothing. The caller runs the FULL suite for that row: the
-    kill may live in a subprocess-driving test the in-process map cannot
-    see, and "run everything" is the fail-safe wide answer, never "run
-    nothing".
+  * The coverage database is missing, the anchor is absent, or the
+    anchor is not unique -> exit 2 and print NOTHING. The caller
+    must abort; a selection computed from a wrong precondition is a
+    silent wrong zero.
+  * The anchor resolves but NO in-process test covered its lines ->
+    exit 4 and print nothing. The caller runs the FULL suite for
+    that row: the kill may live in a subprocess-driving test the
+    in-process map cannot see, and "run everything" is the fail-safe
+    wide answer, never "run nothing".
 
 The database comes from the SAME run's baseline (`pytest --cov
---cov-context=test`), so it can never be stale against the tree being
-mutated. Contexts are recorded in the `arc` table because this project
-measures branch coverage (pyproject `[tool.coverage.run] branch = true`).
+--cov-context=test`), so it can never be stale against the tree
+being mutated. Contexts are read from the `arc` table because this
+project measures branch coverage (pyproject sets `branch = true`).
 """
 
 from __future__ import annotations

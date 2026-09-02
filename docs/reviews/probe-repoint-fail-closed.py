@@ -163,9 +163,7 @@ assert _marked_linenos, (
 _saved_prefixes = repoint.LIVE_PREFIXES
 repoint.LIVE_PREFIXES = _saved_prefixes + ("docs/reviews/",)
 try:
-    moves, unreadable, _unruled = repoint.parse(
-        moved(_SELF, _marked_linenos[0])
-    )
+    moves, unreadable, _unruled = repoint.parse(moved(_SELF, _marked_linenos[0]))
 finally:
     repoint.LIVE_PREFIXES = _saved_prefixes
 assert repoint.classify(_SELF) == "UNRULED", "LIVE_PREFIXES not restored"
@@ -217,8 +215,7 @@ else:
         "UNREADABLE" not in baseline.stdout
         and "CHECKER FAILED" not in baseline.stdout
         and (
-            re.search(r"\d+ citation\(s\) repointed", baseline.stdout)
-            is not None
+            re.search(r"\d+ citation\(s\) repointed", baseline.stdout) is not None
             or "UNRULED" in baseline.stdout
         ),
         f"rc={baseline.returncode} tail={baseline.stdout.strip().splitlines()[-1:]!r}",
