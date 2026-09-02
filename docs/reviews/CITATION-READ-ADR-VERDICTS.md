@@ -25,7 +25,7 @@ Nothing outside `docs/reviews/` was edited.
 finding, not on the site line number** - every citing site was located with
 `grep -n`, and every target was read from the frozen object.
 
-## The population, enumerated rather than inherited
+## The population, enumerated rather than inherited - AS AT `9b3e85f`
 
 ```
 $ grep -rhoE 'DESIGN\.md:[0-9]+(-[0-9]+)?' docs/adr/*.md | wc -l
@@ -41,6 +41,19 @@ $ ls docs/adr/*.md | wc -l
 lines carry two citations each (`0021:33` and `0021:64`), so a per-range grouping
 would have hidden four sites behind two.
 
+**RE-RUN THAT BLOCK TODAY AND THE FIRST TWO NUMBERS ARE HIGHER, AND NOTHING IS
+WRONG.** `docs/adr/README.md` has since ruled on ADR citations, which meant
+QUOTING several of them, and `docs/adr/*.md` includes the README. The population
+this document read is the ADRs THEMSELVES:
+
+```
+$ grep -rhoE 'DESIGN\.md:[0-9]+(-[0-9]+)?' docs/adr/0*.md | wc -l   # 64, unchanged
+$ grep -rlE 'DESIGN\.md:[0-9]+(-[0-9]+)?' docs/adr/0*.md | wc -l    # 19, unchanged
+```
+
+The heading above carries its SHA so that a reader who gets a different number
+knows which of the two questions they just asked.
+
 ## Tally
 
 | Verdict | Sites |
@@ -53,10 +66,21 @@ would have hidden four sites behind two.
 
 **DRIFTED IS THE DOMINANT CLASS AND IT IS NOT A SUBSPECIES OF WRONG.** 46 of 64 -
 **72%** - point at text that was the cited subject when the citation was written
-and is something else today. The remedy is a repoint; the remedy for a WRONG one
-is a repoint *and* an explanation of how the author read the wrong paragraph. They
-are different defects with different causes and the brief was right to insist they
-not be folded.
+and is something else today. **In an ADR the remedy is NOT a repoint.** `#203`
+ruled at `ec57a65` that an ADR's citations are AS AT its acceptance and stay
+(`docs/adr/README.md`, the as-at-acceptance section): an ADR is a decision record,
+and repointing it rewrites the evidence for a decision already taken. A WRONG one
+is a different defect - it never named its subject, so there is no as-at reading
+to preserve - and IS repointed, with an explanation of how the author read the
+wrong paragraph. They are different defects with different causes and the brief
+was right to insist they not be folded.
+
+**THIS SENTENCE USED TO READ *"the remedy is a repoint"*, and it survived the
+ruling that refuses one.** It was written before `ec57a65` and stayed true-looking
+afterwards, because the paragraphs recording what this round actually DID (below:
+*"I did NOT repoint these"*) are not the ones a reader lands on when checking what
+a DRIFTED verdict OBLIGES. A verdict document is the operating instruction for the
+next sweep, so the definition is where the ruling has to land.
 
 ## How DRIFTED was distinguished from WRONG, since no grep can do it
 

@@ -1552,7 +1552,16 @@ jobs:
       # ADR afterwards on a different branch. BOTH MERGED CLEANLY, because the
       # filenames differ and git has no opinion about the digits in them. An
       # ADR number is cited from code, so two documents cannot share one.
-      - name: ADR numbers are unique and contiguous
+      #
+      # THE SAME STEP NOW CHECKS THE INDEX TABLE, EQUAL IN BOTH DIRECTIONS.
+      # `docs/adr/README.md`'s table had silently stopped at 0023 with twelve
+      # ADRs missing, including the two the as-at-acceptance ruling cites BY
+      # NUMBER twenty lines above the table. Nothing regenerated it and no gate
+      # looked. A file with no row and a row with no file are different
+      # failures and both are refused. It is folded into this already-wired
+      # step rather than being a new checker, so `check-checkers-are-wired.py`
+      # has nothing new to police.
+      - name: ADR numbers are unique and contiguous, and the index matches
         run: |
           set -uo pipefail
           # GitHub runs every `run:` block as `bash -e {0}`, and `set -uo
