@@ -80,7 +80,13 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --check)        MODE="check"; shift ;;
     --restore-only) MODE="restore"; shift ;;
-    --repo)         REPO="$2"; shift 2 ;;
+    # NORMALISED, and it matters more since the `repo=` comparison landed
+    # (R18-N1). `harness_state_file` keys the state path on a cksum of this
+    # string and the file records it verbatim, so `--repo /x/y/` and
+    # `--repo /x/y` name DIFFERENT state files for the SAME checkout and now
+    # also produce a false "DIFFERENT repository" refusal. `cd`+`pwd`
+    # resolves symlinks and `..` too, so the two forms cannot diverge.
+    --repo)         REPO="$(cd "$2" 2>/dev/null && pwd || printf %s "${2%/}")"; shift 2 ;;
     -h|--help)
       sed -n '2,4p' "${BASH_SOURCE[0]}" >&2
       exit 2 ;;
