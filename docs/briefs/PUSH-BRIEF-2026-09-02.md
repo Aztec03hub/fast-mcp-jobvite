@@ -1,5 +1,25 @@
 # PUSH BRIEF - what this push changes, and the one measurement that sizes it
 
+> **THIS PUSH HAPPENED. `6e4fae3..d9f9ae1`, 118 commits, 2026-09-02.** What follows was
+> written to be read BEFORE it; it is kept as written because a brief rewritten after the
+> fact stops being evidence of what was known at the time. Three corrections, recorded here
+> rather than edited into the text below:
+>
+> 1. **actionlint HAS now linted this tree, and the brief's repeated "never been linted" was
+>    a gap I never tried to close rather than one I could not.** `ci.yml` pins the version,
+>    URL and sha256 of its own actionlint; that recipe runs on this machine. Installed it,
+>    verified the sha256, and ran CI's exact invocation
+>    (`SHELLCHECK_OPTS=--severity=warning actionlint -no-color`) against `d9f9ae1`: **rc=0**.
+>    `suborch-232` found this first, on its own branch, while I was still writing the caveat.
+> 2. **It went to TWO remotes.** `origin` carries push URLs for both `evolvconsulting` and
+>    `Aztec03hub`. Pre-existing configuration; prior pushes did the same. Not what "push to
+>    origin" implies to a reader.
+> 3. **The push cancelled nothing**, and that was derived before pushing rather than hoped
+>    for: `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}` is FALSE on main, so
+>    the new run QUEUES. Confirmed afterwards - the 161-minute run on the old SHA survived.
+>    The remaining hazard is the opposite one: a push over a QUEUED run DOES cancel it.
+
+
 **Derive every number here before you trust it.** The commands are beside each
 one. This file has already been wrong once, in the way described under
 "A CORRECTION TO THE VERSION YOU MAY HAVE READ".
