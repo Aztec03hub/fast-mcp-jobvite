@@ -86,17 +86,38 @@ same defect, one column over, which is how the first version of this
 change was written. **NO `--write-backlog`**, because a gate that
 regenerates its own baseline certifies whatever it just saw.
 
-Pinned by `docs/reviews/probe-coverage-ratchet.py`, 8 arms, none of
-which modifies the tree - hence `--backlog`.
+Pinned by `docs/reviews/probe-coverage-ratchet.py`, 9 arms, none of
+which modifies the tree - hence `--backlog` and `--reviews`.
 
-**THE ONE-MERGE LAG IS REAL, AND IT IS WHY THIS IS A PR GATE.** A commit
-cannot record its own sha, so a merge's commits enter the backlog in the
-NEXT change, not in themselves. Run against `origin/main` from a pull
-request that is what you want: the PR's own commits are not on the trunk
-yet, so the gate is green, and whoever opens the next PR pastes the
-lines this checker prints for the merge before it. Run it on a push to
-main instead and it is red for exactly one commit every time, which is
-red-by-construction wearing a different hat.
+**THE RATCHET HAS TWO INPUTS AND MY FIRST EIGHT ARMS PERTURBED ONE
+(R1-H1).** The recorded side is the backlog; the MEASURED side is
+whatever `docs/reviews/*.md` declares. Every arm poked the backlog, so a
+FABRICATED DECLARATION was unguarded: one new file holding a single
+`REVIEW-COVERS` line over the whole range, plus an emptied backlog,
+took 58 to 0 at exit 0. The PLANT arm closes it. A control that
+perturbs only the input its author was thinking about is the shape this
+directory keeps re-finding.
+
+**THE LAG IS REAL, AND IT IS N+1, NOT ONE (R1-H2).** A commit cannot
+record its own sha, so a merge's commits enter the backlog in the NEXT
+change. I first wrote that this makes it "red for exactly one commit
+every time". **That was wrong, and wrong in this very tree**:
+`rev-list` enumerates every commit a push ADDS, so merging N commits
+leaves N+1 outstanding. Measured the moment the ref was refreshed: 5.
+
+Run against `origin/main` from a pull request and that is what you
+want - the PR's own commits are not on the trunk yet, so the gate is
+green, and whoever opens the next PR pastes the lines printed for the
+merge before it.
+
+**AND THE REF IT READS CAN BE STALE (found by the same measurement).**
+`origin/main` is a LOCAL remote-tracking ref. Mine sat five commits
+behind a trunk I had already pushed, so the whole backlog was measured
+against a tree nobody was on, and it said "58 recorded, 58 measured,
+exit 0" without ever naming which ref that was. The resolved sha is now
+printed beside the ref on every run. Under `actions/checkout` the ref is
+fetched fresh, so this bites locally, not in CI - which is exactly the
+kind of difference this project keeps finding out the hard way.
 
 **WHAT IT STILL CANNOT DO.** It checks that a commit's files fall inside
 some round's declared range and paths. It cannot check the round READ
@@ -285,11 +306,11 @@ def git(*args: str) -> str:
     return done.stdout.strip()
 
 
-def review_documents() -> tuple[list[pathlib.Path], list[str]]:
+def review_documents(reviews: pathlib.Path) -> tuple[list[pathlib.Path], list[str]]:
     """The code-review documents, and what was excluded and why."""
     kept: list[pathlib.Path] = []
     skipped: list[str] = []
-    for path in sorted(REVIEWS.glob("*.md")):
+    for path in sorted(reviews.glob("*.md")):
         if not IS_REVIEW.search(path.stem):
             skipped.append(f"{path.name} (no round number)")
         elif NOT_A_COMMIT_REVIEW.search(path.stem):
@@ -359,9 +380,24 @@ def main() -> int:
         # that way myself tonight).
         help="the backlog file to enforce; for controls, never the tree's",
     )
+    parser.add_argument(
+        "--reviews",
+        type=pathlib.Path,
+        default=REVIEWS,
+        # THE OTHER INPUT (R1-H1). The backlog is the recorded
+        # side; this directory is the MEASURED side, and my 8 arms
+        # perturbed only the former, so a FABRICATED DECLARATION was
+        # unguarded. A control needs somewhere that is not the tree to
+        # plant one.
+        help="the directory of review documents; for controls, a copy",
+    )
     args = parser.parse_args()
 
-    docs, skipped = review_documents()
+    resolved = git("rev-parse", "--short=7", args.ref)
+    print(f"Trunk ref: {args.ref} = {resolved}")
+    if args.reviews != REVIEWS:
+        print(f"Review documents read from {args.reviews} (NOT the tree)")
+    docs, skipped = review_documents(args.reviews)
     print(f"Review documents in the population: {len(docs)}")
     print(f"Excluded, with a reason: {len(skipped)}")
     if not docs:
@@ -414,7 +450,10 @@ def main() -> int:
     # population shrinks without anyone noticing, and this one was added
     # in the same session that found 22 commits reading as fully covered
     # because a path filter went undeclared.
-    print(f"Record files skipped (not the work, an account of it): {records_skipped}")
+    print(
+        f"Record-file touches skipped, across {len(trunk)} trunk commits"
+        f" (not the work, an account of it): {records_skipped}"
+    )
     for name, why in sorted(RECORD_PATHS.items()):
         print(f"  RECORD   {name}: {why}")
 
@@ -431,14 +470,25 @@ def main() -> int:
     recorded = read_backlog(args.backlog)
     measured: dict[str, str] = {}
     for sha in untouched:
-        measured[git("rev-parse", "--short", sha)] = "NONE"
+        measured[git("rev-parse", "--short=7", sha)] = "NONE"
     for sha, _ in partial:
-        measured[git("rev-parse", "--short", sha)] = "PARTIAL"
+        measured[git("rev-parse", "--short=7", sha)] = "PARTIAL"
 
     entered = sorted(sha for sha in measured if sha not in recorded)
     cleared = sorted(sha for sha in recorded if sha not in measured)
     moved = sorted(
         sha for sha in measured if sha in recorded and recorded[sha][0] != measured[sha]
+    )
+    # THE SUBJECT IS CHECKED TOO (R1-M3). It was decoration - recorded,
+    # never compared - and a decorative field drifts until someone reads
+    # it as evidence. Compared as a PREFIX because the printed lines are
+    # truncated to fit; a truncation is not a mismatch.
+    mislabelled = sorted(
+        sha
+        for sha in measured
+        if sha in recorded
+        and recorded[sha][1]
+        and not git("log", "-1", "--format=%s", sha).startswith(recorded[sha][1])
     )
 
     print(f"\nBacklog recorded in {args.backlog.name}: {len(recorded)}")
@@ -446,6 +496,7 @@ def main() -> int:
     print(f"ENTERED, unrecorded: {len(entered)}")
     print(f"CLEARED, still recorded: {len(cleared)}")
     print(f"CHANGED KIND: {len(moved)}")
+    print(f"SUBJECT disagrees with the commit: {len(mislabelled)}")
 
     if entered:
         print("\nOutstanding and not in the backlog. Either declare a round")
@@ -460,13 +511,23 @@ def main() -> int:
     for sha in moved:
         was, now = recorded[sha][0], measured[sha]
         print(f"  KIND     {sha} recorded {was}, measured {now} - update it")
+    for sha in mislabelled:
+        actual = git("log", "-1", "--format=%s", sha)
+        print(f"  SUBJECT  {sha} recorded as {recorded[sha][1][:40]!r}")
+        print(f"           but reads {actual[:40]!r}")
 
-    if entered or cleared or moved or unexplained:
-        print(
-            "\nNOTE: this proves a commit's files fall inside some round's\n"
-            "declared range and paths, NOT that the round read them - a\n"
-            "declaration is a claim by its author."
-        )
+    # THE CAVEAT PRINTS ON EVERY PATH (R1-H1, second half). It used to
+    # print only on the failure branch, so the GREEN path emitted the
+    # strongest sentence in the file with nothing qualifying it - while
+    # the docstring promised the output says so. The line that
+    # most needs the caveat is the one saying everything is fine.
+    print(
+        "\nNOTE: this proves a commit's files fall inside some round's\n"
+        "declared range and paths, NOT that the round read them - a\n"
+        "declaration is a claim by its author."
+    )
+
+    if entered or cleared or moved or mislabelled or unexplained:
         return 1
 
     if measured:
@@ -474,7 +535,8 @@ def main() -> int:
         print("A HOLDING RATCHET IS NOT FULL COVERAGE. It says the unread")
         print("set did not grow and nothing in it went unnoticed.")
     else:
-        print("\nEvery trunk commit is fully covered by a declared round.")
+        print(f"\nEvery trunk commit on {args.ref} ({resolved}) falls inside")
+        print("a declared round's range and paths. That is what was checked.")
     return 0
 
 

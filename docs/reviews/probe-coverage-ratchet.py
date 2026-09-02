@@ -19,6 +19,33 @@ without anyone saying so?" (answerable, and the thing worth gating).
 clearing cancel to zero. Arm CANCEL below is that exact case, and it is
 the arm a count-based ratchet would fail.
 
+**THE RATCHET HAS TWO INPUTS AND MY FIRST EIGHT ARMS PERTURBED ONE
+(R1-H1).** Every arm but PLANT pokes the recorded backlog. The MEASURED
+side comes from the review documents, and nothing tested it.
+
+**PLANT DOES NOT ASSERT A REFUSAL, BECAUSE THERE IS NONE.** Measured:
+one file holding `<!-- REVIEW-COVERS: 8695101..<trunk sha> -->` plus an
+emptied backlog takes 63 outstanding commits to 0 and exits 0. That is
+BY CONSTRUCTION and it is not closable here - the checker cannot tell a
+round that read 263 commits from one that read none, which its own
+docstring has always said. Both inputs are author-controlled; this is
+bookkeeping, not an adversarial gate.
+
+So PLANT pins what CAN be true: the defeat is silent in the exit code,
+so the caveat must be LOUD in the output, on the green path as much as
+the red one. It asserts exit 0 AND the presence of the "a declaration is
+a claim by its author" sentence. Before R1-H1 that sentence printed only
+on failure, so this exact scenario produced the strongest line in the
+file - "Every trunk commit ... falls inside a declared round" - with
+nothing qualifying it.
+
+**MY FIRST VERSION OF THIS ARM WAS VACUOUS AND PASSED.** It planted
+`8695101..origin/main`; the declaration regex requires hex, so the line
+never parsed, the plant did nothing, and the arm went green on the 63
+commits still entering. A control that passes because its own input was
+malformed is the failure this whole directory exists to catch, and I
+found it only by reading WHY the arm passed rather than THAT it did.
+
 **BOTH KINDS.** NONE (no round's range contains it) and PARTIAL (a round
 claimed the range but not every file) are different facts and the
 backlog records which. A commit moving NONE -> PARTIAL is real progress
@@ -37,20 +64,30 @@ Exit 0 = every arm behaved as claimed. Exit 1 = one did not.
 from __future__ import annotations
 
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-CHECKER = ROOT / "docs" / "reviews" / "check-review-coverage.py"
-BACKLOG = ROOT / "docs" / "reviews" / "review-coverage-backlog.txt"
+REVIEWS = ROOT / "docs" / "reviews"
+CHECKER = REVIEWS / "check-review-coverage.py"
+BACKLOG = REVIEWS / "review-coverage-backlog.txt"
 BROKEN_INSTRUMENT = 3
 
+#: The whole container the ratchet measures. A declaration spanning it
+#: covers every trunk commit at once, which is what makes it the useful
+#: shape to plant.
+CONTAINER_BASE = "8695101"
 
-def run(backlog: pathlib.Path) -> subprocess.CompletedProcess[str]:
+
+def run(
+    backlog: pathlib.Path, reviews: pathlib.Path | None = None
+) -> subprocess.CompletedProcess[str]:
     """The checker, against one backlog file, never raising."""
+    extra = ["--reviews", str(reviews)] if reviews is not None else []
     return subprocess.run(
-        [sys.executable, str(CHECKER), "--backlog", str(backlog)],
+        [sys.executable, str(CHECKER), "--backlog", str(backlog), *extra],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -177,6 +214,43 @@ def main() -> int:
                     f" {sha in done.stdout}",
                 )
             )
+
+        # PLANT (R1-H1). A fabricated declaration over the whole
+        # container, plus an emptied backlog. This is NOT refused - see
+        # the docstring - so the arm pins the two things that must hold
+        # anyway: the run is green, and it still says out loud that a
+        # declaration is only a claim.
+        #
+        # THE HEAD MUST BE A RESOLVED SHA. The regex requires hex; my
+        # first version planted `origin/main`, the line never parsed,
+        # and the arm passed while measuring nothing.
+        trunk = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--short=7", "origin/main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        copies = work / "reviews"
+        shutil.copytree(REVIEWS, copies)
+        (copies / "REVIEW-R999.md").write_text(
+            f"<!-- REVIEW-COVERS: {CONTAINER_BASE}..{trunk} -->\n"
+            "A round that read nothing at all.\n",
+            encoding="utf-8",
+        )
+        copy = work / "emptied.txt"
+        copy.write_text("# every entry removed\n", encoding="utf-8")
+        done = run(copy, reviews=copies)
+        landed = "Backlog measured now: 0" in done.stdout
+        caveat = "a claim by its author" in done.stdout
+        results.append(
+            (
+                landed and caveat and done.returncode == 0,
+                "PLANT   ",
+                f"a fabricated declaration clears the backlog by design"
+                f" (measured 0: {landed}, exit {done.returncode}) and the"
+                f" caveat still prints: {caveat}",
+            )
+        )
 
         # MISSING. An absent baseline must not read as an empty one.
         # That is the failure mode where a gate reports full compliance

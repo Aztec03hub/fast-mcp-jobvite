@@ -1,7 +1,11 @@
 # REVIEW COVERAGE BACKLOG
 #
 # The trunk commits that no review round covers, one per line, as
-# `<short sha> <subject>`. Read and enforced by
+# `<short sha> <KIND> <subject>`, where KIND is NONE or PARTIAL. The
+# KIND is REQUIRED - a line without it exits 3 as a broken instrument.
+# This header said `<short sha> <subject>` until R1-M2 read it against
+# the parser; a format documented one way and enforced another is how
+# the next person's first line gets refused. Read and enforced by
 # docs/reviews/check-review-coverage.py, which requires the MEASURED
 # set to equal this one exactly - a count would let an entry and a
 # clearance cancel each other out, a set cannot.
@@ -77,3 +81,13 @@ f5247a1 NONE R15 section 4: NONE 131 -> 0, and PARTIAL 0 -> 39 as pre
 f6951be NONE Wire the anchor-checker controls through the gate: my ex
 fc622e9 PARTIAL Protocol: what runs 3-5 measured, and the reviewer-befor
 ff8309e PARTIAL Rewrite the handoff, whose headline claim was false in t
+#
+# 2026-09-01, +5: the #116 merge (203e5af) and its four commits. They
+# were pushed before this ratchet existed and became visible the moment
+# a stale local origin/main was fetched - the backlog above had been
+# measured against 9e04411, five behind the trunk. No round covers them.
+aa893a2 NONE #116: bind each timeout bound to one name, used by the c
+816007f NONE #116: the pid1 wait bound, and a container gate that kee
+6fe2d73 NONE #116: bring both new checkers under the lint and type ga
+3d9445c NONE #116: the worklog, with the counts that corrected my bri
+203e5af NONE Merge fix/116-timeouts: 70 retyped seconds figures deriv
