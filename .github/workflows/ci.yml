@@ -95,10 +95,82 @@ env:
   UV_VERSION: "0.11.3"
   PYTHON_VERSION: "3.12"
 
+# -----------------------------------------------------------------------------
+# THE THREE TIERS (#294). Read this before adding a job.
+# -----------------------------------------------------------------------------
+#
+#   GATE       `test`                every push and every pull request. One job.
+#                                    Lint, format, types, the suite, the
+#                                    coverage floor and the static checkers.
+#                                    This is the job a branch-protection rule
+#                                    should require, and the only one that runs
+#                                    on a pull request.
+#
+#   MERGE      `static-gates`        `github.event_name != 'pull_request'`, so:
+#              `codeql`              push to `main`, the weekly sweep, and a
+#              `changes`             manual dispatch. Supply chain, licences,
+#                                    links, CodeQL, and the path classifier the
+#                                    assurance tier reads.
+#
+#   ASSURANCE  `harness-assurance`   the weekly cron, a manual dispatch, and a
+#                                    push to `main` that `changes` classifies
+#                                    as code. ONE job, SERIAL, every harness
+#                                    and every probe.
+#
+# WHY THE TIERS ARE JOBS IN ONE FILE RATHER THAN THREE FILES. Three workflows
+# would express the triggers more directly - `on: push: paths:` is native and
+# a job-level `if` cannot see paths at all. It was refused for three reasons,
+# each of them a thing that would silently break:
+#
+#   1. `docs/reviews/check-row-floors.py` and `check-row-floor-exactness.py`
+#      read `--min-rows` out of THIS FILE by path. Harness steps in another
+#      file are floors those two cannot see, and a floor nothing reads is a
+#      floor that has been retuned to zero without anyone typing a digit.
+#   2. `scripts/check-mirror-liveness.py` watches EVERY SCHEDULED WORKFLOW in
+#      `.github/workflows` and calls a workflow with no runs NEVER RUN, exit 2.
+#      A second `schedule:` therefore turns the trunk red until the day it
+#      first fires - a red for something no commit contains.
+#   3. `docs/reviews/probe-ci-checker-steps.py` and
+#      `probe-control-restore-guard.py` both pin this path.
+#
+# The cost of that choice is the `changes` job: one extra billed minute per
+# push to `main`, buying the path discrimination `on: paths:` would have given
+# free. It is a job rather than a filter BECAUSE a filter cannot tell
+# `docs/reviews/*.py` (checkers) from `docs/reviews/*.md` (records).
+#
+# WHAT IS DELIBERATELY NOT HERE: a `paths-ignore:` on the workflow, and in
+# particular not `'**/*.md'`. Markdown is not inert here. It was MEASURED
+# rather than assumed, on a clean worktree at `3c0d648`, in both directions:
+# deleting `JOBVITE_COMPANY_ID` from README.md's Quickstart block - a
+# README-ONLY edit, no code touched - takes `The README's Quickstart still
+# works` from exit 0 to exit 1, because that step EXECUTES the README.
+# The negative arm matters just as much and is the reason this paragraph is
+# careful: APPENDING a second fenced block to the same file changed nothing,
+# rc=0 both times, because the checker reads the Quickstart block and not the
+# prose. So the true statement is narrow - SOME markdown edits redden a wired
+# gate, and a blanket `.md` filter cannot tell which - and it is not the only
+# route: `docs/reviews/check-brief-report-references.py` rglobs every `.md`
+# under the briefs tree, the lychee step walks the whole checkout, and the
+# design- and standards-citation gates read `.md` prose for line-anchored
+# citations. What a filter would buy is the suite's share of one job; what it
+# would cost is a gate that is off and looks on, which is the failure mode
+# that hid 119 red runs on this repository. The trade is refused.
 jobs:
   static-gates:
-    name: Static gates, supply chain and links
+    name: Merge - static gates, supply chain and links
     runs-on: ubuntu-latest
+    # MERGE TIER (#294). Not on a pull request: every step below either scans
+    # the tree for something a commit-time hook already refuses on the push
+    # path (secrets, file types, shellcheck), or reads the supply chain, which
+    # changes when a lock file lands rather than when a branch is edited.
+    # Keeping it off the PR path takes it out of the per-push bill without
+    # taking it off `main`, which is the ref a release is cut from.
+    #
+    # `github.event_name` only - never `secrets`, which GitHub does not
+    # provide in this position and which failed to evaluate silently for 119
+    # consecutive mirror runs (R3-H1). A job-level `if` that cannot be
+    # evaluated does not fail; it produces a run with zero jobs.
+    if: github.event_name != 'pull_request'
     # UNCAPPED WOULD MEAN SIX HOURS - observed max 148s for the merged work
     # (modelled from per-step timings; the three jobs' own maxima were 34s, 39s
     # and 126s). 6x headroom.
@@ -888,8 +960,12 @@ jobs:
   # The Python project.
   # ---------------------------------------------------------------------------
   test:
-    name: Lint, types, tests
+    name: Gate - lint, types, tests
     runs-on: ubuntu-latest
+    # GATE TIER (#294): the only job on every push and every pull request, and
+    # the one a branch-protection rule should require. It carries no `if:` on
+    # purpose - a gate that can be switched off by an expression is a gate that
+    # can go silently off, and this one must run or the run must be red.
     # UNCAPPED WOULD MEAN SIX HOURS. Since #238 moved the harness lane
     # into its own parallel jobs, this job is lint + types + the suite +
     # coverage + audits: 222s on the one green run of the old shape
@@ -1589,8 +1665,20 @@ jobs:
   # never. github/codeql-action/*@v3 per the standards' pinned set.
   # ---------------------------------------------------------------------------
   codeql:
-    name: CodeQL
+    name: Merge - CodeQL
     runs-on: ubuntu-latest
+    # MERGE TIER (#294). Not on a pull request: every step below either scans
+    # the tree for something a commit-time hook already refuses on the push
+    # path (secrets, file types, shellcheck), or reads the supply chain, which
+    # changes when a lock file lands rather than when a branch is edited.
+    # Keeping it off the PR path takes it out of the per-push bill without
+    # taking it off `main`, which is the ref a release is cut from.
+    #
+    # `github.event_name` only - never `secrets`, which GitHub does not
+    # provide in this position and which failed to evaluate silently for 119
+    # consecutive mirror runs (R3-H1). A job-level `if` that cannot be
+    # evaluated does not fail; it produces a run with zero jobs.
+    if: github.event_name != 'pull_request'
     # UNCAPPED WOULD MEAN SIX HOURS - observed max 80s; CodeQL scales with the tree, so more headroom.
     timeout-minutes: 20
     permissions:
@@ -1610,87 +1698,138 @@ jobs:
 
 
   # ---------------------------------------------------------------------------
-  # The wiring checker's own amputation probe (#149 M-4).
+  # Which paths this push touched, classified BY ROLE (#294, plan 2.6).
   # ---------------------------------------------------------------------------
   #
-  # A JOB OF ITS OWN, AND THE SHAPE IS THE POINT. This probe's container arms
-  # `git add -f` a fixture into the index and remove it in a `finally`, which is
-  # why it could not be a step beside its subject: a job whose index is being
-  # staged and unstaged under other steps is a job with a bomb in it, and
-  # SIGKILL runs no `finally`. But "cannot share a job" was never "cannot run in
-  # CI" - a runner's checkout is disposable and no other step reads it - so it
-  # gets its own checkout and the objection is answered.
+  # THE SELECTOR IS BY ROLE, NEVER BY DIRECTORY, and `docs/` is exactly why.
+  # `docs/reviews/*.py` and `docs/reviews/*.sh` are CHECKERS AND PROBES - live
+  # gates that happen to live under a documentation directory - while
+  # `docs/reviews/*.md` beside them are records. A filter reading `docs/**` as
+  # documentation would stop gating twenty-odd checkers and look identical to
+  # one that is working.
   #
-  # Its arms all passed before this was wired; nothing here is expected to
-  # change colour. What was missing is that NOTHING MADE THEM RUN and nothing
-  # would have noticed if they stopped, which is the shape #164 closed for the
-  # mirror workflow one artifact over.
-  wiring-probe:
-    name: The wiring checker can still fail
+  # IT FAILS CLOSED. A diff that cannot be computed - a force-push, a first
+  # push whose `before` is all zeros, a missing object - yields `true` and
+  # fires the assurance tier. The expensive direction is the safe one.
+  #
+  # THIS JOB IS NOT A GATE and runs no checker; it exists so that the assurance
+  # tier can be triggered by a change to the code it tests without that
+  # decision living in a `paths:` filter, which is workflow-wide and could not
+  # tell the two roles above apart.
+  changes:
+    name: Merge - which paths changed
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # UNCAPPED WOULD MEAN SIX HOURS - the probe runs ten in-process amputations
-    # and four container arms, each a subprocess over a ~1300-line checker.
-    # Measured locally at well under a minute; 10x headroom for a cold runner.
     timeout-minutes: 10
-    permissions:
-      contents: read
+    outputs:
+      code: ${{ steps.role.outputs.code }}
     steps:
-      # fetch-depth 0 is NOT needed: the probe reads the working tree and the
-      # index, never history.
+      # fetch-depth 0: this job diffs against `github.event.before`, which a
+      # depth-1 clone does not contain.
       - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
+          fetch-depth: 0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install from the frozen lock
-        run: uv sync --frozen
-
-      # git needs an identity before `git add` will run in a fresh checkout on
-      # some configurations, and the probe stages a fixture. Setting it here
-      # keeps the failure from looking like a probe fault.
-      - name: The probe's arms all still fire
+      # No command substitution anywhere below. Under GitHub's `bash -e` a
+      # `out=$(cmd)` assignment stops the block at the first failure and never
+      # reaches an `rc` check - measured three times on this repository - so
+      # every branch here is an `if` over a command, and the diff goes to a
+      # file rather than a variable.
+      - name: Classify the pushed paths by role
+        id: role
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
         run: |
-          git config user.name "ci"
-          git config user.email "ci@example.invalid"
-          uv run --frozen python docs/reviews/probe-wired-checker-amputation.py || exit 1
+          CHANGED="$RUNNER_TEMP/changed-$GITHUB_RUN_ID.txt"
+          CODE_RE='^(src/|tests/|scripts/|[.]github/workflows/|pyproject[.]toml$|uv[.]lock$|server[.]json$|docs/reviews/[^/]+[.](py|sh)$)'
+          if ! git diff --name-only "$BEFORE" "$AFTER" > "$CHANGED"; then
+            echo "COULD NOT DIFF $BEFORE..$AFTER. Firing the assurance tier:"
+            echo "an unreadable diff must not read as 'nothing to check'."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "PATHS IN THIS PUSH:"
+          cat "$CHANGED"
+          if grep -qE "$CODE_RE" "$CHANGED"; then
+            echo "VERDICT: code=true - at least one path above is code, a"
+            echo "harness, a checker or the workflow itself. Assurance fires."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERDICT: code=false - every path above is a record. The"
+            echo "assurance tier is skipped; the weekly cron still covers it."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      # THE STEP ABOVE HAS A FLOOR AND NOBODY HAD WATCHED IT FIRE (#194).
-      # `check-row-floor-controls.sh` cannot: it neutralises a row in bash
-      # and reads a bash library's canonical line, so an arm there would
-      # measure the interpreter. This is the same remedy the row-floor
-      # container itself uses one job over - the harness arms its OWN floor.
-      #
-      # It runs SEPARATELY rather than being chained onto the line above:
-      # under `bash -e` only the LAST command of an `&&` list triggers
-      # errexit, so a chained self-test failure would be invisible. That
-      # shape has hidden a red on this project three times.
-      #
-      # Every arm is in-process and touches nothing - no fixture, no index -
-      # which is why it can share this job with the run it is about.
-      - name: That probe's own floor still fires
-        run: uv run --frozen python docs/reviews/probe-wired-checker-amputation.py --self-test || exit 1
-
-  # THE HARNESS LANE, RESHAPED BY #238. These jobs used to be 41 steps at
-  # the tail of the `test` job: 4969s of its 5191s, serial. They now run
-  # on EVERY trigger - push, PR, schedule, dispatch - split into parallel
-  # jobs sized so no single job exceeds a few minutes, because wall-clock
-  # is max(), not sum(). The five slowest harnesses also select their
-  # per-row tests (see each script's header); together those two changes
-  # are what took full CI from 86 minutes to under five. The price is
-  # billed job-minute rounding on more jobs, paid deliberately: the
-  # mandate was the TOTAL on ONE trigger, and hiding a cost on a schedule
-  # is not removing it (5699c31 tried; it was rejected).
-  harness-u3-amputation:
-    name: Harness U3 amputation
+  # ---------------------------------------------------------------------------
+  # ASSURANCE TIER - every harness and every probe, ONE JOB, SERIAL (#294).
+  # ---------------------------------------------------------------------------
+  #
+  # WHAT THIS REPLACES, AND WHY THE OLD SHAPE WAS THE WRONG TRADE. Until this
+  # change these steps were twelve parallel `harness-*` jobs on EVERY trigger.
+  # That is optimal for wall clock and pessimal for the bill, because the two
+  # are different functions of the same run: wall clock is the MAX across
+  # lanes, and billing is the SUM, with GitHub rounding EVERY JOB UP to a whole
+  # minute. Measured on the pre-re-tier baseline (`baseline/pre-retier`, run
+  # 33680282835, recorded in docs/reviews/MEASURED-baseline-pre-retier.md):
+  # a 343s wall over 3222s of work, 61 billed minutes of which 6.4 were pure
+  # per-job rounding, and 13 lane setups each paying its own checkout, uv and
+  # python install.
+  #
+  # This repository is PUBLIC, so that bill is zero today. The template built
+  # from it seeds PRIVATE repositories, where it is not - which is why the
+  # shape optimises billed minutes and lets wall clock follow.
+  #
+  # NOBODY WAITS ON A WEEKLY RUN. Fan-out here buys latency no human
+  # experiences and pays twelve roundings and twelve setups for it. Serial is
+  # therefore not a compromise; it is the correct shape once the trigger moves.
+  #
+  # WHAT SERIALISING COSTS, STATED RATHER THAN HIDDEN:
+  #   - A failure stops the lane. Twelve jobs used to fail independently, so
+  #     one red still reported eleven greens. Here the first red is the last
+  #     thing you learn. On a weekly tier that is an acceptable trade; on the
+  #     push path it would not be, which is the other half of why it moved.
+  #   - Every step now runs in ONE checkout. A harness that strands a mutation
+  #     poisons its successors instead of only itself, so the last step of this
+  #     job asserts `src` and `tests` are byte-identical to the checkout.
+  #
+  # THE #267 RULING IS DISCHARGED HERE. It required the compound lane names to
+  # be regenerated in the SAME commit as any repack; collapsing twelve lanes
+  # into one IS that repack, and those names are gone rather than stale.
+  # `docs/reviews/probe-273-packing.py` selects jobs whose name begins
+  # `harness`, so this job keeps that prefix and the probe still finds every
+  # step it used to - by step name, which is unchanged for all of them.
+  harness-assurance:
+    name: Harness assurance - every harness and probe, serial
+    needs: [changes]
+    # TWO THINGS IN THIS EXPRESSION ARE LOAD-BEARING, AND BOTH ARE FAILURE
+    # MODES RATHER THAN FEATURES.
+    #
+    # `always()`, because `changes` is SKIPPED on `schedule` and on
+    # `workflow_dispatch`, and a skipped need skips its dependants with it.
+    # Without `always()` the manual trigger - the one a human reaches for, and
+    # the one that proves this tier is not merely decorative - would be the one
+    # that silently does nothing.
+    #
+    # `!= 'false'` rather than `== 'true'`, because those are not complements
+    # here. If `changes` FAILS or is cancelled its output is the empty string,
+    # and `== 'true'` would read that as "no code changed" and skip the whole
+    # assurance tier on a broken classifier - fail-open, in the one place where
+    # a skip and a green are indistinguishable. `!= 'false'` runs the tier
+    # unless the classifier positively said not to. The `push` guard keeps that
+    # from also firing on a pull request, where `changes` never ran at all.
+    if: >-
+      always() && (
+        github.event_name == 'schedule'
+        || github.event_name == 'workflow_dispatch'
+        || (github.event_name == 'push' && needs.changes.outputs.code != 'false')
+      )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # UNCAPPED WOULD MEAN SIX HOURS. The twelve lanes summed to 3222s of work
+    # on the baseline run and this job runs that work end to end in one place,
+    # so the cap is set well above it rather than near it: a harness that hangs
+    # must fail, and a harness that is merely slow must not.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
       - name: Install uv
@@ -1706,22 +1845,6 @@ jobs:
 
       - name: U3 audit amputation harness ran every row
         run: bash scripts/ci-harness-gate.sh check-u3-audit-amputation.sh --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
-  harness-u4-amputation:
-    name: Harness U4 amputation + U12 amputation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # `A[0-9]+[a-z]*` and NOT `A[0-9]+ `: M-5's rows are A9b..A9f, and the old
       # pattern required a space straight after the digits, so it would have
@@ -1734,22 +1857,6 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-u12-jobfeed-amputation.sh \
             --amputation --anchors-applied --min-rows 10 --row-re '^########## A[0-9]+ '
-  harness-critcov-u9c:
-    name: Harness critical-path coverage + U9 controls + body cap amputation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ----- the critical-path coverage rows -----
       # **NO `--amputation` FLAG, deliberately, unlike every sibling step.** That
@@ -1787,22 +1894,6 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-body-cap-amputation.sh \
             --amputation --min-rows 5 --row-re '^########## [A-E]\. '
-  harness-u7a-u5c-u6c:
-    name: Harness U7 amputation + U5 controls + U6 controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # `--anchors-applied` ADDED BY #120. Its census asked, of every harness
       # printing a tally, whether any gate reads it. These three printed
@@ -1841,22 +1932,6 @@ jobs:
       # request COUNT.
       - name: U6 paging controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u6-paging-controls.sh --controls-fired
-  harness-u8c-u7c:
-    name: Harness U8 controls + U7 controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ----- U8, candidate reads (§8 #5, #6, #19, #20, #24) -----
       # WIRED IN THE MERGE COMMIT. U8's own A1 row is why these steps matter
@@ -1889,22 +1964,6 @@ jobs:
       # compares every `--min-rows` to a live count, so this cannot drift again.
       - name: U7 resilience controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u7-resilience-controls.sh --controls-fired
-  harness-u12c-u4c:
-    name: Harness U12 controls + U4 controls + U6 amputation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ----- U12, get_job_feed - the one route whose URL is a secret -----
       # WIRED IN THE MERGE COMMIT. C5-I1 is a High and its arms are the reason
@@ -1928,22 +1987,6 @@ jobs:
 
       - name: U6 paging amputation, every anchor applied
         run: bash scripts/ci-harness-gate.sh check-u6-paging-amputation.sh --anchors-applied
-  harness-u9-amputation:
-    name: Harness U9 amputation + U10 amputation + stranded and suite-floor controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       - name: U9 HTTP hardening amputation, every row applied
         run: |
@@ -1969,22 +2012,6 @@ jobs:
       # the script it mutated.
       - name: Suite-floor guard amputation, every row killed
         run: "bash scripts/ci-harness-gate.sh check-suite-floor-amputation.sh --amputation --result-killed --require 'post-run re-check of the real script: exit=0'"
-  harness-u1-controls:
-    name: Harness U1 controls + U5 amputation + anchor controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ---- U1's block. Neither U1 harness had a CI step at all, so every row
       # in them - including the ones that existed before this commit - ran only
@@ -2015,22 +2042,6 @@ jobs:
       # `fired=9/9`, tree clean.
       - name: Harness anchor checker controls, all fired
         run: bash scripts/ci-harness-gate.sh check-harness-anchors-controls.sh --controls-fired
-  harness-u1-amputation:
-    name: Harness U1 amputation + U8 amputation + gate, advisory and mirror controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       - name: U1 boot amputation harness ran every row
         run: bash scripts/ci-harness-gate.sh check-u1-boot-amputation.sh --amputation --min-rows 14 --row-re '^########## [A-N]\. '
@@ -2072,22 +2083,6 @@ jobs:
           out=$(bash scripts/ci-harness-gate-controls.sh 2>&1); rc=$?
           echo "$out"
           [ "$rc" -eq 0 ] || { echo "::error::a harness-gate control did not fire"; exit 1; }
-  harness-u10-controls:
-    name: Harness U10 controls + U0 controls + U15 amputation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ----- U10, the write: approval guard and create_candidate -----
       # THE ONLY UNIT WHOSE FAILURE MODE EMAILS A LIVING PERSON, so these two
@@ -2132,22 +2127,6 @@ jobs:
       # landed, D asserting its three tables separately.
       - name: U15 gate amputation, every row applied
         run: bash scripts/ci-harness-gate.sh check-u15-gate-amputation.sh --amputation
-  harness-u3-controls:
-    name: Harness U3 controls + body cap controls + U15 controls
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ---- U3's block. §4's rule: one unit, one non-adjacent block, nothing
       # else touched. Both harnesses run here, because a control that runs only
@@ -2170,22 +2149,6 @@ jobs:
 
       - name: U15 gate controls, all fired
         run: bash scripts/ci-harness-gate.sh check-u15-gate-controls.sh --controls-fired
-  harness-u14-sweep:
-    name: Harness U14 argument sweep + log redaction
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install from the frozen lock
-        run: uv sync --frozen
 
       # ----- U14, the argument layer: the sweep over the input models -----
       # U14 MERGED WITH BOTH HARNESSES UNWIRED. They existed, they passed, and
@@ -2220,3 +2183,61 @@ jobs:
         run: |
           bash scripts/ci-harness-gate.sh check-log-redaction-amputation.sh \
             --amputation --anchors-applied --min-rows 6 --row-re '^########## A[0-9]+ '
+
+      # ----- the wiring checker's own amputation probe (#149 M-4) -----
+      #
+      # LAST IN THIS JOB, AND THE POSITION IS LOAD-BEARING. These two arms
+      # `git add -f` a fixture into the index and remove it in a `finally`,
+      # and SIGKILL runs no `finally` - which is why the old shape gave them
+      # a job of their own rather than a seat beside other steps. Running
+      # them after every harness answers the same objection a different way:
+      # no later step reads this index, so a stranded fixture can mislead
+      # nothing. Their SUBJECT - `check-checkers-are-wired.py` - runs in the
+      # `static-gates` job, so the original 'cannot share a job with its
+      # subject' rule is still honoured, by separation rather than by
+      # a job boundary.
+      # git needs an identity before `git add` will run in a fresh checkout on
+      # some configurations, and the probe stages a fixture. Setting it here
+      # keeps the failure from looking like a probe fault.
+      - name: The probe's arms all still fire
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@example.invalid"
+          uv run --frozen python docs/reviews/probe-wired-checker-amputation.py || exit 1
+
+      # THE STEP ABOVE HAS A FLOOR AND NOBODY HAD WATCHED IT FIRE (#194).
+      # `check-row-floor-controls.sh` cannot: it neutralises a row in bash
+      # and reads a bash library's canonical line, so an arm there would
+      # measure the interpreter. This is the same remedy the row-floor
+      # container itself uses one job over - the harness arms its OWN floor.
+      #
+      # It runs SEPARATELY rather than being chained onto the line above:
+      # under `bash -e` only the LAST command of an `&&` list triggers
+      # errexit, so a chained self-test failure would be invisible. That
+      # shape has hidden a red on this project three times.
+      #
+      # Every arm is in-process and touches nothing - no fixture, no index -
+      # which is why it can share this job with the run it is about.
+      - name: That probe's own floor still fires
+        run: uv run --frozen python docs/reviews/probe-wired-checker-amputation.py --self-test || exit 1
+
+      # THE HAZARD SERIALISING CREATES, CLOSED IN THE SAME CHANGE THAT CREATES
+      # IT. Twelve jobs meant twelve disposable checkouts: a harness killed
+      # mid-row left its mutation in a tree nothing else would ever read. One
+      # job means one tree, and every step after the casualty runs against the
+      # mutated source - a green that proves nothing, or a red pointing at an
+      # innocent harness. `scripts/ci-harness-gate.sh` already re-checks its own
+      # subject per invocation; this is the whole-lane assertion that no
+      # invocation is the one that does not.
+      - name: The serial lane left no mutation in src or tests
+        run: |
+          STRAY="$RUNNER_TEMP/assurance-stray-$GITHUB_RUN_ID.txt"
+          git status --porcelain -- src tests > "$STRAY"
+          if [ -s "$STRAY" ]; then
+            echo "::error::a harness in this lane left the tree modified. Every"
+            echo "::error::step after it ran against mutated source."
+            cat "$STRAY"
+            exit 1
+          fi
+          echo "src and tests are byte-identical to the checkout:"
+          echo "no harness in this lane stranded a mutation."
