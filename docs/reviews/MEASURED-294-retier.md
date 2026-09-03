@@ -3,11 +3,12 @@
 **Branch `ci/294-retier`, based on `3c0d648`. Referent: `docs/reviews/MEASURED-baseline-pre-retier.md`,
 tag `baseline/pre-retier` at `305fd05`, run `33680282835`.** Written 2026-09-02.
 
-Every figure below is either read out of that baseline, or measured on this machine and labelled
-LOCAL. Nothing here has run on a GitHub runner: this branch was deliberately not pushed, so the
-CI-side numbers are the baseline's own per-job figures re-arranged, and they are marked as such.
-That distinction is the whole reason the wall-clock claims below are stated as *unchanged content
-in a different job*, and never as a new measurement.
+**It HAS now run on a GitHub runner: `workflow_dispatch` run `33702126529` against this branch at
+`30b16ab`, conclusion `success`.** Every figure below is one of three things and each is labelled:
+read out of the baseline, measured on this machine (LOCAL), or read out of that run's own API
+payload (RUNNER). The earlier drafts of this file said no runner figure existed and derived the
+Assurance wall arithmetically instead; that derivation is kept below BESIDE the observed number,
+because a prediction and its outcome are worth more together than either alone.
 
 ---
 
@@ -136,11 +137,15 @@ of one job. **Refused, and recorded here rather than left unexplained.**
     2.3s  Docs-lint amputations
    <2s    every one of the other 27 steps
 
-**On a GitHub runner this job measured 220s at the baseline, and this branch does not change one
-byte of its content, so 220s is still the number to expect. THE UNDER-3-MINUTE TARGET IS MISSED BY
-THE BASELINE'S OWN FIGURE, at 3.67 minutes.** It is stated that way rather than as a target because
-nothing here was retuned to reach it: the brief's own reading - that `Lint, types, tests` "is,
-almost exactly, the Gate tier" - is correct, and that job was already 220s.
+**RUNNER: 231s = 3.85 minutes. THE UNDER-3-MINUTE TARGET IS MISSED, and by slightly more than the
+baseline predicted.** The baseline measured this job at 220s and this branch changes not one byte of
+its content - all 35 steps compare byte-identical, only the job's `name:` differs - so 231s against
+220s is the same job on a different day, inside the ordinary run-to-run spread and not a regression
+this change introduced.
+
+Nothing was retuned to chase the target. The brief's own reading - that `Lint, types, tests` "is,
+almost exactly, the Gate tier" - was correct, and that job was already over three minutes before
+anyone re-tiered anything.
 
 Getting under 180s would mean moving the suite (125s of the 220s) off the push path, which is the
 one thing the Gate exists to run. **Not attempted. The measured number is 220s.**
@@ -182,11 +187,17 @@ so it can be checked rather than trusted:
     ------------------------------------------------------------
     serial job wall                                         2767s = 46.1 min
 
-**46.1 minutes, which is BELOW the 60-70 minute target band rather than inside it.** Two things
-about that number: the setup term is the probe's own constant, whose 36 accepted lanes read 8-19s
-with a median of 11.0, so the 156s subtraction carries roughly +-70s of uncertainty; and it assumes
-serialising changes no step's duration, which is true for CPU-bound work on a dedicated runner and
-is the same assumption the twelve-lane arithmetic already makes in the other direction.
+**46.1 minutes predicted. RUNNER: 2888s = 48.1 min, a +121s / +4.4% miss.** The prediction holds,
+and it holds for a boring reason worth stating rather than claiming as skill: the derivation's two
+soft terms - the 13.0s setup constant, whose 36 accepted lanes read 8-19s, and the assumption that
+serialising changes no step's duration - are both small against a 46-minute total, and they
+partially cancel. **Both the predicted and the observed figure are BELOW the 60-70 minute target
+band rather than inside it.**
+
+The per-step spread the baseline warns about is visible here too and is larger than the 4.4% miss:
+U9's amputation ran 302s against the baseline's 211s, and U3's 325s against 325s. So the +121s is
+inside the noise of the instrument, and this agreement should be read as *not refuted* rather than
+as *confirmed to 4%*.
 
 ### One step failed on the first pass, and it was my fault, not the harness's
 
@@ -232,8 +243,25 @@ column and lets wall clock follow.
 |---|---|---|
 | pull request push | `test` | **4** |
 | push to `main`, records only | `test` + `static-gates` + `codeql` + `changes` | **8** |
-| push to `main`, code | the four above + `harness-assurance` | see §4 |
-| weekly cron | `test` + `static-gates` + `codeql` + `harness-assurance` | see §4 |
+| push to `main`, code | the four above + `harness-assurance` | **56** |
+| weekly cron | `test` + `static-gates` + `codeql` + `harness-assurance` | **56** |
+
+**RUNNER, run `33702126529`, ceilings taken per job from its own payload:**
+
+    Gate - lint, types, tests                            231s ->  4
+    Merge - CodeQL                                        70s ->  2
+    Merge - static gates, supply chain and links          56s ->  1
+    Merge - which paths changed                        skipped ->  0
+    Harness assurance - every harness and probe, serial 2888s -> 49
+    ---------------------------------------------------------------
+                                                                 56
+
+    execution wall 2889s     job-seconds 3245s
+
+The predicted 54-55 against an observed 56 is one minute of assurance rounding plus the CodeQL job
+running 70s here against 76s at the baseline. **The Gate at 231s is the number that matters on the
+push path, and it is 3.85 minutes** - see §4, the under-3-minute target is missed on the runner too,
+by slightly more than the baseline predicted.
 
 **The headline: a pull-request push goes from 61 billed minutes to 4, a 93% reduction, and that is
 the event that happens most.** A records-only push to `main` goes 61 to 8.
@@ -260,26 +288,20 @@ After, with `harness-assurance` at ceil(2767/60) = 47:
 | weekly cron | 4 + 1 + 2 + 47 | **54** | -11% |
 | push to `main`, code changed | 4 + 1 + 2 + 1 + 47 | **55** | -10% |
 
-### THE ONE NUMBER THAT NEEDS A DECISION, AND IT IS NOT MINE TO MAKE ALONE
+### THE on-code-change TRIGGER: RULED, KEEP
 
-**The `push to main, code changed` trigger costs 47 of its 55 billed minutes, and it is the row
-that eats almost the whole saving.** The plan asks for it in as many words - Assurance fires on
-"weekly cron + workflow_dispatch + on harness/src change" - and it is built and works, so this is a
-measurement rather than an objection.
+**The `push to main, code changed` trigger costs 49 of its 56 billed minutes.** I raised that as a
+decision, framed it as a billing trade, and recommended nothing. **The ruling is KEEP, and the
+reasoning corrects my framing rather than merely overriding it.**
 
-The trade, stated plainly so it can be overruled with the number in hand:
+Billed minutes are not the constraint here. This repository is PUBLIC and bills zero, and the
+template's children will mostly be small; pricing the clause in minutes optimises a column that does
+not exist. The currency is DETECTION LATENCY, and what the trigger buys is that a harness-detectable
+defect surfaces on the commit that caused it rather than up to seven days later.
 
-- **Keeping it**, a merge to `main` that touches code costs 55 billed minutes instead of 61. Every
-  code change is fully harness-verified before it has been on the trunk for a day.
-- **Dropping it** - deleting the single clause
-  `|| (github.event_name == 'push' && needs.changes.outputs.code != 'false')` - takes that same
-  merge to **8**, an 87% cut, and leaves the harnesses on the weekly cron plus dispatch. The
-  exposure is that a defect the harnesses would catch can sit on `main` for up to seven days.
-- The `changes` job becomes pointless if the clause goes, and should go with it, taking the merge
-  to 7.
-
-**Built as the plan specifies. The measurement says the clause is where the money is. One line
-either way.**
+This project has already paid that bill twice, and both are in its own records: a control sat dead
+since `12e3c60`, and the mirror workflow failed 119 consecutive times. Neither was hard to find once
+someone looked; both were invisible because nothing looked promptly. **The clause stays.**
 
 ---
 
@@ -372,24 +394,45 @@ on the push path it would not be, which is the other half of why the tier moved.
 
 ---
 
-## 10. WHAT I COULD NOT MEASURE, AND WHY
+## 10. THE ASSURANCE TIER WAS FIRED, AND OBSERVED
 
-**The Assurance tier has not been FIRED on GitHub.** The brief asks for a `workflow_dispatch` proof
-that all 29 execute - "a tier nobody can fire is a deleted tier" - and `workflow_dispatch` requires
-the workflow to exist on a ref at the remote. The brief also says, last: *do NOT push*. Those two
-instructions cannot both be honoured, and the explicit prohibition won.
+**Run `33702126529`, `workflow_dispatch` against `ci/294-retier` at `30b16ab`, conclusion
+`success`.** This section previously said the tier had never been fired and that its trigger wiring
+was argued rather than observed. That is no longer true and the paragraph is replaced rather than
+annotated.
 
-What was done instead is the strongest local substitute, and it is stronger in one respect and
-weaker in another. Stronger: every step of the job was executed end to end, serially, under
-GitHub's own shell, so the TALLIES are real rather than predicted. Weaker: it proves nothing about
-the trigger wiring - the `if:` expression, the `needs` edge, and the `always()` guard are argued and
-`actionlint`-clean, not observed.
+### The shape that would have produced a tier which looks configured and does nothing
 
-**The one thing that must be watched on the first real run** is that `workflow_dispatch` reaches
-`harness-assurance` through a SKIPPED `changes` job. That is what `always()` is for, and it is the
-exact shape that, got wrong, produces a tier that looks configured and does nothing.
+    Merge - which paths changed                          skipped
+    Harness assurance - every harness and probe, serial   success
 
----
+**`changes` was SKIPPED and `harness-assurance` still ran.** That is `always()` doing the one job it
+exists for, observed on a real runner. Without it, a skipped need skips its dependants, and the
+manual trigger - the only one a human reaches for, and the only proof the tier is reachable at all -
+would have been the trigger that silently did nothing. It is the highest-risk line in the change and
+it is now measured rather than reasoned.
+
+Two smaller confirmations from the same run: pushing the branch to `origin` triggered **no run at
+all** (`gh run list --branch ci/294-retier` was empty before the dispatch), which is `on: push:
+branches: [main]` behaving; and `changes` bills nothing when skipped.
+
+### All 35 executed, with full tallies
+
+Every harness and probe step in the job reported `status=ok` with a complete tally - `fired=N/N`,
+`killed=N/N`, `applied=N/N` - and the job's 47 steps were 47 executed, 0 skipped, 0 non-success.
+Distinct harness and probe scripts reporting inside the assurance job: **35**.
+
+The only two lines in the whole run that are not a plain `status=ok` are both by design:
+
+- `check-pytest-bounded.sh rows=0 floor=0 status=refused`, in the GATE job, is the `--self-test`
+  arm from #236 refusing on a deliberately empty match; the very next line is the real invocation at
+  `rows=86 floor=0 status=ok`.
+- `VACUOUS ROWS: 1 (declared survivors included)` in `check-critical-coverage-amputation.sh`, whose
+  next line is **`UNDECLARED VACUOUS ROWS: 0`**. That one is A1, the declared survivor #94/#98
+  record. Every other harness printed `VACUOUS ROWS: 0`.
+
+`check-suite-floor.sh rows=889 floor=888 status=ok` - the suite count on the runner, matching the
+local measurement, one above its ratchet.
 
 ## 11. THE READING THAT DECIDES WHETHER THIS IS A WIN
 
