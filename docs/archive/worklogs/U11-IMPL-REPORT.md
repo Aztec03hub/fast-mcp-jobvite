@@ -17,7 +17,7 @@ Read in full, from the frozen object where the brief said to:
 - `pyproject.toml` - the advisory-ignores block and its comment, the ruff select list, mypy config.
 - TIER-1 standards from `/home/plafayette/claude_projects/evolv/MUST-READ-DOCS.md`: `backend/python.md` (the §6 `datetime.now(UTC)` clause at `:220-228`, line length at `:33-35`, import order at `:40-58`).
 
-**Not read in full, and I am naming it rather than implying coverage:** `devops/ci-cd.md` and `devops/quality-gates.md` I consulted only through `docs/COMPLIANCE-SPEC.md`'s citations of them and ADR-0015's quotation of `quality-gates.md:288-306`. I did not open either file directly. Nothing in my unit turned on a clause I had not read, but that is a claim about what I hit, not a claim of coverage.
+**Not read in full, and I am naming it rather than implying coverage:** `devops/ci-cd.md` and `devops/quality-gates.md` I consulted only through `docs/research/COMPLIANCE-SPEC.md`'s citations of them and ADR-0015's quotation of `quality-gates.md:288-306`. I did not open either file directly. Nothing in my unit turned on a clause I had not read, but that is a claim about what I hit, not a claim of coverage.
 
 **No clause I read contradicts the brief.** Nothing to escalate under `priority: required`.
 

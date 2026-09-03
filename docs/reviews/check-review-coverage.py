@@ -254,6 +254,20 @@ RECORD_PATHS: dict[str, str] = {
         "real one is still scored on the real one: `substantive` drops "
         "record paths and only an EMPTY remainder skips."
     ),
+    "docs/archive": (
+        "the retirement shelf. A file arrives here ONLY by `git mv` from "
+        "`docs/reviews/` or `docs/worklogs/`, both already records, and "
+        "only after nothing in the tracked tree names it - so its "
+        "exemption is inherited, not new. THE MOVE ITSELF IS INVISIBLE "
+        "TO THIS GATE and that is worth stating, because it looks like "
+        "the kind of change that would break it: this checker reads the "
+        "file lists git recorded AT each commit, so a path retired today "
+        "leaves every historical commit reading exactly as before. "
+        "Measured at the retirement commit: the whole report was "
+        "byte-identical except `Excluded, with a reason: 84 -> 63`. This "
+        "row is FORWARD-looking - it keeps a future commit that touches "
+        "only the shelf from entering the backlog as if it were work."
+    ),
     "docs/plans": (
         "ruled a RECORD at 0ec4c85 (task #111) - not repointed, not "
         "rewritten, and the SHA that makes that safe is guarded. A record "
