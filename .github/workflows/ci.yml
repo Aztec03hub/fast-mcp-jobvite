@@ -506,7 +506,12 @@ jobs:
       #
       # This step therefore had NEVER passed on a runner. It cannot until a
       # `STANDARDS_TOKEN` secret exists, which only the repository owner can
-      # create - the same class as `MIRROR_TOKEN`.
+      # create. `MIRROR_TOKEN` used to be the sibling example on this line and no
+      # longer is: the mirror's credential became `MIRROR_SSH_KEY` on 2026-09-04,
+      # and HOW it was created is the part worth carrying here - a write DEPLOY
+      # KEY can be minted through the API, where a PAT cannot. Whether that route
+      # is open to `STANDARDS_TOKEN` turns on how many repositories it must read;
+      # if the answer is one, it is.
       #
       # SO IT NOW STATES WHICH OF THE TWO STATES IT IS IN, and that is the
       # whole point. A gate that is red for a reason nobody on the team can
@@ -1349,7 +1354,14 @@ jobs:
       - name: The gate records who is mutating
         run: bash docs/reviews/probe-131-gate-state.sh
 
-      # THE MIRROR PUSH STEP HAS NEVER EXECUTED - there is no MIRROR_TOKEN, so
+      # THE MIRROR PUSH STEP HAD NEVER EXECUTED up to 2026-09-04 - there was no
+      # credential, so its `if:` skipped it on every run this repository had ever
+      # had, and this probe was written against a step nothing had run. That
+      # changed with `MIRROR_SSH_KEY`; the probe is unchanged and still correct,
+      # because it EXTRACTS the guard rather than retyping it. What is new is
+      # that its subject now runs, so a break in it will be observed rather than
+      # merely asserted. The original wording follows, as the reason it exists:
+      # there was no MIRROR_TOKEN, so
       # its `if:` has skipped it on every run this repository has ever had. Its
       # own comment said "mirroring nothing and mirroring everything must not
       # both read as success", and the remedy it shipped only PRINTED the refs

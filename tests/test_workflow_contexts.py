@@ -170,8 +170,14 @@ def test_the_mirror_reports_its_own_state_on_every_run() -> None:
     assert len(steps) == 2, "mirror.yml has no steps block"
 
     first, _, rest = steps[1].partition("- uses:")
-    assert "MIRROR_TOKEN" in first, (
-        "the mirror's first step should report whether MIRROR_TOKEN is set, "
+    # The credential was MIRROR_TOKEN (a PAT) until
+    # 2026-09-04 and is now MIRROR_SSH_KEY, a write deploy
+    # key scoped to the mirror repository alone. `r3h1`
+    # above still carries the OLD name on purpose: that
+    # string is the historical expression this module
+    # exists to catch, not a live reference.
+    assert "MIRROR_SSH_KEY" in first, (
+        "the mirror's first step should report whether MIRROR_SSH_KEY is set, "
         "before anything conditional runs"
     )
     assert "if:" not in first, (
