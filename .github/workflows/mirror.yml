@@ -1,32 +1,40 @@
 name: Mirror to personal fork
 
-# Belt-and-braces mirror. Day to day, pushes from the maintainer's machine already
-# reach both remotes because `origin` carries two push URLs. This job covers pushes
-# that do not originate there (web edits, other maintainers, merged PRs).
+# The off-site copy of this repository at Aztec03hub/fast-mcp-jobvite.
 #
-# It is inert until the repository defines a MIRROR_TOKEN secret: a PAT on the
-# mirror account with `contents: write` on Aztec03hub/fast-mcp-jobvite.
+# THIS WORKFLOW IS NOW THE ONLY THING THAT MIRRORS. Until 2026-09-04 the day-to-day
+# copying was done client-side, by a second push URL on `origin`, and this file was
+# described as "belt and braces" over the top of it. Both of those facts are gone:
+# the second push URL has been removed, and this job does the whole job.
 #
-# THIS FILE HAD NEVER RUN ONCE. Found by review R3 (R3-H1), measured from the
-# Actions API: 119 runs, 119 failures, zero successes, every one of them with
-# `"total_count": 0` jobs and a 0s duration. The cause was a job-level
+# THE REASON IT HAD TO CHANGE IS BRANCH PROTECTION. `main` now requires a pull
+# request and a passing `Gate` check, so merges happen on github.com and never
+# touch a maintainer's `git push`. A client-side mirror cannot see a merge it does
+# not perform. Left as it was, the personal copy would have fallen behind on the
+# first merged PR with nothing anywhere going red - the exact shape this file
+# already exists to prevent, arriving through a door nobody was watching.
+#
+# CREDENTIAL: a WRITE DEPLOY KEY, not a PAT. `MIRROR_SSH_KEY` holds the private
+# half of an ed25519 pair whose public half is registered on the mirror repository
+# with `read_only: false`. A deploy key is scoped to exactly one repository, which
+# a personal access token is not, and it can be created through the API, which a
+# PAT cannot. If it is ever leaked the blast radius is push access to a public
+# mirror and nothing else; revoke it by deleting the key from that repo's settings.
+#
+# THIS FILE HAD NEVER RUN ONCE before 647442f. Found by review R3 (R3-H1),
+# measured from the Actions API: 119 runs, 119 failures, zero successes, every one
+# of them with `"total_count": 0` jobs and a 0s duration. The cause was a job-level
 # `if` reading the `secrets` context, which GitHub does not provide in that
 # position - it allows `github`, `needs`, `vars` and `inputs` there - so the
 # expression failed to evaluate and the run died before any runner was scheduled.
 #
-# TWO LESSONS ARE BUILT INTO THE SHAPE BELOW.
-#
-# First, the old comment said the job "is inert until the repository defines a
-# MIRROR_TOKEN secret". It was inert UNCONDITIONALLY, and from the outside those
-# two states looked identical - which is precisely why 119 red runs went unread.
-# A configured-off state and a broken state must not look the same, so the first
-# step SAYS which one it is on every run.
-#
-# Second, the secret does not exist yet (`actions/secrets` reports
-# `total_count: 0` at the repository AND at the organisation, re-checked
-# 2026-09-02), so this workflow still mirrors nothing today. It says so in a
-# green run instead of failing. Creating the PAT is a maintainer action and is
-# recorded in NEEDS-PHIL.md.
+# THE LESSON BUILT INTO THE SHAPE BELOW. The old comment said the job "is inert
+# until the repository defines a MIRROR_TOKEN secret". It was inert
+# UNCONDITIONALLY, and from the outside those two states looked identical - which
+# is precisely why 119 red runs went unread. A configured-off state and a broken
+# state must not look the same, so the first step SAYS which one it is on every
+# run. That guard is kept even though the credential now exists, because "the
+# secret was rotated and not replaced" is the same state wearing a later date.
 #
 # ------------------------------------------------------------------------------
 # WHY THIS RUNS DAILY AND NOT ON EVERY PUSH (#157), WITH THE NUMBERS
@@ -43,54 +51,50 @@ name: Mirror to personal fork
 #       rounding, proportionally the worst job in the repository
 #   277 of the 298 pushes were to `main`
 #
-# AND THE 213 MINUTES BOUGHT NOTHING, which is the fact that settles it. With no
-# MIRROR_TOKEN, every one of those runs printed a notice and pushed no refs.
-# Meanwhile the mirror IS current: `git ls-remote` against both remotes on
-# 2026-09-02 returned 20 refs each, identical SHAs on every one, delivered
-# entirely by the two-push-URL `origin` this file's opening paragraph describes.
-# The per-push trigger was paying a per-push price for a per-push guarantee the
-# job does not provide and, once MIRROR_TOKEN exists, would only duplicate.
-#
 # A daily copy costs ~31 min a month against ~1300 at the observed push rate.
-# Neither `docs/DESIGN.md` §10 nor `docs/DECISIONS.md` D8 states a freshness
-# requirement for the mirror - both say only that the repository IS mirrored - so
-# per-push was an unrecorded choice, not a requirement, and this is a change of
-# cadence rather than of contract. Tag pushes still mirror immediately: a release
-# is the one moment the off-site copy is worth a minute, and zero tags were
-# pushed in the window, so keeping that trigger measured 0 min.
+# Tag pushes still mirror immediately: a release is the one moment the off-site
+# copy is worth a minute, and zero tags were pushed in the window, so keeping that
+# trigger measured 0 min.
 #
-# AND THIS IS NOT A DESIGN FOR TODAY'S NO-OP ONLY. When MIRROR_TOKEN exists the
-# bill gets WORSE, not better: a job is billed a whole minute whatever it does,
-# and a run becomes a depth-0 checkout plus a full ref push instead of 3s of
-# echo. Nothing reads the mirror as a live endpoint either - every reference to
-# `Aztec03hub` in this tree is descriptive - so it is a COPY, whose requirement
-# is that it is complete, not that it is seconds old. There is even an argument
-# for the delay: `docs/research/FASTMCP.md:845` records that this mirror
-# "doubles the blast radius of a committed secret and mirrors history", and a
-# per-push force-push of every ref races the TruffleHog step at `ci.yml:745`
-# with no ordering between them. A daily cadence puts the scan first.
+# THE ARGUMENT THAT MADE THIS CHEAP HAS WEAKENED, AND SAYING SO IS THE POINT.
+# When #157 chose a daily cadence, the 213 minutes bought literally nothing - with
+# no credential, every one of those runs printed a notice and pushed no refs - and
+# the copy was being kept current by the two-push-URL `origin` regardless. Neither
+# of those is true any more. The runs now do real work, and nothing else copies.
+# The cadence still stands, but it now rests on a different and weaker claim: that
+# a COPY's requirement is completeness, not freshness. Neither `docs/DESIGN.md`
+# §10 nor `docs/DECISIONS.md` D8 states a freshness requirement - both say only
+# that the repository IS mirrored - so daily remains inside the contract.
 #
-# THE RESIDUAL, so nobody inherits it unstated: a push that does NOT come from
-# the maintainer's machine is now mirrored up to 24h later rather than within a
-# minute. In the measured window that population was ZERO. How stale the copy
-# may be is a maintainer's call; if the answer is "minutes", the shape is
-# per-push with `cancel-in-progress: true` and the bill returns to ~1300 min a
-# month. Either way it is one commit.
+# There is also a positive argument for the delay. `docs/research/FASTMCP.md:845`
+# records that this mirror "doubles the blast radius of a committed secret and
+# mirrors history", and a per-push force-push of every ref races the TruffleHog
+# step at `ci.yml:745` with no ordering between them. A daily cadence puts the
+# scan first.
+#
+# THE RESIDUAL, so nobody inherits it unstated: EVERY push is now mirrored up to
+# 24h later rather than within a minute, where previously that was true only of
+# pushes not originating on the maintainer's machine - a population that measured
+# ZERO in the window. This is a real reduction in freshness and it is deliberate.
+# How stale the copy may be is a maintainer's call; if the answer is "minutes",
+# the shape is per-push with `cancel-in-progress: true` and the bill returns to
+# ~1300 min a month. Either way it is one commit.
 #
 # HOW THE NEXT PERSON NOTICES IT HAS STOPPED. This is the #18 question and a
 # schedule makes it sharper, because nobody looks at a cron the way they look at
 # a red tick beside their own commit. So the first step no longer only reports
 # its own configuration - it reports whether the MIRROR IS ACTUALLY CURRENT, by
-# comparing the two remotes' refs. That check needs no token and no working
-# mirror, so it is meaningful today and stays meaningful whichever mechanism
-# does the copying.
+# comparing the two remotes' refs. That check needs no credential and no working
+# mirror, so it is meaningful whichever mechanism does the copying. It matters
+# more now than it did: with the push URL gone, this comparison is the only thing
+# in the system that can observe the copy falling behind.
 #
 # It would NOT have caught R3-H1, and the first draft of this paragraph claimed
 # it would. Those 119 runs died before any job was scheduled, so no step of any
 # kind ran; nothing written inside a step could have spoken. What this check
 # adds is the THIRD state: R3-H1's fix separated "switched off" from "broken",
 # and this separates both from "running but copying nothing" - which is the
-# state this repository has been in for 213 billed runs with nobody saying so.
+# state this repository was in for 213 billed runs with nobody saying so.
 #
 # Two failure modes remain and are named rather than hidden:
 #
@@ -99,8 +103,7 @@ name: Mirror to personal fork
 #     if the project goes quiet.
 #   * If the workflow stops being RUN at all, no run reports anything. Only a
 #     check outside this file can see that; it is not wired here on purpose,
-#     because #161 is closing the trunk's last red step and this change must not
-#     add one.
+#     because a mirror failure must not turn the trunk red.
 
 on:
   schedule:
@@ -124,12 +127,13 @@ jobs:
     # UNCAPPED WOULD MEAN SIX HOURS - a push to one remote; unmeasured here, sized small on purpose.
     timeout-minutes: 10
     # Job-level `env` MAY read secrets, and the `env` context IS available in a
-    # step-level condition. That is the whole fix: the guard moves from a context
-    # that cannot see secrets to one that can.
+    # step-level condition. That is the whole fix for R3-H1: the guard moves from
+    # a context that cannot see secrets to one that can.
     env:
-      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      MIRROR_SSH_KEY: ${{ secrets.MIRROR_SSH_KEY }}
       CANONICAL_URL: https://github.com/evolvconsulting/fast-mcp-jobvite.git
       MIRROR_URL: https://github.com/Aztec03hub/fast-mcp-jobvite.git
+      MIRROR_SSH_URL: git@github.com:Aztec03hub/fast-mcp-jobvite.git
     steps:
       # Runs unconditionally and on purpose. This is the step that makes
       # "switched off" distinguishable from "broken" without reading logs, and
@@ -138,22 +142,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          # THE STEP SUMMARY, NOT ONLY A NOTICE. The two steps below are
-          # skipped when MIRROR_TOKEN is absent, and a skipped step renders as
-          # a green job - so the run's own status cannot distinguish "mirrored
-          # everything" from "mirrored nothing". A `::notice::` is only in the
-          # log; the summary is on the run's front page, which is the surface
-          # someone actually looks at. Same lesson as the 119 unread failures,
-          # one layer out.
-          if [ -z "${MIRROR_TOKEN}" ]; then
-            echo "::notice::MIRROR_TOKEN is not set, so THIS JOB mirrors nothing. This run is a"
-            echo "::notice::correct no-op, not a success at mirroring. See NEEDS-PHIL.md."
-            echo "### Mirror: NO-OP - MIRROR_TOKEN is not set" >> "${GITHUB_STEP_SUMMARY}"
-            echo "The push steps below are SKIPPED. This green run copied nothing." \
+          # THE STEP SUMMARY, NOT ONLY A NOTICE. The steps below are skipped when
+          # MIRROR_SSH_KEY is absent, and a skipped step renders as a green job -
+          # so the run's own status cannot distinguish "mirrored everything" from
+          # "mirrored nothing". A `::notice::` is only in the log; the summary is
+          # on the run's front page, which is the surface someone actually looks
+          # at. Same lesson as the 119 unread failures, one layer out.
+          if [ -z "${MIRROR_SSH_KEY}" ]; then
+            echo "::notice::MIRROR_SSH_KEY is not set, so THIS JOB mirrors nothing. Since the"
+            echo "::notice::second push URL was removed, NOTHING mirrors. This run is a correct"
+            echo "::notice::no-op at the job level and a real gap at the system level."
+            echo "### Mirror: NO-OP - MIRROR_SSH_KEY is not set" >> "${GITHUB_STEP_SUMMARY}"
+            echo "The push steps below are SKIPPED. This green run copied nothing, and no" \
               >> "${GITHUB_STEP_SUMMARY}"
+            echo "other mechanism copies either." >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "MIRROR_TOKEN is set; mirroring every branch and tag."
-            echo "### Mirror: ACTIVE - MIRROR_TOKEN is set" >> "${GITHUB_STEP_SUMMARY}"
+            echo "MIRROR_SSH_KEY is set; mirroring every branch and tag."
+            echo "### Mirror: ACTIVE - MIRROR_SSH_KEY is set" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
           # Whether the copy is current is a separate question from whether this
@@ -185,14 +190,46 @@ jobs:
           fi
 
       - uses: actions/checkout@v6
-        if: env.MIRROR_TOKEN != ''
+        if: env.MIRROR_SSH_KEY != ''
         with:
           # 0 fetches every branch and tag, which the refspec below then pushes.
           # A shallow default would mirror only the ref that triggered the run.
           fetch-depth: 0
 
+      - name: Install the deploy key
+        if: env.MIRROR_SSH_KEY != ''
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${MIRROR_SSH_KEY}" > ~/.ssh/mirror_key
+          chmod 600 ~/.ssh/mirror_key
+
+          # HOST KEYS FROM GITHUB'S OWN API OVER TLS, not `ssh-keyscan`. Keyscan
+          # is trust-on-first-use against whatever answers on port 22: on a
+          # compromised path it would cheerfully record the attacker's key and
+          # the push would succeed against the wrong host. `api.github.com/meta`
+          # is authenticated by the TLS chain the runner already trusts, so this
+          # pins the real thing. Empty output is refused rather than written,
+          # because an empty known_hosts fails in a way that looks like a network
+          # blip and would otherwise be papered over by StrictHostKeyChecking=no.
+          keys=$(curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[]')
+          if [ -z "${keys}" ]; then
+            echo "::error::api.github.com/meta returned no ssh_keys, so github.com's host"
+            echo "::error::identity cannot be pinned. Refusing to push over an unverified host."
+            exit 1
+          fi
+          printf 'github.com %s\n' ${keys} > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "pinned $(wc -l < ~/.ssh/known_hosts) github.com host keys from api.github.com/meta"
+
       - name: Push to mirror
-        if: env.MIRROR_TOKEN != ''
+        if: env.MIRROR_SSH_KEY != ''
+        env:
+          GIT_SSH_COMMAND: >-
+            ssh -i ~/.ssh/mirror_key -o IdentitiesOnly=yes
+            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes
         run: |
           set -euo pipefail
 
@@ -211,8 +248,7 @@ jobs:
             exit 1
           fi
 
-          git push --prune --force \
-            "https://x-access-token:${MIRROR_TOKEN}@github.com/Aztec03hub/fast-mcp-jobvite.git" \
+          git push --prune --force "${MIRROR_SSH_URL}" \
             "+refs/remotes/origin/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
 
           echo "mirrored ${refs} refs:"
